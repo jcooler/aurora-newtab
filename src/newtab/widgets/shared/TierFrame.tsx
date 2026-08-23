@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
+import type { WidgetPresentationState } from '../../widgetSizeContracts'
 
 export type TierFrameTier = 'compact' | 'standard' | 'full'
 
 export interface TierFrameProps {
   label: string
   tier: TierFrameTier
-  state: string
+  state: WidgetPresentationState
   className?: string
   children: ReactNode
 }

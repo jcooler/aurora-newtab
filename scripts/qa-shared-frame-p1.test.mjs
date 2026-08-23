@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import {
+  applySfP1ReviewedVerdicts,
+  buildSfP1CapturePlan,
   buildSfP1EvidenceManifest,
+  formatSfP1Catalog,
+  resolveSfP1BrowserMode,
+  setSfP1ScenarioViewport,
   validateSfP1EvidenceManifest,
 } from './qa-shared-frame-p1.mjs'
 
@@ -13,8 +18,17 @@ function clone(value) {
   return structuredClone(value)
 }
 
+function manifestFor(source) {
+  const plan = buildSfP1CapturePlan(source)
+  const verdicts = Object.fromEntries(plan.captures.map(({ key }) => [key, {
+    verdict: 'Useful',
+    reason: 'Explicit reviewed test fixture.',
+  }]))
+  return buildSfP1EvidenceManifest(source, verdicts)
+}
+
 function manifest() {
-  return buildSfP1EvidenceManifest(contractSource)
+  return manifestFor(contractSource)
 }
 
 test('derives the exact Weather and On This Day matrix from the committed presentation authority', () => {
@@ -40,7 +54,7 @@ test('derives the exact Weather and On This Day matrix from the committed presen
   )
   assert.notEqual(changedSource, contractSource, 'the source mutation fixture must apply')
   assert.deepEqual(
-    buildSfP1EvidenceManifest(changedSource).references[0].tiers,
+    manifestFor(changedSource).references[0].tiers,
     ['standard', 'full'],
     'the evidence tier matrix must follow the authority instead of a mirrored list',
   )
@@ -51,7 +65,7 @@ test('derives the exact Weather and On This Day matrix from the committed presen
   )
   assert.notEqual(changedStates, contractSource, 'the state mutation fixture must apply')
   assert.deepEqual(
-    buildSfP1EvidenceManifest(changedStates).references[0].states,
+    manifestFor(changedStates).references[0].states,
     ['loading', 'ready', 'empty', 'stale', 'partial', 'hard-error'],
     'the evidence state matrix must follow the authority instead of a mirrored list',
   )
@@ -71,6 +85,60 @@ test('fails closed when presentation-contract syntax can no longer be evaluated'
 
 test('accepts the complete scalable evidence manifest', () => {
   assert.doesNotThrow(() => validateSfP1EvidenceManifest(manifest()))
+})
+
+test('fails closed when any capture lacks a separate reviewed verdict', () => {
+  const plan = buildSfP1CapturePlan(contractSource)
+  const verdicts = Object.fromEntries(plan.captures.slice(1).map(({ key }) => [key, {
+    verdict: 'Useful',
+    reason: 'Explicit reviewed test fixture.',
+  }]))
+  assert.throws(
+    () => applySfP1ReviewedVerdicts(plan, verdicts),
+    new RegExp(plan.captures[0].key),
+  )
+  assert.ok(plan.captures.every((capture) => !('verdict' in capture)), 'capture planning must never manufacture verdicts')
+})
+
+test('labels a reviewed catalog generated from dirty preliminary evidence', () => {
+  const catalog = formatSfP1Catalog({
+    build: {
+      commit: 'candidate-commit',
+      provenance: { commit: 'candidate-commit' },
+      preliminaryWorkingTree: true,
+    },
+    browser: { name: 'chromium', version: 'test' },
+    captures: [],
+  })
+
+  assert.match(catalog, /preliminary working-tree witness/i)
+  assert.match(catalog, /not final exact-reviewed proof/i)
+  assert.equal(catalog.endsWith('\n\n'), false)
+})
+
+test('covers black, light, saturated blue, and bright pink panels plus true proportional narrow scaling', () => {
+  const result = manifest()
+  assert.deepEqual(result.themes.map(({ id }) => id), ['dark', 'light', 'saturated', 'bright-pink'])
+  assert.ok(result.viewports.some(({ width, height }) => width === 599 && height === 800))
+  assert.ok(result.viewports.some(({ width, height }) => width === 600 && height === 800))
+  assert.ok(result.viewports.some(({ width, height }) => width === 412 && height === 915))
+  for (const widget of ['weather', 'onThisDay']) {
+    assert.ok(result.captures.some((capture) => capture.widget === widget && capture.tier === 'full' && capture.viewport === 'phone-narrow'))
+  }
+})
+
+test('real-window mode requires headed viewport:null and cannot call page.setViewportSize', async () => {
+  assert.throws(() => resolveSfP1BrowserMode(['--real-window']), /headed/i)
+  const mode = resolveSfP1BrowserMode(['--headed', '--real-window'])
+  assert.equal(mode.contextViewport, null)
+  assert.equal(mode.emulatesViewport, false)
+  const page = { setViewportSize: async () => assert.fail('real-window mode attempted emulation') }
+  await setSfP1ScenarioViewport(page, { width: 412, height: 915 }, mode)
+
+  const emulated = resolveSfP1BrowserMode([])
+  let received = null
+  await setSfP1ScenarioViewport({ setViewportSize: async (viewport) => { received = viewport } }, { width: 412, height: 915 }, emulated)
+  assert.deepEqual(received, { width: 412, height: 915 })
 })
 
 test('rejects a missing declared ready tier capture', () => {

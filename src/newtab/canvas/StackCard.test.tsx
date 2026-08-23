@@ -218,7 +218,7 @@ describe('StackCard', () => {
     expect(indexCss).toMatch(/\.stack-card__member\s*\{[^}]*grid-area:\s*1\s*\/\s*1;/)
     expect(indexCss).toMatch(/\.stack-card__member\[data-stack-active="false"\]\s*\{[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/)
     expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*position:\s*absolute;/)
-    expect(indexCss).toMatch(/\.stack-card__dots\s*\{[^}]*opacity:\s*0\.45;/)
+    expect(indexCss).toMatch(/\.stack-card__dots\s*\{[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
     expect(indexCss).toMatch(/\.stack-card__dots--editing\s*\{[^}]*opacity:\s*1;/)
     expect(indexCss).toMatch(/\.stack-card:focus-visible\s*\{[^}]*outline:/)
     const outer = indexCss.match(/\.stack-card\s*\{[^}]*\}/)?.[0] ?? ''
@@ -230,6 +230,13 @@ describe('StackCard', () => {
   it('keeps paging arrows hidden and non-interactive until the stack is hovered or focused', () => {
     expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
     expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__arrow,\s*\.stack-card:focus-within \.stack-card__arrow\s*\{[^}]*opacity:\s*0\.9;[^}]*visibility:\s*visible;[^}]*pointer-events:\s*auto;/s)
+  })
+
+  it('gives arrows and dots 36px targets while keeping their visible marks quiet', () => {
+    expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
+    expect(indexCss).toMatch(/\.stack-card__dot\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
+    expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__dots,[\s\S]*?pointer-events:\s*auto;/)
+    expect(indexCss).toMatch(/\.stack-card__dot::before\s*\{[^}]*inset:\s*15px;/s)
   })
 
   it('prevents a horizontal stack swipe from starting native text selection', () => {

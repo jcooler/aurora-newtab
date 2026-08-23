@@ -20,6 +20,8 @@
   background: var(--panel-solid);
   color: var(--fg);
   --tier-frame-muted: var(--fg-muted);
+  --tier-frame-accent: var(--panel-accent);
+  --accent: var(--tier-frame-accent);
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.25);
   transition: box-shadow 120ms ease;
 }
@@ -28,19 +30,56 @@
   min-height: 0;
 }
 .weather-tier-summary {
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
+  justify-content: space-between;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
 }
 .tier-frame--compact .weather-tier-summary {
-  gap: 0.375rem;
+  justify-content: center;
+  gap: 0.5rem;
   padding: 0.625rem 0.75rem;
 }
 .tier-frame--compact .weather-tier-summary [data-weather-summary-row="current"] {
   gap: 0.5rem;
 }
 .tier-frame--full .weather-tier-summary {
-  gap: 0.625rem;
-  padding: 0.875rem 1rem;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+.tier-frame--full .weather-tier-summary [data-weather-current] {
+  font-size: 2.75rem;
+}
+.tier-frame .weather-tier-summary [data-weather-current] [data-canvas-type-role="metadata"] {
+  font-size: 12px;
+}
+.tier-frame .weather-tier-summary [data-weather-freshness] {
+  font-size: 12px;
+}
+.weather-tier-summary [data-weather-summary-metrics] {
+  min-height: 3.25rem;
+  align-items: center;
+}
+.weather-tier-summary [data-weather-summary-hourly] > span {
+  display: grid;
+  min-height: 3.25rem;
+  place-items: center;
+  grid-template-rows: auto auto 1fr;
+}
+.weather-tier-summary [data-weather-summary-hourly] svg {
+  margin-top: 0.125rem;
+}
+@media (max-width: 483px) {
+  .tier-frame--full .weather-tier-summary {
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+  }
+  .tier-frame--full .weather-tier-summary [data-weather-current] {
+    font-size: 2.5rem;
+  }
+  .tier-frame--full .weather-tier-summary [data-weather-summary-metrics],
+  .tier-frame--full .weather-tier-summary [data-weather-summary-hourly] > span {
+    min-height: 3rem;
+  }
 }
 .weather-tier-state {
   display: flex;
@@ -49,20 +88,44 @@
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.5rem;
   padding: 1rem;
   font-size: 14px;
   line-height: 1.4;
 }
+.weather-tier-state__header h2 {
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+}
+.weather-tier-state__header p {
+  color: var(--tier-frame-muted);
+  font-size: 12px;
+}
+.weather-tier-state__skeleton {
+  display: grid;
+  gap: 0.5rem;
+}
+.weather-tier-state__skeleton span,
+.on-this-day-tier-skeleton i,
+.on-this-day-tier-skeleton b {
+  display: block;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--fg) 13%, transparent);
+}
+.weather-tier-state__skeleton span { height: 0.625rem; }
+.weather-tier-state__skeleton span:nth-child(1) { width: 42%; }
+.weather-tier-state__skeleton span:nth-child(2) { width: 76%; }
+.weather-tier-state__skeleton span:nth-child(3) { width: 58%; }
 .tier-frame--compact .weather-tier-state {
-  gap: 0.375rem;
-  padding: 0.625rem 0.75rem;
+  gap: 0.25rem;
+  padding: 0.5rem 0.625rem;
 }
 .tier-frame--compact .weather-tier-state--setup {
   justify-content: flex-start;
 }
-.tier-frame--compact .weather-tier-state--setup > div > div {
+.tier-frame--compact .weather-tier-state--setup .location-setup__controls {
   flex-direction: row;
   align-items: flex-start;
 }
@@ -72,18 +135,40 @@
 .tier-frame--compact .weather-tier-state--setup [data-location-label="compact"] {
   display: inline;
 }
-.tier-frame--compact .weather-tier-state--setup > div > div > div {
+.tier-frame--compact .weather-tier-state--setup .location-setup__search {
   width: auto;
   min-width: 0;
   flex: 1 1 0%;
 }
+.location-setup[data-location-tier="compact"] .location-setup__prompt {
+  display: none;
+}
+.location-setup[data-location-tier="compact"] .location-setup__controls {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.location-setup[data-location-tier="compact"] .location-setup__device {
+  order: 2;
+  flex-shrink: 0;
+}
+.location-setup[data-location-tier="compact"] .location-setup__search {
+  order: 1;
+  width: auto;
+  min-width: 0;
+  flex: 1 1 0%;
+}
+.location-setup[data-location-tier="compact"] input {
+  width: 100%;
+}
+.location-setup[data-location-tier="compact"] [data-location-label="full"] { display: none; }
+.location-setup[data-location-tier="compact"] [data-location-label="compact"] { display: inline; }
 .tier-frame--compact .weather-tier-state--setup input {
   width: 100%;
 }
 .on-this-day-tier-header {
   flex: 0 0 auto;
   border-bottom: 1px solid var(--panel-border);
-  padding: 0.625rem 0.75rem 0.5rem;
+  padding: 0.25rem 0.75rem 0.1875rem;
 }
 .on-this-day-tier-header h2 {
   font-size: 14px;
@@ -101,16 +186,33 @@
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  padding: 0.5rem 0.75rem 0.625rem;
+  padding: 0.1875rem 0.75rem;
 }
 .on-this-day-tier-state {
   justify-content: center;
 }
+.on-this-day-tier-content--loading {
+  justify-content: flex-start;
+  gap: 0.625rem;
+}
+.on-this-day-tier-skeleton {
+  display: grid;
+  gap: 0.5rem;
+}
+.on-this-day-tier-skeleton > span {
+  display: grid;
+  min-height: 1.5rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+.on-this-day-tier-skeleton i { height: 0.5rem; }
+.on-this-day-tier-skeleton b { height: 0.625rem; }
 .on-this-day-tier-list {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.125rem;
 }
 .on-this-day-tier-item {
   gap: 0.5rem;
@@ -131,41 +233,76 @@
   font-size: 12px;
   line-height: 1.25;
   cursor: pointer;
+  align-items: center;
 }
 .on-this-day-tier-provider:hover {
-  color: var(--accent);
+  color: var(--tier-frame-accent);
 }
 .on-this-day-tier-provider:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--tier-frame-accent);
 }
 .tier-frame--compact .on-this-day-tier-header {
-  padding: 0.5rem 0.625rem 0.375rem;
+  padding: 0.375rem 0.625rem 0.25rem;
 }
 .tier-frame--compact .on-this-day-tier-content {
-  padding: 0.375rem 0.625rem 0.5rem;
+  padding: 0.25rem 0.625rem;
 }
 .tier-frame--compact .on-this-day-tier-list {
   gap: 0.25rem;
 }
+.tier-frame--compact .on-this-day-tier-item > :last-child {
+  line-height: 18px;
+}
 .tier-frame--full .on-this-day-tier-header {
-  padding-inline: 1rem;
+  padding: 0.5rem 1rem 0.375rem;
 }
 .tier-frame--full .on-this-day-tier-content {
-  padding-inline: 1rem;
+  padding: 0.375rem 1rem 0.5rem;
 }
-.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-header,
-.on-this-day-tier-frame[data-tier-frame-state="retained-error"] .on-this-day-tier-header {
-  padding-block: 0.375rem;
+.tier-frame--full .on-this-day-tier-list {
+  gap: 0.25rem;
 }
-.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-content,
-.on-this-day-tier-frame[data-tier-frame-state="retained-error"] .on-this-day-tier-content {
-  padding-block: 0.375rem;
+.tier-frame--full .on-this-day-tier-item > :last-child {
+  line-height: 18px;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-header {
+  padding-block: 0.1875rem;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-content {
+  padding-block: 0.1875rem;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-content > div:last-child {
+  margin-top: 0.125rem;
+  padding-top: 0.125rem;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-content > div:last-child button {
+  margin-top: 0.125rem;
+}
+@media (max-width: 483px) {
+  .tier-frame--full .on-this-day-tier-header {
+    padding: 0.1875rem 0.75rem;
+  }
+  .tier-frame--full .on-this-day-tier-content {
+    padding: 0.1875rem 0.75rem;
+  }
+  .tier-frame--full .on-this-day-tier-content > .on-this-day-tier-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.125rem 0.5rem;
+  }
+  .tier-frame--full .on-this-day-tier-content > .on-this-day-tier-list > :last-child {
+    grid-column: 1 / -1;
+  }
+  .tier-frame--full .on-this-day-tier-sections {
+    margin-top: 0.125rem;
+    padding-top: 0.125rem;
+  }
 }
 .tier-frame--compact { --tier-frame-width: 216px; --tier-frame-ratio: 216 / 132; }
 .tier-frame--standard { --tier-frame-width: 320px; --tier-frame-ratio: 320 / 200; }
 .tier-frame--full { --tier-frame-width: 460px; --tier-frame-ratio: 460 / 284; }
 .tier-frame:focus-within {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--tier-frame-accent);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -263,7 +400,7 @@
      controls outside that box looked correct but Chromium hit-tested the
      Canvas surface instead, making the arrows and dots decorative. The
      gutters are transparent control space, not a second card surface. */
-  padding: 0 28px 20px;
+  padding: 0 40px 36px;
   touch-action: pan-y;
   user-select: none;
   transition: filter 120ms ease;
@@ -284,10 +421,10 @@
 .stack-card__arrow {
   position: absolute;
   z-index: 2;
-  top: calc(50% - 10px);
+  top: calc(50% - 18px);
   display: grid;
-  width: 24px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   translate: 0 -50%;
   place-items: center;
   border: 0;
@@ -319,25 +456,29 @@
   left: 50%;
   display: flex;
   translate: -50% 0;
-  opacity: 0.45;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transition: opacity 120ms ease;
 }
 .stack-card:hover .stack-card__dots,
 .stack-card:focus-within .stack-card__dots,
 .stack-card__dots--editing {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 .stack-card__dot {
   position: relative;
-  width: 20px;
-  height: 20px;
+  width: 36px;
+  height: 36px;
   border: 0;
   background: transparent;
   cursor: pointer;
 }
 .stack-card__dot::before {
   position: absolute;
-  inset: 7px;
+  inset: 15px;
   border-radius: 9999px;
   background: var(--fg-muted);
   content: "";
@@ -347,12 +488,12 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel-solid) 75%, transparent);
 }
 .stack-card:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--panel-accent);
   outline-offset: 2px;
 }
 .stack-card__arrow:focus-visible,
 .stack-card__dot:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--panel-accent);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {

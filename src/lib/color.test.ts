@@ -49,14 +49,17 @@ describe('derivedFg (readable text + color-scheme for a panel color)', () => {
     expect(derivedFg('#ffffff').fg).toBe('#1a1a1a')
   })
 
-  it('flips at the ~0.45 luminance threshold — #b0b0b0 (≈0.434) stays dark-scheme', () => {
-    // Just BELOW the threshold: still a "dark" panel needing light text.
-    expect(derivedFg('#b0b0b0').scheme).toBe('dark')
+  it('chooses the higher-contrast ink rather than a fixed luminance threshold', () => {
+    expect(derivedFg('#b0b0b0').scheme).toBe('light')
   })
 
   it('flips at the ~0.45 luminance threshold — #bbbbbb (≈0.497) crosses to light-scheme', () => {
     // Just ABOVE the threshold: a "light" panel needing dark text.
     expect(derivedFg('#bbbbbb').scheme).toBe('light')
+  })
+
+  it.each(['#000000', '#e5e7eb', '#0057b8', '#ff69b4'])('keeps primary panel ink above 4.5:1 on %s', (panel) => {
+    expect(contrastRatio(derivedFg(panel).fg, panel)).toBeGreaterThanOrEqual(4.5)
   })
 })
 

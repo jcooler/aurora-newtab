@@ -73,6 +73,13 @@ function Chevron({ expanded }: { expanded: boolean }) {
   )
 }
 
+function freshnessLabel(fetchedAt: number, now = Date.now()): string {
+  const minutes = Math.max(0, Math.floor((now - fetchedAt) / 60_000))
+  if (minutes < 1) return 'Updated just now'
+  if (minutes < 60) return `Updated ${minutes}m ago`
+  return `Updated ${Math.floor(minutes / 60)}h ago`
+}
+
 export default function WeatherWidget({
   onExpandedChange,
   stageVariant = 'standard',
@@ -433,27 +440,41 @@ export default function WeatherWidget({
     >
       {location === null && (
         <div className="weather-tier-state weather-tier-state--setup">
-          <LocationSetup />
+          <LocationSetup tier={summarySize} />
         </div>
       )}
       {location && !snapshot && (
-        <div className="weather-tier-state text-sm text-fg-muted">
-          <ResourceFeedback
-            state={state}
-            loading={'Loading weather\u2026'}
-            refreshing={'Refreshing\u2026'}
-            stale="Updated a while ago"
-            offline={'Offline \u2014 showing cached'}
-            unavailable="Weather unavailable. Try again."
-            id={feedbackId}
-          />
-          {state.operation === 'idle' && <p>No data yet.</p>}
-          {(state.operation === 'error' || retrying) && (
+        <div className={`weather-tier-state weather-tier-state--${frameState} text-sm text-fg-muted`}>
+          <header className="weather-tier-state__header">
+            <h2>Weather</h2>
+            <p>{location.label}</p>
+          </header>
+          {frameState === 'loading' ? (
+            <div data-weather-state-skeleton="" aria-hidden="true" className="weather-tier-state__skeleton">
+              <span />
+              <span />
+              <span />
+            </div>
+          ) : null}
+          {state.operation === 'idle' ? (
+            <p role="status" id={feedbackId}>No data yet.</p>
+          ) : (
+            <ResourceFeedback
+              state={state}
+              loading={'Loading weather\u2026'}
+              refreshing={'Refreshing\u2026'}
+              stale="Updated a while ago"
+              offline={'Offline \u2014 showing cached'}
+              unavailable="Weather unavailable. Try again."
+              id={feedbackId}
+            />
+          )}
+          {(state.operation === 'idle' || state.operation === 'error' || retrying) && (
             <button
               type="button"
               onClick={requestRefresh}
-              disabled={loading}
-              aria-busy={loading || undefined}
+              disabled={loading || retrying}
+              aria-busy={loading || retrying || undefined}
               aria-describedby={feedbackId}
               className="inline-flex min-h-9 cursor-pointer items-center text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
             >
@@ -542,10 +563,15 @@ export default function WeatherWidget({
             data-weather-summary-size={summarySize}
             className="weather-summary weather-tier-summary flex h-full w-full cursor-pointer flex-col px-4 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
+            {summarySize === 'full' ? (
+              <span data-weather-kicker="" data-canvas-type-role="metadata" className="uppercase tracking-[0.1em] text-fg-muted">
+                Current conditions
+              </span>
+            ) : null}
             <span data-weather-summary-row="current" className="flex w-full items-center gap-3">
               <WeatherIcon
                 icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon}
-                size={summarySize === 'compact' ? 28 : 32}
+                size={summarySize === 'compact' ? 28 : summarySize === 'full' ? 48 : 36}
               />
               {/* font-display (Space Grotesk) is the page's own headline face
                   — the clock and greeting already speak it. Borrowing it for
@@ -587,13 +613,17 @@ export default function WeatherWidget({
               <span data-weather-alert-badge="" data-canvas-type-role="body" className="truncate text-sm font-medium text-red-300">
                 {urgentAlert.event}
               </span>
-            ) : summarySize !== 'compact' && highestAlert ? (
+            ) : summarySize === 'compact' ? (
+              <span data-weather-freshness="" data-canvas-type-role="metadata" className="truncate text-fg-muted" style={{ fontSize: 12 }}>
+                {freshnessLabel(snapshot.fetchedAt)}
+              </span>
+            ) : highestAlert ? (
               <span data-weather-alert-line="" data-canvas-type-role="body" className="truncate text-sm font-medium text-red-300">
                 {highestAlert.severity} · {highestAlert.event}
               </span>
             ) : null}
             {summarySize !== 'compact' && trendSignal ? (
-              <span data-weather-summary-row="trend" data-weather-summary-trend="" data-canvas-type-role="body" className="truncate text-accent">
+              <span data-weather-summary-row="trend" data-weather-summary-trend="" data-panel-accent-text="" data-canvas-type-role="body" className="truncate text-accent">
                 {trendSignal}
               </span>
             ) : null}
@@ -623,6 +653,10 @@ export default function WeatherWidget({
                     <span data-canvas-type-role="body" className="block tabular-nums">
                       {displayTemp(slot.point.tempC, settings.units)}
                     </span>
+                    <WeatherIcon
+                      icon={describeCode(slot.point.code, slot.point.isDay ?? true).icon}
+                      size={16}
+                    />
                   </span>
                 ))}
               </div>

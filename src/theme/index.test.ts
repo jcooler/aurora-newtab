@@ -51,6 +51,14 @@ describe('applyPanelColor', () => {
     expect(e.getAttribute('data-scheme')).toBe('light')
   })
 
+  it('derives a panel accent/focus token that remains readable on bright pink', () => {
+    const e = el()
+    applyPanelColor(e, '#ff69b4')
+    expect(e.style.getPropertyValue('--panel-accent')).toBe('#1a1a1a')
+    expect(e.style.getPropertyValue('--fg')).toBe('#1a1a1a')
+    expect(e.getAttribute('data-scheme')).toBe('light')
+  })
+
   it('a light pick adapts the PANEL ink (--fg) but NEVER the CANVAS ink (--canvas-fg)', () => {
     // The photo-floating text set reads --canvas-fg/--canvas-fg-muted, which the
     // engine must leave entirely alone (Task 60 fix round): a light panel pick

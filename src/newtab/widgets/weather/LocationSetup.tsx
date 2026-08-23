@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { searchCity } from '../../../services/weather/geocode'
 import { reverseGeocode } from '../../../services/weather/reverseGeocode'
 import type { GeoMatch } from '../../../services/weather/types'
 import { useStorage } from '../../../lib/storage/context'
+import type { TierFrameTier } from '../shared/TierFrame'
 
 const SEARCH_DEBOUNCE_MS = 300
 const MIN_QUERY_LENGTH = 2
@@ -10,7 +12,13 @@ const MIN_QUERY_LENGTH = 2
 // — same constant/purpose as FolderPopover's EDGE_MARGIN.
 const EDGE_MARGIN = 8
 
-export default function LocationSetup() {
+interface ListPosition {
+  left: number
+  top: number
+  maxHeight: number
+}
+
+export default function LocationSetup({ tier = 'standard' }: { tier?: TierFrameTier } = {}) {
   const storage = useStorage()
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
@@ -30,17 +38,10 @@ export default function LocationSetup() {
   const [noMatches, setNoMatches] = useState(false)
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
-  const [edgeShift, setEdgeShift] = useState(0)
-  const [listSide, setListSide] = useState<'above' | 'below'>('below')
-  const [listMaxHeight, setListMaxHeight] = useState<number | null>(null)
+  const [listPosition, setListPosition] = useState<ListPosition | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
-  // Mirrors `edgeShift` (updated in lockstep, below) so the measurement
-  // effect can recover the list's TRUE unshifted position even though the
-  // DOM it's reading already has a previous shift baked into its rendered
-  // `style.left`.
-  const appliedShiftRef = useRef(0)
-
   // Weather is a freely-repositionable widget (arrange mode) that can end up
   // anywhere on screen, including hard against the right edge — where a
   // fixed-width dropdown anchored `left-0` would run off-screen unreadable.
@@ -64,29 +65,35 @@ export default function LocationSetup() {
     const measure = () => {
       frame = null
       const el = listRef.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      if (rect.width === 0 || rect.height === 0) return
-      const baseLeft = rect.left - appliedShiftRef.current
-      const baseRight = rect.right - appliedShiftRef.current
-      let nextHorizontal = 0
-      if (baseLeft < EDGE_MARGIN) nextHorizontal = EDGE_MARGIN - baseLeft
-      else if (baseRight > window.innerWidth - EDGE_MARGIN) {
-        nextHorizontal = window.innerWidth - EDGE_MARGIN - baseRight
-      }
-      const inputRect = inputRef.current?.getBoundingClientRect()
-      if (inputRect && inputRect.width > 0 && inputRect.height > 0) {
-        const gap = 4
-        const below = Math.max(0, window.innerHeight - EDGE_MARGIN - inputRect.bottom - gap)
-        const above = Math.max(0, inputRect.top - EDGE_MARGIN - gap)
-        const naturalHeight = Math.max(rect.height, el.scrollHeight + 2)
-        const nextSide = naturalHeight <= below || below >= above ? 'below' : 'above'
-        const available = nextSide === 'below' ? below : above
-        setListSide((current) => current === nextSide ? current : nextSide)
-        setListMaxHeight((current) => current === Math.floor(available) ? current : Math.floor(available))
-      }
-      appliedShiftRef.current = nextHorizontal
-      setEdgeShift(nextHorizontal)
+      const input = inputRef.current
+      if (!el || !input) return
+      const inputRect = input.getBoundingClientRect()
+      const listRect = el.getBoundingClientRect()
+      if (inputRect.width === 0 || inputRect.height === 0) return
+      const gap = 4
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth
+      const viewportHeight = document.documentElement.clientHeight || window.innerHeight
+      const width = Math.min(listRect.width || 288, Math.max(0, viewportWidth - EDGE_MARGIN * 2))
+      const left = Math.min(
+        Math.max(EDGE_MARGIN, inputRect.left),
+        Math.max(EDGE_MARGIN, viewportWidth - EDGE_MARGIN - width),
+      )
+      const below = Math.max(0, viewportHeight - EDGE_MARGIN - inputRect.bottom - gap)
+      const above = Math.max(0, inputRect.top - EDGE_MARGIN - gap)
+      const measuredHeight = Number.isFinite(listRect.height) ? listRect.height : 0
+      const naturalHeight = Math.max(measuredHeight, el.scrollHeight + 2)
+      const placeBelow = naturalHeight <= below || below >= above
+      const available = Math.floor(placeBelow ? below : above)
+      const top = placeBelow
+        ? inputRect.bottom + gap
+        : Math.max(EDGE_MARGIN, inputRect.top - gap - Math.min(naturalHeight, available))
+      const next = { left, top, maxHeight: available }
+      setListPosition((current) => current
+        && current.left === next.left
+        && current.top === next.top
+        && current.maxHeight === next.maxHeight
+        ? current
+        : next)
     }
     const schedule = () => {
       if (frame !== null) return
@@ -94,11 +101,13 @@ export default function LocationSetup() {
     }
     measure()
     window.addEventListener('resize', schedule)
+    window.addEventListener('scroll', schedule, true)
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
     observer?.observe(listRef.current!)
     if (inputRef.current) observer?.observe(inputRef.current)
     return () => {
       window.removeEventListener('resize', schedule)
+      window.removeEventListener('scroll', schedule, true)
       observer?.disconnect()
       if (frame !== null) window.cancelAnimationFrame(frame)
     }
@@ -109,7 +118,21 @@ export default function LocationSetup() {
     listRef.current
       ?.querySelector<HTMLElement>(`#location-option-${activeIndex}`)
       ?.scrollIntoView?.({ block: 'nearest' })
-  }, [activeIndex, listMaxHeight, listSide, open])
+  }, [activeIndex, listPosition, open])
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)
+        || rootRef.current?.contains(target)
+        || listRef.current?.contains(target)) return
+      setOpen(false)
+      setActiveIndex(-1)
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    return () => document.removeEventListener('pointerdown', closeOutside)
+  }, [open])
 
   // Debounce timer + in-flight abort controller, both held in refs (not
   // state) since neither should ever trigger a re-render on its own — same
@@ -321,10 +344,52 @@ export default function LocationSetup() {
 
   const activeId = activeIndex !== -1 ? `location-option-${activeIndex}` : undefined
 
+  const listbox = (
+    <ul
+      ref={listRef}
+      id="location-listbox"
+      role="listbox"
+      aria-label="City suggestions"
+      hidden={!open}
+      style={{
+        left: listPosition?.left ?? EDGE_MARGIN,
+        top: listPosition?.top ?? EDGE_MARGIN,
+        maxHeight: listPosition?.maxHeight ?? 'calc(100dvh - 1rem)',
+      }}
+      className="fixed z-[80] w-[min(18rem,calc(100vw-1rem))] overflow-x-hidden overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+    >
+      {results.length === 0 && noMatches && (
+        <li className="flex min-h-9 items-center px-2 text-sm text-fg-muted">No matches</li>
+      )}
+      {results.map((m, i) => {
+        const secondary = [m.admin1, m.country].filter(Boolean).join(', ')
+        return (
+          <li
+            key={`${m.lat},${m.lon}`}
+            id={`location-option-${i}`}
+            role="option"
+            aria-selected={i === activeIndex}
+            onMouseEnter={() => setActiveIndex(i)}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => void selectResult(i)}
+            className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded px-2 text-sm ${
+              i === activeIndex ? 'bg-control-bg-hover text-fg' : 'text-fg-muted'
+            }`}
+          >
+            <span className="shrink-0">{m.name}</span>
+            {secondary && (
+              <span className="min-w-0 flex-1 truncate text-xs text-fg-muted">— {secondary}</span>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+
   return (
-    <div className="flex flex-col gap-2 text-sm">
-      <p className="text-fg-muted xshort:hidden">Weather needs a location.</p>
-      <div className="flex flex-col gap-2 xshort:flex-row xshort:items-start">
+    <div ref={rootRef} data-location-setup="" data-location-tier={tier} className="location-setup flex flex-col gap-2 text-sm">
+      <p className="location-setup__prompt text-fg-muted">Weather needs a location.</p>
+      <div className="location-setup__controls flex flex-col gap-2">
       <button
         type="button"
         onClick={useDevice}
@@ -338,12 +403,12 @@ export default function LocationSetup() {
         // Neither is right for a form: a button is a control (pointer) and a
         // text field is a text field (I-beam). The suggestion rows below
         // already carry their own `cursor-pointer`.
-        className="self-start cursor-pointer rounded-panel border border-panel-border px-2 py-1 text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 xshort:order-2 xshort:shrink-0"
+        className="location-setup__device inline-flex min-h-9 self-start cursor-pointer items-center rounded-panel border border-panel-border px-2 text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
       >
         <span data-location-label="full">Use my location</span>
         <span data-location-label="compact" aria-hidden className="hidden">Locate</span>
       </button>
-      <div className="relative w-40 xshort:order-1 xshort:min-w-0 xshort:flex-1">
+      <div className="location-setup__search w-40">
         <input
           ref={inputRef}
           role="combobox"
@@ -358,7 +423,7 @@ export default function LocationSetup() {
           onChange={(e) => handleQueryChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="or search a city"
-          className="w-40 cursor-text border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent max-[420px]:min-h-9 xshort:w-full"
+          className="min-h-9 w-40 cursor-text border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent"
         />
         {/* Rendered whenever there's something to show, then hidden (not
             unmounted) once closed — the `hidden` attribute drops it from the
@@ -366,45 +431,6 @@ export default function LocationSetup() {
             existing queryByRole('listbox') checks are unaffected), but keeps
             the element itself in the DOM so `aria-controls` above always
             resolves to a real id, per the ARIA APG combobox pattern. */}
-        <ul
-          ref={listRef}
-          id="location-listbox"
-          role="listbox"
-          aria-label="City suggestions"
-          hidden={!open}
-          style={{
-            ...(edgeShift ? { left: edgeShift } : {}),
-            top: listSide === 'below' ? 'calc(100% + 4px)' : 'auto',
-            bottom: listSide === 'above' ? 'calc(100% + 4px)' : 'auto',
-            maxHeight: listMaxHeight ?? 'calc(100dvh - 1rem)',
-          }}
-          className="absolute left-0 z-10 w-72 overflow-x-hidden overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
-        >
-          {results.length === 0 && noMatches && (
-            <li className="px-2 py-1.5 text-sm text-fg-muted">No matches</li>
-          )}
-          {results.map((m, i) => {
-            const secondary = [m.admin1, m.country].filter(Boolean).join(', ')
-            return (
-              <li
-                key={`${m.lat},${m.lon}`}
-                id={`location-option-${i}`}
-                role="option"
-                aria-selected={i === activeIndex}
-                onMouseEnter={() => setActiveIndex(i)}
-                onClick={() => void selectResult(i)}
-                className={`flex cursor-pointer items-baseline gap-1.5 rounded px-2 py-1.5 text-sm max-[420px]:min-h-9 ${
-                  i === activeIndex ? 'bg-control-bg-hover text-fg' : 'text-fg-muted'
-                }`}
-              >
-                <span className="shrink-0">{m.name}</span>
-                {secondary && (
-                  <span className="min-w-0 flex-1 truncate text-xs text-fg-muted">— {secondary}</span>
-                )}
-              </li>
-            )
-          })}
-        </ul>
       </div>
       </div>
       {error && (
@@ -412,6 +438,7 @@ export default function LocationSetup() {
           {error}
         </p>
       )}
+      {createPortal(listbox, document.body)}
     </div>
   )
 }

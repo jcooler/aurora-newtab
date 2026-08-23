@@ -124,6 +124,9 @@ describe('OnThisDayWidget', () => {
     expect(within(full).getByText('1800')).toBeTruthy()
     expect(within(full).getByText('Notable death')).toBeTruthy()
     expect(within(full).getAllByRole('link', { name: 'More on Wikipedia' })).toHaveLength(1)
+    expect(within(full).getByRole('link', { name: 'Historical event 0' }).className).toContain('[-webkit-line-clamp:2]')
+    expect(within(full).getByRole('link', { name: 'Historical event 0' }).className).toContain('min-h-9')
+    expect(within(full).getByRole('link', { name: 'More on Wikipedia' }).className).toContain('min-h-9')
   })
 
   it('opens the same contextual rows from one dense Docked line', async () => {
@@ -144,6 +147,7 @@ describe('OnThisDayWidget tier frame states', () => {
 
     const standard = frame('standard')
     expect(standard.dataset.tierFrameState).toBe('loading')
+    expect(standard.querySelector('[data-on-this-day-skeleton]')).toBeTruthy()
     expect(within(standard).getByRole('status').textContent).toBe('Loading On This Day…')
     expectAuthoredFrame(standard)
   })
@@ -170,10 +174,11 @@ describe('OnThisDayWidget tier frame states', () => {
       publicHolidays: unrelated,
     }))
     mount(storage, { canvasSize: 'standard' })
-    await screen.findByText('Historical event 2')
+    await screen.findByText('Historical event 1')
 
     const standard = frame('standard')
     expect(standard.dataset.tierFrameState).toBe('stale')
+    expect(within(standard).queryByText('Historical event 2')).toBeNull()
     expect(within(standard).getByRole('status').textContent).toBe('Showing saved data while On This Day refreshes.')
     expectAuthoredFrame(standard)
 
@@ -181,7 +186,7 @@ describe('OnThisDayWidget tier frame states', () => {
       rejectRefresh?.(new Error('provider unavailable'))
       await Promise.resolve()
     })
-    await waitFor(() => expect(standard.dataset.tierFrameState).toBe('retained-error'))
+    await waitFor(() => expect(standard.dataset.tierFrameState).toBe('stale'))
     expect(within(standard).getByText('Historical event 0')).toBeTruthy()
     expect(within(standard).getByRole('status').textContent).toBe('On This Day is unavailable.')
 

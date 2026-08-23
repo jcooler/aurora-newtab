@@ -34,6 +34,7 @@ export function applyPanelColor(el: HTMLElement, hex: string | null): void {
     el.style.removeProperty('--panel')
     el.style.removeProperty('--fg')
     el.style.removeProperty('--fg-muted')
+    el.style.removeProperty('--panel-accent')
     el.removeAttribute('data-scheme')
     return
   }
@@ -42,6 +43,7 @@ export function applyPanelColor(el: HTMLElement, hex: string | null): void {
   const { fg, fgMuted, scheme } = derivedFg(hex)
   el.style.setProperty('--fg', fg)
   el.style.setProperty('--fg-muted', fgMuted)
+  el.style.setProperty('--panel-accent', fg)
   if (scheme === 'light') el.setAttribute('data-scheme', 'light')
   else el.removeAttribute('data-scheme')
 }

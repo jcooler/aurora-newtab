@@ -19,6 +19,7 @@ import ts from 'typescript'
 import { inspectAtAGlanceRequest } from './at-a-glance-harness-contracts.mjs'
 import { assertCleanTrackedStatus } from './build-contracts.mjs'
 import { assertBuildProvenance } from './work-connector-harness-contracts.mjs'
+import { SF_P1_REVIEWED_VERDICTS } from './qa-shared-frame-p1-reviewed-verdicts.mjs'
 
 const REFERENCE_WIDGET_IDS = Object.freeze(['weather', 'onThisDay'])
 const EXPECTED_DIMENSIONS = Object.freeze({
@@ -30,12 +31,15 @@ const REQUIRED_THEMES = Object.freeze([
   Object.freeze({ id: 'dark', label: 'Default dark', panelColor: null }),
   Object.freeze({ id: 'light', label: 'Light panel', panelColor: '#e5e7eb' }),
   Object.freeze({ id: 'saturated', label: 'Saturated blue panel', panelColor: '#0057b8' }),
+  Object.freeze({ id: 'bright-pink', label: 'Bright pink panel', panelColor: '#ff69b4' }),
 ])
 const REQUIRED_VIEWPORTS = Object.freeze([
   Object.freeze({ id: 'laptop', width: 1366, height: 768 }),
   Object.freeze({ id: 'exact-short', width: 1408, height: 445 }),
   Object.freeze({ id: 'common', width: 1600, height: 900 }),
   Object.freeze({ id: 'narrow-floor', width: 599, height: 800 }),
+  Object.freeze({ id: 'planner-boundary', width: 600, height: 800 }),
+  Object.freeze({ id: 'phone-narrow', width: 412, height: 915 }),
 ])
 const VALID_VERDICTS = new Set(['Useful', 'Needs refinement', 'Rejected'])
 const FIXED_TIME = new Date('2026-08-22T12:00:00-04:00')
@@ -175,8 +179,6 @@ function captureEntry({
   state,
   theme,
   viewport,
-  verdict,
-  verdictReason,
   interaction = null,
   expectedFace = null,
 }) {
@@ -191,8 +193,6 @@ function captureEntry({
     viewport,
     interaction,
     expectedFace,
-    verdict,
-    verdictReason,
   }
 }
 
@@ -226,8 +226,6 @@ function buildCaptureMatrix(references) {
         state: 'ready',
         theme: 'dark',
         viewport: 'common',
-        verdict: 'Useful',
-        verdictReason: `The ${tier} ${reference.id} reference composition is legible, materially distinct, and bounded at its declared frame.`,
       }))
     }
     for (const state of reference.states.filter((candidate) => candidate !== 'ready')) {
@@ -241,11 +239,9 @@ function buildCaptureMatrix(references) {
         state,
         theme: 'dark',
         viewport: 'laptop',
-        verdict: 'Useful',
-        verdictReason: `The truthful ${reference.id} ${state} presentation remains readable and stable inside the selected ${tier} frame.`,
       }))
     }
-    for (const theme of ['light', 'saturated']) {
+    for (const theme of ['light', 'saturated', 'bright-pink']) {
       captures.push(captureEntry({
         key: `${slugFor(reference.id)}-ready-standard-${theme}-common`,
         kind: 'theme',
@@ -254,8 +250,6 @@ function buildCaptureMatrix(references) {
         state: 'ready',
         theme,
         viewport: 'common',
-        verdict: 'Useful',
-        verdictReason: `The ${reference.id} Standard hierarchy and keyboard focus treatment remain clear on the ${theme} panel.`,
       }))
     }
     captures.push(captureEntry({
@@ -266,8 +260,24 @@ function buildCaptureMatrix(references) {
       state: 'ready',
       theme: 'dark',
       viewport: 'narrow-floor',
-      verdict: 'Useful',
-      verdictReason: `The ${reference.id} Full frame remains exact, readable, and contained at the 599px narrow-floor boundary.`,
+    }))
+    captures.push(captureEntry({
+      key: `${slugFor(reference.id)}-ready-full-dark-planner-boundary`,
+      kind: 'planner-boundary',
+      widget: reference.id,
+      tier: 'full',
+      state: 'ready',
+      theme: 'dark',
+      viewport: 'planner-boundary',
+    }))
+    captures.push(captureEntry({
+      key: `${slugFor(reference.id)}-ready-full-dark-phone-narrow`,
+      kind: 'narrow',
+      widget: reference.id,
+      tier: 'full',
+      state: 'ready',
+      theme: 'dark',
+      viewport: 'phone-narrow',
     }))
   }
 
@@ -279,7 +289,7 @@ function buildCaptureMatrix(references) {
     ['stack-swipe-on-this-day-dark-exact-short', 'stack-swipe', 'onThisDay', 'Swipe pages to On This Day with no selected text and no geometry shift.'],
     ['stack-weather-details-dark-exact-short', 'stack-plain-click-details', 'weather', 'A plain Weather click opens the real viewport-owned details surface without selecting or paging the stack.'],
   ]
-  for (const [key, interaction, expectedFace, verdictReason] of stackRows) {
+  for (const [key, interaction, expectedFace] of stackRows) {
     captures.push(captureEntry({
       key,
       kind: 'stack',
@@ -290,14 +300,24 @@ function buildCaptureMatrix(references) {
       viewport: 'exact-short',
       interaction,
       expectedFace,
-      verdict: 'Useful',
-      verdictReason,
+    }))
+  }
+  for (const tier of ['compact', 'standard']) {
+    captures.push(captureEntry({
+      key: `weather-location-select-${tier}-dark-common`,
+      kind: 'location',
+      widget: 'weather',
+      tier,
+      state: 'permission-required',
+      theme: 'dark',
+      viewport: 'common',
+      interaction: 'location-select',
     }))
   }
   return captures
 }
 
-export function buildSfP1EvidenceManifest(source) {
+export function buildSfP1CapturePlan(source) {
   const authority = parsePresentationAuthority(source)
   const references = REFERENCE_WIDGET_IDS.map((id) => {
     const contract = authority[id]
@@ -336,6 +356,44 @@ export function buildSfP1EvidenceManifest(source) {
   }
 }
 
+export function applySfP1ReviewedVerdicts(plan, reviewedVerdicts) {
+  assert(reviewedVerdicts && typeof reviewedVerdicts === 'object' && !Array.isArray(reviewedVerdicts), 'reviewed verdict map is required')
+  const captureKeys = new Set(plan.captures.map(({ key }) => key))
+  for (const key of Object.keys(reviewedVerdicts)) assert(captureKeys.has(key), `reviewed verdict ${key} has no capture`)
+  return {
+    ...structuredClone(plan),
+    captures: plan.captures.map((capture) => {
+      const reviewed = reviewedVerdicts[capture.key]
+      assert(reviewed, `${capture.key} is missing a reviewed verdict`)
+      assert(VALID_VERDICTS.has(reviewed.verdict), `${capture.key} has invalid reviewed verdict ${reviewed.verdict}`)
+      assert.equal(typeof reviewed.reason, 'string', `${capture.key} is missing a reviewed verdict reason`)
+      assert(reviewed.reason.trim().length > 0, `${capture.key} is missing a reviewed verdict reason`)
+      return { ...capture, verdict: reviewed.verdict, verdictReason: reviewed.reason }
+    }),
+  }
+}
+
+export function buildSfP1EvidenceManifest(source, reviewedVerdicts = SF_P1_REVIEWED_VERDICTS) {
+  return applySfP1ReviewedVerdicts(buildSfP1CapturePlan(source), reviewedVerdicts)
+}
+
+export function resolveSfP1BrowserMode(args = process.argv.slice(2)) {
+  const headed = args.includes('--headed')
+  const realWindow = args.includes('--real-window')
+  if (realWindow && !headed) throw new Error('SF-P1 real-window witness must run headed')
+  return {
+    headed,
+    realWindow,
+    emulatesViewport: !realWindow,
+    contextViewport: realWindow ? null : { width: 1600, height: 900 },
+  }
+}
+
+export async function setSfP1ScenarioViewport(page, viewport, mode) {
+  if (!mode.emulatesViewport) return
+  await page.setViewportSize(viewport)
+}
+
 function requireExactRows(actual, expected, label) {
   const actualIds = actual.map((entry) => entry.id)
   const expectedIds = expected.map((entry) => entry.id)
@@ -344,7 +402,7 @@ function requireExactRows(actual, expected, label) {
   assert.deepEqual(actualIds, expectedIds, `${label} declarations must be exact`)
 }
 
-export function validateSfP1EvidenceManifest(manifest) {
+function validateSfP1Manifest(manifest, requireVerdicts) {
   assert.deepEqual(manifest.references.map((entry) => entry.id), REFERENCE_WIDGET_IDS, 'reference widgets must be exactly weather and onThisDay')
   for (const [tier, expected] of Object.entries(EXPECTED_DIMENSIONS)) {
     const actual = manifest.dimensions?.[tier]
@@ -363,9 +421,14 @@ export function validateSfP1EvidenceManifest(manifest) {
     assert.equal(typeof capture.filename, 'string', `${capture.key} filename is required`)
     assert(!files.has(capture.filename), `duplicate capture filename ${capture.filename}`)
     files.add(capture.filename)
-    assert(VALID_VERDICTS.has(capture.verdict), `${capture.key} is missing an explicit usefulness verdict`)
-    assert.equal(typeof capture.verdictReason, 'string', `${capture.key} is missing its usefulness verdict reason`)
-    assert(capture.verdictReason.trim().length > 0, `${capture.key} is missing its usefulness verdict reason`)
+    if (requireVerdicts) {
+      assert(VALID_VERDICTS.has(capture.verdict), `${capture.key} is missing an explicit usefulness verdict`)
+      assert.equal(typeof capture.verdictReason, 'string', `${capture.key} is missing its usefulness verdict reason`)
+      assert(capture.verdictReason.trim().length > 0, `${capture.key} is missing its usefulness verdict reason`)
+    } else {
+      assert(!('verdict' in capture), `${capture.key} capture planning must not contain a verdict`)
+      assert(!('verdictReason' in capture), `${capture.key} capture planning must not contain a verdict reason`)
+    }
     assert(manifest.themes.some((entry) => entry.id === capture.theme), `${capture.key} uses unknown theme ${capture.theme}`)
     assert(manifest.viewports.some((entry) => entry.id === capture.viewport), `${capture.key} uses unknown viewport ${capture.viewport}`)
   }
@@ -390,7 +453,18 @@ export function validateSfP1EvidenceManifest(manifest) {
   for (const face of REFERENCE_WIDGET_IDS) {
     assert(manifest.captures.some((entry) => entry.kind === 'stack' && entry.expectedFace === face), `stack face ${face} is missing`)
   }
+  for (const tier of ['compact', 'standard']) {
+    assert(manifest.captures.some((entry) => entry.kind === 'location' && entry.tier === tier && entry.interaction === 'location-select'), `location ${tier} interaction is missing`)
+  }
   return manifest
+}
+
+export function validateSfP1CapturePlan(manifest) {
+  return validateSfP1Manifest(manifest, false)
+}
+
+export function validateSfP1EvidenceManifest(manifest) {
+  return validateSfP1Manifest(manifest, true)
 }
 
 function canonical(value) {
@@ -592,14 +666,14 @@ function referenceFor(manifest, id) {
   return reference
 }
 
-function expectedStateText(widget, state) {
+function expectedStateText(widget, state, tier) {
   if (widget === 'weather') {
     return {
       loading: ['Loading weather…'],
       empty: ['No data yet.'],
       stale: ['Refreshing…'],
       partial: ['Weather details partially unavailable.'],
-      'permission-required': ['Weather needs a location.', 'Locate'],
+      'permission-required': tier === 'compact' ? ['Locate'] : ['Weather needs a location.', 'Use my location'],
       'hard-error': ['Weather unavailable. Try again.', 'Refresh'],
     }[state] ?? []
   }
@@ -624,7 +698,7 @@ function contentProbe(widget, tier, state) {
           : widget === 'onThisDay' && state === 'hard-error'
             ? ['button[aria-label="Refresh On This Day"]']
             : [],
-      expectedTexts: expectedStateText(widget, state),
+      expectedTexts: expectedStateText(widget, state, tier),
       forbiddenSelectors: [],
       expectedEventCount: null,
     }
@@ -679,8 +753,8 @@ function withinTolerance(actual, expected, tolerance = 0.5) {
   return Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance
 }
 
-async function measureFrame({ page, frame, capture, manifest, leaveFocusVisible = false }) {
-  const viewport = viewportFor(manifest, capture.viewport)
+async function measureFrame({ page, frame, capture, manifest, runtimeViewport = null }) {
+  const viewport = runtimeViewport ?? viewportFor(manifest, capture.viewport)
   const probe = contentProbe(capture.widget === 'stack' ? capture.expectedFace : capture.widget, capture.tier, capture.state)
   const measured = await frame.evaluate((root, input) => {
     const visible = (element) => {
@@ -725,14 +799,24 @@ async function measureFrame({ page, frame, capture, manifest, leaveFocusVisible 
       const ownsText = [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim())
       if (!ownsText) continue
       const size = Number.parseFloat(getComputedStyle(element).fontSize)
-      if (Number.isFinite(size)) textSizes.push(size)
+      if (Number.isFinite(size)) textSizes.push({
+        size,
+        tag: element.tagName.toLowerCase(),
+        className: typeof element.className === 'string' ? element.className : '',
+        text: textOf(element).slice(0, 80),
+      })
     }
     const interactive = [...root.querySelectorAll('button, a[href], input, select, textarea, [role="button"], [role="link"]')]
       .filter(visible)
-      .map((element) => ({
-        tag: element.tagName.toLowerCase(),
-        name: (element.getAttribute('aria-label') || element.getAttribute('title') || textOf(element)).trim(),
-      }))
+      .map((element) => {
+        const rect = element.getBoundingClientRect()
+        return {
+          tag: element.tagName.toLowerCase(),
+          name: (element.getAttribute('aria-label') || element.getAttribute('title') || textOf(element)).trim(),
+          width: rect.width,
+          height: rect.height,
+        }
+      })
     const nameCounts = new Map()
     for (const entry of interactive) {
       const normalized = entry.name.toLocaleLowerCase()
@@ -757,6 +841,33 @@ async function measureFrame({ page, frame, capture, manifest, leaveFocusVisible 
         }),
       }
     })
+    const rgb = (value) => {
+      const match = value.match(/rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)/i)
+      return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null
+    }
+    const luminance = (color) => {
+      if (!color) return null
+      const channels = color.map((channel) => {
+        const value = channel / 255
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    }
+    const contrast = (a, b) => {
+      const first = luminance(rgb(a))
+      const second = luminance(rgb(b))
+      if (first === null || second === null) return null
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+    }
+    const accentProbe = document.createElement('span')
+    accentProbe.style.color = 'var(--tier-frame-accent)'
+    root.append(accentProbe)
+    const accentColor = getComputedStyle(accentProbe).color
+    accentProbe.remove()
+    const accentTextContrasts = [...root.querySelectorAll('[data-panel-accent-text], .on-this-day-tier-item > span:first-child')]
+      .filter(visible)
+      .map((element) => contrast(getComputedStyle(element).color, style.backgroundColor))
+      .filter((value) => value !== null)
     return {
       rect: {
         left: rootRect.left,
@@ -800,9 +911,13 @@ async function measureFrame({ page, frame, capture, manifest, leaveFocusVisible 
         panelSolid: getComputedStyle(document.documentElement).getPropertyValue('--panel-solid').trim(),
         ink: getComputedStyle(document.documentElement).getPropertyValue('--fg').trim(),
         mutedInk: getComputedStyle(document.documentElement).getPropertyValue('--fg-muted').trim(),
+        accentColor,
+        accentContrast: contrast(accentColor, style.backgroundColor),
+        accentTextContrast: accentTextContrasts.length ? Math.min(...accentTextContrasts) : null,
         scheme: document.documentElement.dataset.scheme ?? 'dark',
       },
-      minimumTextSize: textSizes.length ? Math.min(...textSizes) : null,
+      minimumTextSize: textSizes.length ? Math.min(...textSizes.map((entry) => entry.size)) : null,
+      smallestText: textSizes.toSorted((a, b) => a.size - b.size).slice(0, 4),
       internalScrollOwners,
       duplicateAccessibleNames,
       interactive,
@@ -821,13 +936,27 @@ async function measureFrame({ page, frame, capture, manifest, leaveFocusVisible 
   }, probe)
 
   const focusable = frame.locator('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])').first()
-  let focus = { applicable: false, visible: null, name: null, outlineStyle: null, outlineWidth: null, outlineColor: null, boxShadow: null }
+  let focus = { applicable: false, visible: null, name: null, outlineStyle: null, outlineWidth: null, outlineColor: null, boxShadow: null, contrast: null }
   if (await focusable.count()) {
     await page.keyboard.press('Tab')
     await focusable.focus()
     focus = await focusable.evaluate((element) => {
       const style = getComputedStyle(element)
       const outlineWidth = Number.parseFloat(style.outlineWidth)
+      const parse = (value) => {
+        const match = value.match(/rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)/i)
+        return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null
+      }
+      const luminance = (color) => color === null ? null : color.map((channel) => {
+        const value = channel / 255
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+      }).reduce((total, value, index) => total + value * [0.2126, 0.7152, 0.0722][index], 0)
+      const frame = element.closest('[data-tier-frame]')
+      const foreground = luminance(parse(style.outlineColor))
+      const background = luminance(parse(frame ? getComputedStyle(frame).backgroundColor : ''))
+      const contrast = foreground === null || background === null
+        ? null
+        : (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)
       const visible = element.matches(':focus-visible')
         && ((style.outlineStyle !== 'none' && outlineWidth >= 2) || style.boxShadow !== 'none')
       return {
@@ -838,9 +967,10 @@ async function measureFrame({ page, frame, capture, manifest, leaveFocusVisible 
         outlineWidth: style.outlineWidth,
         outlineColor: style.outlineColor,
         boxShadow: style.boxShadow,
+        contrast,
       }
     })
-    if (!leaveFocusVisible) await focusable.evaluate((element) => element.blur())
+    await focusable.evaluate((element) => element.blur())
   }
   measured.focus = focus
   measured.selectedText = await page.evaluate(() => getSelection()?.toString() ?? '')
@@ -854,7 +984,8 @@ async function measureFrame({ page, frame, capture, manifest, leaveFocusVisible 
   assert(measured.scroll.height <= measured.client.height + 0.5, `${capture.key}: frame content scroll height ${measured.scroll.height} > ${measured.client.height}`)
   assert.equal(measured.internalScrollOwners.length, 0, `${capture.key}: internal frame scrollbar ${JSON.stringify(measured.internalScrollOwners)}`)
   assert.equal(measured.duplicateAccessibleNames.length, 0, `${capture.key}: duplicate accessible names ${JSON.stringify(measured.duplicateAccessibleNames)}`)
-  assert(measured.minimumTextSize !== null && measured.minimumTextSize >= 11, `${capture.key}: minimum text size is ${measured.minimumTextSize}px`)
+  assert.equal(measured.interactive.filter((entry) => entry.width < 36 || entry.height < 36).length, 0, `${capture.key}: interactive target below 36px ${JSON.stringify(measured.interactive)}`)
+  assert(measured.minimumTextSize !== null && measured.minimumTextSize >= 11, `${capture.key}: minimum text size is ${measured.minimumTextSize}px ${JSON.stringify(measured.smallestText)}`)
   assert(measured.page.scrollWidth <= measured.page.clientWidth, `${capture.key}: page has horizontal overflow`)
   for (const row of [...measured.essential, ...measured.signature]) {
     assert(row.count > 0, `${capture.key}: missing essential/signature selector ${row.selector}`)
@@ -867,7 +998,12 @@ async function measureFrame({ page, frame, capture, manifest, leaveFocusVisible 
   if (probe.expectedEventCount !== null) {
     assert.equal(measured.eventCount, probe.expectedEventCount, `${capture.key}: historical event row count drifted`)
   }
-  if (focus.applicable) assert.equal(focus.visible, true, `${capture.key}: focus indicator is not visibly painted`)
+  if (focus.applicable) {
+    assert.equal(focus.visible, true, `${capture.key}: focus indicator is not visibly painted`)
+    assert(focus.contrast !== null && focus.contrast >= 3, `${capture.key}: focus indicator contrast is ${focus.contrast}`)
+  }
+  assert(measured.panel.accentContrast !== null && measured.panel.accentContrast >= 4.5, `${capture.key}: panel accent contrast is ${measured.panel.accentContrast}`)
+  if (measured.panel.accentTextContrast !== null) assert(measured.panel.accentTextContrast >= 4.5, `${capture.key}: accent text contrast is ${measured.panel.accentTextContrast}`)
   return measured
 }
 
@@ -905,7 +1041,7 @@ function assertLayoutShape(layouts, { tier, stack, facing }) {
   }
 }
 
-function writeCatalog({ catalogPath, evidence }) {
+export function formatSfP1Catalog(evidence) {
   const escapeCell = (value) => String(value ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
   const rows = evidence.captures.map((capture) => {
     const geometry = `${capture.measurement.rect.width.toFixed(2)}x${capture.measurement.rect.height.toFixed(2)} CSS px; client ${capture.measurement.client.width}x${capture.measurement.client.height}; scroll ${capture.measurement.scroll.width}x${capture.measurement.scroll.height}; overflow ${capture.measurement.overflow.x}/${capture.measurement.overflow.y}`
@@ -925,6 +1061,9 @@ function writeCatalog({ catalogPath, evidence }) {
     '',
     `- Preliminary build commit: \`${evidence.build.commit}\``,
     `- Build provenance: \`${evidence.build.provenance.commit}\``,
+    ...(evidence.build.preliminaryWorkingTree
+      ? ['- Evidence mode: preliminary working-tree witness; not final exact-reviewed proof.']
+      : []),
     `- Browser: ${evidence.browser.name} ${evidence.browser.version}; Playwright Chromium; DPR 1; reduced motion`,
     `- Original-resolution captures: ${evidence.captures.length}`,
     `- Verdicts: ${verdictCounts.Useful} Useful, ${verdictCounts['Needs refinement']} Needs refinement, ${verdictCounts.Rejected} Rejected`,
@@ -933,9 +1072,34 @@ function writeCatalog({ catalogPath, evidence }) {
     '| Original PNG | Subject | Tier / state | Theme | Viewport | Measured frame and content geometry | Visible essential content | Visible signature content | Minimum text / focus | Selected text | Runtime storage writes | Usefulness verdict |',
     '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
     ...rows,
-    '',
   ]
-  writeFileSync(catalogPath, `${lines.join('\n')}\n`, 'utf8')
+  return `${lines.join('\n')}\n`
+}
+
+function writeCatalog({ catalogPath, evidence }) {
+  writeFileSync(catalogPath, formatSfP1Catalog(evidence), 'utf8')
+}
+
+function writeReviewedCatalogFromCapture(repoRoot, sourcePath) {
+  const manifest = validateSfP1EvidenceManifest(buildSfP1EvidenceManifest(
+    readFileSync(sourcePath, 'utf8'),
+    SF_P1_REVIEWED_VERDICTS,
+  ))
+  const evidencePath = resolve(repoRoot, '.qa-shared-frame-p1-evidence/evidence.json')
+  const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'))
+  evidence.build.preliminaryWorkingTree = true
+  assert.equal(evidence.captures.length, manifest.captures.length, 'captured evidence no longer matches the reviewed manifest')
+  const reviewed = new Map(manifest.captures.map((capture) => [capture.key, capture]))
+  evidence.captures = evidence.captures.map((capture) => {
+    const verdict = reviewed.get(capture.key)
+    assert(verdict, `${capture.key}: capture is absent from the reviewed manifest`)
+    assert(existsSync(resolve(repoRoot, capture.image.relativePath)), `${capture.key}: original PNG is missing`)
+    return { ...capture, verdict: verdict.verdict, verdictReason: verdict.verdictReason }
+  })
+  const catalogDir = resolve(repoRoot, 'docs/superpowers/catalog/shared-frames/sf-p1')
+  assertCatalogPath(repoRoot, catalogDir)
+  writeCatalog({ catalogPath: resolve(catalogDir, 'CATALOG.md'), evidence })
+  process.stdout.write(`PASS SF-P1 reviewed catalog: ${evidence.captures.length} inspected originals\n`)
 }
 
 async function run() {
@@ -945,15 +1109,27 @@ async function run() {
   const branch = execFileSync('git', ['branch', '--show-current'], { cwd: repoRoot, encoding: 'utf8' }).trim()
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
   const expectedCommit = process.argv.find((argument) => argument.startsWith('--expected-commit='))?.slice('--expected-commit='.length) ?? commit
-  const headed = process.argv.includes('--headed')
+  const browserMode = resolveSfP1BrowserMode(process.argv.slice(2))
+  const { headed, realWindow } = browserMode
+  const captureOnly = process.argv.includes('--capture-only')
+  const catalogFromCapture = process.argv.includes('--catalog-from-capture')
+  const preliminaryWorkingTree = process.argv.includes('--preliminary-working-tree')
   assert.equal(topLevel.toLowerCase(), repoRoot.toLowerCase(), 'run SF-P1 from the active repository root')
   assert.notEqual(repoRoot.toLowerCase(), protectedRoot.toLowerCase(), 'SF-P1 refuses the protected original checkout')
   assert.equal(branch, 'feat/aurora-2-observatory', 'SF-P1 must run on feat/aurora-2-observatory')
   assert.equal(commit, expectedCommit, `SF-P1 expected commit ${expectedCommit} but found ${commit}`)
-  assertCleanTrackedStatus(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: repoRoot, encoding: 'utf8' }))
+  if (!preliminaryWorkingTree && !catalogFromCapture) {
+    assertCleanTrackedStatus(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: repoRoot, encoding: 'utf8' }))
+  }
 
   const sourcePath = resolve(repoRoot, 'src/newtab/widgetSizeContracts.ts')
-  const manifest = validateSfP1EvidenceManifest(buildSfP1EvidenceManifest(readFileSync(sourcePath, 'utf8')))
+  if (catalogFromCapture) {
+    writeReviewedCatalogFromCapture(repoRoot, sourcePath)
+    return
+  }
+  const manifest = captureOnly || realWindow
+    ? validateSfP1CapturePlan(buildSfP1CapturePlan(readFileSync(sourcePath, 'utf8')))
+    : validateSfP1EvidenceManifest(buildSfP1EvidenceManifest(readFileSync(sourcePath, 'utf8')))
   const dist = resolve(repoRoot, 'dist')
   const provenanceText = readFileSync(resolve(dist, 'build-provenance.json'), 'utf8')
   assertBuildProvenance(provenanceText, expectedCommit)
@@ -966,14 +1142,14 @@ async function run() {
   const evidence = {
     schemaVersion: 1,
     startedAt: new Date().toISOString(),
-    build: { commit, provenance },
+    build: { commit, provenance, preliminaryWorkingTree },
     browser: { name: 'chromium', version: null, headed, deviceScaleFactor: 1, reducedMotion: 'reduce' },
     manifest: {
       references: manifest.references,
       dimensions: manifest.dimensions,
       themes: manifest.themes,
       viewports: manifest.viewports,
-      captures: manifest.captures.length,
+      captures: realWindow ? 1 : manifest.captures.length,
     },
     captures: [],
     requests: [],
@@ -993,6 +1169,14 @@ async function run() {
   let context = null
   let page = null
   let caughtError = null
+  const runCaptures = realWindow
+    ? [{
+        ...manifest.captures.find((capture) => capture.widget === 'weather' && capture.tier === 'full' && capture.state === 'ready' && capture.kind === 'free-tier'),
+        key: 'real-window-weather-ready-full',
+        filename: 'real-window-weather-ready-full.png',
+        kind: 'real-window',
+      }]
+    : manifest.captures
 
   const disposePendingRoutes = async () => {
     const pending = pendingRoutes.splice(0)
@@ -1023,7 +1207,7 @@ async function run() {
     context = await chromium.launchPersistentContext(profileDir, {
       channel: 'chromium',
       headless: !headed,
-      viewport: viewportFor(manifest, 'common'),
+      viewport: browserMode.contextViewport,
       deviceScaleFactor: 1,
       reducedMotion: 'reduce',
       locale: 'en-US',
@@ -1077,6 +1261,23 @@ async function run() {
           return fulfillJson(route, row.mode === 'invalid' ? {} : environmentPayload())
         }
         const parsed = new URL(url)
+        if (
+          parsed.origin === 'https://geocoding-api.open-meteo.com'
+          && parsed.pathname === '/v1/search'
+          && parsed.searchParams.get('name') === 'Dallas'
+        ) {
+          row.operation = 'geocode'
+          row.mode = 'ready'
+          row.outcome = 'fulfilled-ready-200'
+          evidence.requests.push(row)
+          return fulfillJson(route, { results: Array.from({ length: 6 }, (_, index) => ({
+            name: 'Dallas',
+            admin1: ['Texas', 'Georgia', 'Oregon', 'Pennsylvania', 'North Carolina', 'Wisconsin'][index],
+            country: 'United States',
+            latitude: 32.78 + index,
+            longitude: -96.8 + index,
+          })) })
+        }
         if (
           parsed.origin === 'https://api.weather.gov'
           && parsed.pathname === '/alerts/active'
@@ -1284,11 +1485,13 @@ async function run() {
       await storageSet(fixture.storage)
       const before = await storageGetAll()
       const viewport = viewportFor(manifest, capture.viewport)
-      await page.setViewportSize({ width: viewport.width, height: viewport.height })
+      await setSfP1ScenarioViewport(page, { width: viewport.width, height: viewport.height }, browserMode)
       await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
       const frame = await waitForCapture(capture)
+      const runtimeViewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }))
+      if (browserMode.emulatesViewport) assert.deepEqual(runtimeViewport, { width: viewport.width, height: viewport.height }, `${capture.key}: emulated viewport drifted`)
       navigating = false
-      return { before, frame, fixture }
+      return { before, frame, fixture, runtimeViewport }
     }
 
     const verifyReloadSurvival = async ({ capture, expectedStorage, expectedFacing }) => {
@@ -1311,11 +1514,11 @@ async function run() {
       return reloaded
     }
 
-    const screenshotCapture = async (capture) => {
-      const path = resolve(catalogDir, capture.filename)
+    const screenshotCapture = async (capture, runtimeViewport = null) => {
+      const path = resolve(realWindow ? evidenceDir : catalogDir, capture.filename)
       await page.screenshot({ path, fullPage: false, animations: 'disabled' })
       const metadata = await sharp(path).metadata()
-      const viewport = viewportFor(manifest, capture.viewport)
+      const viewport = runtimeViewport ?? viewportFor(manifest, capture.viewport)
       assert.equal(metadata.width, viewport.width, `${capture.key}: screenshot width is not original viewport width`)
       assert.equal(metadata.height, viewport.height, `${capture.key}: screenshot height is not original viewport height`)
       return { path, relativePath: relative(repoRoot, path).replace(/\\/g, '/'), pixelWidth: metadata.width, pixelHeight: metadata.height }
@@ -1352,8 +1555,18 @@ async function run() {
       assert(withinTolerance(geometry.members[0].frame.height, geometry.members[1].frame.height), `${capture.key}: stack frame heights differ`)
     }
 
+    const prepareCleanCapture = async (capture) => {
+      await page.evaluate(() => {
+        getSelection()?.removeAllRanges()
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      })
+      await page.mouse.move(1, 1)
+      assert.equal(await page.locator('[data-editing="true"], .canvas-item--editing, .canvas-item--selected').count(), 0, `${capture.key}: edit chrome is visible`)
+      assert.equal(await page.evaluate(() => getSelection()?.toString() ?? ''), '', `${capture.key}: selected text remains before capture`)
+    }
+
     const runFreeCapture = async (capture) => {
-      const { before, frame } = await navigateToSeededScenario(capture)
+      const { before, frame, runtimeViewport } = await navigateToSeededScenario(capture)
       assertLayoutShape(before.layouts, { tier: capture.tier, stack: false, facing: null })
       const layoutBytes = JSON.stringify(before.layouts)
       const legacyBytes = canonical(before.layout)
@@ -1363,10 +1576,11 @@ async function run() {
         frame,
         capture,
         manifest,
-        leaveFocusVisible: capture.kind === 'theme',
+        runtimeViewport,
       })
       assert.equal(measurement.selectedText, '', `${capture.key}: text is selected`)
-      const image = await screenshotCapture(capture)
+      await prepareCleanCapture(capture)
+      const image = await screenshotCapture(capture, runtimeViewport)
       const after = await storageGetAll()
       const writes = await currentWriteLog()
       assert.deepEqual(topLevelChanges(before, after), [], `${capture.key}: unexpected storage changes`)
@@ -1376,10 +1590,73 @@ async function run() {
       await verifyReloadSurvival({ capture, expectedStorage: after })
       evidence.captures.push({
         ...capture,
-        viewport: viewportFor(manifest, capture.viewport),
+        viewport: runtimeViewport,
         measurement,
         image,
         storage: { writes, changedKeys: [], layoutBytes, legacyLayoutBytes: legacyBytes },
+        requests: evidence.requests.filter((entry) => entry.scenario === capture.key),
+      })
+    }
+
+    const runLocationCapture = async (capture) => {
+      const { before, frame, runtimeViewport } = await navigateToSeededScenario(capture)
+      assertLayoutShape(before.layouts, { tier: capture.tier, stack: false, facing: null })
+      const layoutBytes = JSON.stringify(before.layouts)
+      const input = frame.getByRole('combobox', { name: 'Search for a city' })
+      await input.fill('Dallas')
+      const list = page.getByRole('listbox', { name: 'City suggestions' })
+      await list.waitFor({ state: 'visible' })
+      const interaction = await page.evaluate(() => {
+        const frameElement = document.querySelector('[data-tier-frame]')
+        const inputElement = document.querySelector('input[aria-label="Search for a city"]')
+        const listElement = document.querySelector('[role="listbox"]')
+        const targets = [
+          document.querySelector('button[aria-label="Use my location"]'),
+          inputElement,
+          ...document.querySelectorAll('[role="option"]'),
+        ].filter(Boolean).map((element) => {
+          const rect = element.getBoundingClientRect()
+          return { name: element.getAttribute('aria-label') || element.textContent.trim(), width: rect.width, height: rect.height }
+        })
+        const frameRect = frameElement.getBoundingClientRect()
+        const listRect = listElement.getBoundingClientRect()
+        return {
+          portalParent: listElement.parentElement === document.body,
+          frameContainsList: frameElement.contains(listElement),
+          expanded: inputElement.getAttribute('aria-expanded'),
+          controls: inputElement.getAttribute('aria-controls'),
+          listId: listElement.id,
+          activeElement: document.activeElement === inputElement,
+          targets,
+          frame: { left: frameRect.left, top: frameRect.top, right: frameRect.right, bottom: frameRect.bottom, width: frameRect.width, height: frameRect.height },
+          list: { left: listRect.left, top: listRect.top, right: listRect.right, bottom: listRect.bottom, width: listRect.width, height: listRect.height },
+        }
+      })
+      assert.equal(interaction.portalParent, true, `${capture.key}: listbox is not portalled to body`)
+      assert.equal(interaction.frameContainsList, false, `${capture.key}: frame still owns the listbox`)
+      assert.equal(interaction.expanded, 'true', `${capture.key}: combobox is not expanded`)
+      assert.equal(interaction.controls, interaction.listId, `${capture.key}: aria-controls lost the listbox`)
+      assert.equal(interaction.activeElement, true, `${capture.key}: query input lost focus`)
+      assert(interaction.list.bottom > interaction.frame.bottom || interaction.list.top < interaction.frame.top, `${capture.key}: listbox did not visibly escape the fixed frame`)
+      assert.equal(interaction.targets.filter((target) => target.width < 36 || target.height < 36).length, 0, `${capture.key}: setup target below 36px ${JSON.stringify(interaction.targets)}`)
+      const measurement = await measureFrame({ page, frame, capture, manifest, runtimeViewport })
+      const image = await screenshotCapture(capture, runtimeViewport)
+
+      await page.getByRole('option').first().click()
+      await page.waitForFunction(() => chrome.storage.local.get('location').then(({ location }) => location?.label === 'Dallas'))
+      const after = await storageGetAll()
+      assert.equal(JSON.stringify(after.layouts), layoutBytes, `${capture.key}: location selection changed layout bytes`)
+      assertLayoutShape(after.layouts, { tier: capture.tier, stack: false, facing: null })
+      const geocodeRequests = evidence.requests.filter((entry) => entry.scenario === capture.key && entry.operation === 'geocode')
+      assert.equal(geocodeRequests.length, 1, `${capture.key}: location search did not use exactly one request owner`)
+      const writes = await currentWriteLog()
+      evidence.captures.push({
+        ...capture,
+        viewport: runtimeViewport,
+        measurement,
+        image,
+        interaction,
+        storage: { writes, changedKeys: topLevelChanges(before, after), layoutBytes, legacyLayoutBytes: canonical(before.layout) },
         requests: evidence.requests.filter((entry) => entry.scenario === capture.key),
       })
     }
@@ -1448,6 +1725,17 @@ async function run() {
       assert(withinTolerance(afterGeometry.card.width, beforeGeometry.card.width), `${capture.key}: stack width changed`)
       assert(withinTolerance(afterGeometry.card.height, beforeGeometry.card.height), `${capture.key}: stack height changed`)
 
+      if (capture.interaction !== 'stack-plain-click-details') {
+        const stackCard = page.locator('[data-stack-card="stack-sf-p1-reference"]')
+        await stackCard.hover()
+        const controlTargets = await stackCard.locator('[data-stack-control] button, button[data-stack-control]').evaluateAll((controls) => controls.map((control) => {
+          const rect = control.getBoundingClientRect()
+          return { name: control.getAttribute('aria-label'), width: rect.width, height: rect.height, visible: getComputedStyle(control).visibility }
+        }))
+        assert(controlTargets.length >= 4, `${capture.key}: stack controls are missing`)
+        assert.equal(controlTargets.filter((target) => target.width < 36 || target.height < 36 || target.visible !== 'visible').length, 0, `${capture.key}: stack target below 36px or hidden ${JSON.stringify(controlTargets)}`)
+      }
+
       const image = await screenshotCapture(capture)
       const after = await storageGetAll()
       const writes = await currentWriteLog()
@@ -1486,21 +1774,22 @@ async function run() {
       })
     }
 
-    for (const capture of manifest.captures) {
+    for (const capture of runCaptures) {
       if (capture.kind === 'stack') await runStackCapture(capture)
+      else if (capture.kind === 'location') await runLocationCapture(capture)
       else await runFreeCapture(capture)
-      process.stdout.write(`CAPTURE ${evidence.captures.length}/${manifest.captures.length} ${capture.key}\n`)
+      process.stdout.write(`CAPTURE ${evidence.captures.length}/${runCaptures.length} ${capture.key}\n`)
     }
 
-    assert.equal(evidence.captures.length, manifest.captures.length, 'SF-P1 capture count is incomplete')
+    assert.equal(evidence.captures.length, runCaptures.length, 'SF-P1 capture count is incomplete')
     assert.equal(evidence.runtimeErrors.length, 0, `runtime errors: ${JSON.stringify(evidence.runtimeErrors)}`)
     assert.equal(evidence.failedRequests.length, 0, `failed requests: ${JSON.stringify(evidence.failedRequests)}`)
     assert.equal(evidence.unexpectedRequests.length, 0, `unexpected requests: ${JSON.stringify(evidence.unexpectedRequests)}`)
     for (const capture of evidence.captures) {
-      assert(VALID_VERDICTS.has(capture.verdict), `${capture.key}: capture has no usefulness verdict`)
+      if (!captureOnly && !realWindow) assert(VALID_VERDICTS.has(capture.verdict), `${capture.key}: capture has no usefulness verdict`)
       assert.equal(capture.measurement.internalScrollOwners.length, 0, `${capture.key}: internal scrollbar remains`)
     }
-    writeCatalog({ catalogPath: resolve(catalogDir, 'CATALOG.md'), evidence })
+    if (!captureOnly && !realWindow) writeCatalog({ catalogPath: resolve(catalogDir, 'CATALOG.md'), evidence })
   } catch (error) {
     caughtError = error
   } finally {
@@ -1535,7 +1824,8 @@ async function run() {
   }
 
   if (caughtError) throw caughtError
-  process.stdout.write(`PASS SF-P1 preliminary witness: ${evidence.summary.captures} captures, ${evidence.summary.requests} audited requests, ${evidence.summary.storageWriteBatches} storage write batches, 0 runtime/failed/unexpected requests\n`)
+  const modeLabel = realWindow ? 'real-window witness' : captureOnly ? 'capture-only preliminary witness' : 'preliminary witness'
+  process.stdout.write(`PASS SF-P1 ${modeLabel}: ${evidence.summary.captures} captures, ${evidence.summary.requests} audited requests, ${evidence.summary.storageWriteBatches} storage write batches, 0 runtime/failed/unexpected requests\n`)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

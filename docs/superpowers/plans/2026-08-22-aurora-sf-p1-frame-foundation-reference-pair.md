@@ -70,7 +70,7 @@
 - Modify: `src/newtab/widgetRegistry.test.ts`
 - Modify: `docs/superpowers/aurora-2/ROADMAP.md`
 
-- [ ] **Step 1: Write the failing contract tests.** Add these public types and assertions to `widgetSizeContracts.test.ts` before production edits:
+- [x] **Step 1: Write the failing contract tests.** Add these public types and assertions to `widgetSizeContracts.test.ts` before production edits:
 
 ```ts
 expect(WIDGET_PRESENTATION_CONTRACTS.weather).toMatchObject({
@@ -129,7 +129,7 @@ expect(WIDGET_PRESENTATION_CONTRACTS.onThisDay.tiers.standard).toEqual({
 })
 ```
 
-- [ ] **Step 2: Observe RED.** Run:
+- [x] **Step 2: Observe RED.** Run:
 
 ```powershell
 npx vitest run src/newtab/widgetSizeContracts.test.ts src/newtab/widgetRegistry.test.ts
@@ -137,7 +137,7 @@ npx vitest run src/newtab/widgetSizeContracts.test.ts src/newtab/widgetRegistry.
 
 Expected: imports/properties for `WIDGET_PRESENTATION_CONTRACTS`, `presentationClass`, `stackSizes`, `states`, and `tiers` fail because only the old size-promise shape exists.
 
-- [ ] **Step 3: Implement the frozen metadata.** In `widgetSizeContracts.ts`, retain `compact`, `standard`, `full`, `docked`, and `sizes` for compatibility, then add:
+- [x] **Step 3: Implement the frozen metadata.** In `widgetSizeContracts.ts`, retain `compact`, `standard`, `full`, `docked`, and `sizes` for compatibility, then add:
 
 ```ts
 export type WidgetPresentationClass = 'framed' | 'intrinsic' | 'bar'
@@ -171,15 +171,15 @@ export const WIDGET_SIZE_CONTRACTS = WIDGET_PRESENTATION_CONTRACTS
 
 For SF-P1, every identity declares class, free sizes, stack sizes, Docked promise, and applicable state names. Weather and On This Day additionally declare complete tier composition metadata. Later SF packets fill tier composition for their bounded families before migrating their renderers. Do not read this metadata from a widget or use it to change current rendering in Task 1.
 
-- [ ] **Step 4: Expose the authority through the registry.** Add `presentationContract: WidgetPresentationContract` to `WidgetRegistryEntry`, point `canvasSizes`, `supportsDocked`, and the compatibility `contentContract` at that same frozen object, and test referential identity plus freezing. No component branches on it yet.
+- [x] **Step 4: Expose the authority through the registry.** Add `presentationContract: WidgetPresentationContract` to `WidgetRegistryEntry`, point `canvasSizes`, `supportsDocked`, and the compatibility `contentContract` at that same frozen object, and test referential identity plus freezing. No component branches on it yet.
 
-- [ ] **Step 5: Record the deferred Agenda topic without settling it.** Add one ROADMAP backlog line:
+- [x] **Step 5: Record the deferred Agenda topic without settling it.** Add one ROADMAP backlog line:
 
 ```md
 - Unified Agenda design after SF-P4: explore one Agenda identity that can optionally bind the month beneath its event list and enrich it with public holidays. Preserve the current Calendar/ICS, Month, and Public Holidays authorities until the owner approves a separate design; no consolidation is part of SF-P1 through SF-P4.
 ```
 
-- [ ] **Step 6: Run GREEN and commit.** Run the same focused Vitest command, then:
+- [x] **Step 6: Run GREEN and commit.** Run the same focused Vitest command, then:
 
 ```powershell
 npx tsc --noEmit
@@ -198,7 +198,7 @@ git commit -m "feat: declare shared frame presentation contracts"
 - Create: `src/newtab/widgets/shared/TierFrame.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Write RED component and CSS tests.** Assert one semantic section, exact data attributes, no extra data owner, and the shared theme classes:
+- [x] **Step 1: Write RED component and CSS tests.** Assert one semantic section, exact data attributes, no extra data owner, and the shared theme classes:
 
 ```tsx
 render(<TierFrame label="Weather" tier="standard" state="ready"><p>Forecast</p></TierFrame>)
@@ -210,7 +210,7 @@ expect(frame.className).toContain('tier-frame')
 
 Pin CSS literals for 216x132, 320x200, 460x284, `box-sizing: border-box`, `overflow: hidden`, the `calc(100vw - 24px)` narrow cap, per-tier aspect ratios, no `overflow-y: auto|scroll`, token-derived panel/border/ink, visible focus, and reduced-motion handling.
 
-- [ ] **Step 2: Observe RED.** Run:
+- [x] **Step 2: Observe RED.** Run:
 
 ```powershell
 npx vitest run src/newtab/widgets/shared/TierFrame.test.tsx
@@ -218,7 +218,7 @@ npx vitest run src/newtab/widgets/shared/TierFrame.test.tsx
 
 Expected: module-not-found for `TierFrame`.
 
-- [ ] **Step 3: Implement a presentation-only frame.** Use no hooks, storage, renderer lookup, or data logic:
+- [x] **Step 3: Implement a presentation-only frame.** Use no hooks, storage, renderer lookup, or data logic:
 
 ```tsx
 export default function TierFrame({ label, tier, state, className = '', children }: TierFrameProps) {
@@ -256,7 +256,7 @@ Use custom properties and aspect ratio so desktop dimensions are exact and only 
 
 Use the repository's actual panel-radius, panel-background, border, ink, shadow, and focus token names after inspecting computed CSS; do not create a parallel theme system. Frame content uses flex/grid with `min-width: 0` and `min-height: 0`; it must not acquire a scroll owner.
 
-- [ ] **Step 4: Run GREEN and commit.** Run:
+- [x] **Step 4: Run GREEN and commit.** Run:
 
 ```powershell
 npx vitest run src/newtab/widgets/shared/TierFrame.test.tsx src/newtab/adaptiveStageLegibility.test.ts
@@ -276,7 +276,7 @@ git commit -m "feat: add exact shared widget frames"
 - Modify: `src/newtab/widgets/weather/WeatherWidget.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Add focused RED tests for ready tiers.** Seed the existing rich Weather fixture and assert:
+- [x] **Step 1: Add focused RED tests for ready tiers.** Seed the existing rich Weather fixture and assert:
 
 ```ts
 expect(frame('compact').getAttribute('data-tier-frame')).toBe('compact')
@@ -293,9 +293,9 @@ expect(within(frame('full')).getByTestId('weather-summary-hourly')).toBeTruthy()
 
 Use DOM data attributes rather than class-order assumptions. Pin that the authored frame contains no decorative nested panel and no element with `overflow-y-auto` or `overflow-y-scroll`.
 
-- [ ] **Step 2: Observe RED for ready tiers.** Run only `WeatherWidget.test.tsx`; expect missing `data-tier-frame` and old viewport/content-tight shell behavior.
+- [x] **Step 2: Observe RED for ready tiers.** Run only `WeatherWidget.test.tsx`; expect missing `data-tier-frame` and old viewport/content-tight shell behavior.
 
-- [ ] **Step 3: Implement ready composition.** Keep all existing hooks and snapshot calculations in the same component. Leave the Docked branch byte-for-byte equivalent in behavior and keep the existing viewport-owned details portal. For non-Docked ready data:
+- [x] **Step 3: Implement ready composition.** Keep all existing hooks and snapshot calculations in the same component. Leave the Docked branch byte-for-byte equivalent in behavior and keep the existing viewport-owned details portal. For non-Docked ready data:
 
   - Compact: current icon and temperature, condition/location, urgent alert or freshness line. No metrics or hourly row.
   - Standard: current icon/temperature, condition/location, trend signal, flat Feels/Wind/Humidity row.
@@ -303,11 +303,11 @@ Use DOM data attributes rather than class-order assumptions. Pin that the author
 
 Replace the free-form outer section only with `TierFrame`. Do not place the expanded Weather details dialog inside the frame. Keep every summary pixel inside the existing disclosure button so click parity remains exact.
 
-- [ ] **Step 4: Add RED state tests.** Cover no-location/setup, initial loading, cached stale, partial environmental/alerts failure, and hard error. Every free state must retain the selected frame and a truthful named status/action. Docked state remains a dense line. Observe failures where the current no-data/setup shells do not have fixed bounds.
+- [x] **Step 4: Add RED state tests.** Cover no-location/setup, initial loading, cached stale, partial environmental/alerts failure, and hard error. Every free state must retain the selected frame and a truthful named status/action. Docked state remains a dense line. Observe failures where the current no-data/setup shells do not have fixed bounds.
 
-- [ ] **Step 5: Implement fixed states without changing authority.** Reuse `LocationSetup`, `ResourceFeedback`, existing refresh, and existing permission flows. Tighten their authored layout per tier; do not invent a second fetch or store. Preserve cached current conditions in stale/partial states. A hard error names Weather and retains the existing retry. Ensure all status text is at least 11px and routine text at least 14px where the frame can support it.
+- [x] **Step 5: Implement fixed states without changing authority.** Reuse `LocationSetup`, `ResourceFeedback`, existing refresh, and existing permission flows. Tighten their authored layout per tier; do not invent a second fetch or store. Preserve cached current conditions in stale/partial states. A hard error names Weather and retains the existing retry. Ensure all status text is at least 11px and routine text at least 14px where the frame can support it.
 
-- [ ] **Step 6: Run GREEN and commit.** Run:
+- [x] **Step 6: Run GREEN and commit.** Run:
 
 ```powershell
 npx vitest run src/newtab/widgets/weather/WeatherWidget.test.tsx src/newtab/widgets/weather/LocationSetup.test.tsx src/newtab/widgets/shared/TierFrame.test.tsx
@@ -329,7 +329,7 @@ git commit -m "feat: compose Weather in shared frames"
 - Modify: `src/newtab/widgets/glance/GlanceWidgetShell.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Add the RED tier-composition tests.** Replace the old Full-local-overflow expectation with bounded authored content:
+- [x] **Step 1: Add the RED tier-composition tests.** Replace the old Full-local-overflow expectation with bounded authored content:
 
 ```ts
 expect(within(frame).getAllByText('On This Day')).toHaveLength(1)
@@ -341,11 +341,11 @@ expect(screen.getByRole('link', { name: 'More on Wikipedia' })).toBeTruthy()
 
 Pin Compact to one event with year and accessible full summary, Standard to three events, and Full to a bounded events/births/deaths composition. The Full tier keeps all three information families but caps their rows instead of scrolling.
 
-- [ ] **Step 2: Observe RED.** Run `OnThisDayWidget.test.tsx`; expect missing exact frame/date hierarchy and the current Full `data-work-widget-scroll` assertion to conflict.
+- [x] **Step 2: Observe RED.** Run `OnThisDayWidget.test.tsx`; expect missing exact frame/date hierarchy and the current Full `data-work-widget-scroll` assertion to conflict.
 
-- [ ] **Step 3: Reuse the existing resource-state body.** Export `WorkResourceBody` from `WorkWidgetShell.tsx` and re-export it as `GlanceResourceBody`; do not alter its rendered behavior for existing consumers. On This Day uses it inside `TierFrame` so loading, retained stale data, empty, and retry semantics remain one implementation.
+- [x] **Step 3: Reuse the existing resource-state body.** Export `WorkResourceBody` from `WorkWidgetShell.tsx` and re-export it as `GlanceResourceBody`; do not alter its rendered behavior for existing consumers. On This Day uses it inside `TierFrame` so loading, retained stale data, empty, and retry semantics remain one implementation.
 
-- [ ] **Step 4: Implement the authored hierarchy.** Render:
+- [x] **Step 4: Implement the authored hierarchy.** Render:
 
   - one `On This Day` heading;
   - one English month/day line derived from the already-owned `useLocalDay().now`;
@@ -356,9 +356,9 @@ Pin Compact to one event with year and accessible full summary, Standard to thre
 
 Resize spacing/type and clamp summaries before removing the year or information family. Keep each event's accessible full text and existing safe article link. Do not fetch more data, store a second date, repeat the date, or add a scroll owner.
 
-- [ ] **Step 5: Add and satisfy RED state tests.** Cover loading, empty, stale/retained error, and hard error at Standard. Each retains the exact outer frame and names the state. Retry continues to clear only the existing `connectorSnapshots.onThisDay` entry.
+- [x] **Step 5: Add and satisfy RED state tests.** Cover loading, empty, stale/retained error, and hard error at Standard. Each retains the exact outer frame and names the state. Retry continues to clear only the existing `connectorSnapshots.onThisDay` entry.
 
-- [ ] **Step 6: Run GREEN and commit.** Run:
+- [x] **Step 6: Run GREEN and commit.** Run:
 
 ```powershell
 npx vitest run src/newtab/widgets/glance/OnThisDayWidget.test.tsx src/newtab/widgets/work/WorkWidgetShell.test.tsx src/newtab/widgets/shared/TierFrame.test.tsx
@@ -380,11 +380,11 @@ git commit -m "feat: compose On This Day in shared frames"
 - Modify only if RED proves necessary: `src/newtab/canvas/CanvasSurface.tsx`
 - Modify only if RED proves necessary: `src/newtab/index.css`
 
-- [ ] **Step 1: Write the RED integration test.** Render a stored Standard stack containing Weather and On This Day through `CanvasSurface`. Assert both members mount exactly once, both receive exact `standard`, the visible face is interactive, the hidden face remains mounted/inert, and storage callbacks are never invoked by rendering or face geometry.
+- [x] **Step 1: Write the RED integration test.** Render a stored Standard stack containing Weather and On This Day through `CanvasSurface`. Assert both members mount exactly once, both receive exact `standard`, the visible face is interactive, the hidden face remains mounted/inert, and storage callbacks are never invoked by rendering or face geometry.
 
-- [ ] **Step 2: Add a browser-geometry component contract.** In `StackCard.test.tsx`, use members that render real `TierFrame`s and assert the grid contains two same-tier frames, no generic outer panel, unchanged arrows/dots/swipe/click behavior, and no internal scroll class. This jsdom test pins structure; Task 6 measures pixels in Chromium.
+- [x] **Step 2: Add a browser-geometry component contract.** In `StackCard.test.tsx`, use members that render real `TierFrame`s and assert the grid contains two same-tier frames, no generic outer panel, unchanged arrows/dots/swipe/click behavior, and no internal scroll class. This jsdom test pins structure; Task 6 measures pixels in Chromium.
 
-- [ ] **Step 3: Observe RED.** Run:
+- [x] **Step 3: Observe RED.** Run:
 
 ```powershell
 npx vitest run src/newtab/canvas/StackCard.test.tsx src/newtab/canvas/CanvasSurface.test.tsx
@@ -392,9 +392,9 @@ npx vitest run src/newtab/canvas/StackCard.test.tsx src/newtab/canvas/CanvasSurf
 
 Expected: the new exact-frame reference assertions fail only where integration attributes/props are missing. If they pass without production changes, record that result and do not manufacture a code change.
 
-- [ ] **Step 4: Make only evidence-required integration changes.** Do not replace global tallest-member behavior or nearest-tier fallback in SF-P1. The reference pair already shares all three tiers and paints the same `TierFrame`; global stack-tier intersection and compatibility faces land when the remaining framed/intrinsic/bar presentations are available in SF-P2/SF-P3. Any necessary change must be presentation-only and retain mounted-once, hidden-inert, manual paging, plain-click parity, and edit-mode behavior.
+- [x] **Step 4: Make only evidence-required integration changes.** Do not replace global tallest-member behavior or nearest-tier fallback in SF-P1. The reference pair already shares all three tiers and paints the same `TierFrame`; global stack-tier intersection and compatibility faces land when the remaining framed/intrinsic/bar presentations are available in SF-P2/SF-P3. Any necessary change must be presentation-only and retain mounted-once, hidden-inert, manual paging, plain-click parity, and edit-mode behavior.
 
-- [ ] **Step 5: Run GREEN and commit tests/integration.** Run:
+- [x] **Step 5: Run GREEN and commit tests/integration.** Run:
 
 ```powershell
 npx vitest run src/newtab/canvas/StackCard.test.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/widgets/weather/WeatherWidget.test.tsx src/newtab/widgets/glance/OnThisDayWidget.test.tsx
@@ -417,9 +417,9 @@ If no production file changed, omit it from `git add`. If the RED passed without
 - Modify: `.gitignore`
 - Create: `docs/superpowers/catalog/shared-frames/sf-p1/CATALOG.md`
 
-- [ ] **Step 1: Write the RED harness contract.** The Node test must import the manifest generation helper and assert the matrix is derived from `WIDGET_PRESENTATION_CONTRACTS` for exactly `weather` and `onThisDay`, not copied into a second tier list. It must fail on a missing tier, state, theme, stack direction/dot interaction, viewport, usefulness verdict, or expected frame dimension.
+- [x] **Step 1: Write the RED harness contract.** The Node test must import the manifest generation helper and assert the matrix is derived from `WIDGET_PRESENTATION_CONTRACTS` for exactly `weather` and `onThisDay`, not copied into a second tier list. It must fail on a missing tier, state, theme, stack direction/dot interaction, viewport, usefulness verdict, or expected frame dimension.
 
-- [ ] **Step 2: Observe RED.** Run:
+- [x] **Step 2: Observe RED.** Run:
 
 ```powershell
 node --test scripts/qa-shared-frame-p1.test.mjs
@@ -427,7 +427,7 @@ node --test scripts/qa-shared-frame-p1.test.mjs
 
 Expected: module/script missing.
 
-- [ ] **Step 3: Implement the deterministic witness.** Use a preview build and isolated Chrome profile. Seed existing-layout-shaped `layouts`, current settings/location, connector config, and valid snapshots before the app observes them. Block unapproved external traffic and fulfil only exact expected provider requests. Derive declared tiers from the registry source/module, then capture:
+- [x] **Step 3: Implement the deterministic witness.** Use a preview build and isolated Chrome profile. Seed existing-layout-shaped `layouts`, current settings/location, connector config, and valid snapshots before the app observes them. Block unapproved external traffic and fulfil only exact expected provider requests. Derive declared tiers from the registry source/module, then capture:
 
   - ready Weather and On This Day at Compact, Standard, and Full;
   - applicable loading, setup/permission, empty, stale/partial, and hard-error states;
@@ -437,9 +437,9 @@ Expected: module/script missing.
 
 For every frame, measure outer width/height within 0.5 CSS px, content scroll width/height, computed overflow, minimum text size, focus visibility, duplicate accessible names, selected text after swipe, and storage writes. The exact stored tier, layout bytes, membership, facing, and anchors must survive reload except for the explicit face-page write being tested. Fail on runtime errors, failed requests, unexpected requests, legacy `layout` writes, internal frame scrollbars, clipping, missing essential/signature selectors, or a capture with no usefulness verdict.
 
-- [ ] **Step 4: Generate the owner catalog.** `CATALOG.md` lists each original-resolution PNG, measured geometry, visible essential/signature content, state, theme, viewport, and one explicit `Useful`, `Needs refinement`, or `Rejected` verdict. Do not auto-label a capture useful merely because assertions passed.
+- [x] **Step 4: Generate the owner catalog.** `CATALOG.md` lists each original-resolution PNG, measured geometry, visible essential/signature content, state, theme, viewport, and one explicit `Useful`, `Needs refinement`, or `Rejected` verdict. Do not auto-label a capture useful merely because assertions passed.
 
-- [ ] **Step 5: Run the harness contract and a preliminary witness.** Run:
+- [x] **Step 5: Run the harness contract and a preliminary witness.** Run:
 
 ```powershell
 node --test scripts/qa-shared-frame-p1.test.mjs
@@ -449,7 +449,7 @@ node scripts/qa-shared-frame-p1.mjs
 
 Inspect every PNG at original resolution. Correct only verified SF-P1 defects through new focused RED tests before review.
 
-- [ ] **Step 6: Commit the harness and catalog.** Run `node --check`, `git diff --check`, then commit only script, ignore, catalog, and evidence-safe fixture changes:
+- [x] **Step 6: Commit the harness and catalog.** Run `node --check`, `git diff --check`, then commit only script, ignore, catalog, and evidence-safe fixture changes:
 
 ```powershell
 git add .gitignore scripts/qa-shared-frame-p1.mjs scripts/qa-shared-frame-p1.test.mjs docs/superpowers/catalog/shared-frames/sf-p1

@@ -498,7 +498,7 @@ describe('CanvasSurface widget stacks', () => {
     for (const id of ['clock', 'greeting', 'worldClocks', 'countdown', 'quote', 'sun', 'moon', 'status']) {
       expect(indexCss).toContain(`.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="${id}"]`)
     }
-    expect(indexCss).toMatch(/\.stack-card\s*\{[^}]*padding:\s*0 28px 20px/)
+    expect(indexCss).toMatch(/\.stack-card\s*\{[^}]*padding:\s*0 40px 36px/)
     expect(indexCss).toMatch(/\.stack-card__arrow--next\s*\{\s*right:\s*0;/)
     expect(indexCss).toMatch(/\.stack-card__dots\s*\{[^}]*bottom:\s*0;/)
   })

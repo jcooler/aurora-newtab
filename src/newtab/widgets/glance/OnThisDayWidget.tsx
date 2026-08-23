@@ -10,6 +10,7 @@ import {
   type OnThisDayEvent,
 } from '../../../services/connectors/onThisDay'
 import type { OnThisDayConfig } from '../../../services/connectors/types'
+import type { WidgetPresentationState } from '../../widgetSizeContracts'
 import TierFrame from '../shared/TierFrame'
 import {
   GlanceDockDetail,
@@ -84,11 +85,14 @@ function OnThisDayInner({
     )
   }
 
-  const visible = canvasSize === 'full'
-    ? events.slice(0, 3)
-    : canvasSize === 'standard'
+  const retainedLimit = presentation === 'retained-error' ? 1 : presentation === 'stale' ? 2 : null
+  const visible = retainedLimit !== null
+    ? events.slice(0, retainedLimit)
+    : canvasSize === 'full'
       ? events.slice(0, 3)
-      : events.slice(0, 1)
+      : canvasSize === 'standard'
+        ? events.slice(0, 3)
+        : events.slice(0, 1)
   const dateLabel = new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric' }).format(localDay.now)
   const monthLabel = new Intl.DateTimeFormat('en', { month: 'long' }).format(localDay.now)
   const providerHref = `https://en.wikipedia.org/wiki/${monthLabel}_${localDay.now.getDate()}`
@@ -98,14 +102,20 @@ function OnThisDayInner({
       ? data.events.length > 3 || data.births.length > 0 || data.deaths.length > 0
       : data.events.length > 1 || data.births.length > 0 || data.deaths.length > 0)
   const dataBearing = presentation === 'ready' || presentation === 'stale' || presentation === 'retained-error'
+  const frameState: WidgetPresentationState = presentation === 'retained-error'
+    ? 'stale'
+    : presentation === 'setup'
+      ? 'permission-required'
+      : presentation
 
   return (
-    <TierFrame label="On This Day" tier={canvasSize} state={presentation} className="on-this-day-tier-frame">
+    <TierFrame label="On This Day" tier={canvasSize} state={frameState} className="on-this-day-tier-frame">
       <header className="on-this-day-tier-header">
         <h2>On This Day</h2>
         <p>{dateLabel}</p>
       </header>
-      <div className={`on-this-day-tier-content ${dataBearing ? '' : 'on-this-day-tier-state'}`.trim()}>
+      <div className={`on-this-day-tier-content ${dataBearing ? '' : 'on-this-day-tier-state'} ${presentation === 'loading' ? 'on-this-day-tier-content--loading' : ''}`.trim()}>
+        {presentation === 'loading' ? <OnThisDaySkeleton tier={canvasSize} /> : null}
         <GlanceResourceBody
           title="On This Day"
           presentation={presentation}
@@ -115,19 +125,30 @@ function OnThisDayInner({
         >
           <EventList
             events={visible}
-            clamp={canvasSize === 'compact' ? 2 : 1}
+            clamp={canvasSize === 'compact' || canvasSize === 'full' ? 2 : 1}
             framed
           />
           {canvasSize === 'full' && data ? (
             <div className="on-this-day-tier-sections">
-              <EventSection title="Born" events={data.births.slice(0, 1)} clamp={1} framed />
-              <EventSection title="Died" events={data.deaths.slice(0, 1)} clamp={1} framed />
+              <EventSection title="Born" events={data.births.slice(0, 1)} clamp={2} framed />
+              <EventSection title="Died" events={data.deaths.slice(0, 1)} clamp={2} framed />
             </div>
           ) : null}
           {hasMoreContext ? <ProviderDestination href={providerHref} /> : null}
         </GlanceResourceBody>
       </div>
     </TierFrame>
+  )
+}
+
+function OnThisDaySkeleton({ tier }: { tier: CanvasSize }) {
+  const rows = tier === 'compact' ? 1 : 3
+  return (
+    <div data-on-this-day-skeleton="" aria-hidden="true" className="on-this-day-tier-skeleton">
+      {Array.from({ length: rows }, (_, index) => (
+        <span key={index}><i /><b /></span>
+      ))}
+    </div>
   )
 }
 
@@ -177,7 +198,7 @@ function EventList({
               target="_blank"
               rel="noopener noreferrer"
               title={clamp ? event.text : undefined}
-              className={`min-w-0 text-sm leading-5 focus-visible:outline-2 focus-visible:outline-accent ${clampClass} ${glanceRowClass}`}
+              className={`min-h-9 min-w-0 text-sm leading-5 focus-visible:outline-2 focus-visible:outline-accent ${clampClass} ${glanceRowClass}`}
             >
               {event.text}
             </a>
@@ -201,7 +222,7 @@ function ProviderDestination({ href }: { href: string }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="on-this-day-tier-provider"
+      className="on-this-day-tier-provider min-h-9"
     >
       More on Wikipedia
     </a>

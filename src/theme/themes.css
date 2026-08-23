@@ -12,6 +12,10 @@
   --fg: #f5f5f4;
   --fg-muted: rgb(245 245 244 / 0.68);
   --accent: #7dd3fc;
+  /* Accent text and focus painted inside configurable panels must follow the
+     panel, not the fixed Aurora canvas accent. applyPanelColor replaces this
+     with the higher-contrast standing panel ink for every explicit pick. */
+  --panel-accent: #f5f5f4;
 
   /* Canvas ink — text that sits DIRECTLY on the photograph (clock, greeting,
      the Tokyo/London world-clocks line, focus line + prompt/edit, quote +

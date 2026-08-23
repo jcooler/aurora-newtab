@@ -253,6 +253,7 @@ describe('WeatherWidget collapsed chip', () => {
     expect(summary.querySelector('[data-weather-current]')).toBeTruthy()
     expect(summary.querySelector('[data-weather-condition-location]')?.textContent).toBe('Partly cloudy - New York')
     expect(summary.querySelector('[data-weather-disclosure]')).toBeTruthy()
+    expect(summary.querySelector('[data-weather-freshness]')?.textContent).toMatch(/^Updated (just now|\d+[mh] ago)$/)
     expect(summary.querySelector('[data-weather-summary-trend]')).toBeNull()
     expect(summary.querySelector('[data-weather-summary-metrics]')).toBeNull()
     expect(summary.querySelector('[data-weather-summary-hourly]')).toBeNull()
@@ -418,8 +419,24 @@ describe('WeatherWidget tier frame states', () => {
 
     const standard = frame('standard')
     expect(standard.dataset.tierFrameState).toBe('loading')
+    expect(within(standard).getByRole('heading', { name: 'Weather' })).toBeTruthy()
+    expect(standard.querySelector('[data-weather-state-skeleton]')).toBeTruthy()
     expect(within(standard).getByRole('status').textContent).toBe('Loading weather\u2026')
     expectNoFrameScroll(standard)
+  })
+
+  it('authors an empty Compact frame with a truthful refresh action and no second fetch owner', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    await renderWidget({ snapshot: null, stageVariant: 'compact' })
+
+    const compact = frame('compact')
+    expect(compact.dataset.tierFrameState).toBe('empty')
+    expect(within(compact).getByRole('heading', { name: 'Weather' })).toBeTruthy()
+    expect(within(compact).getByText('No data yet.')).toBeTruthy()
+    expect(within(compact).getByRole('button', { name: 'Refresh' })).toBeTruthy()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expectNoFrameScroll(compact)
   })
 
   it('keeps cached current conditions inside a stale Full frame while refresh is pending', async () => {

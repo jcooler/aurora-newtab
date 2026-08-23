@@ -39,12 +39,16 @@ const dallasGA = {
   longitude: -84.8,
 }
 
-async function renderSetup(driver = memoryDriver(), authority?: StorageAuthority) {
+async function renderSetup(
+  driver = memoryDriver(),
+  authority?: StorageAuthority,
+  tier: 'compact' | 'standard' | 'full' = 'standard',
+) {
   const storage = authority ? createStorage(driver, authority) : createStorage(driver)
   await storage.init()
   const utils = render(
     <StorageProvider storage={storage}>
-      <LocationSetup />
+      <LocationSetup tier={tier} />
     </StorageProvider>,
   )
   const input = screen.getByRole('combobox', { name: 'Search for a city' }) as HTMLInputElement
@@ -60,6 +64,59 @@ function DialogWrapper({ onClose }: { onClose: () => void }) {
 }
 
 describe('LocationSetup typeahead', () => {
+  it.each(['compact', 'standard'] as const)('portals %s suggestions beyond the frame, preserves combobox ownership, and selects a result', async (tier) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { storage, input } = await renderSetup(memoryDriver(), undefined, tier)
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    const list = screen.getByRole('listbox')
+    expect(list.parentElement).toBe(document.body)
+    expect(list.className).toContain('fixed')
+    expect(input.getAttribute('aria-controls')).toBe(list.id)
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(input)
+
+    fireEvent.click(screen.getByRole('option', { name: /Dallas/ }))
+    await act(async () => {})
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('closes the portalled list on an outside pointer without moving input focus', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { input } = await renderSetup()
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('uses tier context for compact adaptation and gives every setup control a 36px target', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { input } = await renderSetup(memoryDriver(), undefined, 'compact')
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    const root = input.closest('[data-location-setup]') as HTMLElement | null
+    expect(root?.dataset.locationTier).toBe('compact')
+    expect(root?.className).not.toContain('xshort:')
+    expect(input.className).toContain('min-h-9')
+    expect(input.className).not.toContain('max-[420px]')
+    expect(screen.getByRole('button', { name: 'Use my location' }).className).toContain('min-h-9')
+    expect(screen.getByRole('option').className).toContain('min-h-9')
+  })
+
   it('does not search below the 2-character minimum, even once the debounce would have elapsed', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
@@ -446,6 +503,10 @@ describe('LocationSetup dropdown edge clamping', () => {
       .mockResolvedValueOnce(jsonResponse({ results: [dallasTX] }))
       .mockResolvedValueOnce(jsonResponse({ results: [dallasTX, dallasGA] }))
     vi.stubGlobal('fetch', fetchMock)
+    const inputRectSpy = vi.spyOn(HTMLInputElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 400, right: 560, top: 40, bottom: 76, width: 160, height: 36,
+      x: 400, y: 40, toJSON() {},
+    } as DOMRect)
     const { input } = await renderSetup()
 
     fireEvent.change(input, { target: { value: 'Dal' } })
@@ -453,9 +514,8 @@ describe('LocationSetup dropdown edge clamping', () => {
       await vi.advanceTimersByTimeAsync(300)
     })
     const list = screen.getByRole('listbox')
-    // Right edge (700) clamped back to window.innerWidth(500) - EDGE_MARGIN(8) = 492
-    // by shifting left 208px: 400 - 208 = 192, 700 - 208 = 492.
-    expect(list.style.left).toBe('-208px')
+    // A fixed portal uses the clamped viewport coordinate directly.
+    expect(list.style.left).toBe('192px')
 
     // A second search resolves while the SAME list is still open (results
     // change, list never closes) — re-measuring must land on the same
@@ -466,13 +526,15 @@ describe('LocationSetup dropdown edge clamping', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(list.style.left).toBe('-208px') // still clamped, not un-clamped back to 0
+    expect(list.style.left).toBe('192px')
+    inputRectSpy.mockRestore()
   })
 
   it('owns a viewport-derived height, scrolls the active descendant, and converges on resize without shift drift', async () => {
     const originalInnerHeight = window.innerHeight
     Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
     const scrollIntoView = vi.fn()
+    const scrollHeightSpy = vi.spyOn(HTMLUListElement.prototype, 'scrollHeight', 'get').mockReturnValue(162)
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
     const inputRectSpy = vi.spyOn(HTMLInputElement.prototype, 'getBoundingClientRect').mockReturnValue({
       left: 400,
@@ -512,9 +574,9 @@ describe('LocationSetup dropdown edge clamping', () => {
     const list = screen.getByRole('listbox')
 
     expect(list.classList.contains('overflow-x-hidden')).toBe(true)
-    expect(list.style.left).toBe('-208px')
-    expect(list.style.top).toBe('auto')
-    expect(list.style.bottom).toBe('calc(100% + 4px)')
+    expect(list.style.left).toBe('192px')
+    expect(list.style.top).toBe('8px')
+    expect(list.style.bottom).toBe('')
     expect(list.style.maxHeight).toBe('98px')
     expect(list.style.transform).toBe('')
 
@@ -546,12 +608,13 @@ describe('LocationSetup dropdown edge clamping', () => {
       fireEvent(window, new Event('resize'))
       await vi.advanceTimersByTimeAsync(20)
     })
-    expect(list.style.left).toBe('-208px')
-    expect(list.style.top).toBe('auto')
-    expect(list.style.bottom).toBe('calc(100% + 4px)')
+    expect(list.style.left).toBe('192px')
+    expect(list.style.top).toBe('8px')
+    expect(list.style.bottom).toBe('')
     expect(list.style.maxHeight).toBe('78px')
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
     inputRectSpy.mockRestore()
+    scrollHeightSpy.mockRestore()
     Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
   })
 
@@ -587,7 +650,7 @@ describe('LocationSetup dropdown edge clamping', () => {
       } as DOMRect
     })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX, dallasGA] })))
-    const { input } = await renderSetup()
+    const { input } = await renderSetup(memoryDriver(), undefined, 'compact')
     input.focus()
     fireEvent.change(input, { target: { value: 'Dallas' } })
     await act(async () => {
@@ -596,13 +659,14 @@ describe('LocationSetup dropdown edge clamping', () => {
 
     const list = screen.getByRole('listbox')
     const compactControlRow = input.parentElement?.parentElement
-    expect(compactControlRow?.className).toContain('xshort:flex-row')
-    expect(input.parentElement?.className).toContain('xshort:order-1')
-    expect(screen.getByRole('button', { name: 'Use my location' }).className).toContain('xshort:order-2')
-    expect(screen.getByText('Weather needs a location.').className).toContain('xshort:hidden')
+    expect(compactControlRow?.className).toContain('location-setup__controls')
+    expect(input.closest('[data-location-setup]')?.getAttribute('data-location-tier')).toBe('compact')
+    expect(input.parentElement?.className).toContain('location-setup__search')
+    expect(screen.getByRole('button', { name: 'Use my location' }).className).toContain('location-setup__device')
+    expect(screen.getByText('Weather needs a location.').className).toContain('location-setup__prompt')
     expect(document.activeElement).toBe(input)
-    expect(list.style.top).toBe('calc(100% + 4px)')
-    expect(list.style.bottom).toBe('auto')
+    expect(list.style.top).toBe('110px')
+    expect(list.style.bottom).toBe('')
     expect(list.style.maxHeight).toBe('62px')
     expect(list.style.transform).toBe('')
     expect(list.className).toContain('overflow-x-hidden')
