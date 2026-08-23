@@ -299,7 +299,7 @@ git commit -m "feat: redesign personal action widgets"
 - Keeps: canonical production identity `ics`; compatibility renderers for `monthCal` and `publicHolidays` until per-layout Save.
 - Consumes: Existing ICS hooks, month calculations, public-holiday connector snapshots, and queued layouts updater.
 
-- [ ] **Step 1: Write failing pure composition tests**
+- [x] **Step 1: Write failing pure composition tests**
 
 ```ts
 it('keeps a timed appointment primary while including a same-day holiday', () => {
@@ -322,7 +322,7 @@ it.each(['locale', 'sunday', 'monday'] as const)('returns a complete %s month gr
 })
 ```
 
-- [ ] **Step 2: Write failing atomic consolidation tests**
+- [x] **Step 2: Write failing atomic consolidation tests**
 
 ```ts
 it('keeps the chosen placement and removes only other date placements', () => {
@@ -345,23 +345,23 @@ it('Later and stale ownership perform zero writes', async () => {
 })
 ```
 
-- [ ] **Step 3: Observe RED in the Calendar and layout families**
+- [x] **Step 3: Observe RED in the Calendar and layout families**
 
 Run: `npx vitest run src/newtab/widgets/calendar src/newtab/widgets/monthcal src/newtab/widgets/glance/PublicHolidaysWidget.test.tsx src/lib/layout/calendarConsolidation.test.ts src/lib/layout/namedLayouts.test.ts src/newtab/widgetRegistry.test.ts src/newtab/widgetSizeContracts.test.ts`
 
-- [ ] **Step 4: Implement source adapters and tier faces**
+- [x] **Step 4: Implement source adapters and tier faces**
 
 Docked and Compact are agenda-led. Standard exposes a labelled 36px Agenda/Month switch and complete 42-cell Month grid. Full renders Month and Agenda together. Public Holidays remains a separate source adapter and never exposes Nager.Date or country copy in the widget. Missing or failed sources degrade independently.
 
-- [ ] **Step 5: Implement explicit per-layout consolidation**
+- [x] **Step 5: Implement explicit per-layout consolidation**
 
 Detect legacy placements read-only. Render placement choices with Save and Later. Inside the queued updater, re-read the layout revision, preserve the selected anchor, layer, dock, stack position, and compatible tier, then atomically hide the other legacy identities for that layout. Later, Cancel, stale revision, and reload perform zero writes.
 
-- [ ] **Step 6: Implement Settings and inspector authority**
+- [x] **Step 6: Implement Settings and inspector authority**
 
 Settings retains Calendars, Month week start, and Public Holidays country sections. Widget Inspector owns per-layout Default view and Include public holidays. Turning inclusion off preserves country and cache. The ordinary Standard switch writes only the active layout's companion preference and never its geometry.
 
-- [ ] **Step 7: Run the focused Calendar gate and Chromium proof**
+- [x] **Step 7: Run the focused Calendar gate and Chromium proof**
 
 Run: `npx vitest run src/newtab/widgets/calendar src/newtab/widgets/monthcal src/newtab/widgets/glance/PublicHolidaysWidget.test.tsx src/lib/layout src/newtab/widgetRegistry.test.ts src/newtab/widgetSizeContracts.test.ts src/newtab/edit/WidgetInspector.test.tsx src/settings/SettingsPanel.test.tsx`
 
@@ -369,7 +369,7 @@ Run: `npx tsc -b --pretty false`
 
 Build and inspect Docked, Compact, Standard Agenda, Standard Month, Full, GitHub + Calendar stack, migration Save, Later, Cancel, and stale two-tab rejection. Verify exact frames, 42 cells, no internal scrollbar, no capability URL, and no presentation-only layout write.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```powershell
 git add src/newtab/widgets/calendar src/newtab/widgets/monthcal src/newtab/widgets/glance/PublicHolidaysWidget.tsx src/newtab/widgets/glance/PublicHolidaysWidget.test.tsx src/lib/layout src/newtab/widgetRegistry.ts src/newtab/widgetRegistry.test.ts src/newtab/widgetSizeContracts.ts src/newtab/widgetSizeContracts.test.ts src/newtab/edit/WidgetInspector.tsx src/newtab/edit/WidgetInspector.test.tsx src/settings src/newtab/index.css docs/superpowers/aurora-2
