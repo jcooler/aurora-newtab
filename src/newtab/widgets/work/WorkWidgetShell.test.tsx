@@ -88,7 +88,12 @@ describe('WorkWidgetShell', () => {
     expect(shell.dataset.tierFrameState).toBe('partial')
     expect(document.querySelector('[data-work-widget-scroll]')).toBeNull()
     expect(shell.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
-    screen.getByRole('button', { name: 'Refresh Linear' }).click()
+    const status = screen.getByRole('status')
+    const retry = screen.getByRole('button', { name: 'Refresh Linear' })
+    expect(status.parentElement?.className).toContain('mt-2')
+    expect(status.parentElement?.className).toContain('pt-1')
+    expect(retry.className).toContain('mt-1')
+    retry.click()
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 

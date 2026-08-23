@@ -55,7 +55,7 @@ export function WorkResourceBody({
     <>
       {showRows ? children : null}
       {message ? (
-        <div className={showRows ? 'mt-3 border-t border-hairline pt-2' : ''}>
+        <div className={showRows ? 'mt-2 border-t border-hairline pt-1' : ''}>
           <p
             role={presentation === 'hard-error' ? 'alert' : 'status'}
             className="text-xs text-fg-muted"
@@ -67,7 +67,7 @@ export function WorkResourceBody({
               type="button"
               onClick={onRefresh}
               aria-label={`Refresh ${title}`}
-              className="mt-2 inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className={`${showRows ? 'mt-1' : 'mt-2'} inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent`}
             >
               Refresh
             </button>

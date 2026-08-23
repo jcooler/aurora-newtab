@@ -57,13 +57,13 @@ function BrowserResourceBody<T>({
       ) : showContent ? children : null}
 
       {state.status === 'error' ? (
-        <div className={hasRetainedData ? 'mt-3 border-t border-hairline pt-2' : ''}>
+        <div className={hasRetainedData ? 'mt-2 border-t border-hairline pt-1' : ''}>
           <p role="status" className="text-xs text-fg-muted">{state.message}</p>
           {onRefresh ? (
             <button
               type="button"
               onClick={onRefresh}
-              className="mt-2 inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className={`${hasRetainedData ? 'mt-1' : 'mt-2'} inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent`}
               aria-label={`Refresh ${title}`}
             >
               Refresh
