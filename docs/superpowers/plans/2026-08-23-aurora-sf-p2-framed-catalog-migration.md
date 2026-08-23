@@ -36,9 +36,11 @@
 - Modify: `src/newtab/widgetSizeContracts.test.ts`
 - Modify: `src/newtab/widgetRegistry.test.ts`
 - Modify: `src/newtab/expansionWidgetContracts.test.ts`
+- Modify: `scripts/qa-shared-frame-p1.mjs`
+- Modify: `scripts/qa-shared-frame-p1.test.mjs`
 
-- [ ] **Step 1: Add focused RED contract tests.** Require every Framed widget to declare a `TierCompositionContract` for every free tier and every stack tier. Require `stackSizes` to be an explicit frozen subset rather than an implicit copy. Assert every tier has non-empty purpose and essential arrays, an explicit signature array, ordered narrow-safety rules, and one overflow destination. Pin the exact 27 Framed ids and prove Weather plus On This Day remain byte-stable authorities.
-- [ ] **Step 2: Observe RED.** Run:
+- [x] **Step 1: Add focused RED contract tests.** Require every Framed widget to declare a `TierCompositionContract` for every free tier and every stack tier. Require `stackSizes` to be an explicit frozen subset rather than an implicit copy. Assert every tier has non-empty purpose and essential arrays, an explicit signature array, ordered narrow-safety rules, and one overflow destination. Pin the exact 27 Framed ids and prove Weather plus On This Day remain byte-stable authorities.
+- [x] **Step 2: Observe RED.** Run:
 
 ```powershell
 npx vitest run src/newtab/widgetSizeContracts.test.ts src/newtab/widgetRegistry.test.ts src/newtab/expansionWidgetContracts.test.ts
@@ -46,11 +48,11 @@ npx vitest run src/newtab/widgetSizeContracts.test.ts src/newtab/widgetRegistry.
 
 Expected: the 25 unmigrated Framed widgets lack tier metadata, and `stackSizes` is still synthesized from `sizes`.
 
-- [ ] **Step 3: Extend `contract` without a parallel registry.** Add an explicit `stackSizes` input and complete authored tier metadata for Calendar, Month, Sun, Moon, Habits, Status, GitHub, GitLab, Jira, Vercel, Home Assistant, RSS, Crypto, Reading List, Recently Closed, Downloads, Tab Groups, Timer, Tasks, Notes, Linear, Sentry, Todoist, Public Holidays, and Aurora & Kp. Use existing content contracts and rendered facts as the source. Do not invent provider data.
-- [ ] **Step 4: Run GREEN and commit.** Run the Step 2 command, `npx tsc --noEmit`, and `git diff --check`, then commit:
+- [x] **Step 3: Extend `contract` without a parallel registry.** Add an explicit `stackSizes` input and complete authored tier metadata for Calendar, Month, Sun, Moon, Habits, Status, GitHub, GitLab, Jira, Vercel, Home Assistant, RSS, Crypto, Reading List, Recently Closed, Downloads, Tab Groups, Timer, Tasks, Notes, Linear, Sentry, Todoist, Public Holidays, and Aurora & Kp. Use existing content contracts and rendered facts as the source. Do not invent provider data.
+- [x] **Step 4: Run GREEN and commit.** Run the Step 2 command, `npx tsc --noEmit`, and `git diff --check`, then commit:
 
 ```powershell
-git add src/newtab/widgetSizeContracts.ts src/newtab/widgetSizeContracts.test.ts src/newtab/widgetRegistry.test.ts src/newtab/expansionWidgetContracts.test.ts
+git add src/newtab/widgetSizeContracts.ts src/newtab/widgetSizeContracts.test.ts src/newtab/widgetRegistry.test.ts src/newtab/expansionWidgetContracts.test.ts scripts/qa-shared-frame-p1.mjs scripts/qa-shared-frame-p1.test.mjs
 git commit -m "feat: complete framed presentation contracts"
 ```
 

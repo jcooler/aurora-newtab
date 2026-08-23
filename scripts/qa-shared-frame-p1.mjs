@@ -139,18 +139,35 @@ function parsePresentationAuthority(source) {
         if (node.arguments.length !== 1) failClosed(`${label} Object.freeze arity drifted`)
         return evaluate(node.arguments[0], label)
       }
+      if (ts.isIdentifier(node.expression) && node.expression.text === 'tier') {
+        if (node.arguments.length !== 6) failClosed(`${label} tier arity drifted`)
+        const [purpose, essential, signature, supporting, narrowSafety, overflow] = node.arguments
+          .map((argument, index) => evaluate(argument, `${label}.argument${index}`))
+        return { purpose, essential, signature, supporting, narrowSafety, overflow }
+      }
+      if (ts.isIdentifier(node.expression) && node.expression.text === 'framedContract') {
+        if (node.arguments.length < 3 || node.arguments.length > 8) failClosed(`${label} framedContract arity drifted`)
+        const values = node.arguments.map((argument, index) => evaluate(argument, `${label}.argument${index}`))
+        const [sizes, stackSizes, states] = values
+        const tiers = values[7] ?? {}
+        if (!Array.isArray(sizes) || !Array.isArray(stackSizes) || !Array.isArray(states) || !tiers || typeof tiers !== 'object' || Array.isArray(tiers)) {
+          failClosed(`${label} framedContract arguments drifted`)
+        }
+        return { presentationClass: 'framed', sizes, stackSizes, states, tiers }
+      }
       if (ts.isIdentifier(node.expression) && node.expression.text === 'contract') {
-        if (node.arguments.length < 3 || node.arguments.length > 8) failClosed(`${label} contract arity drifted`)
+        if (node.arguments.length < 3 || node.arguments.length > 9) failClosed(`${label} contract arity drifted`)
         const values = node.arguments.map((argument, index) => evaluate(argument, `${label}.argument${index}`))
         const [presentationClass, sizes, states] = values
         const tiers = values[7] ?? {}
+        const stackSizes = values[8] ?? sizes
         if (typeof presentationClass !== 'string' || !Array.isArray(sizes) || !Array.isArray(states) || !tiers || typeof tiers !== 'object' || Array.isArray(tiers)) {
           failClosed(`${label} contract arguments drifted`)
         }
         return {
           presentationClass,
           sizes,
-          stackSizes: [...sizes],
+          stackSizes,
           states,
           tiers,
         }

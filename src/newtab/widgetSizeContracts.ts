@@ -65,11 +65,12 @@ function contract(
   full?: string,
   docked?: string,
   tiers: Partial<Record<CanvasSize, TierCompositionContract>> = {},
+  stackSizes: readonly CanvasSize[] = sizes,
 ): WidgetPresentationContract {
   return Object.freeze({
     presentationClass,
     sizes: Object.freeze([...sizes]),
-    stackSizes: Object.freeze([...sizes]),
+    stackSizes: Object.freeze([...stackSizes]),
     states: Object.freeze([...states]),
     compact,
     standard,
@@ -81,9 +82,33 @@ function contract(
   })
 }
 
+function framedContract(
+  sizes: readonly CanvasSize[],
+  stackSizes: readonly CanvasSize[],
+  states: readonly WidgetPresentationState[],
+  compact?: string,
+  standard?: string,
+  full?: string,
+  docked?: string,
+  tiers: Partial<Record<CanvasSize, TierCompositionContract>> = {},
+): WidgetPresentationContract {
+  return contract('framed', sizes, states, compact, standard, full, docked, tiers, stackSizes)
+}
+
+function tier(
+  purpose: string,
+  essential: readonly string[],
+  signature: readonly string[],
+  supporting: readonly string[],
+  narrowSafety: readonly string[],
+  overflow: TierCompositionContract['overflow'],
+): TierCompositionContract {
+  return { purpose, essential, signature, supporting, narrowSafety, overflow }
+}
+
 /** Canvas sizes are a content promise, not a request to stretch the same card. */
 export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPresentationContract>> = Object.freeze({
-  weather: contract('framed', ['compact', 'standard', 'full'], WEATHER_STATES, 'Current temperature and condition', 'Forecast context', 'Detailed forecast', 'Temperature · location · condition', {
+  weather: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], WEATHER_STATES, 'Current temperature and condition', 'Forecast context', 'Detailed forecast', 'Temperature · location · condition', {
     compact: {
       purpose: 'Current conditions at a glance',
       essential: ['temperature', 'condition', 'location'],
@@ -109,12 +134,22 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
       overflow: { kind: 'details', label: 'Weather details' },
     },
   }),
-  ics: contract('framed', ['compact', 'standard'], RESOURCE_STATES, 'Next event', 'Selected calendar view', undefined, 'Next event'),
+  ics: framedContract(['compact', 'standard'], ['compact', 'standard'], RESOURCE_STATES, 'Next event', 'Selected calendar view', undefined, 'Next event', {
+    compact: tier('Next calendar event', ['event title', 'event time'], ['next event'], ['calendar name'], ['tighten spacing', 'clamp event title'], { kind: 'details', label: 'Calendar details' }),
+    standard: tier('Selected calendar view', ['event title', 'event time'], ['event agenda'], ['calendar name', 'additional events'], ['tighten spacing', 'bound event rows'], { kind: 'details', label: 'Calendar details' }),
+  }),
   // Batch-2 owner review: the compact Month ("takes up way too much space,
   // just remove it") is gone — the complete month is Month's only tier.
-  monthCal: contract('framed', ['standard'], RESOURCE_STATES, undefined, 'Complete month'),
-  sun: contract('framed', ['compact', 'standard'], RESOURCE_STATES, 'Next sun event', 'Sunrise and sunset', undefined, 'Next sun event'),
-  moon: contract('framed', ['compact'], RESOURCE_STATES, 'Current phase', undefined, undefined, 'Current phase'),
+  monthCal: framedContract(['standard'], ['standard'], RESOURCE_STATES, undefined, 'Complete month', undefined, undefined, {
+    standard: tier('Complete current month', ['month label', 'weekday labels', 'all calendar days'], ['month grid'], ['today marker'], ['tighten cells', 'shorten weekday labels'], { kind: 'none' }),
+  }),
+  sun: framedContract(['compact', 'standard'], ['compact', 'standard'], RESOURCE_STATES, 'Next sun event', 'Sunrise and sunset', undefined, 'Next sun event', {
+    compact: tier('Next sun event', ['event name', 'event time'], ['sun event icon'], [], ['tighten spacing', 'shorten event label'], { kind: 'none' }),
+    standard: tier('Sunrise and sunset', ['sunrise time', 'sunset time'], ['sun path'], ['day length'], ['tighten spacing', 'shorten supporting copy'], { kind: 'none' }),
+  }),
+  moon: framedContract(['compact'], ['compact'], RESOURCE_STATES, 'Current phase', undefined, undefined, 'Current phase', {
+    compact: tier('Current moon phase', ['phase name'], ['moon phase icon'], ['illumination'], ['tighten spacing', 'shorten phase detail'], { kind: 'none' }),
+  }),
   quote: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Quote', 'Readable full quote'),
   clock: contract('intrinsic', ['compact', 'standard', 'full'], READY_STATES, 'Current time', 'Time and date', 'Large, legible time and date', 'Time · date'),
   greeting: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Greeting', 'More legible greeting'),
@@ -123,27 +158,93 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
   search: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Search action', 'More legible search action'),
   focus: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Focus action', 'Focus detail', undefined, 'Focus text and completion'),
   links: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Primary link action', 'Selected quick links'),
-  habits: contract('framed', ['compact'], READY_STATES, 'Habit action', undefined, undefined, 'Habits done today'),
+  habits: framedContract(['compact'], ['compact'], READY_STATES, 'Habit action', undefined, undefined, 'Habits done today', {
+    compact: tier('Complete today habits', ['habit names', 'completion action'], ['daily completion state'], ['completed count'], ['tighten spacing', 'bound habit rows'], { kind: 'details', label: 'Habits details' }),
+  }),
   bookmarks: contract('bar', ['compact', 'standard'], READY_STATES, 'Bookmark marks', 'Named bookmark bar', undefined, 'Full readable bookmark bar'),
-  status: contract('framed', ['compact', 'standard'], PARTIAL_RESOURCE_STATES, 'Service health', 'Service dots and active issues', undefined, 'Service health'),
-  github: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected primary count or graph', 'Selected graph or rows', 'Graph, stats, and all selected row families', 'Selected activity counts'),
-  gitlab: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected primary count or graph', 'Selected graph or rows', 'All selected GitLab sections', 'Selected activity counts'),
-  jira: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected-view count', 'Prioritized issue rows', 'All selected Jira sections', 'Selected issue counts'),
-  vercel: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Deployment health', 'Selected deployment rows or summary', 'All selected deployment sections', 'Deployment health'),
-  homeassistant: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected entity or action', 'Selected entities and actions', 'Complete selected home composition', 'Selected entity state'),
-  rss: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Top headline', 'Selected headlines', 'All selected headlines that fit', 'Top headline'),
-  crypto: contract('framed', ['compact', 'standard'], PARTIAL_RESOURCE_STATES, 'Primary coin price', 'Selected coin prices', undefined, 'Primary coin price'),
-  readingList: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Unread count and newest title', 'Unread reading queue', 'Unread and recently read pages', 'Unread count and newest title'),
-  recentlyClosed: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Latest closed type and age', 'Recently closed session types', 'All restorable session types by kind', 'Closed count and latest type'),
-  downloads: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Active count and newest filename', 'Active and recent downloads', 'All recent download states', 'Active count and newest filename'),
-  tabGroups: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Group count and first group', 'Open browser workspaces', 'All groups by window', 'Group count and first group'),
-  timer: contract('framed', ['compact'], READY_STATES, 'Timer action', undefined, undefined, 'Timer state'),
-  tasks: contract('framed', ['compact'], READY_STATES, 'Tasks action', undefined, undefined, 'Tasks action'),
-  notes: contract('framed', ['compact'], READY_STATES, 'Notes action', undefined, undefined, 'Notes action'),
-  linear: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Assigned and due counts', 'Prioritized assigned work', 'All assigned work that fits', 'Assigned and due counts'),
-  sentry: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Unresolved count and top issue', 'Named unresolved issues', 'All unresolved issues that fit', 'Unresolved count and top issue'),
-  todoist: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Due and overdue counts', 'Due task sections', 'All due tasks that fit', 'Due and overdue counts'),
-  onThisDay: contract('framed', ['compact', 'standard', 'full'], RESOURCE_STATES, 'One historical event', 'Three historical events', 'Events, births, and deaths', 'Year and event', {
+  status: framedContract(['compact', 'standard'], ['compact', 'standard'], PARTIAL_RESOURCE_STATES, 'Service health', 'Service dots and active issues', undefined, 'Service health', {
+    compact: tier('Service health at a glance', ['service names', 'service states'], ['named status dots'], [], ['tighten spacing', 'bound service names'], { kind: 'details', label: 'Service status details' }),
+    standard: tier('Service health and active issues', ['service names', 'service states'], ['named status dots'], ['active issue context'], ['tighten spacing', 'bound issue rows'], { kind: 'details', label: 'Service status details' }),
+  }),
+  github: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected primary count or graph', 'Selected graph or rows', 'Graph, stats, and all selected row families', 'Selected activity counts', {
+    compact: tier('Contribution activity at a glance', ['identity', 'contribution count', 'streak'], ['contribution graph'], [], ['shrink graph cells', 'tighten spacing'], { kind: 'provider', label: 'Open GitHub' }),
+    standard: tier('Contribution activity and selected work', ['identity', 'selected counts'], ['contribution graph'], ['pull requests', 'issues', 'notifications'], ['shrink graph cells', 'bound selected rows'], { kind: 'provider', label: 'Open GitHub' }),
+    full: tier('Rich GitHub activity', ['identity', 'selected counts'], ['large contribution graph'], ['pull requests', 'issues', 'notifications'], ['shrink graph cells', 'bound selected rows'], { kind: 'provider', label: 'Open GitHub' }),
+  }),
+  gitlab: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected primary count or graph', 'Selected graph or rows', 'All selected GitLab sections', 'Selected activity counts', {
+    compact: tier('Contribution activity at a glance', ['identity', 'contribution count', 'streak'], ['contribution graph'], [], ['shrink graph cells', 'tighten spacing'], { kind: 'provider', label: 'Open GitLab' }),
+    standard: tier('Contribution activity and selected work', ['identity', 'selected counts'], ['contribution graph'], ['merge requests', 'reviews', 'to-dos'], ['shrink graph cells', 'bound selected rows'], { kind: 'provider', label: 'Open GitLab' }),
+    full: tier('Rich GitLab activity', ['identity', 'selected counts'], ['large contribution graph'], ['merge requests', 'reviews', 'to-dos'], ['shrink graph cells', 'bound selected rows'], { kind: 'provider', label: 'Open GitLab' }),
+  }),
+  jira: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected-view count', 'Prioritized issue rows', 'All selected Jira sections', 'Selected issue counts', {
+    compact: tier('Selected Jira work count', ['selected view', 'issue count'], ['priority signal'], [], ['tighten spacing', 'shorten selected view'], { kind: 'provider', label: 'Open Jira' }),
+    standard: tier('Prioritized Jira work', ['selected view', 'issue keys'], ['priority rows'], ['summary', 'status'], ['tighten spacing', 'bound issue rows'], { kind: 'provider', label: 'Open Jira' }),
+    full: tier('All selected Jira sections that fit', ['selected view', 'issue keys'], ['priority rows'], ['summary', 'status', 'assignee'], ['tighten spacing', 'bound section rows'], { kind: 'provider', label: 'Open Jira' }),
+  }),
+  vercel: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Deployment health', 'Selected deployment rows or summary', 'All selected deployment sections', 'Deployment health', {
+    compact: tier('Deployment health', ['health summary', 'deployment count'], ['deployment state'], [], ['tighten spacing', 'shorten project name'], { kind: 'provider', label: 'Open Vercel' }),
+    standard: tier('Recent deployment health', ['health summary', 'deployment names'], ['deployment states'], ['project', 'age'], ['tighten spacing', 'bound deployment rows'], { kind: 'provider', label: 'Open Vercel' }),
+    full: tier('All selected deployment sections', ['health summary', 'deployment names'], ['deployment states'], ['project', 'age', 'branch'], ['tighten spacing', 'bound deployment sections'], { kind: 'provider', label: 'Open Vercel' }),
+  }),
+  homeassistant: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected entity or action', 'Selected entities and actions', 'Complete selected home composition', 'Selected entity state', {
+    compact: tier('Primary home state or action', ['selected name', 'selected state or action'], ['entity state'], [], ['tighten spacing', 'shorten entity name'], { kind: 'settings', label: 'Home Assistant settings' }),
+    standard: tier('Selected home entities and actions', ['selected names', 'states or actions'], ['entity states'], ['action controls'], ['tighten spacing', 'bound selected rows'], { kind: 'settings', label: 'Home Assistant settings' }),
+    full: tier('Complete selected home composition', ['selected names', 'states or actions'], ['entity states'], ['action controls', 'areas'], ['tighten spacing', 'bound selected sections'], { kind: 'settings', label: 'Home Assistant settings' }),
+  }),
+  rss: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Top headline', 'Selected headlines', 'All selected headlines that fit', 'Top headline', {
+    compact: tier('Top selected headline', ['feed identity', 'headline'], ['headline link'], [], ['tighten spacing', 'clamp headline'], { kind: 'provider', label: 'Open article' }),
+    standard: tier('Selected headlines', ['feed identity', 'headline titles'], ['headline links'], ['source', 'age'], ['tighten spacing', 'bound headline rows'], { kind: 'provider', label: 'Open article' }),
+    full: tier('All selected headlines that fit', ['feed identity', 'headline titles'], ['headline links'], ['source', 'age', 'summary'], ['tighten spacing', 'bound headline rows'], { kind: 'provider', label: 'Open article' }),
+  }),
+  crypto: framedContract(['compact', 'standard'], ['compact', 'standard'], PARTIAL_RESOURCE_STATES, 'Primary coin price', 'Selected coin prices', undefined, 'Primary coin price', {
+    compact: tier('Primary selected coin', ['symbol', 'price'], ['market movement'], [], ['tighten spacing', 'shorten price'], { kind: 'settings', label: 'Crypto settings' }),
+    standard: tier('Selected coin prices', ['symbols', 'prices'], ['market movement'], ['change'], ['tighten spacing', 'bound coin rows'], { kind: 'settings', label: 'Crypto settings' }),
+  }),
+  readingList: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Unread count and newest title', 'Unread reading queue', 'Unread and recently read pages', 'Unread count and newest title', {
+    compact: tier('Unread reading count and newest page', ['unread count', 'newest title'], ['reading queue'], [], ['tighten spacing', 'clamp title'], { kind: 'settings', label: 'Reading List settings' }),
+    standard: tier('Unread reading queue', ['unread count', 'page titles'], ['reading queue'], ['age'], ['tighten spacing', 'bound page rows'], { kind: 'settings', label: 'Reading List settings' }),
+    full: tier('Unread and recently read pages', ['queue counts', 'page titles'], ['reading queue'], ['age', 'read state'], ['tighten spacing', 'bound page sections'], { kind: 'settings', label: 'Reading List settings' }),
+  }),
+  recentlyClosed: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Latest closed type and age', 'Recently closed session types', 'All restorable session types by kind', 'Closed count and latest type', {
+    compact: tier('Latest closed session', ['session type', 'age'], ['restore action'], [], ['tighten spacing', 'shorten session label'], { kind: 'settings', label: 'Recently Closed settings' }),
+    standard: tier('Recently closed session types', ['session types', 'ages'], ['restore actions'], ['window tab count'], ['tighten spacing', 'bound session rows'], { kind: 'settings', label: 'Recently Closed settings' }),
+    full: tier('All restorable sessions by kind', ['session types', 'ages'], ['restore actions'], ['window tab count', 'row position'], ['tighten spacing', 'bound session rows'], { kind: 'settings', label: 'Recently Closed settings' }),
+  }),
+  downloads: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Active count and newest filename', 'Active and recent downloads', 'All recent download states', 'Active count and newest filename', {
+    compact: tier('Active downloads and newest file', ['active count', 'filename'], ['download state'], [], ['tighten spacing', 'clamp filename'], { kind: 'settings', label: 'Downloads settings' }),
+    standard: tier('Active and recent downloads', ['filenames', 'states'], ['download progress'], ['age'], ['tighten spacing', 'bound download rows'], { kind: 'settings', label: 'Downloads settings' }),
+    full: tier('All recent download states', ['filenames', 'states'], ['download progress'], ['age', 'size'], ['tighten spacing', 'bound download rows'], { kind: 'settings', label: 'Downloads settings' }),
+  }),
+  tabGroups: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Group count and first group', 'Open browser workspaces', 'All groups by window', 'Group count and first group', {
+    compact: tier('Open group count and first group', ['group count', 'group name'], ['group color'], [], ['tighten spacing', 'clamp group name'], { kind: 'settings', label: 'Tab Groups settings' }),
+    standard: tier('Open browser workspaces', ['group names', 'tab counts'], ['group colors'], ['window'], ['tighten spacing', 'bound group rows'], { kind: 'settings', label: 'Tab Groups settings' }),
+    full: tier('All groups by window', ['group names', 'tab counts'], ['group colors'], ['window', 'collapsed state'], ['tighten spacing', 'bound group rows'], { kind: 'settings', label: 'Tab Groups settings' }),
+  }),
+  timer: framedContract(['compact'], ['compact'], READY_STATES, 'Timer action', undefined, undefined, 'Timer state', {
+    compact: tier('Current timer and primary action', ['timer state', 'time remaining', 'primary action'], ['countdown'], ['mode'], ['tighten spacing', 'shorten mode label'], { kind: 'details', label: 'Timer details' }),
+  }),
+  tasks: framedContract(['compact'], ['compact'], READY_STATES, 'Tasks action', undefined, undefined, 'Tasks action', {
+    compact: tier('Today tasks and direct action', ['task state', 'open action'], ['next task'], ['remaining count'], ['tighten spacing', 'clamp task title'], { kind: 'details', label: 'Tasks details' }),
+  }),
+  notes: framedContract(['compact'], ['compact'], READY_STATES, 'Notes action', undefined, undefined, 'Notes action', {
+    compact: tier('Current note and direct action', ['note state', 'open action'], ['note preview'], ['updated state'], ['tighten spacing', 'clamp note preview'], { kind: 'details', label: 'Notes details' }),
+  }),
+  linear: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Assigned and due counts', 'Prioritized assigned work', 'All assigned work that fits', 'Assigned and due counts', {
+    compact: tier('Assigned and due Linear work', ['assigned count', 'due count'], ['priority signal'], [], ['tighten spacing', 'shorten team name'], { kind: 'provider', label: 'Open Linear' }),
+    standard: tier('Prioritized assigned Linear work', ['issue identifiers', 'titles'], ['priority rows'], ['due state'], ['tighten spacing', 'bound issue rows'], { kind: 'provider', label: 'Open Linear' }),
+    full: tier('All assigned Linear work that fits', ['issue identifiers', 'titles'], ['priority rows'], ['due state', 'team'], ['tighten spacing', 'bound issue rows'], { kind: 'provider', label: 'Open Linear' }),
+  }),
+  sentry: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Unresolved count and top issue', 'Named unresolved issues', 'All unresolved issues that fit', 'Unresolved count and top issue', {
+    compact: tier('Unresolved Sentry count and top issue', ['unresolved count', 'issue title'], ['severity signal'], [], ['tighten spacing', 'clamp issue title'], { kind: 'provider', label: 'Open Sentry' }),
+    standard: tier('Named unresolved Sentry issues', ['issue titles', 'event counts'], ['severity rows'], ['last seen'], ['tighten spacing', 'bound issue rows'], { kind: 'provider', label: 'Open Sentry' }),
+    full: tier('All unresolved Sentry issues that fit', ['issue titles', 'event counts'], ['severity rows'], ['last seen', 'project'], ['tighten spacing', 'bound issue rows'], { kind: 'provider', label: 'Open Sentry' }),
+  }),
+  todoist: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Due and overdue counts', 'Due task sections', 'All due tasks that fit', 'Due and overdue counts', {
+    compact: tier('Due and overdue Todoist counts', ['due count', 'overdue count'], ['urgency signal'], [], ['tighten spacing', 'shorten project name'], { kind: 'provider', label: 'Open Todoist' }),
+    standard: tier('Due Todoist task sections', ['task names', 'due state'], ['completion actions'], ['project'], ['tighten spacing', 'bound task rows'], { kind: 'provider', label: 'Open Todoist' }),
+    full: tier('All due Todoist tasks that fit', ['task names', 'due state'], ['completion actions'], ['project', 'priority'], ['tighten spacing', 'bound task rows'], { kind: 'provider', label: 'Open Todoist' }),
+  }),
+  onThisDay: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], RESOURCE_STATES, 'One historical event', 'Three historical events', 'Events, births, and deaths', 'Year and event', {
     compact: {
       purpose: 'One historical event for the local date',
       essential: ['title', 'local date', 'event year', 'event summary'],
@@ -169,8 +270,16 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
       overflow: { kind: 'provider', label: 'More on Wikipedia' },
     },
   }),
-  publicHolidays: contract('framed', ['compact', 'standard', 'full'], RESOURCE_STATES, 'Next national holiday', 'Next three national holidays', 'Current and next-year national holidays', 'Next holiday and date'),
-  auroraKp: contract('framed', ['compact', 'standard', 'full'], RESOURCE_STATES, 'Current Kp and next peak', 'Current Kp and next four intervals', 'Bounded three-day Kp forecast', 'Current Kp and next peak'),
+  publicHolidays: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], RESOURCE_STATES, 'Next national holiday', 'Next three national holidays', 'Current and next-year national holidays', 'Next holiday and date', {
+    compact: tier('Next national holiday', ['holiday name', 'holiday date'], ['days-until context'], [], ['tighten spacing', 'clamp holiday name'], { kind: 'provider', label: 'Open Nager.Date' }),
+    standard: tier('Next three national holidays', ['holiday names', 'holiday dates'], ['days-until context'], ['local names'], ['tighten spacing', 'bound holiday rows'], { kind: 'provider', label: 'Open Nager.Date' }),
+    full: tier('Current and next-year national holidays', ['holiday names', 'holiday dates'], ['month groups'], ['local names', 'country'], ['tighten spacing', 'bound holiday groups'], { kind: 'provider', label: 'Open Nager.Date' }),
+  }),
+  auroraKp: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], RESOURCE_STATES, 'Current Kp and next peak', 'Current Kp and next four intervals', 'Bounded three-day Kp forecast', 'Current Kp and next peak', {
+    compact: tier('Current Kp and next peak', ['current Kp', 'next peak'], ['activity level'], [], ['tighten spacing', 'shorten activity label'], { kind: 'provider', label: 'Open NOAA Space Weather' }),
+    standard: tier('Current Kp and next four intervals', ['current Kp', 'forecast values'], ['forecast trend'], ['peak time'], ['tighten spacing', 'bound forecast rows'], { kind: 'provider', label: 'Open NOAA Space Weather' }),
+    full: tier('Bounded three-day Kp forecast', ['current Kp', 'forecast values'], ['day groups'], ['peak time', 'storm scale'], ['tighten spacing', 'bound forecast groups'], { kind: 'provider', label: 'Open NOAA Space Weather' }),
+  }),
 })
 
 /** Compatibility name for existing content-contract consumers. */

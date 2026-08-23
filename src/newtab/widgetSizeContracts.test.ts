@@ -144,6 +144,26 @@ describe('shared frame presentation contracts', () => {
     ])
   })
 
+  it('gives every framed free and stack tier an authored composition contract', () => {
+    const framed = Object.entries(WIDGET_PRESENTATION_CONTRACTS)
+      .filter(([, contract]) => contract.presentationClass === 'framed')
+
+    expect(framed).toHaveLength(27)
+    for (const [id, contract] of framed) {
+      expect(contract.stackSizes.every((tier) => contract.sizes.includes(tier)), `${id}/stack subset`).toBe(true)
+      expect(contract.stackSizes).not.toBe(contract.sizes)
+      for (const tier of new Set([...contract.sizes, ...contract.stackSizes])) {
+        const composition = contract.tiers[tier]
+        expect(composition, `${id}/${tier}`).toBeTruthy()
+        expect(composition?.purpose.trim().length, `${id}/${tier}/purpose`).toBeGreaterThan(0)
+        expect(composition?.essential.length, `${id}/${tier}/essential`).toBeGreaterThan(0)
+        expect(Array.isArray(composition?.signature), `${id}/${tier}/signature`).toBe(true)
+        expect(composition?.narrowSafety.length, `${id}/${tier}/narrow safety`).toBeGreaterThan(0)
+        expect(composition?.overflow.kind, `${id}/${tier}/overflow`).toMatch(/^(none|details|settings|provider)$/)
+      }
+    }
+  })
+
   it('freezes the single authoritative contract map and its identity rows', () => {
     expect(WIDGET_SIZE_CONTRACTS).toBe(WIDGET_PRESENTATION_CONTRACTS)
     expect(Object.isFrozen(WIDGET_PRESENTATION_CONTRACTS)).toBe(true)

@@ -50,8 +50,8 @@ test('derives the exact Weather and On This Day matrix from the committed presen
   assert.deepEqual(result.references[1].states, ['loading', 'ready', 'empty', 'stale', 'hard-error'])
 
   const changedSource = contractSource.replace(
-    "weather: contract('framed', ['compact', 'standard', 'full'], WEATHER_STATES",
-    "weather: contract('framed', ['standard', 'full'], WEATHER_STATES",
+    "weather: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], WEATHER_STATES",
+    "weather: framedContract(['standard', 'full'], ['standard', 'full'], WEATHER_STATES",
   )
   assert.notEqual(changedSource, contractSource, 'the source mutation fixture must apply')
   assert.deepEqual(
