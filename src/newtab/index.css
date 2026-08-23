@@ -2685,7 +2685,8 @@ select > option {
 }
 
 /* A sparse short Ultrawide board resolves Balanced and therefore uses the
-   registry's 2x1 standard footprints. Honor those finite tracks locally:
+   registry's 2x1 standard footprints. Honor those finite tracks locally for
+   intrinsic faces, while a redesigned TierFrame keeps its own exact width:
    Quote spends its width on the complete text instead of legacy 64px side
    gutters, Links keeps every fixture control at the 36px target floor, and
    Crypto exposes two complete numeric cells (compact exposes one; Dock keeps
@@ -2693,7 +2694,7 @@ select > option {
 .canvas-item[data-canvas-size="standard"]:not([data-canvas-mode="docked"]):is(
   [data-block-id="quote"],
   [data-block-id="links"]
-) > * {
+) > :not(.tier-frame) {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;

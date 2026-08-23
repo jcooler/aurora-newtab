@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { CanvasSize } from '../lib/layout/canvasTypes'
+import indexCss from './index.css?raw'
 import { WIDGET_RENDERERS, type WidgetPresentationMode, type WidgetRendererProps } from './widgetRenderers'
 
 describe('time and productivity widget renderers', () => {
@@ -47,6 +48,11 @@ describe('time and productivity widget renderers', () => {
     expect(bookmarks.props.canvasSize).toBe('standard')
     expect(bookmarks.props.presentation).toBeUndefined()
     expect(bookmarks.props.docked).toBeUndefined()
+  })
+
+  it('lets redesigned Standard Quote and Quick Links frames own their exact width', () => {
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="standard"\]:not\(\[data-canvas-mode="docked"\]\):is\([\s\S]*?\) > :not\(\.tier-frame\)\s*\{/)
+    expect(indexCss).not.toMatch(/\.canvas-item\[data-canvas-size="standard"\]:not\(\[data-canvas-mode="docked"\]\):is\([\s\S]*?\) > \*\s*\{/)
   })
 
   it('keeps Month Standard-only and never threads a Docked presentation', () => {
