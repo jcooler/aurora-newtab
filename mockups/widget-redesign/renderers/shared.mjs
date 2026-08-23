@@ -58,7 +58,7 @@ export function renderDockLine({ theme = 'dark', label, body, widget, state = 'r
       aria-label="${escapeHtml(label)}"
     >
       <span class="dock-line__label">${escapeHtml(label)}</span>
-      <span class="dock-line__body" data-essential>${body}</span>
+      <div class="dock-line__body" data-essential>${body}</div>
     </div>
   `
 }

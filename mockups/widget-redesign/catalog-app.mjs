@@ -3,7 +3,9 @@ import {
   SOURCE_WIDGET_IDS,
   TARGET_WIDGETS,
 } from './catalog-model.mjs'
+import { fixtureFor } from './fixtures.mjs'
 import { renderFrame } from './renderers/shared.mjs'
+import { renderWidgetFace } from './renderers/index.mjs'
 
 const root = document.querySelector('#catalog-root')
 const params = new URLSearchParams(location.search)
@@ -56,6 +58,48 @@ const inventory = () => `
   </section>
 `
 
+const coreGallery = () => {
+  const targets = TARGET_WIDGETS.filter(({ family }) => family === 'core')
+  return `
+    <section class="family-gallery" aria-labelledby="core-title" data-family-section="core">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Core instruments · 13 identities</span>
+          <h2 id="core-title">Useful before decorative.</h2>
+        </div>
+        <p>Each tier has a distinct information budget. Docked forms carry weight, compact forms preserve a signature, and larger frames add working context.</p>
+      </div>
+      <div class="showcase-list">
+        ${targets.map((target, index) => `
+          <article
+            class="widget-showcase"
+            data-core-showcase="${target.id}"
+            data-family="${target.family}"
+            data-search="${target.label.toLowerCase()}"
+          >
+            <header class="widget-showcase__heading">
+              <span>${String(index + 1).padStart(2, '0')}</span>
+              <div><h3>${target.label}</h3><p>${target.budgets[target.primaryTier].purpose}</p></div>
+              <small>${target.presentation}</small>
+            </header>
+            <div class="capture-run" aria-label="${target.label} tier comparison">
+              ${target.tiers.map((tier) => `
+                <div class="capture-stage capture-stage--${tier}">
+                  <span>${tier}</span>
+                  ${renderWidgetFace(
+                    { id: target.id, tier, state: 'ready', theme: 'dark' },
+                    fixtureFor(target.id, target.id === 'timer' ? 'running' : 'dense'),
+                  )}
+                </div>
+              `).join('')}
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `
+}
+
 const shell = `
   <div class="catalog" data-catalog-app>
     <header class="catalog-hero">
@@ -90,7 +134,7 @@ const shell = `
         </select>
       </label>
     </nav>
-    ${view === 'inventory' ? inventory() : `${runway()}${inventory()}`}
+    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${inventory()}`}
     <footer class="catalog-footer">
       <span>Design-only HTML/CSS</span>
       <span>${SOURCE_WIDGET_IDS.length} sources checked</span>
@@ -104,7 +148,7 @@ root.innerHTML = shell
 const applyFilters = () => {
   const search = root.querySelector('[data-catalog-search]').value.trim().toLowerCase()
   const family = root.querySelector('[data-family-filter]').value
-  for (const row of root.querySelectorAll('.inventory-row')) {
+  for (const row of root.querySelectorAll('.inventory-row, .widget-showcase')) {
     const matchesSearch = !search || row.dataset.search.includes(search)
     const matchesFamily = family === 'all' || row.dataset.family === family
     row.hidden = !(matchesSearch && matchesFamily)

@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 
 import { chromium } from 'playwright'
 
+import { TARGET_WIDGETS } from '../mockups/widget-redesign/catalog-model.mjs'
 import { startCatalogServer } from './widget-redesign-catalog-server.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
@@ -60,6 +61,28 @@ test('keeps the measured runway inside a touch-sized mobile viewport', async () 
 
     assert.equal(geometry.documentWidth, geometry.viewportWidth)
     assert.ok(geometry.fullFrameRight <= geometry.viewportWidth)
+  } finally {
+    await browser.close()
+    await server.close()
+  }
+})
+
+test('exposes every core identity and declared tier on the owner gallery', async () => {
+  const server = await startCatalogServer({ repoRoot })
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    await page.goto(`${server.origin}/mockups/widget-redesign/?view=gallery`)
+
+    const coreTargets = TARGET_WIDGETS.filter(({ family }) => family === 'core')
+    assert.equal(await page.locator('[data-core-showcase]').count(), coreTargets.length)
+    for (const target of coreTargets) {
+      const board = page.locator(`[data-core-showcase="${target.id}"]`)
+      assert.equal(await board.count(), 1)
+      for (const tier of target.tiers) {
+        assert.equal(await board.locator(`[data-widget-id="${target.id}"][data-tier-frame="${tier}"]`).count(), 1)
+      }
+    }
   } finally {
     await browser.close()
     await server.close()

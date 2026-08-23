@@ -11,6 +11,8 @@ import {
   expectedCatalogCaptures,
   validateCatalogModel,
 } from './widget-redesign-catalog-contracts.mjs'
+import { fixtureFor } from '../mockups/widget-redesign/fixtures.mjs'
+import { renderWidgetFace } from '../mockups/widget-redesign/renderers/index.mjs'
 
 const EXPECTED_SOURCE_IDS = [
   'auroraKp', 'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus',
@@ -20,6 +22,33 @@ const EXPECTED_SOURCE_IDS = [
   'sun', 'tabGroups', 'tasks', 'timer', 'todoist', 'vercel', 'weather',
   'worldClocks',
 ]
+
+const CORE_SIGNATURES = Object.freeze({
+  bookmarks: 'data-bookmark-mark',
+  clock: 'data-clock-time',
+  countdown: 'data-countdown-value',
+  focus: 'data-focus-action',
+  greeting: 'data-greeting-copy',
+  habits: 'data-habit-progress',
+  links: 'data-quick-link',
+  notes: 'data-note-copy',
+  quote: 'data-quote-copy',
+  search: 'data-search-prompt',
+  tasks: 'data-task-progress',
+  timer: 'data-timer-value',
+  worldClocks: 'data-world-clock',
+})
+
+const renderCore = (id, tier, options = {}) => renderWidgetFace(
+  {
+    id,
+    tier,
+    state: options.state ?? 'ready',
+    theme: options.theme ?? 'dark',
+    ...options,
+  },
+  fixtureFor(id, options.fixture ?? 'dense', options),
+)
 
 test('maps all 36 live identities into 34 target identities exactly once', () => {
   assert.equal(SOURCE_WIDGET_IDS.length, 36)
@@ -97,4 +126,36 @@ test('rejects duplicate sources, uncovered sources, unsafe output names, and inv
   assert.ok(errors.some((message) => /duplicate source.*clock/i.test(message)))
   assert.ok(errors.some((message) => /unsafe.*escape/i.test(message)))
   assert.ok(errors.some((message) => /tasks.*full/i.test(message)))
+})
+
+test('renders every declared core tier as a semantic identity-specific face', () => {
+  const coreTargets = TARGET_WIDGETS.filter(({ family }) => family === 'core')
+  assert.equal(coreTargets.length, 13)
+
+  for (const target of coreTargets) {
+    for (const tier of target.tiers) {
+      const html = renderCore(target.id, tier)
+      assert.match(html, new RegExp(`data-widget-id="${target.id}"`))
+      assert.match(html, new RegExp(CORE_SIGNATURES[target.id]))
+      assert.doesNotMatch(html, /data-generic-row/)
+      assert.doesNotMatch(html, /undefined|\[object Object\]/)
+    }
+  }
+
+  assert.match(renderCore('clock', 'full'), /data-clock-timezone/)
+  assert.match(renderCore('bookmarks', 'compact'), /data-bookmark-mark="N"/)
+  assert.match(renderCore('tasks', 'docked'), /data-task-progress/)
+})
+
+test('supplies truthful core state and density fixtures without remote assets', () => {
+  assert.match(renderCore('tasks', 'compact', { state: 'empty', fixture: 'sparse' }), /data-empty-state/)
+  assert.match(renderCore('notes', 'compact', { state: 'empty', fixture: 'sparse' }), /data-empty-state/)
+  assert.match(renderCore('quote', 'standard', { fixture: 'longText' }), /data-long-text/)
+  assert.match(renderCore('timer', 'compact', { fixture: 'running' }), /data-timer-running/)
+  assert.match(renderCore('habits', 'compact', { fixture: 'complete' }), /data-habit-complete/)
+  assert.doesNotMatch(renderCore('links', 'standard'), /https?:\/\//)
+
+  const escaped = renderCore('quote', 'standard', { copy: '<script>alert(1)</script>' })
+  assert.match(escaped, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/)
+  assert.doesNotMatch(escaped, /<script>/)
 })
