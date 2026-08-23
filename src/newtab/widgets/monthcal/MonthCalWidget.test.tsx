@@ -62,6 +62,17 @@ describe('MonthCalWidget', () => {
     vi.useRealTimers()
   })
 
+  it('renders the complete month in the exact Standard TierFrame with no internal scroller', async () => {
+    const { container } = await renderWithMonthCal({ canvasSize: 'standard' })
+    const frame = screen.getByRole('region', { name: 'Month' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('standard')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains('tier-frame--standard')).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+    expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(42)
+  })
+
   it('renders nothing while settings.widgets.monthCal is off', async () => {
     const { container } = await renderWithMonthCal({ widgetsOn: false })
     expect(container.firstChild).toBeNull()

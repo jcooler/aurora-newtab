@@ -4,6 +4,8 @@ import { useStorage } from '../../../lib/storage/context'
 import { streak, toggleDay } from '../../../lib/habits'
 import type { Habit } from '../../../lib/storage/schema'
 import DockLine from '../shared/DockLine'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
 
 // Display cap — mirrors Widgets.tsx's own MAX_HABITS (the editor's write-side
 // cap). Kept as an independent local constant, same as every other capped
@@ -15,7 +17,10 @@ import DockLine from '../shared/DockLine'
 // and this slice is what keeps that case from ever rendering a 7th chip.
 const MAX_HABIT_CHIPS = 6
 
-export default function HabitsWidget({ docked }: { docked?: boolean } = {}) {
+export default function HabitsWidget({
+  docked,
+  canvasSize = 'compact',
+}: { docked?: boolean; canvasSize?: CanvasSize } = {}) {
   // Gate BEFORE the ticking clock exists — same shape as WorldClocks/
   // BookmarksBar/TimerWidget: disabled tabs (the default — settings.widgets
   // .habits starts false) or an enabled-but-empty list never mount
@@ -32,10 +37,14 @@ export default function HabitsWidget({ docked }: { docked?: boolean } = {}) {
   const [settings] = useStoredKey('settings')
   const [habits] = useStoredKey('habits')
   if (!settings?.widgets.habits || !Array.isArray(habits) || habits.length === 0) return null
-  return <HabitsInner habits={habits} docked={docked} />
+  return <HabitsInner habits={habits} docked={docked} canvasSize={canvasSize} />
 }
 
-function HabitsInner({ habits, docked }: { habits: Habit[]; docked?: boolean }) {
+function HabitsInner({
+  habits,
+  docked,
+  canvasSize,
+}: { habits: Habit[]; docked?: boolean; canvasSize: CanvasSize }) {
   const storage = useStorage()
   // The ONE impure boundary in this widget: the coherent local-day identity.
   // The shared scheduler handles midnight, restoration, and timezone changes
@@ -54,9 +63,16 @@ function HabitsInner({ habits, docked }: { habits: Habit[]; docked?: boolean }) 
     return <DockLine label="Habits" facts={[`${doneToday}/${habits.length} today`]} />
   }
 
+  const visible = habits.slice(0, MAX_HABIT_CHIPS)
+  const doneToday = habits.filter((habit) => habit.log.includes(todayKey)).length
   return (
-    <div className="w-[200px] flex flex-col gap-2 short:gap-1.5 xshort:gap-1">
-      {habits.slice(0, MAX_HABIT_CHIPS).map((h) => {
+    <TierFrame label="Habits" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready" className="gap-2 p-3">
+      <header className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold">Habits</h2>
+        <span className="text-[11px] text-fg-muted">{doneToday}/{habits.length} today</span>
+      </header>
+      <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1.5">
+      {visible.map((h) => {
         const todayDone = h.log.includes(todayKey)
         const count = streak(h.log, todayKey)
         return (
@@ -71,7 +87,7 @@ function HabitsInner({ habits, docked }: { habits: Habit[]; docked?: boolean }) 
             type="button"
             aria-pressed={todayDone}
             onClick={() => toggleToday(h.id)}
-            className="flex cursor-pointer items-center gap-2 dense:gap-1.5 rounded-full border border-panel-border bg-panel-solid px-3 dense:px-2 py-1.5 dense:py-1 text-left shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] focus-visible:outline-2 focus-visible:outline-accent"
+            className="flex min-h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border border-panel-border bg-control-bg px-2 text-left focus-visible:outline-2 focus-visible:outline-accent"
           >
             <span
               aria-hidden
@@ -85,15 +101,16 @@ function HabitsInner({ habits, docked }: { habits: Habit[]; docked?: boolean }) 
                 — without it a long name refuses to shrink and pushes the
                 chip wider than its column instead of truncating (same
                 min-w-0 rationale BookmarksBar's own CHIP class documents). */}
-            <span title={h.name} className="min-w-0 flex-1 truncate text-sm dense:text-xs font-medium text-fg">
+            <span title={h.name} className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
               {h.name}
             </span>
             {count > 0 && (
-              <span data-stage-text-tier="metadata" className="shrink-0 text-xs text-fg-muted">🔥 {count}</span>
+              <span data-stage-text-tier="metadata" className="shrink-0 text-[11px] text-fg-muted">🔥 {count}</span>
             )}
           </button>
         )
       })}
-    </div>
+      </div>
+    </TierFrame>
   )
 }

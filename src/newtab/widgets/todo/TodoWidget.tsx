@@ -4,6 +4,8 @@ import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
 import { hugHorizontal } from '../../../lib/layout/anchor'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
 
 const TodoPanel = lazy(() => import('./TodoPanel'))
 
@@ -32,7 +34,14 @@ export const TODO_CORNER_HUG_PX = 48
 export default function TodoWidget({
   onOpenChange,
   utilityTray,
-}: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge } = {}) {
+  canvasSize = 'compact',
+  docked = false,
+}: {
+  onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
+  canvasSize?: CanvasSize
+  docked?: boolean
+} = {}) {
   // Gate BEFORE the panel's open/close state exists, same shape as
   // NotesWidget/TimerWidget: a disabled widget (settings.widgets.todo can be
   // switched off mid-session) mounts nothing past the settings read, which
@@ -45,10 +54,28 @@ export default function TodoWidget({
   // writeup of why that guarantee matters.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.todo) return null
-  return <TodoInner onOpenChange={onOpenChange} utilityTray={utilityTray} />
+  return (
+    <TodoInner
+      onOpenChange={onOpenChange}
+      utilityTray={utilityTray}
+      canvasSize={canvasSize}
+      docked={docked}
+    />
+  )
 }
 
-function TodoInner({ onOpenChange, utilityTray }: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge }) {
+function TodoInner({
+  onOpenChange,
+  utilityTray,
+  canvasSize,
+  docked,
+}: {
+  onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
+  canvasSize: CanvasSize
+  docked: boolean
+}) {
+  const [todoLists] = useStoredKey('todoLists')
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -115,18 +142,41 @@ function TodoInner({ onOpenChange, utilityTray }: { onOpenChange?: (open: boolea
       />
     </Suspense>
   ) : null
+  const openItems = (todoLists ?? []).flatMap((list) => list.items).filter((item) => !item.done)
+  const nextTask = openItems[0]?.text
+  const trigger = (
+    <button
+      ref={pillRef}
+      type="button"
+      aria-label="Tasks"
+      aria-expanded={panelOpen}
+      onClick={togglePanel}
+      className={docked
+        ? 'rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+        : 'flex h-full w-full cursor-pointer flex-col items-stretch justify-center gap-2 rounded-[inherit] p-3 text-left focus-visible:outline-2 focus-visible:outline-accent'}
+    >
+      {docked ? 'Tasks' : (
+        <>
+          <span className="flex items-center justify-between">
+            <strong className="text-sm font-semibold text-fg">Tasks</strong>
+            <span className="text-[11px] text-fg-muted">{openItems.length} open</span>
+          </span>
+          <span title={nextTask} className="line-clamp-2 text-sm leading-5 text-fg-muted">
+            {nextTask ?? 'No open tasks'}
+          </span>
+          <span className="mt-auto text-sm font-medium text-fg">Open tasks</span>
+        </>
+      )}
+    </button>
+  )
 
   return (
     <>
-      <button
-        ref={pillRef}
-        type="button"
-        aria-expanded={panelOpen}
-        onClick={togglePanel}
-        className="rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-      >
-        Tasks
-      </button>
+      {docked ? trigger : (
+        <TierFrame label="Tasks card" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready">
+          {trigger}
+        </TierFrame>
+      )}
       {utilityTray?.host && panel ? createPortal(panel, utilityTray.host) : panel}
     </>
   )

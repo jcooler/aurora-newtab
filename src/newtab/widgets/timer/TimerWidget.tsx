@@ -12,6 +12,8 @@ import { useTimerSession } from './TimerSessionProvider'
 // class, so the panel's controls speak the same language as the drawer's.
 import { btnPrimary, btnQuiet, control } from '../../../settings/sections/shared'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
 
 const DEFAULT_CONFIG: TimerConfig = { workMinutes: 25, breakMinutes: 5 }
 const MIN_MINUTES = 1
@@ -44,7 +46,14 @@ function formatRemaining(ms: number): string {
 export default function TimerWidget({
   onOpenChange,
   utilityTray,
-}: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge } = {}) {
+  canvasSize = 'compact',
+  docked = false,
+}: {
+  onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
+  canvasSize?: CanvasSize
+  docked?: boolean
+} = {}) {
   // Gate before the Timer presentation exists: disabled tabs (the default)
   // mount no Timer panel or presentation hooks. The App-level persisted timer
   // authority remains mounted because a running timer and Flow must survive a
@@ -56,17 +65,21 @@ export default function TimerWidget({
   // onExpandedChange comment for the full writeup of why that matters.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.timer) return null
-  return <TimerInner settings={settings} onOpenChange={onOpenChange} utilityTray={utilityTray} />
+  return <TimerInner settings={settings} onOpenChange={onOpenChange} utilityTray={utilityTray} canvasSize={canvasSize} docked={docked} />
 }
 
 function TimerInner({
   settings,
   onOpenChange,
   utilityTray,
+  canvasSize,
+  docked,
 }: {
   settings: Settings
   onOpenChange?: (open: boolean) => void
   utilityTray?: UtilityTrayBridge
+  canvasSize: CanvasSize
+  docked: boolean
 }) {
   const timer = useTimerSession()
   const config = timer.config ?? DEFAULT_CONFIG
@@ -174,24 +187,37 @@ function TimerInner({
   }
 
   const panelOpen = utilityTray ? utilityTray.activeTool === 'timer' : open
+  const triggerLabel = `Focus timer: ${display} remaining, ${state.mode} session, ${state.running ? 'running' : 'paused'}`
+  const trigger = (
+    <button
+      ref={pillRef}
+      type="button"
+      aria-expanded={panelOpen}
+      aria-label={triggerLabel}
+      onClick={togglePanel}
+      className={docked
+        ? `rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium tabular-nums shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent ${flash ? 'text-accent' : 'text-fg-muted'}`
+        : `flex h-full w-full cursor-pointer flex-col items-stretch justify-center gap-1 rounded-[inherit] p-3 text-left tabular-nums focus-visible:outline-2 focus-visible:outline-accent ${flash ? 'text-accent' : 'text-fg'}`}
+    >
+      {docked ? (
+        <><span aria-hidden>⏱ </span>{display}</>
+      ) : (
+        <>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{state.mode} session</span>
+          <span className="font-display text-4xl font-light leading-none">{display}</span>
+          <span className="text-sm text-fg-muted">{state.running ? 'Running' : 'Ready'} · Open timer</span>
+        </>
+      )}
+    </button>
+  )
 
   return (
     <>
-      <button
-        ref={pillRef}
-        type="button"
-        aria-expanded={panelOpen}
-        aria-label={`Focus timer: ${display} remaining, ${state.mode} session, ${
-          state.running ? 'running' : 'paused'
-        }`}
-        onClick={togglePanel}
-        className={`rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium tabular-nums shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent ${
-          flash ? 'text-accent' : 'text-fg-muted'
-        }`}
-      >
-        <span aria-hidden>⏱ </span>
-        {display}
-      </button>
+      {docked ? trigger : (
+        <TierFrame label="Focus timer card" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready">
+          {trigger}
+        </TierFrame>
+      )}
 
       {open && anchor && createPortal(
         <div

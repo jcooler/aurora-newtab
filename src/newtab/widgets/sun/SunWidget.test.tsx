@@ -8,6 +8,7 @@ import { defaults, type StoredLocation } from '../../../lib/storage/schema'
 import { formatClock } from '../../../lib/clock'
 import { sunTimes } from '../../../lib/sun'
 import SunWidget from './SunWidget'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // New York — the same fixture sun.test.ts already proves against the NOAA/
 // USNO table (±2 minutes). Reusing it here doesn't re-verify the astronomy
@@ -37,11 +38,13 @@ async function renderWithSun({
   location = NYC as StoredLocation | null,
   use24Hour = false,
   docked = false,
+  canvasSize = 'compact',
 }: {
   widgetOn?: boolean
   location?: StoredLocation | null
   use24Hour?: boolean
   docked?: boolean
+  canvasSize?: CanvasSize
 } = {}): Promise<{ storage: AuroraStorage; container: HTMLElement }> {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -53,7 +56,7 @@ async function renderWithSun({
   await storage.set('location', location)
   const { container } = render(
     <StorageProvider storage={storage}>
-      <SunWidget docked={docked} />
+      <SunWidget docked={docked} canvasSize={canvasSize} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -61,6 +64,17 @@ async function renderWithSun({
 }
 
 describe('SunWidget', () => {
+  it.each(['compact', 'standard'] as const)('renders the %s sun facts in the exact ready TierFrame', async (canvasSize) => {
+    vi.setSystemTime(NYC_SOLSTICE)
+    const { container } = await renderWithSun({ canvasSize })
+    const frame = container.querySelector<HTMLElement>('section[aria-label="Sun times"]')!
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains(`tier-frame--${canvasSize}`)).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+  })
+
   it('Docked renders one bare dense line, smaller than the compact card (batch-2 owner review)', async () => {
     vi.setSystemTime(NYC_SOLSTICE)
     const { container } = await renderWithSun({ docked: true })

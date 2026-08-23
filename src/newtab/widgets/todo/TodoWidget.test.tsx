@@ -6,15 +6,18 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { anchorPanel, hugHorizontal } from '../../../lib/layout/anchor'
 import TodoWidget, { TODO_CORNER_HUG_PX, TODO_PANEL_SIZE } from './TodoWidget'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 async function renderWidget({
   onOpenChange,
-}: { onOpenChange?: (open: boolean) => void } = {}) {
+  canvasSize = 'compact',
+  docked = false,
+}: { onOpenChange?: (open: boolean) => void; canvasSize?: CanvasSize; docked?: boolean } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
   const view = render(
     <StorageProvider storage={storage}>
-      <TodoWidget onOpenChange={onOpenChange} />
+      <TodoWidget onOpenChange={onOpenChange} canvasSize={canvasSize} docked={docked} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -22,6 +25,24 @@ async function renderWidget({
 }
 
 describe('TodoWidget', () => {
+  it('renders the Tasks direct action in the exact Compact ready TierFrame', async () => {
+    await renderWidget({ canvasSize: 'compact' })
+    const frame = screen.getByRole('region', { name: 'Tasks card' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains('tier-frame--compact')).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Tasks' })).toBeTruthy()
+    expect(screen.getByText('Open tasks')).toBeTruthy()
+  })
+
+  it('keeps Docked Tasks content-tight instead of mounting the Compact frame', async () => {
+    await renderWidget({ docked: true })
+    expect(screen.queryByRole('region', { name: 'Tasks card' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Tasks' }).classList.contains('rounded-panel')).toBe(true)
+  })
+
   it('renders the pill with no fixed-position class of its own (placement now lives on the App-level PositionedBlock wrapper)', async () => {
     await renderWidget()
     const pill = screen.getByRole('button', { name: 'Tasks' })

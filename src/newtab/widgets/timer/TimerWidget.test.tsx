@@ -10,10 +10,13 @@ import { useDialogEscape } from '../../../lib/dialogStack'
 import TimerWidget, { TIMER_PANEL_SIZE } from './TimerWidget'
 import { TimerSessionProvider } from './TimerSessionProvider'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 async function renderWidget({
   onOpenChange,
-}: { onOpenChange?: (open: boolean) => void } = {}) {
+  canvasSize = 'compact',
+  docked = false,
+}: { onOpenChange?: (open: boolean) => void; canvasSize?: CanvasSize; docked?: boolean } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('settings', {
@@ -23,7 +26,7 @@ async function renderWidget({
   const view = render(
     <StorageProvider storage={storage}>
       <TimerSessionProvider>
-        <TimerWidget onOpenChange={onOpenChange} />
+        <TimerWidget onOpenChange={onOpenChange} canvasSize={canvasSize} docked={docked} />
       </TimerSessionProvider>
     </StorageProvider>,
   )
@@ -32,6 +35,24 @@ async function renderWidget({
 }
 
 describe('TimerWidget', () => {
+  it('renders the countdown and direct action in the exact Compact ready TierFrame', async () => {
+    await renderWidget({ canvasSize: 'compact' })
+    const frame = await screen.findByRole('region', { name: 'Focus timer card' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains('tier-frame--compact')).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+    expect(screen.getByRole('button', { name: /Focus timer/ })).toBeTruthy()
+    expect(screen.getByText(/Open timer/)).toBeTruthy()
+  })
+
+  it('keeps Docked timer content-tight instead of mounting the Compact frame', async () => {
+    await renderWidget({ docked: true })
+    expect(screen.queryByRole('region', { name: 'Focus timer card' })).toBeNull()
+    expect(screen.getByRole('button', { name: /Focus timer/ }).classList.contains('rounded-panel')).toBe(true)
+  })
+
   it('keeps one running timer represented after its Tray detail closes', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()

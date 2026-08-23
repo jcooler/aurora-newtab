@@ -5,6 +5,8 @@ import { hugHorizontal } from '../../../lib/layout/anchor'
 import type { NotesPanelHandle } from './NotesPanel'
 import { createPortal } from 'react-dom'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
 
 const NotesPanel = lazy(() => import('./NotesPanel'))
 
@@ -26,23 +28,46 @@ export const NOTES_CORNER_HUG_PX = 48
 export default function NotesWidget({
   onOpenChange,
   utilityTray,
-}: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge } = {}) {
+  canvasSize = 'compact',
+  docked = false,
+}: {
+  onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
+  canvasSize?: CanvasSize
+  docked?: boolean
+} = {}) {
   // Keep NotesInner mounted across a settings disable so an open dirty panel
   // can finish (or recover) its authority-backed close before disappearing.
   // Once it is disabled and closed, NotesInner renders nothing.
   const [settings] = useStoredKey('settings')
+  const [notes] = useStoredKey('notes')
   if (!settings) return null
-  return <NotesInner enabled={settings.widgets.notes} onOpenChange={onOpenChange} utilityTray={utilityTray} />
+  return (
+    <NotesInner
+      enabled={settings.widgets.notes}
+      onOpenChange={onOpenChange}
+      utilityTray={utilityTray}
+      canvasSize={canvasSize}
+      docked={docked}
+      noteText={notes?.text ?? ''}
+    />
+  )
 }
 
 function NotesInner({
   enabled,
   onOpenChange,
   utilityTray,
+  canvasSize,
+  docked,
+  noteText,
 }: {
   enabled: boolean
   onOpenChange?: (open: boolean) => void
   utilityTray?: UtilityTrayBridge
+  canvasSize: CanvasSize
+  docked: boolean
+  noteText: string
 }) {
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLButtonElement>(null)
@@ -130,20 +155,40 @@ function NotesInner({
       />
     </Suspense>
   ) : null
+  const preview = noteText.trim()
+  const trigger = enabled ? (
+    <button
+      ref={pillRef}
+      type="button"
+      aria-label="Notes"
+      aria-expanded={panelOpen}
+      onClick={togglePanel}
+      className={docked
+        ? 'rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+        : 'flex h-full w-full cursor-pointer flex-col items-stretch justify-center gap-2 rounded-[inherit] p-3 text-left focus-visible:outline-2 focus-visible:outline-accent'}
+    >
+      {docked ? 'Notes' : (
+        <>
+          <span className="flex items-center justify-between">
+            <strong className="text-sm font-semibold text-fg">Notes</strong>
+            <span className="text-[11px] text-fg-muted">{preview ? 'Saved note' : 'Scratchpad'}</span>
+          </span>
+          <span title={preview || undefined} className="line-clamp-3 text-sm leading-5 text-fg-muted">
+            {preview || 'Capture an idea, reminder, or detail.'}
+          </span>
+          <span className="mt-auto text-sm font-medium text-fg">Open notes</span>
+        </>
+      )}
+    </button>
+  ) : null
 
   return (
     <>
-      {enabled && (
-        <button
-          ref={pillRef}
-          type="button"
-          aria-expanded={panelOpen}
-          onClick={togglePanel}
-          className="rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          Notes
-        </button>
-      )}
+      {trigger && (docked ? trigger : (
+        <TierFrame label="Notes card" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready">
+          {trigger}
+        </TierFrame>
+      ))}
       {utilityTray?.host && panel ? createPortal(panel, utilityTray.host) : panel}
     </>
   )

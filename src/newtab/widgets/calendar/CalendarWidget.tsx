@@ -14,7 +14,11 @@ import {
 import { calendarColorClass, calendarColorOf } from '../../../services/connectors/calendarColors'
 import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import DockLine from '../shared/DockLine'
+import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationState } from '../../widgetSizeContracts'
+import type { AsyncResourceState } from '../../../lib/asyncState'
 
 // The calendar widget — Task 54, the seventh connector and the second
 // no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
@@ -46,10 +50,22 @@ const CALENDAR_ROW_LIMIT: Readonly<Record<WidgetVariant, number>> = {
   expanded: 5,
 }
 
+export function calendarPresentationState(
+  state: AsyncResourceState,
+  hasData: boolean,
+  hasNext: boolean,
+): WidgetPresentationState {
+  if (!hasData) return state.operation === 'error' ? 'hard-error' : 'loading'
+  if (!hasNext) return 'empty'
+  if (state.freshness === 'stale' || state.operation === 'error') return 'stale'
+  return 'ready'
+}
+
 export default function CalendarWidget({
   stageVariant = 'standard',
+  canvasSize,
   docked,
-}: { stageVariant?: WidgetVariant; docked?: boolean } = {}) {
+}: { stageVariant?: WidgetVariant; canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (RssWidget/CryptoWidget's own doc comments): the one useStoredKey read
   // runs every render (Rules of Hooks stay satisfied), but a disabled
@@ -96,6 +112,7 @@ export default function CalendarWidget({
       upcomingCount={upcomingCount}
       meetLinks={meetLinks}
       stageVariant={stageVariant}
+      canvasSize={canvasSize ?? (stageVariant === 'compact' ? 'compact' : 'standard')}
       docked={docked}
     />
   )
@@ -108,6 +125,7 @@ function CalendarInner({
   upcomingCount,
   meetLinks,
   stageVariant,
+  canvasSize,
   docked,
 }: {
   config: IcsConfig
@@ -123,6 +141,7 @@ function CalendarInner({
   // connectors subscription), no remount required.
   meetLinks: boolean
   stageVariant: WidgetVariant
+  canvasSize: CanvasSize
   docked?: boolean
 }) {
   const localDay = useLocalDay()
@@ -143,7 +162,7 @@ function CalendarInner({
   // to parseIcs as `windowStart`, and parseIcs itself never calls
   // Date.now() (see ics.ts's own doc comment). `prev` carries the
   // last-known events forward through fetchIcs's own quiet-failure path.
-  const { data } = useConnectorSnapshot<IcsData>(
+  const { data, state } = useConnectorSnapshot<IcsData>(
     'ics',
     config,
     (prev) => fetchIcs(calendars, Date.now(), prev, localDay.timeZone),
@@ -151,7 +170,19 @@ function CalendarInner({
     { timeZone: localDay.timeZone },
     isIcsData,
   )
-  if (!data) return null
+  if (!data) {
+    if (docked) return null
+    const presentation = calendarPresentationState(state, false, false)
+    return (
+      <TierFrame label="Calendar" tier={canvasSize} state={presentation} className="justify-center gap-2 p-3">
+        {presentation === 'hard-error' ? (
+          <p role="alert" className="text-sm text-fg-muted">Calendar is unavailable. Aurora will retry automatically.</p>
+        ) : (
+          <p className="text-sm text-fg-muted">Loading calendar…</p>
+        )}
+      </TierFrame>
+    )
+  }
 
   const nowMs = now.getTime()
   const { next, rows } = selectAgenda(
@@ -168,6 +199,7 @@ function CalendarInner({
   // dots render anywhere — the color-coding only earns its keep once there's
   // more than one calendar to distinguish. `multi` gates every dot below.
   const multi = calendars.length > 1
+  const frameState = calendarPresentationState(state, true, next !== null)
   const sourceName = (cal: unknown) => calendarSourceName(cal, calendars)
   const dot = (cal: number) => (
     <span
@@ -181,14 +213,11 @@ function CalendarInner({
     // dock line renders nothing (the no-whitespace law), never the empty card.
     if (docked) return null
     return (
-      <section
-        aria-label="Calendar"
-        className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg"
-      >
-        <p className="text-sm dense:text-xs text-fg-muted">
+      <TierFrame label="Calendar" tier={canvasSize} state={frameState} className="justify-center p-3">
+        <p className="text-sm text-fg-muted">
           {view === 'today' ? 'No more events today.' : 'No upcoming events.'}
         </p>
-      </section>
+      </TierFrame>
     )
   }
 
@@ -217,13 +246,10 @@ function CalendarInner({
     !isAllDay(next) && meetLinks && !!next.meetUrl && next.start - nowMs <= 15 * 60_000 && nowMs < next.end
 
   return (
-    <section
-      aria-label="Calendar"
-      className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg"
-    >
+    <TierFrame label="Calendar" tier={canvasSize} state={frameState} className="gap-2 p-3">
       <p
         aria-label={multi ? `Next: ${next.summary} · ${relative} · ${sourceName(next.cal)}` : undefined}
-        className="flex min-w-0 items-center gap-1.5 text-sm dense:text-xs font-medium text-fg"
+        className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-fg"
       >
         {multi && dot(next.cal)}
         {/* min-w-0 (not just the row's own): with the Join anchor as a shrink-0
@@ -235,7 +261,7 @@ function CalendarInner({
           Next: {next.summary} · {relative}
         </span>
         {multi && (
-          <span data-calendar-source title={sourceName(next.cal)} className="max-w-24 shrink-0 truncate text-xs font-normal text-fg-muted">
+          <span data-calendar-source title={sourceName(next.cal)} className="max-w-24 shrink-0 truncate text-[11px] font-normal text-fg-muted">
             {sourceName(next.cal)}
           </span>
         )}
@@ -252,7 +278,7 @@ function CalendarInner({
         )}
       </p>
       {rows.length > 0 && (
-        <ul className="mt-1 flex flex-col gap-0.5">
+        <ul className="flex min-h-0 flex-col gap-1">
           {rows.map((ev) => {
             const rowText = formatAgendaRow(ev, nowMs, localDay.timeZone)
             return (
@@ -263,7 +289,7 @@ function CalendarInner({
                 // warning, undefined reconciliation between the two rows).
                 key={`${ev.cal}-${ev.start}-${ev.summary}`}
                 aria-label={multi ? `${rowText} · ${sourceName(ev.cal)}` : undefined}
-                className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted"
+                className="flex min-w-0 items-center gap-1.5 text-sm leading-5 text-fg-muted"
               >
                 {multi && dot(ev.cal)}
                 <span className="block min-w-0 truncate">{rowText}</span>
@@ -277,7 +303,7 @@ function CalendarInner({
           })}
         </ul>
       )}
-    </section>
+    </TierFrame>
   )
 }
 

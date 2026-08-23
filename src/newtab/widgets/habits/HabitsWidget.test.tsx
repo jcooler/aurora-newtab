@@ -61,6 +61,17 @@ describe('HabitsWidget', () => {
     intervalSpy.mockRestore()
   })
 
+  it('renders today habits in the exact Compact ready TierFrame without an internal scroller', async () => {
+    await renderWithHabits([habit('stretch', 'Stretch')])
+    const frame = screen.getByRole('region', { name: 'Habits' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains('tier-frame--compact')).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+    expect(screen.getByRole('button', { name: /Stretch/ })).toBeTruthy()
+  })
+
   it('Docked renders one dense done-today tally and no chips (NL-P5 batch 2)', async () => {
     const todayKey = localDateKey(new Date())
     const storage = createStorage(memoryDriver())

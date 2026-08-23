@@ -7,16 +7,24 @@ import { StorageProvider } from '../../../lib/storage/context'
 import { anchorPanel, hugHorizontal } from '../../../lib/layout/anchor'
 import NotesWidget, { NOTES_CORNER_HUG_PX, NOTES_PANEL_SIZE } from './NotesWidget'
 import type { UtilityCloseGuard, UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 async function renderWidget({
   onOpenChange,
   storage: suppliedStorage,
-}: { onOpenChange?: (open: boolean) => void; storage?: ReturnType<typeof createStorage> } = {}) {
+  canvasSize = 'compact',
+  docked = false,
+}: {
+  onOpenChange?: (open: boolean) => void
+  storage?: ReturnType<typeof createStorage>
+  canvasSize?: CanvasSize
+  docked?: boolean
+} = {}) {
   const storage = suppliedStorage ?? createStorage(memoryDriver())
   if (!suppliedStorage) await storage.init()
   const view = render(
     <StorageProvider storage={storage}>
-      <NotesWidget onOpenChange={onOpenChange} />
+      <NotesWidget onOpenChange={onOpenChange} canvasSize={canvasSize} docked={docked} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -24,6 +32,24 @@ async function renderWidget({
 }
 
 describe('NotesWidget', () => {
+  it('renders the note preview action in the exact Compact ready TierFrame', async () => {
+    await renderWidget({ canvasSize: 'compact' })
+    const frame = screen.getByRole('region', { name: 'Notes card' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains('tier-frame--compact')).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Notes' })).toBeTruthy()
+    expect(screen.getByText('Open notes')).toBeTruthy()
+  })
+
+  it('keeps Docked Notes content-tight instead of mounting the Compact frame', async () => {
+    await renderWidget({ docked: true })
+    expect(screen.queryByRole('region', { name: 'Notes card' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Notes' }).classList.contains('rounded-panel')).toBe(true)
+  })
+
   it('keeps a disabled Tray note mounted until its registered save guard flushes', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()

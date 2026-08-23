@@ -240,10 +240,10 @@ git commit -m "feat: frame browser native widgets"
 - Create: `src/newtab/widgetRenderers.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Add and observe focused RED tests per widget.** Require exact frames for every declared tier and state. Calendar preserves event identity and opens the existing detail path. Month remains Standard-only and renders one complete month without a Docked presentation. Sun, Moon, and Habits retain their essential facts. Timer, Tasks, and Notes become useful Compact frames with their existing direct actions and one data owner.
-- [ ] **Step 2: Thread `canvasSize` only where missing.** Update renderer props for Sun, Moon, Habits, Timer, Tasks, and Notes as needed. Do not alter their Docked line metrics or panel portals.
-- [ ] **Step 3: Implement authored exact-frame layouts one widget at a time.** Preserve Calendar/ICS, Month, and Public Holidays as separate identities and authorities. Do not start Unified Agenda work. Keep complete Month semantics; resize table cells and labels to the 320x200 Standard frame without dropping days or adding scroll.
-- [ ] **Step 4: Run GREEN and commit.** Run the eight widget test files plus renderer tests, TypeScript, and diff hygiene, then commit:
+- [x] **Step 1: Add and observe focused RED tests per widget.** Require exact frames for every declared tier and state. Calendar preserves event identity and opens the existing detail path. Month remains Standard-only and renders one complete month without a Docked presentation. Sun, Moon, and Habits retain their essential facts. Timer, Tasks, and Notes become useful Compact frames with their existing direct actions and one data owner.
+- [x] **Step 2: Thread `canvasSize` only where missing.** Update renderer props for Sun, Moon, Habits, Timer, Tasks, and Notes as needed. Do not alter their Docked line metrics or panel portals.
+- [x] **Step 3: Implement authored exact-frame layouts one widget at a time.** Preserve Calendar/ICS, Month, and Public Holidays as separate identities and authorities. Do not start Unified Agenda work. Keep complete Month semantics; resize table cells and labels to the 320x200 Standard frame without dropping days or adding scroll.
+- [x] **Step 4: Run GREEN and commit.** Run the eight widget test files plus renderer tests, TypeScript, and diff hygiene, then commit:
 
 ```powershell
 git add src/newtab/widgets/calendar src/newtab/widgets/monthcal src/newtab/widgets/sun src/newtab/widgets/moon src/newtab/widgets/habits src/newtab/widgets/timer src/newtab/widgets/todo src/newtab/widgets/notes src/newtab/widgetRenderers.tsx src/newtab/widgetRenderers.test.tsx src/newtab/index.css

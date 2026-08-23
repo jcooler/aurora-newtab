@@ -4,6 +4,7 @@ import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { monthGrid, type MonthCell } from '../../../lib/monthGrid'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import type { WidgetVariant } from '../../../lib/layout/types'
+import TierFrame from '../shared/TierFrame'
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] // Sunday-origin, matching monthGrid's own fixed row-0 weekday
 const MONTH_NAMES = [
@@ -88,7 +89,7 @@ function MonthCalInner() {
   const label = monthLabel(view.y, view.m0)
 
   return (
-    <div className="w-[200px] rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    <TierFrame label="Month" tier="standard" state="ready" className="p-3">
       {/* data-monthcal-header — a stable hook (same convention as
           data-cell-key below) for this file's own tests and the harness's
           zero-height-guarantee probe: the Today affordance (below) lives
@@ -106,49 +107,11 @@ function MonthCalInner() {
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        {/* Label + (conditionally) the Today control share ONE line in the
-            header row — a fix-wave correction (final review, MERGE-
-            BLOCKING): this button used to render on its OWN line below the
-            header, which added 21px of card height whenever it appeared
-            (i.e. on any off-current month) and silently collapsed this
-            column's floor to this widget's neighbor below in an off-current
-            6-row month. Living here instead means the button changes WHICH
-            controls the header row contains, never how TALL the row is —
-            navigating months (or the widget sitting open across a midnight
-            rollover into a new month) can no longer move anything below it.
-            `min-w-0` lets this flex item shrink below its content's natural
-            width (the flex default is `min-width: auto`, which would
-            otherwise refuse to shrink and push the Next button off the
-            right edge); `truncate` on the label span (data-monthcal-label,
-            below) is a defensive floor for that same squeeze, not a design
-            choice — scripts/preview.mjs's own monthCal block forces the
-            header to "September" (this file's own MONTH_NAMES' longest
-            entry) with the Today button showing and asserts the label
-            renders in FULL (`scrollWidth === clientWidth`, i.e. `truncate`
-            never actually engages) and the Next button stays inside the
-            card's own right edge — if a future change ever makes it
-            engage, that's the signal to revisit this layout (option (a) in
-            the fix-wave ledger: raise the whole widget instead of
-            shrinking the header), not to let the month name silently
-            clip.
-
-            LABEL FONT DROPPED text-sm -> text-xs (App.tsx's monthCal
-            PositionedBlock comment, "WIDE-CLOCK FIX") when the card itself
-            narrowed 224px -> 200px to clear the clock's real forced-wide
-            left edge: at the old text-sm, "September 2026" + a visible
-            Today button no longer fit the narrower 176px content row
-            (176px = 200px card - the p-3 padding) — scrollWidth(104) >
-            clientWidth(91), i.e. `truncate` actually DID engage, exactly
-            the regression this comment's own probe exists to catch. text-xs
-            (already the day-cell digits' own size, two lines down) closes
-            it with real margin, not a squeak-by: measured (a throwaway
-            harness run, numbers not asserted anywhere) at 89.4px label +
-            22px x2 chevrons + 26.9px Today = 160.3px of actual content
-            against the 176px row, 15.7px of which is the row's own
-            intentional gaps (gap-1 x2 + gap-1.5 here) rendering exactly as
-            designed, not stretched or squeezed to fit. */}
+        {/* Label and conditional Today action share one fixed-height row.
+            min-w-0/truncate protect the Standard frame while retaining the
+            14px routine-text floor. */}
         <span className="flex min-w-0 items-center justify-center gap-1.5">
-          <span data-monthcal-label aria-label={label} className="truncate text-xs font-medium text-fg">
+          <span data-monthcal-label aria-label={label} className="truncate text-sm font-medium text-fg">
             {label}
           </span>
           {/* Re-derived from the ticking `now` (not the mount-time `view`
@@ -161,7 +124,7 @@ function MonthCalInner() {
               type="button"
               onClick={goToday}
               aria-label="Back to today"
-              className="shrink-0 rounded text-[10px] font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+              className="shrink-0 rounded text-[11px] font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
             >
               Today
             </button>
@@ -194,7 +157,7 @@ function MonthCalInner() {
           half-implemented roving-tabindex trap. If a future task ever makes
           a cell actionable (e.g. click-to-add-event), THAT is the moment to
           upgrade to the full grid pattern — not before. */}
-      <table className="mt-2 dense:mt-1 w-full border-collapse text-center">
+      <table className="mt-1 w-full border-collapse text-center">
         <caption className="sr-only">Calendar: {label}</caption>
         <thead>
           <tr>
@@ -202,7 +165,7 @@ function MonthCalInner() {
               // Sunday..Saturday all need their own key; the initial alone
               // collides twice (Sun/Sat both 'S', Tue/Thu both 'T') so the
               // index is the key, not the label.
-              <th key={i} scope="col" data-stage-text-tier="metadata" className="pb-1 text-[10px] font-normal text-fg-muted">
+              <th key={i} scope="col" data-stage-text-tier="metadata" className="pb-0.5 text-[11px] font-normal text-fg-muted">
                 {initial}
               </th>
             ))}
@@ -226,7 +189,7 @@ function MonthCalInner() {
           ))}
         </tbody>
       </table>
-    </div>
+    </TierFrame>
   )
 }
 
@@ -251,7 +214,7 @@ function MonthCalCell({
     <td data-cell-key={cell.key} className="py-0.5">
       <div className="flex flex-col items-center gap-0.5">
         <span
-          className={`flex size-5 items-center justify-center rounded-full text-xs ${
+          className={`flex size-5 items-center justify-center rounded-full text-sm ${
             cell.inMonth ? 'text-fg' : 'text-fg-muted/50'
           } ${isToday ? 'ring-1 ring-accent' : ''}`}
         >

@@ -5,16 +5,19 @@ import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { WidgetVariant } from '../../../lib/layout/types'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import type { IcsData, IcsEvent } from '../../../services/connectors/ics'
 import type { IcsConfig } from '../../../services/connectors/types'
 import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import CalendarWidget, {
   calendarDayToken,
+  calendarPresentationState,
   calendarSourceName,
   eventStartsBeforeLocalDayEnd,
   relNext,
 } from './CalendarWidget'
+import type { AsyncResourceState } from '../../../lib/asyncState'
 
 beforeAll(() => {
   const digest = vi.fn(async (_algorithm: AlgorithmIdentifier, source: BufferSource) => {
@@ -130,10 +133,10 @@ async function seededStorage(
   return storage
 }
 
-function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'standard') {
+function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'standard', canvasSize?: CanvasSize) {
   return render(
     <StorageProvider storage={storage}>
-      <CalendarWidget stageVariant={stageVariant} />
+      <CalendarWidget stageVariant={stageVariant} canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
@@ -146,6 +149,36 @@ describe('CalendarWidget', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.useRealTimers()
+  })
+
+  it.each(['compact', 'standard'] as const)('renders the %s agenda in its exact ready TierFrame', async (canvasSize) => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B, EVENT_C] })
+    mount(storage, canvasSize, canvasSize)
+    await act(async () => {})
+
+    const frame = screen.getByRole('region', { name: 'Calendar' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains(`tier-frame--${canvasSize}`)).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+  })
+
+  it('keeps a configured Calendar in its exact loading frame while the first refresh is pending', async () => {
+    const storage = await seededStorage(CONNECTED, null)
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+    mount(storage, 'compact', 'compact')
+    await act(async () => { await Promise.resolve() })
+
+    const frame = screen.getByRole('region', { name: 'Calendar' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+    expect(screen.getByText('Loading calendar…')).toBeTruthy()
+  })
+
+  it('maps an exposed first-load connector failure to the hard-error frame state', () => {
+    const state: AsyncResourceState = { operation: 'error', freshness: 'unknown', hasData: false }
+    expect(calendarPresentationState(state, false, false)).toBe('hard-error')
   })
 
   it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
@@ -238,7 +271,7 @@ describe('CalendarWidget', () => {
     expect(screen.queryByText(/All day/)).toBeNull()
   })
 
-  it('rejects a matching-scope snapshot that omits allDay instead of inferring a timed fallback', async () => {
+  it('rejects a matching-scope snapshot that omits allDay and shows loading while its replacement is pending', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => new Promise(() => undefined)),
@@ -250,7 +283,7 @@ describe('CalendarWidget', () => {
     const { container } = mount(storage)
     await act(async () => {})
 
-    expect(container.querySelector('section[aria-label="Calendar"]')).toBeNull()
+    expect(container.querySelector('section[aria-label="Calendar"]')?.getAttribute('data-tier-frame-state')).toBe('loading')
     expect(screen.queryByText(/Legacy/)).toBeNull()
     vi.unstubAllGlobals()
   })
