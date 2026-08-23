@@ -66,7 +66,7 @@ test('all nine connector identities enumerate exactly the registry-promised size
   const source = readFileSync(new URL('../src/newtab/widgetSizeContracts.ts', import.meta.url), 'utf8')
   for (const [id, sizes] of Object.entries(exact)) {
     const escaped = sizes.map((size) => `'${size}'`).join(', ')
-    assert.match(source, new RegExp(`\\b${id}: contract\\('[^']+', \\[${escaped}\\]`))
+    assert.match(source, new RegExp(`\\b${id}: framedContract\\(\\[${escaped}\\]`))
   }
 })
 
@@ -91,6 +91,13 @@ test('Weather QA fixtures mirror the live Open-Meteo current-field contract', ()
     assert.match(fixture, new RegExp(`params\\.set\\(['\"]current['\"], ['\"]${currentFields}['\"]\\)`),
       `${fixturePath} must seed the exact production current-field identity`)
   }
+})
+
+test('Weather QA fixtures seed fresh environmental enrichment for stack witnesses', () => {
+  const fixture = readFileSync(new URL('./information-first-fixtures.mjs', import.meta.url), 'utf8')
+  assert.match(fixture, /const environmentUrl = \(lat, lon\) =>/)
+  assert.match(fixture, /requestIdentity:\s*`open-meteo-air:v1:\$\{environmentUrl\(location\.lat, location\.lon\)\}`/)
+  assert.match(fixture, /pollen:\s*\{\s*status:\s*'available'/)
 })
 
 test('Weather exercises all four legal corners and owner gate names all eight originals', () => {

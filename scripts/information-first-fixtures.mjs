@@ -41,6 +41,14 @@ export async function seedInformationFirstFixtures(page, { weatherFixture = null
       params.set('longitude', String(normalizeCoordinate(lon, -180, 180)))
       return `https://api.open-meteo.com/v1/forecast?${params.toString()}`
     }
+    const environmentUrl = (lat, lon) => {
+      const params = new URLSearchParams()
+      params.set('timezone', 'auto')
+      params.set('current', 'us_aqi,uv_index,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen')
+      params.set('latitude', String(normalizeCoordinate(lat, -90, 90)))
+      params.set('longitude', String(normalizeCoordinate(lon, -180, 180)))
+      return `https://air-quality-api.open-meteo.com/v1/air-quality?${params.toString()}`
+    }
     const location = { lat: 33.749, lon: -84.388, label: 'Atlanta', manual: true }
     const now = Date.now()
     const configs = {
@@ -170,6 +178,14 @@ export async function seedInformationFirstFixtures(page, { weatherFixture = null
         locationLabel: location.label,
         requestIdentity: `open-meteo:v1:${weatherUrl(location.lat, location.lon)}`,
         sunriseISO: `${day}T07:02`, sunsetISO: `${day}T20:23`,
+        environment: {
+          requestIdentity: `open-meteo-air:v1:${environmentUrl(location.lat, location.lon)}`,
+          fetchedAt: now,
+          status: 'available',
+          usAqi: 42,
+          uvIndex: 3.2,
+          pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: 2 }] },
+        },
       },
       connectors: configs,
       connectorSnapshots: snapshots,
