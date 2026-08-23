@@ -54,6 +54,10 @@
   gap: 0.5rem;
   padding: 0.75rem 1rem;
 }
+.tier-frame--full:is([data-tier-frame-state="stale"], [data-tier-frame-state="partial"], [data-tier-frame-state="loading"]) .weather-tier-summary {
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+}
 .tier-frame--full .weather-tier-summary [data-weather-current] {
   font-size: 2.75rem;
 }
