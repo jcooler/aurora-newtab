@@ -11,6 +11,7 @@ import {
   expectedCatalogCaptures,
   validateCatalogModel,
 } from './widget-redesign-catalog-contracts.mjs'
+import { captureFilename, renderCatalogCapture } from '../mockups/widget-redesign/catalog-captures.mjs'
 import { fixtureFor } from '../mockups/widget-redesign/fixtures.mjs'
 import { renderCalendarConsolidation } from '../mockups/widget-redesign/renderers/calendar-sky.mjs'
 import { renderWidgetFace } from '../mockups/widget-redesign/renderers/index.mjs'
@@ -272,4 +273,26 @@ test('renders every resource identity with bounded native structures and useful 
   assert.equal(count(renderFace('crypto', 'standard', { coins: 4 }), 'data-coin-row'), 4)
   assert.equal(count(renderFace('crypto', 'standard', { coins: 1 }), 'data-coin-row'), 1)
   assert.match(renderFace('tabGroups', 'standard', { state: 'permission' }), /Allow tab access/)
+})
+
+test('resolves every expected capture exactly once with stable semantic hooks and safe output names', () => {
+  const captures = expectedCatalogCaptures({ targets: TARGET_WIDGETS, mixedStacks: MIXED_STACKS })
+  const names = new Set()
+  for (const capture of captures) {
+    const html = renderCatalogCapture(capture)
+    assert.equal(count(html, `data-capture-key="${capture.key}"`), 1, capture.key)
+    assert.match(html, /data-essential/, `${capture.key} has no essential hook`)
+    assert.match(html, /data-tier-frame|data-calendar-consolidation/, `${capture.key} has no tier surface`)
+
+    const filename = captureFilename(capture)
+    assert.match(filename, /^[a-z0-9]+(?:-[a-z0-9]+)*\.png$/)
+    assert.ok(!names.has(filename), `duplicate filename ${filename}`)
+    names.add(filename)
+  }
+  assert.equal(names.size, captures.length)
+
+  const plainClick = renderCatalogCapture(captures.find(({ key }) => key === 'interaction-clock-compact-plain-click'))
+  assert.match(plainClick, /data-interaction="plain-click"/)
+  assert.doesNotMatch(plainClick, /data-selected|data-edit-selection/)
+  assert.match(renderCatalogCapture(captures.find(({ key }) => key === 'interaction-clock-compact-swipe')), /data-interaction="swipe"/)
 })

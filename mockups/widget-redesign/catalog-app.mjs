@@ -1,8 +1,10 @@
 import {
   LEGACY_TARGET_MAP,
+  MIXED_STACKS,
   SOURCE_WIDGET_IDS,
   TARGET_WIDGETS,
 } from './catalog-model.mjs'
+import { renderCatalogCapture } from './catalog-captures.mjs'
 import { fixtureFor } from './fixtures.mjs'
 import { renderCalendarConsolidation } from './renderers/calendar-sky.mjs'
 import { renderFrame } from './renderers/shared.mjs'
@@ -147,6 +149,18 @@ const resourceGallery = () => {
   </section>`
 }
 
+const evidenceGallery = () => {
+  const weatherFixture = fixtureFor('weather', 'dense')
+  const interactions = ['hover', 'focus', 'plain-click', 'swipe']
+  return `<section class="family-gallery evidence-gallery" aria-labelledby="evidence-title" data-family-section="evidence">
+    <div class="section-heading"><div><span class="eyebrow">Cross-system evidence</span><h2 id="evidence-title">Themes, states, stacks, interactions.</h2></div><p>The same information survives contrast stress, connector conditions, and stack geometry without changing identity.</p></div>
+    <article class="evidence-board" data-evidence-board="themes"><header><strong>Theme witnesses</strong><span>Weather · Standard</span></header><div>${['dark', 'light', 'pink'].map((theme) => renderWidgetFace({ id: 'weather', tier: 'standard', state: 'ready', theme }, weatherFixture)).join('')}</div></article>
+    <article class="evidence-board" data-evidence-board="states"><header><strong>State witnesses</strong><span>Useful unaffected content remains visible</span></header><div>${renderWidgetFace({ id: 'calendar', tier: 'standard', view: 'month', state: 'loading', theme: 'dark' }, fixtureFor('calendar', 'dense'))}${renderWidgetFace({ id: 'tabGroups', tier: 'standard', state: 'permission', theme: 'dark' }, fixtureFor('tabGroups', 'dense'))}${renderWidgetFace({ id: 'quote', tier: 'standard', state: 'error', theme: 'dark' }, fixtureFor('quote', 'dense'))}</div></article>
+    <article class="evidence-board" data-evidence-board="mixed-stacks"><header><strong>Mixed stacks</strong><span>One geometry · one active face</span></header><div>${MIXED_STACKS.map((stack) => renderCatalogCapture({ key: `mixed-stack-${stack.id}`, kind: 'mixed-stack', widget: stack.members[0], members: stack.members, tier: stack.tier, state: 'ready', theme: 'dark' })).join('')}</div></article>
+    <article class="evidence-board" data-evidence-board="interactions"><header><strong>Interaction comparison</strong><span>Plain click never selects edit mode</span></header><div>${interactions.map((interaction) => renderCatalogCapture({ key: `interaction-clock-compact-${interaction}`, kind: 'interaction', interaction, widget: 'clock', tier: 'compact', state: 'ready', theme: 'dark' })).join('')}</div></article>
+  </section>`
+}
+
 const shell = `
   <div class="catalog" data-catalog-app>
     <header class="catalog-hero">
@@ -181,7 +195,7 @@ const shell = `
         </select>
       </label>
     </nav>
-    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${calendarSkyGallery()}${workGallery()}${resourceGallery()}${inventory()}`}
+    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${calendarSkyGallery()}${workGallery()}${resourceGallery()}${evidenceGallery()}${inventory()}`}
     <footer class="catalog-footer">
       <span>Design-only HTML/CSS</span>
       <span>${SOURCE_WIDGET_IDS.length} sources checked</span>

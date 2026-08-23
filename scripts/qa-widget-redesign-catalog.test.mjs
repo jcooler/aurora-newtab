@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 
 import { chromium } from 'playwright'
 
-import { TARGET_WIDGETS } from '../mockups/widget-redesign/catalog-model.mjs'
+import { MIXED_STACKS, TARGET_WIDGETS } from '../mockups/widget-redesign/catalog-model.mjs'
 import { startCatalogServer } from './widget-redesign-catalog-server.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
@@ -97,9 +97,10 @@ test('exposes the Calendar view comparison, consolidation choice, and all sky id
     await page.goto(`${server.origin}/mockups/widget-redesign/?view=gallery`)
 
     assert.equal(await page.locator('[data-calendar-sky-showcase]').count(), 6)
-    assert.equal(await page.locator('[data-calendar-view="agenda"]').count(), 1)
-    assert.equal(await page.locator('[data-calendar-view="month"]').count(), 1)
-    assert.equal(await page.locator('[data-calendar-view="combined"]').count(), 1)
+    const calendarBoard = page.locator('[data-calendar-sky-showcase="calendar"]')
+    assert.equal(await calendarBoard.locator('[data-calendar-view="agenda"]').count(), 1)
+    assert.equal(await calendarBoard.locator('[data-calendar-view="month"]').count(), 1)
+    assert.equal(await calendarBoard.locator('[data-calendar-view="combined"]').count(), 1)
     assert.equal(await page.locator('[data-calendar-consolidation] [data-calendar-placement]').count(), 3)
     assert.equal(await page.locator('[data-widget-id="weather"][data-tier-frame="full"] [data-hourly-forecast]').count(), 1)
   } finally {
@@ -138,6 +139,27 @@ test('exposes every resource identity and declared tier on the owner gallery', a
       const board = page.locator(`[data-resource-showcase="${target.id}"]`)
       for (const tier of target.tiers) assert.equal(await board.locator(`[data-widget-id="${target.id}"][data-tier-frame="${tier}"]`).count(), 1)
     }
+  } finally {
+    await browser.close()
+    await server.close()
+  }
+})
+
+test('shows theme, state, mixed-stack, and interaction evidence without click selection', async () => {
+  const server = await startCatalogServer({ repoRoot })
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await page.goto(`${server.origin}/mockups/widget-redesign/?view=gallery`)
+    assert.equal(await page.locator('[data-evidence-board="themes"] [data-theme]').count(), 3)
+    assert.equal(await page.locator('[data-evidence-board="mixed-stacks"] [data-stack]').count(), MIXED_STACKS.length)
+    for (const stack of await page.locator('[data-evidence-board="mixed-stacks"] [data-stack]').all()) {
+      assert.equal(await stack.locator('[data-stack-active="true"]').count(), 1)
+    }
+    const plain = page.locator('[data-interaction="plain-click"]')
+    assert.equal(await plain.locator('[data-selected], [data-edit-selection]').count(), 0)
+    assert.notEqual(await plain.evaluate((node) => getComputedStyle(node).userSelect), 'none')
+    assert.equal(await page.locator('[data-interaction="swipe"]').evaluate((node) => getComputedStyle(node).userSelect), 'none')
   } finally {
     await browser.close()
     await server.close()

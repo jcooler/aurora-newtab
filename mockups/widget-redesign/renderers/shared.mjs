@@ -41,7 +41,7 @@ export function renderFrame({
         <span class="widget-frame__label">${escapeHtml(label)}</span>
         ${actions}
       </header>
-      <div class="widget-frame__body">${body}</div>
+      <div class="widget-frame__body" data-essential>${body}</div>
     </article>
   `
 }

@@ -139,6 +139,17 @@ export function expectedCatalogCaptures({ targets, mixedStacks }) {
     state: 'ready',
     theme: 'dark',
   }))
+  for (const interaction of ['hover', 'focus', 'plain-click', 'swipe']) {
+    captures.push(capture({
+      key: `interaction-clock-compact-${interaction}`,
+      kind: 'interaction',
+      interaction,
+      widget: 'clock',
+      tier: 'compact',
+      state: 'ready',
+      theme: 'dark',
+    }))
+  }
 
   const duplicates = duplicateValues(captures.map(({ key }) => key))
   if (duplicates.length > 0) throw new Error(`duplicate capture keys: ${duplicates.join(', ')}`)
