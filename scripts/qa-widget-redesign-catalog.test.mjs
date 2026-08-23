@@ -88,3 +88,22 @@ test('exposes every core identity and declared tier on the owner gallery', async
     await server.close()
   }
 })
+
+test('exposes the Calendar view comparison, consolidation choice, and all sky identities', async () => {
+  const server = await startCatalogServer({ repoRoot })
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await page.goto(`${server.origin}/mockups/widget-redesign/?view=gallery`)
+
+    assert.equal(await page.locator('[data-calendar-sky-showcase]').count(), 6)
+    assert.equal(await page.locator('[data-calendar-view="agenda"]').count(), 1)
+    assert.equal(await page.locator('[data-calendar-view="month"]').count(), 1)
+    assert.equal(await page.locator('[data-calendar-view="combined"]').count(), 1)
+    assert.equal(await page.locator('[data-calendar-consolidation] [data-calendar-placement]').count(), 3)
+    assert.equal(await page.locator('[data-widget-id="weather"][data-tier-frame="full"] [data-hourly-forecast]').count(), 1)
+  } finally {
+    await browser.close()
+    await server.close()
+  }
+})

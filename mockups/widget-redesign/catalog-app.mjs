@@ -4,6 +4,7 @@ import {
   TARGET_WIDGETS,
 } from './catalog-model.mjs'
 import { fixtureFor } from './fixtures.mjs'
+import { renderCalendarConsolidation } from './renderers/calendar-sky.mjs'
 import { renderFrame } from './renderers/shared.mjs'
 import { renderWidgetFace } from './renderers/index.mjs'
 
@@ -100,6 +101,30 @@ const coreGallery = () => {
   `
 }
 
+const calendarSkyGallery = () => {
+  const targets = TARGET_WIDGETS.filter(({ family }) => family === 'calendar-sky')
+  return `
+    <section class="family-gallery family-gallery--calendar-sky" aria-labelledby="calendar-sky-title" data-family-section="calendar-sky">
+      <div class="section-heading">
+        <div><span class="eyebrow">Calendar & sky · 6 identities</span><h2 id="calendar-sky-title">Time, conditions, and context.</h2></div>
+        <p>Calendar absorbs Month and Public Holidays without hiding either capability. Weather and sky faces keep their own data signatures.</p>
+      </div>
+      <div class="showcase-list">
+        ${targets.map((target, index) => {
+          const captures = target.id === 'calendar'
+            ? [{ tier: 'docked' }, { tier: 'compact' }, { tier: 'standard', view: 'agenda', label: 'standard · agenda' }, { tier: 'standard', view: 'month', label: 'standard · month' }, { tier: 'full' }]
+            : target.tiers.map((tier) => ({ tier }))
+          return `<article class="widget-showcase" data-calendar-sky-showcase="${target.id}" data-family="${target.family}" data-search="${target.label.toLowerCase()}">
+            <header class="widget-showcase__heading"><span>${String(index + 1).padStart(2, '0')}</span><div><h3>${target.label}</h3><p>${target.budgets[target.primaryTier].purpose}</p></div><small>${target.presentation}</small></header>
+            <div class="capture-run" aria-label="${target.label} tier comparison">${captures.map((capture) => `<div class="capture-stage capture-stage--${capture.tier}"><span>${capture.label ?? capture.tier}</span>${renderWidgetFace({ id: target.id, tier: capture.tier, view: capture.view, state: 'ready', theme: 'dark' }, fixtureFor(target.id, 'dense'))}</div>`).join('')}</div>
+            ${target.id === 'calendar' ? `<div class="consolidation-board"><span class="capture-label">placement decision</span>${renderCalendarConsolidation(fixtureFor('calendar', 'dense'))}</div>` : ''}
+          </article>`
+        }).join('')}
+      </div>
+    </section>
+  `
+}
+
 const shell = `
   <div class="catalog" data-catalog-app>
     <header class="catalog-hero">
@@ -134,7 +159,7 @@ const shell = `
         </select>
       </label>
     </nav>
-    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${inventory()}`}
+    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${calendarSkyGallery()}${inventory()}`}
     <footer class="catalog-footer">
       <span>Design-only HTML/CSS</span>
       <span>${SOURCE_WIDGET_IDS.length} sources checked</span>

@@ -1,4 +1,4 @@
-const CORE_FIXTURES = Object.freeze({
+const FIXTURES = Object.freeze({
   clock: Object.freeze({
     time: '09:41', seconds: '26', date: 'Sunday, August 23', timezone: 'New York · EDT',
   }),
@@ -74,6 +74,67 @@ const CORE_FIXTURES = Object.freeze({
       Object.freeze({ name: 'Journal', done: false }),
     ]),
   }),
+  calendar: Object.freeze({
+    dateLabel: 'Sunday, August 23',
+    monthLabel: 'August 2026',
+    today: 23,
+    startOffset: 6,
+    daysInMonth: 31,
+    previousMonthDays: 31,
+    nextEvent: Object.freeze({ title: 'Widget review', time: '10:00', source: 'Work calendar', join: true }),
+    items: Object.freeze([
+      Object.freeze({ date: '2026-08-23', time: '10:00', title: 'Widget review', source: 'Work calendar', kind: 'timed', join: true }),
+      Object.freeze({ date: '2026-08-23', time: '13:30', title: 'Design sync', source: 'Aurora redesign', kind: 'timed', join: true }),
+      Object.freeze({ date: '2026-08-24', time: 'All day', title: 'Owner QA window', source: 'Personal', kind: 'all-day', join: false }),
+      Object.freeze({ date: '2026-09-07', time: 'All day', title: 'Labor Day', source: 'US Holidays ICS', kind: 'holiday', join: false }),
+      Object.freeze({ date: '2026-09-07', time: 'All day', title: 'Labor Day', source: 'United States public holidays', kind: 'holiday', join: false }),
+    ]),
+    markers: Object.freeze([
+      Object.freeze({ day: 4, kind: 'event' }), Object.freeze({ day: 11, kind: 'event' }),
+      Object.freeze({ day: 18, kind: 'event' }), Object.freeze({ day: 23, kind: 'event' }),
+      Object.freeze({ day: 31, kind: 'holiday' }),
+    ]),
+    nearestHoliday: Object.freeze({ title: 'Labor Day', date: 'Sep 7' }),
+    placements: Object.freeze([
+      Object.freeze({ name: 'Main canvas', tier: 'Standard', position: 'Center left', detail: 'Calendar agenda' }),
+      Object.freeze({ name: 'Planning stack', tier: 'Full', position: 'Stack member', detail: 'Month view' }),
+      Object.freeze({ name: 'Bottom dock', tier: 'Docked', position: 'Dock position 4', detail: 'Public holidays' }),
+    ]),
+  }),
+  weather: Object.freeze({
+    location: 'Brooklyn, NY', condition: 'Partly cloudy', temperature: '72', unit: '°F', high: '78°', low: '64°',
+    wind: '3 mph NW', rain: 'Rain possible after 6 PM', aqi: 'AQI 31 · Good', pollen: 'Pollen low', uv: 'UV 4 moderate',
+    sunrise: '6:16 AM', sunset: '7:42 PM',
+    hourly: Object.freeze([
+      Object.freeze({ time: 'Now', temp: '72°', condition: 'Partly cloudy' }),
+      Object.freeze({ time: '11 AM', temp: '74°', condition: 'Cloudy' }),
+      Object.freeze({ time: '1 PM', temp: '77°', condition: 'Sunny' }),
+      Object.freeze({ time: '3 PM', temp: '78°', condition: 'Sunny' }),
+      Object.freeze({ time: '5 PM', temp: '75°', condition: 'Cloudy' }),
+      Object.freeze({ time: '7 PM', temp: '70°', condition: 'Rain' }),
+    ]),
+    daily: Object.freeze([
+      Object.freeze({ day: 'Mon', high: '78°', low: '64°', condition: 'Clouds' }),
+      Object.freeze({ day: 'Tue', high: '80°', low: '65°', condition: 'Sun' }),
+      Object.freeze({ day: 'Wed', high: '74°', low: '61°', condition: 'Rain' }),
+      Object.freeze({ day: 'Thu', high: '76°', low: '62°', condition: 'Sun' }),
+    ]),
+  }),
+  sun: Object.freeze({ nextEvent: 'Sunset', nextTime: '7:42 PM', sunrise: '6:16 AM', sunset: '7:42 PM', daylight: '13h 26m', solarNoon: '12:59 PM' }),
+  moon: Object.freeze({ phase: 'Waxing gibbous', illumination: '72%', nextPhase: 'Full moon in 4 days', rise: '4:28 PM' }),
+  onThisDay: Object.freeze({
+    date: 'August 23',
+    events: Object.freeze([
+      Object.freeze({ year: '1966', text: 'Lunar Orbiter 1 sends the first photograph of Earth from the Moon.', category: 'Event' }),
+      Object.freeze({ year: '1991', text: 'The World Wide Web opens to new users beyond CERN.', category: 'Event' }),
+      Object.freeze({ year: '1978', text: 'Kobe Bryant is born in Philadelphia.', category: 'Birth' }),
+      Object.freeze({ year: '2014', text: 'Dancer and actor Marcel Marceau is honored with a centenary retrospective.', category: 'Culture' }),
+    ]),
+  }),
+  auroraKp: Object.freeze({
+    current: '3.7', label: 'Unsettled', peak: 'Kp 5.0 at 11 PM',
+    forecast: Object.freeze([2.1, 2.8, 3.7, 4.2, 5.0, 4.4, 3.6, 3.0, 2.4, 2.1, 1.8, 2.2]),
+  }),
 })
 
 const SCENARIOS = Object.freeze({
@@ -112,7 +173,7 @@ const SCENARIOS = Object.freeze({
 const clone = (value) => globalThis.structuredClone(value)
 
 export function fixtureFor(id, scenario = 'dense', overrides = {}) {
-  const base = CORE_FIXTURES[id]
+  const base = FIXTURES[id]
   if (!base) throw new Error(`No fixture registered for widget: ${id}`)
   const scenarioData = SCENARIOS[scenario]
   if (!scenarioData) throw new Error(`Unsupported fixture scenario: ${scenario}`)

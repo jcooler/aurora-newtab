@@ -12,6 +12,7 @@ import {
   validateCatalogModel,
 } from './widget-redesign-catalog-contracts.mjs'
 import { fixtureFor } from '../mockups/widget-redesign/fixtures.mjs'
+import { renderCalendarConsolidation } from '../mockups/widget-redesign/renderers/calendar-sky.mjs'
 import { renderWidgetFace } from '../mockups/widget-redesign/renderers/index.mjs'
 
 const EXPECTED_SOURCE_IDS = [
@@ -47,6 +48,12 @@ const renderCore = (id, tier, options = {}) => renderWidgetFace(
     theme: options.theme ?? 'dark',
     ...options,
   },
+  fixtureFor(id, options.fixture ?? 'dense', options),
+)
+
+const count = (html, attribute) => (html.match(new RegExp(attribute, 'g')) ?? []).length
+const renderFace = (id, tier, options = {}) => renderWidgetFace(
+  { id, tier, state: options.state ?? 'ready', theme: options.theme ?? 'dark', ...options },
   fixtureFor(id, options.fixture ?? 'dense', options),
 )
 
@@ -158,4 +165,68 @@ test('supplies truthful core state and density fixtures without remote assets', 
   const escaped = renderCore('quote', 'standard', { copy: '<script>alert(1)</script>' })
   assert.match(escaped, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/)
   assert.doesNotMatch(escaped, /<script>/)
+})
+
+test('renders the unified Calendar tiers, views, and deduplicated holiday context', () => {
+  assert.match(renderFace('calendar', 'docked'), /data-calendar-next="timed"/)
+  assert.doesNotMatch(renderFace('calendar', 'compact'), /data-month-grid/)
+
+  const agenda = renderFace('calendar', 'standard', { view: 'agenda' })
+  assert.match(agenda, /data-calendar-view="agenda"/)
+  assert.match(agenda, /data-calendar-source/)
+  assert.match(agenda, /data-join-action/)
+
+  const month = renderFace('calendar', 'standard', { view: 'month' })
+  assert.match(month, /data-calendar-view="month"/)
+  assert.match(month, /data-month-grid/)
+  assert.equal(count(month, 'data-month-day'), 42)
+  assert.match(month, /data-holiday-marker/)
+
+  const full = renderFace('calendar', 'full')
+  assert.match(full, /data-calendar-view="combined"/)
+  assert.equal(count(full, 'data-month-day'), 42)
+  assert.equal((full.match(/Labor Day/g) ?? []).length, 1)
+})
+
+test('renders Weather and each sky identity with its own information signature', () => {
+  const weather = renderFace('weather', 'full')
+  assert.match(weather, /data-weather-temperature/)
+  assert.match(weather, /data-weather-unit/)
+  assert.match(weather, /data-hourly-forecast/)
+  assert.match(weather, /data-daily-forecast/)
+  assert.match(weather, /3 mph NW/)
+  assert.match(weather, /AQI/)
+
+  assert.match(renderFace('sun', 'standard'), /data-sun-path/)
+  assert.match(renderFace('moon', 'compact'), /data-moon-phase/)
+  assert.match(renderFace('onThisDay', 'full'), /data-history-year/)
+  assert.match(renderFace('onThisDay', 'full'), /Read more/)
+  assert.ok(count(renderFace('auroraKp', 'full'), 'data-kp-point') >= 9)
+})
+
+test('renders the user-controlled Calendar consolidation decision without a default winner', () => {
+  const html = renderCalendarConsolidation(fixtureFor('calendar', 'dense'))
+  assert.equal(count(html, 'data-calendar-placement'), 3)
+  assert.match(html, /Stack member/)
+  assert.match(html, />Save</)
+  assert.match(html, />Later</)
+  assert.doesNotMatch(html, /checked|aria-selected="true"/)
+})
+
+test('keeps Calendar useful and explicit through remote-source states', () => {
+  const loading = renderFace('calendar', 'standard', { state: 'loading', view: 'month' })
+  assert.match(loading, /data-calendar-state="loading"/)
+  assert.match(loading, /data-month-grid/)
+
+  const setup = renderFace('calendar', 'standard', { state: 'setup', view: 'month' })
+  assert.match(setup, /Choose a holiday country/)
+  assert.match(setup, /data-month-grid/)
+
+  const partial = renderFace('calendar', 'full', { state: 'partial' })
+  assert.match(partial, /Holidays unavailable/)
+  assert.match(partial, /data-month-grid/)
+
+  const failure = renderFace('calendar', 'standard', { state: 'error', view: 'month' })
+  assert.match(failure, /Month remains available/)
+  assert.match(failure, /data-month-grid/)
 })
