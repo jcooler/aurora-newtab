@@ -38,6 +38,22 @@ describe('TierFrame', () => {
     expect(frame.textContent).toBe('Forecast')
   })
 
+  it('can remove only the painted surface while preserving the exact tier frame contract', () => {
+    render(
+      <TierFrame label="Greeting" tier="standard" state="ready" surface="none">
+        <p>Hello, Jon.</p>
+      </TierFrame>,
+    )
+
+    const frame = screen.getByRole('region', { name: 'Greeting' })
+    expect(frame.dataset.tierFrame).toBe('standard')
+    expect(frame.dataset.tierSurface).toBe('none')
+    expect(frame.className).toContain('tier-frame--standard')
+    expect(frame.className).not.toContain('bg-panel-solid')
+    expect(frame.className).not.toContain('border-panel-border')
+    expect(declarationBlock('.tier-frame[data-tier-surface="none"]')).toMatch(/background:\s*transparent\s*;/)
+  })
+
   it('passes presentation evidence attributes to the one painted section', () => {
     render(
       <TierFrame label="Linear" tier="compact" state="loading" data-work-resource-state="loading">

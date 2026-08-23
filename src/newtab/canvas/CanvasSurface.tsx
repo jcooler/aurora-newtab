@@ -18,6 +18,7 @@ import StackCard, { StackCompatibilityFace, type StackCardMember } from './Stack
 import type { BlockId } from '../../lib/layout/types'
 import type { StackDropTarget } from '../../lib/layout/stacks'
 import { stackCompatibility } from './stackPresentation'
+import type { WidgetPresentationMode } from '../widgetRenderers'
 
 interface CanvasSurfaceProps {
   activeLayout: NamedLayout
@@ -42,7 +43,7 @@ interface CanvasSurfaceProps {
   onStackGeometryChange?: (id: string, rect: DOMRectReadOnly | null) => void
   onStepStack?: (stackId: string, direction: -1 | 1) => void
   onFaceStack?: (stackId: string, id: BlockId) => void
-  renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize, docked: boolean) => ReactNode
+  renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize, presentation: WidgetPresentationMode) => ReactNode
 }
 
 export interface DragGuideSet {
@@ -148,7 +149,7 @@ export default function CanvasSurface({
         if (!memberEntry) return []
         const memberSize = item.tier
         const supported = memberEntry.presentationContract.stackSizes.includes(item.tier)
-        const owner = renderWidget(memberEntry, memberSize, false)
+        const owner = renderWidget(memberEntry, memberSize, 'stack')
         return [{
           id: memberId,
           label: memberEntry.label,
@@ -216,7 +217,7 @@ export default function CanvasSurface({
         onGearClick={onGearClick}
         onGeometryChange={onItemGeometryChange}
       >
-        {renderWidget(entry, size, item.mode === 'docked')}
+        {renderWidget(entry, size, item.mode === 'docked' ? 'docked' : 'free')}
       </CanvasItem>
     )
   }

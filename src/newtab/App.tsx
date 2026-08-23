@@ -65,7 +65,7 @@ import WidgetBoundary from './components/WidgetBoundary'
 import CanvasSurface from './canvas/CanvasSurface'
 import PaletteHost from './widgets/palette/PaletteHost'
 import { selectActiveWidgetRegistry } from './widgetRegistry'
-import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
+import { resolveWidgetRenderer, type WidgetPresentationMode, type WidgetRendererProps } from './widgetRenderers'
 import { useCanvasViewport } from './useCanvasViewport'
 import { projectTextScale } from './canvas/canvasTextScale'
 import { TimerSessionProvider, useTimerFlowState } from './widgets/timer/TimerSessionProvider'
@@ -554,9 +554,20 @@ function AuroraApp() {
   const elevatedIds = new Set<BlockId>([
     ...(bookmarksPopoverOpen ? ['bookmarks' as const] : []),
   ])
-  const renderWidget = (entry: (typeof activeEntries)[number], size: CanvasSize, docked = false) => {
+  const renderWidget = (
+    entry: (typeof activeEntries)[number],
+    size: CanvasSize,
+    presentation: WidgetPresentationMode,
+  ) => {
     const Renderer = resolveWidgetRenderer(entry.rendererKey)
-    return <Renderer {...rendererProps} canvasSize={size} docked={docked} />
+    return (
+      <Renderer
+        {...rendererProps}
+        canvasSize={size}
+        presentation={presentation}
+        docked={presentation === 'docked'}
+      />
+    )
   }
   const textScale = projectTextScale(settings.layoutDensity, viewport)
   // The pre-existing narrow Settings/Tray modality boundary (unrelated to the

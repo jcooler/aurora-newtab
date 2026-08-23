@@ -327,6 +327,27 @@ describe('CanvasSurface widget stacks', () => {
     }],
   }
 
+  it('passes stack presentation to every mounted stack owner', () => {
+    const seen = new Map<string, string>()
+    render(
+      <CanvasSurface
+        activeLayout={stackLayout}
+        entries={stackEntries}
+        viewport={{ width: 1408, height: 445 }}
+        renderWidget={(entry, _size, presentation) => {
+          seen.set(entry.id, presentation)
+          return <span>{entry.label}</span>
+        }}
+      />,
+    )
+
+    expect(seen).toEqual(new Map([
+      ['weather', 'stack'],
+      ['clock', 'stack'],
+      ['timer', 'stack'],
+    ]))
+  })
+
   it('keeps the stored Standard Weather and On This Day reference stack mounted once, framed, inert when hidden, and storage-neutral', () => {
     const referenceEntries = WIDGET_REGISTRY.filter(({ id }) => ['weather', 'onThisDay'].includes(id))
     const referenceLayout: NamedLayout = {
@@ -613,19 +634,19 @@ describe('Geometry freshness (owner-reported 2026-08-18: bouncing drags, stale o
   })
 })
 
-describe('Docked render flag (NL-P5 batch 1)', () => {
-  it('passes docked=true to the renderer only for strip members', () => {
-    const seen = new Map<string, boolean>()
+describe('Widget presentation context', () => {
+  it('passes docked only to strip members and free to anchored widgets', () => {
+    const seen = new Map<string, string>()
     render(
       <CanvasSurface
         activeLayout={LAYOUT}
         entries={ENTRIES}
         viewport={{ width: 1408, height: 445 }}
-        renderWidget={(entry, _size, docked) => { seen.set(entry.id, docked); return <span>{entry.label}</span> }}
+        renderWidget={(entry, _size, presentation) => { seen.set(entry.id, presentation); return <span>{entry.label}</span> }}
       />,
     )
-    expect(seen.get('bookmarks')).toBe(true)
-    expect(seen.get('clock')).toBe(false)
-    expect(seen.get('weather')).toBe(false)
+    expect(seen.get('bookmarks')).toBe('docked')
+    expect(seen.get('clock')).toBe('free')
+    expect(seen.get('weather')).toBe('free')
   })
 })

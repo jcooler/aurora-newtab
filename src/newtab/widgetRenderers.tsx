@@ -40,9 +40,14 @@ import type { WidgetVariant } from '../lib/layout/types'
 import type { UtilityTrayBridge } from './components/utilityTrayBridge'
 import type { CanvasSize } from '../lib/layout/canvasTypes'
 
+export type WidgetPresentationMode = 'free' | 'stack' | 'docked'
+
 export interface WidgetRendererProps {
   stageVariant?: WidgetVariant
   canvasSize?: CanvasSize
+  /** The current composition context. This is layout-local presentation only;
+   *  it does not create another widget owner or change persisted widget data. */
+  presentation?: WidgetPresentationMode
   /** The Docked tier (named-layouts spec 2.3): render the one dense line.
    *  A widget is docked OR free, never both, so the widget keeps sole
    *  ownership of its data and panels in either presentation. */

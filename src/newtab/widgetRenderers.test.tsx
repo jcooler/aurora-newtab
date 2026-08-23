@@ -1,9 +1,13 @@
 import type { ReactElement } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { CanvasSize } from '../lib/layout/canvasTypes'
-import { WIDGET_RENDERERS } from './widgetRenderers'
+import { WIDGET_RENDERERS, type WidgetPresentationMode, type WidgetRendererProps } from './widgetRenderers'
 
 describe('time and productivity widget renderers', () => {
+  it('exposes one explicit free, stack, or docked presentation context', () => {
+    expectTypeOf<WidgetRendererProps['presentation']>().toEqualTypeOf<WidgetPresentationMode | undefined>()
+  })
+
   it('keeps Month Standard-only and never threads a Docked presentation', () => {
     const element = WIDGET_RENDERERS.monthCal({ canvasSize: 'standard', docked: true }) as ReactElement<{
       canvasSize?: CanvasSize

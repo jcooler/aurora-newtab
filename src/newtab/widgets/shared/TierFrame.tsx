@@ -8,6 +8,7 @@ export interface TierFrameProps extends Omit<ComponentPropsWithoutRef<'section'>
   label: string
   tier: TierFrameTier
   state: WidgetPresentationState
+  surface?: 'card' | 'none'
   className?: string
   children: ReactNode
 }
@@ -53,14 +54,18 @@ export function ResourceFrameStatus({
   )
 }
 
-export default function TierFrame({ label, tier, state, className = '', children, ...sectionProps }: TierFrameProps) {
+export default function TierFrame({ label, tier, state, surface = 'card', className = '', children, ...sectionProps }: TierFrameProps) {
+  const surfaceClasses = surface === 'card'
+    ? 'bg-panel-solid border-panel-border shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]'
+    : ''
   return (
     <section
       {...sectionProps}
       aria-label={label}
       data-tier-frame={tier}
       data-tier-frame-state={state}
-      className={`tier-frame tier-frame--${tier} bg-panel-solid border-panel-border text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] ${className}`.trim()}
+      data-tier-surface={surface}
+      className={`tier-frame tier-frame--${tier} ${surfaceClasses} text-fg ${className}`.trim()}
     >
       {children}
     </section>
