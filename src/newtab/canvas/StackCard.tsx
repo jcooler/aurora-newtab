@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react'
 import type { CanvasSize } from '../../lib/layout/canvasTypes'
 import type { BlockId } from '../../lib/layout/types'
+import TierFrame from '../widgets/shared/TierFrame'
 
 export interface StackCardMember {
   id: BlockId
@@ -20,6 +21,42 @@ export interface StackCardProps {
 
 const SWIPE_THRESHOLD = 40
 const SWIPE_EXCLUSION = '[data-stack-control], input, textarea, select, [contenteditable], [role="textbox"]'
+const TIER_LABELS: Readonly<Record<CanvasSize, string>> = {
+  compact: 'Compact',
+  standard: 'Standard',
+  full: 'Full',
+}
+
+function tierList(tiers: readonly CanvasSize[]): string {
+  const labels = tiers.map((tier) => TIER_LABELS[tier])
+  if (labels.length < 2) return labels[0] ?? ''
+  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`
+  return `${labels.slice(0, -1).join(', ')}, or ${labels.at(-1)}`
+}
+
+export function StackCompatibilityFace({
+  label,
+  tier,
+  commonTiers,
+}: {
+  label: string
+  tier: CanvasSize
+  commonTiers: readonly CanvasSize[]
+}) {
+  return (
+    <TierFrame label={`${label} compatibility`} tier={tier} state="empty" className="stack-compatibility-face">
+      <div className="flex h-full min-h-0 flex-col justify-center gap-2 p-4 text-center">
+        <h2 className="text-sm font-semibold">{label} is not available at {TIER_LABELS[tier]}.</h2>
+        <p className="text-xs text-fg-muted">
+          {commonTiers.length > 0
+            ? `This stack supports ${tierList(commonTiers)}.`
+            : 'These widgets do not share a stack size.'}
+        </p>
+        <p className="text-[11px] text-fg-muted">Change the stack size or remove the incompatible member in edit mode.</p>
+      </div>
+    </TierFrame>
+  )
+}
 
 export default function StackCard({
   id,

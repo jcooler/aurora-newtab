@@ -75,11 +75,11 @@ git commit -m "feat: complete framed presentation contracts"
 - Modify only if RED requires pure operation support: `src/lib/layout/stacks.ts`
 - Modify only if RED requires pure operation support: `src/lib/layout/stacks.test.ts`
 
-- [ ] **Step 1: Add RED pure tests.** Define `commonStackTiers(memberIds)`, `canJoinStackAtTier(sourceId, memberIds, tier)`, and `stackCompatibility(memberIds, storedTier)`. Pin ordered intersection in Compact, Standard, Full order, incompatibility reasons naming the member and valid common tiers, and an empty intersection.
-- [ ] **Step 2: Observe RED.** Run `npx vitest run src/newtab/canvas/stackPresentation.test.ts`; expect the module to be missing.
-- [ ] **Step 3: Implement the pure authority.** Read only `WIDGET_PRESENTATION_CONTRACTS[id].stackSizes`. Do not inspect rendered dimensions, DOM, current data, or viewport.
-- [ ] **Step 4: Add RED interaction tests.** Require the 500ms target to arm only when source and target support the stored tier; require the Stack Inspector to offer only the current member intersection; require removal to reveal newly available tiers without changing the stored tier; and require a legacy incompatible stack to preserve members, facing, tier, geometry, and storage while painting a named compatibility face. Assert no nearest-tier member substitution in stacks.
-- [ ] **Step 5: Observe RED.** Run:
+- [x] **Step 1: Add RED pure tests.** Define `commonStackTiers(memberIds)`, `canJoinStackAtTier(sourceId, memberIds, tier)`, and `stackCompatibility(memberIds, storedTier)`. Pin ordered intersection in Compact, Standard, Full order, incompatibility reasons naming the member and valid common tiers, and an empty intersection.
+- [x] **Step 2: Observe RED.** Run `npx vitest run src/newtab/canvas/stackPresentation.test.ts`; expect the module to be missing.
+- [x] **Step 3: Implement the pure authority.** Read only `WIDGET_PRESENTATION_CONTRACTS[id].stackSizes`. Do not inspect rendered dimensions, DOM, current data, or viewport.
+- [x] **Step 4: Add RED interaction tests.** Require the 500ms target to arm only when source and target support the stored tier; require the Stack Inspector to offer only the current member intersection; require removal to reveal newly available tiers without changing the stored tier; and require a legacy incompatible stack to preserve members, facing, tier, geometry, and storage while painting a named compatibility face. Assert no nearest-tier member substitution in stacks.
+- [x] **Step 5: Observe RED.** Run:
 
 ```powershell
 npx vitest run src/newtab/App.test.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/canvas/StackCard.test.tsx src/newtab/edit/StackInspector.test.tsx src/lib/layout/stacks.test.ts
@@ -87,8 +87,8 @@ npx vitest run src/newtab/App.test.tsx src/newtab/canvas/CanvasSurface.test.tsx 
 
 Expected: App currently accepts any unstacked member, CanvasSurface calls `resolveRenderTier` per member, and the inspector offers `WIDGET_TIERS` rather than the intersection.
 
-- [ ] **Step 6: Implement exact stack behavior.** Gate stack targets through the pure helper. Pass the stack's exact stored tier to every compatible member. Render a presentation-only compatibility face for incompatible members, naming valid common tiers and retaining inspector removal. Do not mutate or normalize the saved stack. Preserve mounted-once, hidden-inert, manual arrows/dots/swipe, click parity, and edit recovery.
-- [ ] **Step 7: Run GREEN and commit.** Run the Step 5 command plus the pure test, TypeScript, and diff hygiene, then commit:
+- [x] **Step 6: Implement exact stack behavior.** Gate stack targets through the pure helper. Pass the stack's exact stored tier to every compatible member. Render a presentation-only compatibility face for incompatible members, naming valid common tiers and retaining inspector removal. Do not mutate or normalize the saved stack. Preserve mounted-once, hidden-inert, manual arrows/dots/swipe, click parity, and edit recovery.
+- [x] **Step 7: Run GREEN and commit.** Run the Step 5 command plus the pure test, TypeScript, and diff hygiene, then commit:
 
 ```powershell
 git add src/newtab/canvas/stackPresentation.ts src/newtab/canvas/stackPresentation.test.ts src/newtab/App.tsx src/newtab/App.test.tsx src/newtab/canvas/CanvasSurface.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/canvas/StackCard.tsx src/newtab/canvas/StackCard.test.tsx src/newtab/edit/StackInspector.tsx src/newtab/edit/StackInspector.test.tsx src/lib/layout/stacks.ts src/lib/layout/stacks.test.ts

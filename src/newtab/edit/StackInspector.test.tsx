@@ -49,15 +49,16 @@ function setup() {
 describe('StackInspector', () => {
   afterEach(cleanup)
 
-  it('presents one shared size and layer control with no restore-defaults action', () => {
+  it('offers only the member intersection and names an incompatible stored tier', () => {
     const { dialog, onTier, onLayer, onHide } = setup()
     expect(within(dialog).getByText('Weather +2')).toBeTruthy()
     expect(within(dialog).getByText('Widget stack')).toBeTruthy()
     expect(within(dialog).getAllByRole('radio').map((radio) => radio.textContent))
-      .toEqual(['Compact', 'Standard', 'Full'])
-    expect(within(dialog).getByRole('radio', { name: 'Standard' }).getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(within(dialog).getByRole('radio', { name: 'Full' }))
-    expect(onTier).toHaveBeenCalledWith('full')
+      .toEqual(['Compact'])
+    expect(within(dialog).getByRole('radio', { name: 'Compact' }).getAttribute('aria-checked')).toBe('false')
+    expect(within(dialog).getByText('Standard is not available for Notes. Choose Compact or remove the incompatible member.')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Compact' }))
+    expect(onTier).toHaveBeenCalledWith('compact')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Send backward' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Bring forward' }))
     expect(onLayer.mock.calls.map(([direction]) => direction)).toEqual(['backward', 'forward'])

@@ -788,19 +788,21 @@ describe('App Canvas composition', () => {
 
     fireEvent.pointerDown(within(screen.getByTestId('canvas-item-stack:stack-day')).getByRole('button', { name: 'Move Notes +1' }))
     await act(async () => {})
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Notes +1 inspector' })).getByRole('radio', { name: 'Full' }))
+    const inspector = screen.getByRole('dialog', { name: 'Notes +1 inspector' })
+    expect(within(inspector).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['Compact'])
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Move Tasks earlier' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await act(async () => {})
     expect(setSpy.mock.calls.filter(([key]) => key === 'layouts').map(([key]) => key)).toEqual(['layouts'])
     expect((await storage.get('layouts'))?.layouts[0].stacks?.[0]).toEqual({
       ...stackedDocument().layouts[0].stacks?.[0],
-      tier: 'full',
+      members: ['tasks', 'notes'],
     })
 
     cleanup()
     await renderApp(storage)
-    expect(screen.getByTestId('canvas-item-stack:stack-day').dataset.canvasSize).toBe('full')
-    expect(screen.getByRole('group', { name: 'Notes, 1 of 2' })).toBeTruthy()
+    expect(screen.getByTestId('canvas-item-stack:stack-day').dataset.canvasSize).toBe('compact')
+    expect(screen.getByRole('group', { name: 'Notes, 2 of 2' })).toBeTruthy()
   })
 
   it('dragging a member out dissolves a two-member stack and one Undo restores it', async () => {

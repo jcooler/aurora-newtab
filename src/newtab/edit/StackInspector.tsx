@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { anchorPanelAvoidingAnchor } from '../../lib/layout/anchor'
-import { WIDGET_TIERS, type WidgetStack, type WidgetTier } from '../../lib/layout/namedLayouts'
+import { type WidgetStack, type WidgetTier } from '../../lib/layout/namedLayouts'
 import type { BlockId } from '../../lib/layout/types'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
+import { stackCompatibility } from '../canvas/stackPresentation'
 
 const TIER_LABELS: Readonly<Record<WidgetTier, string>> = {
   compact: 'Compact',
@@ -47,6 +48,17 @@ export default function StackInspector({
   const byId = new Map(entries.map((entry) => [entry.id, entry]))
   const facing = byId.get(stack.facing)
   const title = `${facing?.label ?? 'Widget'} +${Math.max(0, stack.members.length - 1)}`
+  const compatibility = stackCompatibility(stack.members, stack.tier)
+  const incompatibleLabels = compatibility.incompatibleMembers
+    .map((id) => byId.get(id)?.label ?? id)
+  const tierNames = compatibility.commonTiers.map((tier) => TIER_LABELS[tier])
+  const compatibilityMessage = compatibility.compatible
+    ? null
+    : `${TIER_LABELS[stack.tier]} is not available for ${incompatibleLabels.join(', ')}. ${
+      tierNames.length > 0
+        ? `Choose ${tierNames.join(' or ')} or remove the incompatible member.`
+        : 'Remove an incompatible member to recover a shared size.'
+    }`
 
   return (
     <div
@@ -67,7 +79,7 @@ export default function StackInspector({
       <div className="edit-inspector__row">
         <span className="edit-inspector__label">Size</span>
         <div role="radiogroup" aria-label="Size" className="edit-segment">
-          {WIDGET_TIERS.map((tier) => (
+          {compatibility.commonTiers.map((tier) => (
             <button
               key={tier}
               type="button"
@@ -81,6 +93,7 @@ export default function StackInspector({
           ))}
         </div>
       </div>
+      {compatibilityMessage ? <p className="edit-inspector__note">{compatibilityMessage}</p> : null}
 
       <div className="edit-inspector__row">
         <span className="edit-inspector__label">Layer</span>

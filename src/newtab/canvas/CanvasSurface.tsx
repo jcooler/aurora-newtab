@@ -14,9 +14,10 @@ import CanvasLegibilityLayer from './CanvasLegibilityLayer'
 import GuideOverlay from '../edit/GuideOverlay'
 import type { CanvasGuide } from '../arrange/canvasSnap'
 import { dockedRenderSize, type WidgetRegistryEntry } from '../widgetRegistry'
-import StackCard, { type StackCardMember } from './StackCard'
+import StackCard, { StackCompatibilityFace, type StackCardMember } from './StackCard'
 import type { BlockId } from '../../lib/layout/types'
 import type { StackDropTarget } from '../../lib/layout/stacks'
+import { stackCompatibility } from './stackPresentation'
 
 interface CanvasSurfaceProps {
   activeLayout: NamedLayout
@@ -139,17 +140,27 @@ export default function CanvasSurface({
       : 'tier' in item ? item.tier : 'compact'
     if ('stack' in item && item.stack) {
       const stack = item.stack
+      const compatibility = stackCompatibility(stack.members, item.tier)
       const objectId = `stack:${stack.id}`
       const targeted = stackTarget?.kind === 'stack' && stackTarget.id === stack.id
       const members = stack.members.flatMap((memberId): StackCardMember[] => {
         const memberEntry = byId.get(memberId)
         if (!memberEntry) return []
-        const memberSize = resolveRenderTier(memberEntry.canvasSizes, item.tier)
+        const memberSize = item.tier
+        const supported = memberEntry.presentationContract.stackSizes.includes(item.tier)
         return [{
           id: memberId,
           label: memberEntry.label,
           size: memberSize,
-          content: renderWidget(memberEntry, memberSize, false),
+          content: supported
+            ? renderWidget(memberEntry, memberSize, false)
+            : (
+              <StackCompatibilityFace
+                label={memberEntry.label}
+                tier={memberSize}
+                commonTiers={compatibility.commonTiers}
+              />
+            ),
         }]
       })
       return (

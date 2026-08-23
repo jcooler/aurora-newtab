@@ -402,7 +402,7 @@ describe('CanvasSurface widget stacks', () => {
     expect(storageWrite).not.toHaveBeenCalled()
   })
 
-  it('mounts every member renderer once at its nearest supported stack tier in one stable object', () => {
+  it('preserves an incompatible legacy stack at its exact stored tier with a named recovery face', () => {
     const rendered: string[] = []
     const onStepStack = vi.fn()
     const { rerender } = render(
@@ -416,7 +416,7 @@ describe('CanvasSurface widget stacks', () => {
       />,
     )
 
-    expect(rendered).toEqual(['weather:full', 'clock:full', 'timer:compact'])
+    expect(rendered).toEqual(['weather:full', 'clock:full'])
     const item = screen.getByTestId('canvas-item-stack:stack-day')
     expect(item.dataset.canvasObjectId).toBe('stack:stack-day')
     expect(item.dataset.blockId).toBe('clock')
@@ -427,6 +427,9 @@ describe('CanvasSurface widget stacks', () => {
     expect(within(item).getByRole('button', { name: 'Move Clock +2' })).toBeTruthy()
     expect(within(item).getByRole('button', { name: 'Clock settings' })).toBeTruthy()
     expect(item.querySelectorAll('[data-stack-member]')).toHaveLength(3)
+    expect(item.querySelector('[aria-label="Timer compatibility"]')).toBeTruthy()
+    expect(item.textContent).toContain('Timer is not available at Full.')
+    expect(item.textContent).toContain('This stack supports Compact.')
     expect(screen.queryByTestId('canvas-item-weather')).toBeNull()
     expect(screen.queryByTestId('canvas-item-clock')).toBeNull()
     expect(screen.queryByTestId('canvas-item-timer')).toBeNull()
@@ -468,7 +471,9 @@ describe('CanvasSurface widget stacks', () => {
     expect(item.dataset.canvasSize).toBe('full')
     expect(within(item).getByText('Weather:full')).toBeTruthy()
     expect(within(item).getByText('Clock:full')).toBeTruthy()
-    expect(within(item).getByText('Timer:compact')).toBeTruthy()
+    expect(within(item).queryByText('Timer:compact')).toBeNull()
+    expect(within(item).getByRole('region', { name: 'Timer compatibility' })).toBeTruthy()
+    expect(within(item).getByText('Timer is not available at Full.')).toBeTruthy()
     expect(within(item).getByRole('group').getAttribute('aria-label')).toBe('Timer, 3 of 3')
   })
 

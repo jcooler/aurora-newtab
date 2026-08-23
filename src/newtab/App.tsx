@@ -33,6 +33,7 @@ import {
 import type { DockEdge } from '../lib/layout/namedLayouts'
 import WidgetInspector from './edit/WidgetInspector'
 import StackInspector from './edit/StackInspector'
+import { canJoinStackAtTier } from './canvas/stackPresentation'
 import { useCanvasDrag, type CanvasDragSubject } from './edit/useCanvasDrag'
 import { useLongPress } from './arrange/useLongPress'
 import {
@@ -334,8 +335,16 @@ function AuroraApp() {
       const layout = session ? activeDraftLayout(session) : activeLayout
       if (!layout) return false
       if (layout.widgets[sourceId]?.kind !== 'free') return false
-      if (target.kind === 'widget') return target.id !== sourceId && layout.widgets[target.id]?.kind === 'free'
-      return layout.stacks?.some((stack) => stack.id === target.id && !stack.members.includes(sourceId)) ?? false
+      if (target.kind === 'widget') {
+        const placement = layout.widgets[target.id]
+        return target.id !== sourceId
+          && placement?.kind === 'free'
+          && canJoinStackAtTier(sourceId, [target.id], placement.tier)
+      }
+      const stack = layout.stacks?.find((candidate) => candidate.id === target.id)
+      return Boolean(stack
+        && !stack.members.includes(sourceId)
+        && canJoinStackAtTier(sourceId, stack.members, stack.tier))
     },
     onDrop: ({ placement, stackTarget }) => {
       const subject = draggingSubjectRef.current
