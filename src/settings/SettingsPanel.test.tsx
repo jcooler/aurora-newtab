@@ -512,7 +512,9 @@ describe('SettingsPanel appearance inks (owner-approved 2026-08-18)', () => {
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Widget text'), { target: { value: '#ffffff' } })
     })
-    expect((await storage.get('settings')).widgetTextColor).toBe('#ffffff')
+    await waitFor(async () => {
+      expect((await storage.get('settings')).widgetTextColor).toBe('#ffffff')
+    })
     expect(screen.queryByTestId('widget-text-contrast-warning')).toBeNull()
   })
 
@@ -522,12 +524,16 @@ describe('SettingsPanel appearance inks (owner-approved 2026-08-18)', () => {
       // Dark gray on the default near-black panel: far below the 4.5 floor.
       fireEvent.change(screen.getByLabelText('Widget text'), { target: { value: '#333333' } })
     })
-    expect((await storage.get('settings')).widgetTextColor).toBe('#333333')
+    await waitFor(async () => {
+      expect((await storage.get('settings')).widgetTextColor).toBe('#333333')
+    })
     expect(screen.getByTestId('widget-text-contrast-warning')).toBeTruthy()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Reset widget text' }))
     })
-    expect((await storage.get('settings')).widgetTextColor).toBeNull()
+    await waitFor(async () => {
+      expect((await storage.get('settings')).widgetTextColor).toBeNull()
+    })
   })
 
   it('a dark photo text pick warns about dark photos; a bright one does not', async () => {
@@ -535,7 +541,9 @@ describe('SettingsPanel appearance inks (owner-approved 2026-08-18)', () => {
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Photo text'), { target: { value: '#112233' } })
     })
-    expect((await storage.get('settings')).photoTextColor).toBe('#112233')
+    await waitFor(async () => {
+      expect((await storage.get('settings')).photoTextColor).toBe('#112233')
+    })
     expect(screen.getByTestId('photo-text-dark-warning')).toBeTruthy()
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Photo text'), { target: { value: '#ffd700' } })
@@ -549,10 +557,12 @@ describe('SettingsPanel appearance inks (owner-approved 2026-08-18)', () => {
       fireEvent.change(screen.getByLabelText('Clock color'), { target: { value: '#ff69b4' } })
       fireEvent.change(screen.getByLabelText('Quote color'), { target: { value: '#00ff88' } })
     })
-    const settings = await storage.get('settings')
-    expect(settings.photoClockColor).toBe('#ff69b4')
-    expect(settings.photoQuoteColor).toBe('#00ff88')
-    expect(settings.photoGreetingColor).toBeNull()
+    await waitFor(async () => {
+      const settings = await storage.get('settings')
+      expect(settings.photoClockColor).toBe('#ff69b4')
+      expect(settings.photoQuoteColor).toBe('#00ff88')
+      expect(settings.photoGreetingColor).toBeNull()
+    })
   })
 })
 
