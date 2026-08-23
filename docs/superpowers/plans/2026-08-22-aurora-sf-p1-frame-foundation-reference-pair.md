@@ -513,7 +513,7 @@ Commit and push the report/ledger checkpoint. Do not mark SF-P1 owner accepted y
 
 - [x] **Step 8: Stop at the required owner visual gate.** Present the exact reviewed Weather, On This Day, and reference-stack catalog concisely. Await owner acceptance or refinement. Do not create the SF-P2 implementation plan and do not migrate another widget before this gate is accepted.
 
-- [ ] **Step 9: Record owner disposition.** After acceptance, add A2-D074 (or the next live decision id), mark SF-P1 Verified/owner accepted in STATUS and ROADMAP, commit/push, prove both repositories again, then write the SF-P2 just-in-time plan. If rejected, preserve the evidence, record the exact refinements, and remain in SF-P1.
+- [x] **Step 9: Record owner disposition.** The owner accepted SF-P1 on 2026-08-23. A2-D074, STATUS, and ROADMAP were checkpointed and pushed at `170f9be`; both repositories were then proven clean and exact before SF-P2 planning began.
 
 ---
 
