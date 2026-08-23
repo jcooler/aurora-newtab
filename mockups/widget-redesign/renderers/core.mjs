@@ -158,6 +158,7 @@ export function renderCoreWidget(capture, fixture) {
     label: LABELS[capture.id],
     widget: capture.id,
     className: `core-widget core-widget--${capture.id}`,
+    surface: capture.id === 'greeting' ? 'none' : 'card',
     body,
   })
 }

@@ -123,6 +123,70 @@ test('exposes every core identity and declared tier on the owner gallery', async
   }
 })
 
+test('keeps Standard Quick Link marks separate from readable link copy', async () => {
+  const server = await startCatalogServer({ repoRoot })
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 760 } })
+    await page.goto(`${server.origin}/mockups/widget-redesign/capture/links-standard-ready-dark`)
+    const links = await page.locator('.quick-links--standard .quick-link').evaluateAll((nodes) => nodes.map((node) => {
+      const mark = node.querySelector('b').getBoundingClientRect()
+      const name = node.querySelector('span').getBoundingClientRect()
+      const detail = node.querySelector('small').getBoundingClientRect()
+      return {
+        markRight: mark.right,
+        nameLeft: name.left,
+        detailLeft: detail.left,
+        nameBottom: name.bottom,
+        detailTop: detail.top,
+        nameClipped: node.querySelector('span').scrollWidth > node.querySelector('span').clientWidth,
+      }
+    }))
+
+    assert.equal(links.length, 6)
+    for (const link of links) {
+      assert.ok(link.nameLeft - link.markRight >= 6, `mark crowds name: ${JSON.stringify(link)}`)
+      assert.equal(link.nameLeft, link.detailLeft)
+      assert.ok(link.detailTop >= link.nameBottom, `name crowds detail: ${JSON.stringify(link)}`)
+      assert.equal(link.nameClipped, false, `name is clipped: ${JSON.stringify(link)}`)
+    }
+  } finally {
+    await browser.close()
+    await server.close()
+  }
+})
+
+test('presents Greeting as ambient frameless content by default', async () => {
+  const server = await startCatalogServer({ repoRoot })
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 760 } })
+    await page.goto(`${server.origin}/mockups/widget-redesign/capture/greeting-standard-ready-dark`)
+    const surface = await page.locator('[data-widget-id="greeting"]').evaluate((node) => {
+      const style = getComputedStyle(node)
+      const header = node.querySelector('.widget-frame__header')
+      return {
+        surface: node.getAttribute('data-surface'),
+        background: style.backgroundColor,
+        borderWidth: style.borderTopWidth,
+        boxShadow: style.boxShadow,
+        headerDisplay: getComputedStyle(header).display,
+      }
+    })
+
+    assert.deepEqual(surface, {
+      surface: 'none',
+      background: 'rgba(0, 0, 0, 0)',
+      borderWidth: '0px',
+      boxShadow: 'none',
+      headerDisplay: 'none',
+    })
+  } finally {
+    await browser.close()
+    await server.close()
+  }
+})
+
 test('exposes the Calendar view comparison, consolidation choice, and all sky identities', async () => {
   const server = await startCatalogServer({ repoRoot })
   const browser = await chromium.launch({ headless: true })
@@ -171,6 +235,38 @@ test('gives month markers a visible gap beneath every marked date number', async
       assert.ok(day.markerGap >= 1, `date marker gap is crowded: ${JSON.stringify(day)}`)
       assert.ok(day.bottomSpace >= 0, `date marker escaped its cell: ${JSON.stringify(day)}`)
     }
+  } finally {
+    await browser.close()
+    await server.close()
+  }
+})
+
+test('expands the Standard Calendar month between its raised controls and lowered holiday line', async () => {
+  const server = await startCatalogServer({ repoRoot })
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 760 } })
+    await page.goto(`${server.origin}/mockups/widget-redesign/capture/comparison-calendar-standard-agenda-month`)
+    const geometry = await page.locator('[data-calendar-view="month"]').evaluate((month) => {
+      const frame = month.closest('[data-tier-frame="standard"]')
+      const body = frame.querySelector('.widget-frame__body')
+      const day = month.querySelector('[data-month-day]')
+      const holiday = month.querySelector('.month-view__holiday')
+      const bodyStyle = getComputedStyle(body)
+      const frameBox = frame.getBoundingClientRect()
+      const holidayBox = holiday.getBoundingClientRect()
+      return {
+        bodyPaddingTop: Number.parseFloat(bodyStyle.paddingTop),
+        bodyPaddingBottom: Number.parseFloat(bodyStyle.paddingBottom),
+        dayHeight: day.getBoundingClientRect().height,
+        holidayBottomSpace: frameBox.bottom - holidayBox.bottom,
+      }
+    })
+
+    assert.ok(geometry.bodyPaddingTop <= 4, JSON.stringify(geometry))
+    assert.ok(geometry.bodyPaddingBottom <= 10, JSON.stringify(geometry))
+    assert.ok(geometry.dayHeight >= 16, JSON.stringify(geometry))
+    assert.ok(geometry.holidayBottomSpace <= 10, JSON.stringify(geometry))
   } finally {
     await browser.close()
     await server.close()

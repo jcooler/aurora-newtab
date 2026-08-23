@@ -519,12 +519,14 @@ h1 {
 .dock-line .focus-face strong { font-family: var(--font-ui); font-size: 13px; }
 
 .quick-links { display: grid; width: 100%; grid-template-columns: repeat(3, 1fr); gap: 8px; align-content: center; }
-.quick-link { display: grid; min-width: 0; min-height: 54px; padding: 8px; border: 1px solid rgb(255 255 255 / 10%); border-radius: 12px; background: rgb(9 13 20 / 22%); color: #eef3fa; text-align: left; }
-.quick-link b { display: grid; width: 22px; height: 22px; place-items: center; border: 1px solid rgb(255 255 255 / 18%); border-radius: 7px; color: #aad0ed; font-family: var(--font-data); font-size: 11px; }
-.quick-link span { overflow: hidden; align-self: end; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.quick-link small { color: #8996a7; font-size: 11px; }
+.quick-link { display: grid; min-width: 0; min-height: 54px; grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: auto auto; gap: 0 8px; align-content: center; align-items: center; padding: 8px; border: 1px solid rgb(255 255 255 / 10%); border-radius: 12px; background: rgb(9 13 20 / 22%); color: #eef3fa; text-align: left; }
+.quick-link b { display: grid; width: 22px; height: 22px; grid-row: 1 / -1; place-items: center; border: 1px solid rgb(255 255 255 / 18%); border-radius: 7px; color: #aad0ed; font-family: var(--font-data); font-size: 11px; }
+.quick-link span { grid-column: 2; overflow: hidden; align-self: end; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.quick-link small { grid-column: 2; align-self: start; color: #8996a7; font-size: 11px; }
+.quick-links--standard { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
+.quick-links--standard .quick-link { min-height: 40px; padding: 5px 8px; }
 .quick-links--compact .quick-link span, .quick-links--compact .quick-link small { display: none; }
-.quick-links--compact .quick-link { min-height: 30px; place-items: center; padding: 4px; }
+.quick-links--compact .quick-link { min-height: 30px; grid-template: none; place-items: center; padding: 4px; }
 
 .quote-face { display: grid; width: 100%; align-content: center; gap: 12px; margin: 0; }
 .quote-face blockquote { display: -webkit-box; overflow: hidden; margin: 0; font-family: Georgia, serif; font-size: 18px; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
@@ -599,6 +601,7 @@ h1 {
 .calendar-compact span { color: #98a6b7; font-size: 11px; }
 .calendar-standard { display: grid; width: 100%; min-height: 0; grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
 .calendar-standard[data-calendar-view="month"] { gap: 3px; }
+.widget-frame[data-widget-id="calendar"][data-tier-frame="standard"] .widget-frame__body { padding-top: 4px; padding-bottom: 9px; }
 .calendar-standard.has-state { grid-template-rows: auto auto minmax(0, 1fr); }
 .calendar-state { overflow: hidden; padding: 3px 6px; border-left: 2px solid #9cc8ed; background: rgb(156 200 237 / 7%); color: #afbccb; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-standard > header, .calendar-full section > header { display: flex; min-height: 21px; justify-content: space-between; align-items: center; }
@@ -852,6 +855,12 @@ h1 {
 .widget-frame[data-theme="pink"] .widget-frame__wash { background: rgb(255 255 255 / 5%); }
 .widget-frame[data-theme="pink"] :is(span, small, p, time, figcaption, footer), .dock-line[data-theme="pink"] :is(span, small, p, time, i) { color: #ffe0ef; }
 .widget-frame[data-theme="pink"] :is(strong, b, blockquote), .dock-line[data-theme="pink"] :is(strong, b) { color: #fff; }
+.widget-frame[data-widget-id="greeting"][data-surface="none"] { border: 0; background: transparent; box-shadow: none; }
+.widget-frame[data-widget-id="greeting"][data-surface="none"] .widget-frame__wash,
+.widget-frame[data-widget-id="greeting"][data-surface="none"] .widget-frame__header { display: none; }
+.widget-frame[data-widget-id="greeting"][data-surface="none"] .widget-frame__body { padding: 0; }
+.widget-frame[data-widget-id="greeting"][data-surface="none"] .greeting-face strong { color: #f1f5fa; text-shadow: 0 2px 14px rgb(0 0 0 / 45%); }
+.widget-frame[data-widget-id="greeting"][data-surface="none"] .greeting-face p { color: #b9c4d2; text-shadow: 0 1px 8px rgb(0 0 0 / 55%); }
 .interaction-surface { width: max-content; padding: 6px; border: 1px solid transparent; border-radius: 28px; }
 .interaction-surface[data-interaction="hover"] { border-color: #668099; background: rgb(142 188 232 / 6%); }
 .interaction-surface[data-interaction="focus"] { outline: 2px solid #9cc8ed; outline-offset: 3px; }

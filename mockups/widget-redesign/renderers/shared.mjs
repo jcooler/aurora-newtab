@@ -23,6 +23,7 @@ export function renderFrame({
   actions = '',
   widget = 'calibration',
   className = '',
+  surface = 'card',
 }) {
   assertOption(TIERS, tier, 'tier')
   assertOption(THEMES, theme, 'theme')
@@ -34,6 +35,7 @@ export function renderFrame({
       data-theme="${escapeHtml(theme)}"
       data-state="${escapeHtml(state)}"
       data-widget-id="${escapeHtml(widget)}"
+      data-surface="${escapeHtml(surface)}"
       aria-label="${escapeHtml(label)}"
     >
       <div class="widget-frame__wash" aria-hidden="true"></div>
