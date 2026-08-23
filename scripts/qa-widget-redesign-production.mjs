@@ -160,6 +160,7 @@ export async function runProductionQa() {
   const profile = mkdtempSync(resolve(tmpdir(), 'aurora-widget-production-'))
   const runtimeErrors = []
   const failedRequests = []
+  const approvedRequests = []
   const unexpectedRequests = []
   const captures = []
   let context
@@ -175,7 +176,13 @@ export async function runProductionQa() {
       if (request.url().startsWith('http')) failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'failed'}`)
     })
     await context.route(/^https?:\/\//, async (route) => {
-      unexpectedRequests.push(`${route.request().method()} ${route.request().url()}`)
+      const request = route.request()
+      if (request.method() === 'GET' && request.url() === 'https://api.weather.gov/alerts/active?point=33.749,-84.388') {
+        approvedRequests.push(`${request.method()} ${request.url()}`)
+        await route.fulfill({ status: 200, contentType: 'application/geo+json', body: '{"type":"FeatureCollection","features":[]}' })
+        return
+      }
+      unexpectedRequests.push(`${request.method()} ${request.url()}`)
       await route.abort('blockedbyclient')
     })
 
@@ -255,7 +262,8 @@ export async function runProductionQa() {
       approvedTargets: APPROVED_TARGET_IDS,
       mixedStacks: MIXED_STACKS,
       captures,
-      summary: { captures: captures.length, runtimeErrors: 0, failedRequests: 0, unexpectedRequests: 0 },
+      approvedRequests,
+      summary: { captures: captures.length, approvedRequests: approvedRequests.length, runtimeErrors: 0, failedRequests: 0, unexpectedRequests: 0 },
     }
     writeFileSync(resolve(output, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
     process.stdout.write(`PASS widget redesign production QA: ${captures.length} mixed-stack captures, ${APPROVED_TARGET_IDS.length} approved targets pinned\n`)
