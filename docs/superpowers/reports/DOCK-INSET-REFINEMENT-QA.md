@@ -2,7 +2,7 @@
 
 Date: 2026-08-22
 
-Exact browser source commit: `ea01d1f089833710d1eed25cda02277e2073a3c9`
+Exact browser source commit: `1e9a1afe3275b6688cf24676d4694dbc5d237e96`
 
 This is additive evidence for the owner-approved outer-perimeter refinement.
 It does not replace, rewrite, or weaken the immutable 16px edge and 72px side
@@ -14,6 +14,8 @@ legacy margins, and recovery behavior remain protected.
 
 `node scripts/qa-dock-inset.mjs` built the clean Git HEAD, verified emitted
 build provenance, loaded that exact extension in Chromium, and exited zero.
+The stabilized product gate also passed 197 files / 3,076 tests, 10/10
+additive harness contracts, and TypeScript.
 
 | Viewport | Top band | Bottom band | Toolbar top | Visual judgment |
 | --- | --- | --- | ---: | --- |
@@ -30,6 +32,7 @@ For both viewports:
   then Notes;
 - absent-Y members retained the internal 16px top, 2px right, and 2px bottom
   margins;
+- the measured reload preserved the exact pre-reload seeded layouts bytes;
 - pointer cancellation plus Escape restored the exact stored layouts bytes;
 - storage writes: 0;
 - runtime errors: 0;
