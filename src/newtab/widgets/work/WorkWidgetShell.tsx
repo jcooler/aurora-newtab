@@ -13,7 +13,7 @@ const SIZE_CLASS: Record<CanvasSize, string> = {
   full: 'w-[min(30rem,calc(100vw_-_2rem))]',
 }
 
-function WorkResourceBody({
+export function WorkResourceBody({
   title,
   presentation,
   emptyLabel,

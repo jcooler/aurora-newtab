@@ -80,6 +80,87 @@
 .tier-frame--compact .weather-tier-state--setup input {
   width: 100%;
 }
+.on-this-day-tier-header {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--panel-border);
+  padding: 0.625rem 0.75rem 0.5rem;
+}
+.on-this-day-tier-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.on-this-day-tier-header p {
+  margin-top: 0.125rem;
+  color: var(--tier-frame-muted);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.on-this-day-tier-content {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: 0.5rem 0.75rem 0.625rem;
+}
+.on-this-day-tier-state {
+  justify-content: center;
+}
+.on-this-day-tier-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.on-this-day-tier-item {
+  gap: 0.5rem;
+}
+.on-this-day-tier-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--panel-border);
+}
+.on-this-day-tier-provider {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-top: auto;
+  color: var(--tier-frame-muted);
+  font-size: 12px;
+  line-height: 1.25;
+  cursor: pointer;
+}
+.on-this-day-tier-provider:hover {
+  color: var(--accent);
+}
+.on-this-day-tier-provider:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.tier-frame--compact .on-this-day-tier-header {
+  padding: 0.5rem 0.625rem 0.375rem;
+}
+.tier-frame--compact .on-this-day-tier-content {
+  padding: 0.375rem 0.625rem 0.5rem;
+}
+.tier-frame--compact .on-this-day-tier-list {
+  gap: 0.25rem;
+}
+.tier-frame--full .on-this-day-tier-header {
+  padding-inline: 1rem;
+}
+.tier-frame--full .on-this-day-tier-content {
+  padding-inline: 1rem;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-header,
+.on-this-day-tier-frame[data-tier-frame-state="retained-error"] .on-this-day-tier-header {
+  padding-block: 0.375rem;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-content,
+.on-this-day-tier-frame[data-tier-frame-state="retained-error"] .on-this-day-tier-content {
+  padding-block: 0.375rem;
+}
 .tier-frame--compact { --tier-frame-width: 216px; --tier-frame-ratio: 216 / 132; }
 .tier-frame--standard { --tier-frame-width: 320px; --tier-frame-ratio: 320 / 200; }
 .tier-frame--full { --tier-frame-width: 460px; --tier-frame-ratio: 460 / 284; }

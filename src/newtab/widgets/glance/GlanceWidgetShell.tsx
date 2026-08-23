@@ -4,6 +4,7 @@
 export {
   WorkConnectorSetup as GlanceSetup,
   WorkDockDetail as GlanceDockDetail,
+  WorkResourceBody as GlanceResourceBody,
   WorkWidgetShell as GlanceWidgetShell,
 } from '../work/WorkWidgetShell'
 export {

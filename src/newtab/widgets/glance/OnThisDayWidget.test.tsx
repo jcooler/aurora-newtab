@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
@@ -29,7 +29,10 @@ vi.mock('../../../lib/hooks/useLocalDay', () => ({
   useLocalDay: () => ({ key: '2026-08-22', timeZone: 'America/New_York', now: new Date(NOW) }),
 }))
 
-async function seededStorage(data: OnThisDayData | null = DATA): Promise<AuroraStorage> {
+async function seededStorage(
+  data: OnThisDayData | null = DATA,
+  fetchedAt = NOW,
+): Promise<AuroraStorage> {
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { onThisDay: CONFIG })
@@ -37,7 +40,7 @@ async function seededStorage(data: OnThisDayData | null = DATA): Promise<AuroraS
     await storage.set('connectorSnapshots', {
       onThisDay: {
         scope: await connectorSnapshotScope('onThisDay', CONFIG, '2026-08-22'),
-        fetchedAt: NOW,
+        fetchedAt,
         data,
       },
     })
@@ -47,6 +50,19 @@ async function seededStorage(data: OnThisDayData | null = DATA): Promise<AuroraS
 
 function mount(storage: AuroraStorage, props: { canvasSize?: 'compact' | 'standard' | 'full'; docked?: boolean } = {}) {
   return render(<StorageProvider storage={storage}><OnThisDayWidget {...props} /></StorageProvider>)
+}
+
+function frame(tier: 'compact' | 'standard' | 'full'): HTMLElement {
+  const element = document.querySelector<HTMLElement>(`[data-tier-frame="${tier}"]`)
+  expect(element, `missing ${tier} On This Day frame`).toBeTruthy()
+  return element!
+}
+
+function expectAuthoredFrame(element: HTMLElement): void {
+  expect(within(element).getAllByText('On This Day')).toHaveLength(1)
+  expect(within(element).getAllByText('August 22')).toHaveLength(1)
+  expect(element.querySelector('[data-work-widget-scroll]')).toBeNull()
+  expect(element.querySelector('[class*="overflow-y-auto"]')).toBeNull()
 }
 
 beforeEach(() => {
@@ -61,16 +77,29 @@ afterEach(() => {
 })
 
 describe('OnThisDayWidget', () => {
-  it('renders one event in Compact and three in Standard', async () => {
-    const compact = mount(await seededStorage(), { canvasSize: 'compact' })
-    expect(await screen.findByText('Historical event 0')).toBeTruthy()
-    expect(screen.queryByText('Historical event 1')).toBeNull()
-    compact.unmount()
+  it('authors Compact with one dated event, its year, and accessible full summary', async () => {
+    mount(await seededStorage(), { canvasSize: 'compact' })
+    await screen.findByText('Historical event 0')
 
+    const compact = frame('compact')
+    expectAuthoredFrame(compact)
+    expect(within(compact).getByText('1969')).toBeTruthy()
+    expect(within(compact).getByRole('link', { name: 'Historical event 0' })).toBeTruthy()
+    expect(within(compact).queryByText('Historical event 1')).toBeNull()
+    const provider = within(compact).getByRole('link', { name: 'More on Wikipedia' })
+    expect(provider.getAttribute('href')).toBe('https://en.wikipedia.org/wiki/August_22')
+  })
+
+  it('authors Standard with exactly three dated events and one provider destination', async () => {
     mount(await seededStorage(), { canvasSize: 'standard' })
-    expect(await screen.findByText('Historical event 2')).toBeTruthy()
-    expect(screen.queryByText('Historical event 3')).toBeNull()
-    expect(screen.getByText('From Wikipedia')).toBeTruthy()
+    await screen.findByText('Historical event 2')
+
+    const standard = frame('standard')
+    expectAuthoredFrame(standard)
+    expect(within(standard).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(standard).getByText('1967')).toBeTruthy()
+    expect(within(standard).queryByText('Historical event 3')).toBeNull()
+    expect(within(standard).getAllByRole('link', { name: 'More on Wikipedia' })).toHaveLength(1)
   })
 
   it('visually clamps a long Compact event to two lines without truncating its accessible text', async () => {
@@ -81,13 +110,20 @@ describe('OnThisDayWidget', () => {
     expect(link.getAttribute('title')).toBe(text)
   })
 
-  it('uses Full space for six events plus bounded births and deaths in local overflow', async () => {
+  it('authors Full with three events, one birth, one death, and no local overflow', async () => {
     mount(await seededStorage(), { canvasSize: 'full' })
-    expect(await screen.findByText('Historical event 5')).toBeTruthy()
-    expect(screen.queryByText('Historical event 6')).toBeNull()
-    expect(screen.getByText('Notable birth')).toBeTruthy()
-    expect(screen.getByText('Notable death')).toBeTruthy()
-    expect(document.querySelector('[data-work-widget-scroll]')?.className).toContain('overflow-y-auto')
+    await screen.findByText('Historical event 2')
+
+    const full = frame('full')
+    expectAuthoredFrame(full)
+    expect(within(full).queryByText('Historical event 3')).toBeNull()
+    expect(within(full).getByRole('region', { name: 'Born on this day' })).toBeTruthy()
+    expect(within(full).getByRole('region', { name: 'Died on this day' })).toBeTruthy()
+    expect(within(full).getByText('1900')).toBeTruthy()
+    expect(within(full).getByText('Notable birth')).toBeTruthy()
+    expect(within(full).getByText('1800')).toBeTruthy()
+    expect(within(full).getByText('Notable death')).toBeTruthy()
+    expect(within(full).getAllByRole('link', { name: 'More on Wikipedia' })).toHaveLength(1)
   })
 
   it('opens the same contextual rows from one dense Docked line', async () => {
@@ -98,9 +134,75 @@ describe('OnThisDayWidget', () => {
     expect(screen.getByText('Historical event 2')).toBeTruthy()
     expect(screen.getByText('From Wikipedia')).toBeTruthy()
   })
+})
 
-  it('renders the provider empty state without a blank card', async () => {
-    mount(await seededStorage({ ...DATA, events: [], births: [], deaths: [] }))
-    expect(await screen.findByText('No event returned for today.')).toBeTruthy()
+describe('OnThisDayWidget tier frame states', () => {
+  it('keeps Standard loading inside the selected frame with a named state', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+    mount(await seededStorage(null), { canvasSize: 'standard' })
+    await screen.findByText('Loading On This Day…')
+
+    const standard = frame('standard')
+    expect(standard.dataset.tierFrameState).toBe('loading')
+    expect(within(standard).getByRole('status').textContent).toBe('Loading On This Day…')
+    expectAuthoredFrame(standard)
+  })
+
+  it('keeps Standard empty inside the selected frame with a named state', async () => {
+    mount(await seededStorage({ ...DATA, events: [], births: [], deaths: [] }), { canvasSize: 'standard' })
+    await screen.findByText('No event returned for today.')
+
+    const standard = frame('standard')
+    expect(standard.dataset.tierFrameState).toBe('empty')
+    expect(within(standard).getByRole('status').textContent).toBe('No event returned for today.')
+    expectAuthoredFrame(standard)
+  })
+
+  it('keeps retained rows through stale and retained-error states and clears only its snapshot on retry', async () => {
+    let rejectRefresh: ((reason: Error) => void) | undefined
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((_resolve, reject) => {
+      rejectRefresh = reject
+    })))
+    const storage = await seededStorage(DATA, NOW - 25 * 60 * 60_000)
+    const unrelated = { scope: 'keep-public-holidays', fetchedAt: NOW, data: { marker: 'keep' } }
+    await storage.update('connectorSnapshots', (previous) => ({
+      ...previous,
+      publicHolidays: unrelated,
+    }))
+    mount(storage, { canvasSize: 'standard' })
+    await screen.findByText('Historical event 2')
+
+    const standard = frame('standard')
+    expect(standard.dataset.tierFrameState).toBe('stale')
+    expect(within(standard).getByRole('status').textContent).toBe('Showing saved data while On This Day refreshes.')
+    expectAuthoredFrame(standard)
+
+    await act(async () => {
+      rejectRefresh?.(new Error('provider unavailable'))
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(standard.dataset.tierFrameState).toBe('retained-error'))
+    expect(within(standard).getByText('Historical event 0')).toBeTruthy()
+    expect(within(standard).getByRole('status').textContent).toBe('On This Day is unavailable.')
+
+    await act(async () => {
+      within(standard).getByRole('button', { name: 'Refresh On This Day' }).click()
+      await Promise.resolve()
+    })
+    const snapshots = await storage.get('connectorSnapshots')
+    expect(snapshots.onThisDay).toBeUndefined()
+    expect(snapshots.publicHolidays).toEqual(unrelated)
+  })
+
+  it('keeps Standard hard error inside the selected frame with the existing retry', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('provider unavailable')))
+    mount(await seededStorage(null), { canvasSize: 'standard' })
+    await screen.findByRole('alert')
+
+    const standard = frame('standard')
+    expect(standard.dataset.tierFrameState).toBe('hard-error')
+    expect(within(standard).getByRole('alert').textContent).toBe('On This Day is unavailable.')
+    expect(within(standard).getByRole('button', { name: 'Refresh On This Day' })).toBeTruthy()
+    expectAuthoredFrame(standard)
   })
 })
