@@ -111,7 +111,11 @@ function PublicHolidaysInner({
     )
   }
 
-  const visible = canvasSize === 'full' ? upcoming : canvasSize === 'standard' ? upcoming.slice(0, 3) : upcoming.slice(0, 1)
+  const visible = canvasSize === 'full'
+    ? fullHolidaySignature(upcoming, data?.year ?? localDay.now.getFullYear())
+    : canvasSize === 'standard'
+      ? upcoming.slice(0, 3)
+      : upcoming.slice(0, 1)
   return (
     <GlanceWidgetShell
       title="Public Holidays"
@@ -138,6 +142,23 @@ function shortDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(parseLocalDate(value))
 }
 
+function fullHolidaySignature(holidays: readonly PublicHoliday[], currentYear: number): PublicHoliday[] {
+  const selected = [
+    ...holidays.filter((holiday) => holiday.date.startsWith(`${currentYear}-`)).slice(0, 2),
+    ...holidays.filter((holiday) => holiday.date.startsWith(`${currentYear + 1}-`)).slice(0, 2),
+  ]
+  const selectedKeys = new Set(selected.map((holiday) => `${holiday.date}\n${holiday.name}`))
+  for (const holiday of holidays) {
+    if (selected.length >= 4) break
+    const key = `${holiday.date}\n${holiday.name}`
+    if (!selectedKeys.has(key)) {
+      selected.push(holiday)
+      selectedKeys.add(key)
+    }
+  }
+  return selected.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
+}
+
 function HolidayGroups({ holidays, now }: { holidays: readonly PublicHoliday[]; now: Date }) {
   const groups = new Map<string, PublicHoliday[]>()
   for (const holiday of holidays) {
@@ -147,7 +168,7 @@ function HolidayGroups({ holidays, now }: { holidays: readonly PublicHoliday[]; 
     groups.set(month, rows)
   }
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
       {[...groups.entries()].map(([month, rows]) => (
         <section key={month} aria-label={`${month} holidays`}>
           <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{month}</h3>
@@ -188,7 +209,7 @@ function Context({ countryCode }: { countryCode: string }) {
     <div className="mt-3 flex items-center justify-between gap-3 text-xs text-fg-muted">
       <span>Country: {countryCode}</span>
       <a href="https://date.nager.at" target="_blank" rel="noopener noreferrer" className="hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">
-        From Nager.Date
+        Open Nager.Date
       </a>
     </div>
   )

@@ -89,7 +89,13 @@ function AuroraKpInner({
     )
   }
 
-  const visible = data?.forecast.slice(0, canvasSize === 'standard' ? 4 : canvasSize === 'full' ? undefined : 0) ?? []
+  const visible = data
+    ? canvasSize === 'full'
+      ? dailyForecastSignature(data.forecast)
+      : canvasSize === 'standard'
+        ? data.forecast.slice(0, 4)
+        : []
+    : []
   return (
     <GlanceWidgetShell
       title="Aurora & Kp"
@@ -107,7 +113,7 @@ function AuroraKpInner({
             : canvasSize === 'standard'
               ? <ForecastList rows={visible} />
               : null}
-          {canvasSize !== 'compact' ? <AuroraContext data={data} /> : null}
+          {canvasSize !== 'compact' ? <NoaaDestination /> : null}
         </>
       ) : null}
     </GlanceWidgetShell>
@@ -140,21 +146,21 @@ function ForecastGroups({ rows }: { rows: readonly KpInterval[] }) {
     groups.set(day, group)
   }
   return (
-    <div className="mt-4 space-y-4">
+    <div className="mt-3 grid grid-cols-3 gap-3">
       {[...groups.entries()].map(([day, group]) => (
         <section key={day} role="region" aria-label={`${day} Kp forecast`}>
           <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{day}</h3>
-          <ForecastList rows={group} />
+          <ForecastList rows={group} grouped />
         </section>
       ))}
     </div>
   )
 }
 
-function ForecastList({ rows }: { rows: readonly KpInterval[] }) {
+function ForecastList({ rows, grouped = false }: { rows: readonly KpInterval[]; grouped?: boolean }) {
   if (rows.length === 0) return null
   return (
-    <ul className="mt-3 flex flex-col gap-1.5">
+    <ul className={`${grouped ? '' : 'mt-3'} flex flex-col gap-1.5`}>
       {rows.map((row) => (
         <li key={`${row.time}-${row.kp}`} data-testid="kp-forecast-row" className="group flex items-center justify-between gap-4 text-sm">
           <span className={glanceRowClass}>{time(row.time)}</span>
@@ -162,6 +168,29 @@ function ForecastList({ rows }: { rows: readonly KpInterval[] }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+function dailyForecastSignature(rows: readonly KpInterval[]): KpInterval[] {
+  const dailyPeak = new Map<string, KpInterval>()
+  for (const row of rows) {
+    const day = DAY_FORMAT.format(new Date(row.time))
+    const best = dailyPeak.get(day)
+    if (!best || row.kp > best.kp) dailyPeak.set(day, row)
+  }
+  return [...dailyPeak.values()].slice(0, 3)
+}
+
+function NoaaDestination() {
+  return (
+    <a
+      href="https://www.swpc.noaa.gov/products/planetary-k-index"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-3 inline-flex min-h-9 items-center border-t border-hairline pt-2 text-sm font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+    >
+      Open NOAA Space Weather
+    </a>
   )
 }
 

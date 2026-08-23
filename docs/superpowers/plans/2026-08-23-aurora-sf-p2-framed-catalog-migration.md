@@ -262,9 +262,9 @@ git commit -m "feat: frame time and productivity widgets"
 - Modify: `src/newtab/widgets/glance/AuroraKpWidget.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Add and observe RED tests.** Require exact frames and truthful loading, empty, stale, partial, and hard-error states. Public Holidays keeps national holiday names and dates. Aurora & Kp keeps current Kp, peak, and its bounded forecast signature. Neither card scrolls internally; Full routes additional context to Nager.Date or NOAA.
-- [ ] **Step 2: Implement bounded authored compositions.** Reuse the framed Glance shell, existing snapshots, local-day owner, retry, and trusted links. Bound rows by tier and keep provider attribution accessible.
-- [ ] **Step 3: Run GREEN and commit.** Run both widget tests, Work shell tests, TypeScript, and diff hygiene, then commit:
+- [x] **Step 1: Add and observe RED tests.** Require exact frames and truthful loading, empty, stale, partial, and hard-error states. Public Holidays keeps national holiday names and dates. Aurora & Kp keeps current Kp, peak, and its bounded forecast signature. Neither card scrolls internally; Full routes additional context to Nager.Date or NOAA.
+- [x] **Step 2: Implement bounded authored compositions.** Reuse the framed Glance shell, existing snapshots, local-day owner, retry, and trusted links. Bound rows by tier and keep provider attribution accessible.
+- [x] **Step 3: Run GREEN and commit.** Run both widget tests, Work shell tests, TypeScript, and diff hygiene, then commit:
 
 ```powershell
 git add src/newtab/widgets/glance/PublicHolidaysWidget.tsx src/newtab/widgets/glance/PublicHolidaysWidget.test.tsx src/newtab/widgets/glance/AuroraKpWidget.tsx src/newtab/widgets/glance/AuroraKpWidget.test.tsx src/newtab/index.css
