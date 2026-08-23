@@ -188,13 +188,13 @@ function IssueRow({ issue }: { issue: LinearIssue }) {
         <span className={`block truncate text-xs ${workRowClass}`}>
           {issue.identifier} · {issue.team.name} · {issue.state.name}
         </span>
-        <span className={`block truncate text-xs ${workRowClass}`}>{priority}</span>
       </span>
-      {due || issue.cycle ? (
-        <span className={`shrink-0 text-right text-xs ${workRowClass}`}>
-          {[due, issue.cycle?.name].filter(Boolean).join(' · ')}
-        </span>
-      ) : null}
+      <span className={`shrink-0 text-right text-xs ${workRowClass}`}>
+        <span className="block">{priority}</span>
+        {due || issue.cycle ? (
+          <span className="block">{[due, issue.cycle?.name].filter(Boolean).join(' · ')}</span>
+        ) : null}
+      </span>
     </a>
   )
 }

@@ -106,6 +106,13 @@ describe('LinearWidget', () => {
     expect(link.getAttribute('target')).toBe('_blank')
   })
 
+  it('keeps priority in the bounded row sidecar instead of adding a third text line', async () => {
+    mount(await seededStorage(CONNECTED), { canvasSize: 'standard' })
+    const priority = await screen.findByText('Urgent priority')
+    expect(priority.parentElement?.className).toContain('shrink-0')
+    expect(priority.closest('li')?.querySelector('.min-w-0.flex-1')?.children).toHaveLength(2)
+  })
+
   it('bounds Full to three prioritized rows without an internal scroll owner', async () => {
     const issues = Array.from({ length: 25 }, (_, index) => issue(index, index === 1 ? { state: { name: 'Todo', type: 'unstarted' } } : {}))
     mount(await seededStorage(CONNECTED, { issues }), { canvasSize: 'full' })

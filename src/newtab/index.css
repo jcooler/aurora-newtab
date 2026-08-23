@@ -8,6 +8,7 @@
 .tier-frame {
   box-sizing: border-box;
   display: flex;
+  flex: 0 0 auto;
   width: min(var(--tier-frame-width), calc(100vw - 24px));
   height: auto;
   min-width: 0;
