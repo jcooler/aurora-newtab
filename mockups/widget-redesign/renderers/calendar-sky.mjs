@@ -38,7 +38,11 @@ const monthGrid = (fixture, { showHoliday = true } = {}) => `
 `
 
 const agendaRows = (fixture, { includeHoliday = true, limit = 4 } = {}) => {
-  const items = dedupeItems(fixture.items).filter((item) => includeHoliday || item.kind !== 'holiday').slice(0, limit)
+  const unique = dedupeItems(fixture.items)
+  const holiday = unique.find((item) => item.kind === 'holiday')
+  const items = includeHoliday && holiday
+    ? [...unique.filter((item) => item.kind !== 'holiday').slice(0, Math.max(0, limit - 1)), holiday]
+    : unique.filter((item) => item.kind !== 'holiday').slice(0, limit)
   return `<div class="agenda-list">${items.map((item, index) => `<article class="agenda-row ${item.kind === 'holiday' ? 'is-holiday' : ''}" ${index === 0 ? 'data-calendar-next="timed"' : ''}>
     <time>${safe(item.time)}</time><div><strong>${safe(item.title)}</strong><span data-calendar-source>${safe(item.source)}</span></div>${item.join ? '<button type="button" data-join-action>Join</button>' : ''}
   </article>`).join('')}</div>`
@@ -62,7 +66,7 @@ const calendarBody = (capture, fixture) => {
   if (capture.tier === 'docked') return `<div class="calendar-dock" data-calendar-next="timed"><time>${safe(fixture.nextEvent.time)}</time><strong>${safe(fixture.nextEvent.title)}</strong><span>${safe(fixture.nearestHoliday.title)} · ${safe(fixture.nearestHoliday.date)}</span></div>`
   if (capture.tier === 'compact') return `<div class="calendar-compact"><time>${safe(fixture.dateLabel)}</time><strong>${safe(fixture.nextEvent.time)} · ${safe(fixture.nextEvent.title)}</strong><span>${safe(fixture.nearestHoliday.title)} · ${safe(fixture.nearestHoliday.date)}</span></div>`
   if (capture.tier === 'standard' && capture.view === 'month') return `<div class="calendar-standard ${stateClass}" data-calendar-view="month"><header><strong>${safe(fixture.monthLabel)}</strong>${viewSwitch('month')}</header>${status}${monthGrid(fixture)}</div>`
-  if (capture.tier === 'standard') return `<div class="calendar-standard ${stateClass}" data-calendar-view="agenda"><header><strong>${safe(fixture.dateLabel)}</strong>${viewSwitch('agenda')}</header>${status}${agendaRows(fixture, { includeHoliday: true, limit: capture.state === 'empty' ? 0 : 4 })}</div>`
+  if (capture.tier === 'standard') return `<div class="calendar-standard ${stateClass}" data-calendar-view="agenda"><header><strong>${safe(fixture.dateLabel)}</strong>${viewSwitch('agenda')}</header>${status}${agendaRows(fixture, { includeHoliday: true, limit: capture.state === 'empty' ? 0 : 3 })}</div>`
   return `<div class="calendar-full ${stateClass}" data-calendar-view="combined">${status}<section><header><strong>${safe(fixture.monthLabel)}</strong></header>${monthGrid(fixture)}</section><section><header><strong>${safe(fixture.dateLabel)}</strong></header>${agendaRows(fixture, { includeHoliday: false, limit: 3 })}</section></div>`
 }
 
@@ -87,7 +91,7 @@ const moonBody = (tier, fixture) => tier === 'docked'
 
 const historyBody = (tier, fixture) => {
   const limit = tier === 'docked' || tier === 'compact' ? 1 : tier === 'standard' ? 2 : 4
-  return `<div class="history-face history-face--${tier}"><header><time>${safe(fixture.date)}</time></header><div>${fixture.events.slice(0, limit).map((event) => `<article><b data-history-year>${safe(event.year)}</b><p>${safe(event.text)}</p>${tier === 'full' ? `<small>${safe(event.category)}</small>` : ''}</article>`).join('')}</div>${tier === 'full' ? '<button type="button">Read more</button>' : ''}</div>`
+  return `<div class="history-face history-face--${tier}"><header><time>${safe(fixture.date)}</time>${tier === 'full' ? '<button type="button">Read more</button>' : ''}</header><div>${fixture.events.slice(0, limit).map((event) => `<article><b data-history-year>${safe(event.year)}</b><p>${safe(event.text)}</p>${tier === 'full' ? `<small>${safe(event.category)}</small>` : ''}</article>`).join('')}</div></div>`
 }
 
 const kpBody = (tier, fixture) => {

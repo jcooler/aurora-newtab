@@ -88,7 +88,7 @@ const tasksBody = (tier, fixture, state) => {
   if (tier === 'docked') return `<div class="task-dock" data-task-progress><strong>${fixture.total - fixture.completed} open</strong><div class="meter"><i style="width:${progress}%"></i></div>${action('+')}</div>`
   return `<div class="tasks-face" data-task-progress>
     <div class="tasks-face__summary"><strong>${fixture.total - fixture.completed} left</strong><span>${progress}% today</span></div>
-    <ul>${fixture.tasks.map((task) => `<li class="${task.done ? 'is-done' : ''}"><button type="button" aria-label="Toggle task"></button><span>${safe(task.text)}</span></li>`).join('')}</ul>
+    <ul>${fixture.tasks.slice(0, 2).map((task) => `<li class="${task.done ? 'is-done' : ''}"><button type="button" aria-label="Toggle task"></button><span>${safe(task.text)}</span></li>`).join('')}</ul>
   </div>`
 }
 

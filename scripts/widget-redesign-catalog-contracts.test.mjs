@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import {
@@ -24,6 +25,7 @@ const EXPECTED_SOURCE_IDS = [
   'sun', 'tabGroups', 'tasks', 'timer', 'todoist', 'vercel', 'weather',
   'worldClocks',
 ]
+const catalogStyles = readFileSync(new URL('../mockups/widget-redesign/styles.css', import.meta.url), 'utf8')
 
 const CORE_SIGNATURES = Object.freeze({
   bookmarks: 'data-bookmark-mark',
@@ -295,4 +297,8 @@ test('resolves every expected capture exactly once with stable semantic hooks an
   assert.match(plainClick, /data-interaction="plain-click"/)
   assert.doesNotMatch(plainClick, /data-selected|data-edit-selection/)
   assert.match(renderCatalogCapture(captures.find(({ key }) => key === 'interaction-clock-compact-swipe')), /data-interaction="swipe"/)
+})
+
+test('keeps every explicit catalog text size at or above the 11px metadata floor', () => {
+  assert.doesNotMatch(catalogStyles, /font-size:\s*(?:[0-9]|10)px/)
 })
