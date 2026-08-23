@@ -28,6 +28,7 @@ test('covers all 36 identities exactly once across disjoint catalog batches', ()
 
 test('returns the declared capture tiers without deriving presentation', () => {
   assert.deepEqual(captureTiersFor('weather'), ['compact', 'standard', 'full', 'docked'])
+  assert.deepEqual(captureTiersFor('ics'), ['compact', 'standard', 'full', 'docked'])
   assert.deepEqual(captureTiersFor('monthCal'), ['standard'])
   assert.deepEqual(captureTiersFor('moon'), ['compact', 'docked'])
   assert.deepEqual(captureTiersFor('readingList'), ['compact', 'standard', 'full', 'docked'])

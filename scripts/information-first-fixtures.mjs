@@ -1,5 +1,5 @@
 export const CONNECTOR_SIZE_PROMISES = Object.freeze({
-  ics: Object.freeze(['compact', 'standard']),
+  ics: Object.freeze(['compact', 'standard', 'full']),
   status: Object.freeze(['compact', 'standard']),
   github: Object.freeze(['compact', 'standard', 'full']),
   gitlab: Object.freeze(['compact', 'standard', 'full']),

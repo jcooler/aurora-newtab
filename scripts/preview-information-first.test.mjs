@@ -50,7 +50,7 @@ test('deep interactions use the six written fenceposts', () => {
 
 test('all nine connector identities enumerate exactly the registry-promised sizes', () => {
   const exact = {
-    ics: ['compact', 'standard'],
+    ics: ['compact', 'standard', 'full'],
     status: ['compact', 'standard'],
     github: ['compact', 'standard', 'full'],
     gitlab: ['compact', 'standard', 'full'],
@@ -61,7 +61,7 @@ test('all nine connector identities enumerate exactly the registry-promised size
     crypto: ['compact', 'standard'],
   }
   assert.deepEqual(CONNECTOR_SIZE_PROMISES, exact)
-  assert.equal(Object.values(CONNECTOR_SIZE_PROMISES).reduce((total, sizes) => total + sizes.length, 0), 24)
+  assert.equal(Object.values(CONNECTOR_SIZE_PROMISES).reduce((total, sizes) => total + sizes.length, 0), 25)
 
   const source = readFileSync(new URL('../src/newtab/widgetSizeContracts.ts', import.meta.url), 'utf8')
   for (const [id, sizes] of Object.entries(exact)) {
