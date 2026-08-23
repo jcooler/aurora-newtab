@@ -104,6 +104,9 @@
   white-space: nowrap;
 }
 @media (max-width: 483px) {
+  .tier-frame--full .weather-tier-summary [data-weather-kicker] {
+    display: none;
+  }
   .tier-frame--full .weather-tier-summary {
     gap: 0.375rem;
     padding: 0.5rem 0.75rem;
