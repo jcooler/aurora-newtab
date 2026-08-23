@@ -1,6 +1,43 @@
 @import "tailwindcss";
 @import "../theme/themes.css";
 
+/* SF-P1 shared framed-widget foundation: exact desktop geometry is owned by
+   the tier, while only a viewport narrower than the frame plus 24px can scale
+   it down. This surface uses the panel-adaptive ink chain rather than photo
+   ink, so every user-selected panel color remains legible. */
+.tier-frame {
+  box-sizing: border-box;
+  display: flex;
+  width: min(var(--tier-frame-width), calc(100vw - 24px));
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  aspect-ratio: var(--tier-frame-ratio);
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  color: var(--fg);
+  --tier-frame-muted: var(--fg-muted);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.25);
+  transition: box-shadow 120ms ease;
+}
+.tier-frame > * {
+  min-width: 0;
+  min-height: 0;
+}
+.tier-frame--compact { --tier-frame-width: 216px; --tier-frame-ratio: 216 / 132; }
+.tier-frame--standard { --tier-frame-width: 320px; --tier-frame-ratio: 320 / 200; }
+.tier-frame--full { --tier-frame-width: 460px; --tier-frame-ratio: 460 / 284; }
+.tier-frame:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tier-frame { transition: none; }
+}
+
 /* The Settings Drawer already composites --panel-solid over the active
    background. Repainting that translucent token on its sticky child blends
    the same color twice and produces the unrelated dark slab seen in the
