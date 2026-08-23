@@ -12,7 +12,12 @@ import type { ConnectorConfig, ConnectorId, GitlabConfig, GithubConfig, JiraConf
 import type { CanvasSize } from '../lib/layout/canvasTypes'
 import type { WidgetTier } from '../lib/layout/namedLayouts'
 import { resolveDockedTier } from '../lib/layout/renderLayout'
-import { WIDGET_SIZE_CONTRACTS, type SelectedCanvasContent, type WidgetSizeContract } from './widgetSizeContracts'
+import {
+  WIDGET_PRESENTATION_CONTRACTS,
+  type SelectedCanvasContent,
+  type WidgetPresentationContract,
+  type WidgetSizeContract,
+} from './widgetSizeContracts'
 import { resolveGithubViews } from '../services/connectors/github'
 import { DEFAULT_GITLAB_VIEWS } from '../services/connectors/gitlab'
 import { DEFAULT_JIRA_VIEWS } from '../services/connectors/jira'
@@ -33,6 +38,7 @@ export interface WidgetRegistryEntry extends AdaptiveStageEntry {
   /** Whether the widget declares a Docked-tier line (named-layouts spec 2.3),
    *  derived from its size contract's `docked` member. */
   supportsDocked: boolean
+  presentationContract: WidgetPresentationContract
   contentContract: WidgetSizeContract
   selectedContent?: readonly SelectedCanvasContent[]
   /** Nominal expansion box for expandable widgets (named-layouts spec 2.6):
@@ -125,8 +131,8 @@ function profileVariant(source: RegistrySource, profile: LayoutProfile): WidgetV
 
 function registryEntry(source: RegistrySource, sourceOrder: number): WidgetRegistryEntry {
   const footprints = freezeFootprints(source.footprints)
-  const contentContract = WIDGET_SIZE_CONTRACTS[source.id]
-  const canvasSizes = contentContract.sizes
+  const presentationContract = WIDGET_PRESENTATION_CONTRACTS[source.id]
+  const canvasSizes = presentationContract.sizes
   const defaultPlacements = {} as Record<LayoutProfile, Placement>
   for (const profile of PROFILE_ORDER) {
     const variant = profileVariant(source, profile)
@@ -147,8 +153,9 @@ function registryEntry(source: RegistrySource, sourceOrder: number): WidgetRegis
     availability: source.availability,
     sourceOrder,
     canvasSizes,
-    supportsDocked: contentContract.docked !== undefined,
-    contentContract,
+    supportsDocked: presentationContract.docked !== undefined,
+    presentationContract,
+    contentContract: presentationContract,
     eligibleZones: Object.freeze([...source.eligibleZones]),
     allowedVariants: Object.freeze(VARIANT_ORDER.filter((variant) => footprints[variant] !== undefined)),
     footprints,

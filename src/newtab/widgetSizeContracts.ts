@@ -14,49 +14,167 @@ export interface WidgetSizeContract {
   docked?: string
 }
 
+export type WidgetPresentationClass = 'framed' | 'intrinsic' | 'bar'
+export type WidgetPresentationState =
+  | 'loading' | 'ready' | 'empty' | 'stale' | 'partial'
+  | 'permission-required' | 'hard-error'
+
+export interface TierCompositionContract {
+  purpose: string
+  essential: readonly string[]
+  signature: readonly string[]
+  supporting: readonly string[]
+  narrowSafety: readonly string[]
+  overflow: Readonly<{ kind: 'none' | 'details' | 'settings' | 'provider'; label?: string }>
+}
+
+export interface WidgetPresentationContract extends WidgetSizeContract {
+  presentationClass: WidgetPresentationClass
+  stackSizes: readonly CanvasSize[]
+  states: readonly WidgetPresentationState[]
+  tiers: Readonly<Partial<Record<CanvasSize, TierCompositionContract>>>
+}
+
 export interface SelectedCanvasContent {
   label: string
   minimumSize: CanvasSize
 }
 
-const contract = (sizes: readonly CanvasSize[], compact?: string, standard?: string, full?: string, docked?: string): WidgetSizeContract =>
-  Object.freeze({ sizes: Object.freeze([...sizes]), compact, standard, full, docked })
+const READY_STATES = ['ready'] as const
+const RESOURCE_STATES = ['loading', 'ready', 'empty', 'stale', 'hard-error'] as const
+const PARTIAL_RESOURCE_STATES = ['loading', 'ready', 'empty', 'stale', 'partial', 'hard-error'] as const
+const WEATHER_STATES = ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'] as const
+
+function freezeTier(tier: TierCompositionContract): TierCompositionContract {
+  return Object.freeze({
+    ...tier,
+    essential: Object.freeze([...tier.essential]),
+    signature: Object.freeze([...tier.signature]),
+    supporting: Object.freeze([...tier.supporting]),
+    narrowSafety: Object.freeze([...tier.narrowSafety]),
+    overflow: Object.freeze({ ...tier.overflow }),
+  })
+}
+
+function contract(
+  presentationClass: WidgetPresentationClass,
+  sizes: readonly CanvasSize[],
+  states: readonly WidgetPresentationState[],
+  compact?: string,
+  standard?: string,
+  full?: string,
+  docked?: string,
+  tiers: Partial<Record<CanvasSize, TierCompositionContract>> = {},
+): WidgetPresentationContract {
+  return Object.freeze({
+    presentationClass,
+    sizes: Object.freeze([...sizes]),
+    stackSizes: Object.freeze([...sizes]),
+    states: Object.freeze([...states]),
+    compact,
+    standard,
+    full,
+    docked,
+    tiers: Object.freeze(Object.fromEntries(
+      Object.entries(tiers).map(([size, tier]) => [size, freezeTier(tier)]),
+    )) as Readonly<Partial<Record<CanvasSize, TierCompositionContract>>>,
+  })
+}
 
 /** Canvas sizes are a content promise, not a request to stretch the same card. */
-export const WIDGET_SIZE_CONTRACTS: Readonly<Record<BlockId, WidgetSizeContract>> = Object.freeze({
-  weather: contract(['compact', 'standard', 'full'], 'Current temperature and condition', 'Forecast context', 'Detailed forecast', 'Temperature · location · condition'),
-  ics: contract(['compact', 'standard'], 'Next event', 'Selected calendar view', undefined, 'Next event'),
+export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPresentationContract>> = Object.freeze({
+  weather: contract('framed', ['compact', 'standard', 'full'], WEATHER_STATES, 'Current temperature and condition', 'Forecast context', 'Detailed forecast', 'Temperature · location · condition', {
+    compact: {
+      purpose: 'Current conditions at a glance',
+      essential: ['temperature', 'condition', 'location'],
+      signature: ['current conditions'],
+      supporting: ['freshness'],
+      narrowSafety: ['tighten spacing', 'shorten location', 'truncate condition'],
+      overflow: { kind: 'details', label: 'Weather details' },
+    },
+    standard: {
+      purpose: 'Current conditions and forecast context',
+      essential: ['temperature', 'condition', 'location'],
+      signature: ['forecast trend'],
+      supporting: ['feels like', 'wind', 'humidity'],
+      narrowSafety: ['tighten spacing', 'shorten location', 'truncate condition'],
+      overflow: { kind: 'details', label: 'Weather details' },
+    },
+    full: {
+      purpose: 'Detailed forecast context',
+      essential: ['temperature', 'condition', 'location'],
+      signature: ['hourly forecast'],
+      supporting: ['forecast trend', 'feels like', 'wind', 'humidity'],
+      narrowSafety: ['tighten spacing', 'shorten location', 'truncate condition'],
+      overflow: { kind: 'details', label: 'Weather details' },
+    },
+  }),
+  ics: contract('framed', ['compact', 'standard'], RESOURCE_STATES, 'Next event', 'Selected calendar view', undefined, 'Next event'),
   // Batch-2 owner review: the compact Month ("takes up way too much space,
   // just remove it") is gone — the complete month is Month's only tier.
-  monthCal: contract(['standard'], undefined, 'Complete month'),
-  sun: contract(['compact', 'standard'], 'Next sun event', 'Sunrise and sunset', undefined, 'Next sun event'), moon: contract(['compact'], 'Current phase', undefined, undefined, 'Current phase'),
-  quote: contract(['compact', 'standard'], 'Quote', 'Readable full quote'),
-  clock: contract(['compact', 'standard', 'full'], 'Current time', 'Time and date', 'Large, legible time and date', 'Time · date'),
-  greeting: contract(['compact', 'standard'], 'Greeting', 'More legible greeting'),
-  worldClocks: contract(['compact', 'standard', 'full'], 'Primary world clock', 'Selected clocks', 'All selected clocks', 'Primary world clock'),
-  countdown: contract(['compact', 'standard'], 'Countdown', 'Countdown detail', undefined, 'Next countdown'), search: contract(['compact', 'standard'], 'Search action', 'More legible search action'),
-  focus: contract(['compact', 'standard'], 'Focus action', 'Focus detail', undefined, 'Focus text and completion'), links: contract(['compact', 'standard'], 'Primary link action', 'Selected quick links'),
-  habits: contract(['compact'], 'Habit action', undefined, undefined, 'Habits done today'), bookmarks: contract(['compact', 'standard'], 'Bookmark marks', 'Named bookmark bar', undefined, 'Full readable bookmark bar'),
-  status: contract(['compact', 'standard'], 'Service health', 'Service dots and active issues', undefined, 'Service health'),
-  github: contract(['compact', 'standard', 'full'], 'Selected primary count or graph', 'Selected graph or rows', 'Graph, stats, and all selected row families', 'Selected activity counts'),
-  gitlab: contract(['compact', 'standard', 'full'], 'Selected primary count or graph', 'Selected graph or rows', 'All selected GitLab sections', 'Selected activity counts'),
-  jira: contract(['compact', 'standard', 'full'], 'Selected-view count', 'Prioritized issue rows', 'All selected Jira sections', 'Selected issue counts'),
-  vercel: contract(['compact', 'standard', 'full'], 'Deployment health', 'Selected deployment rows or summary', 'All selected deployment sections', 'Deployment health'),
-  homeassistant: contract(['compact', 'standard', 'full'], 'Selected entity or action', 'Selected entities and actions', 'Complete selected home composition', 'Selected entity state'),
-  rss: contract(['compact', 'standard', 'full'], 'Top headline', 'Selected headlines', 'All selected headlines that fit', 'Top headline'),
-  crypto: contract(['compact', 'standard'], 'Primary coin price', 'Selected coin prices', undefined, 'Primary coin price'),
-  readingList: contract(['compact', 'standard', 'full'], 'Unread count and newest title', 'Unread reading queue', 'Unread and recently read pages', 'Unread count and newest title'),
-  recentlyClosed: contract(['compact', 'standard', 'full'], 'Latest closed type and age', 'Recently closed session types', 'All restorable session types by kind', 'Closed count and latest type'),
-  downloads: contract(['compact', 'standard', 'full'], 'Active count and newest filename', 'Active and recent downloads', 'All recent download states', 'Active count and newest filename'),
-  tabGroups: contract(['compact', 'standard', 'full'], 'Group count and first group', 'Open browser workspaces', 'All groups by window', 'Group count and first group'),
-  timer: contract(['compact'], 'Timer action', undefined, undefined, 'Timer state'), tasks: contract(['compact'], 'Tasks action', undefined, undefined, 'Tasks action'), notes: contract(['compact'], 'Notes action', undefined, undefined, 'Notes action'),
-  linear: contract(['compact', 'standard', 'full'], 'Assigned and due counts', 'Prioritized assigned work', 'All assigned work that fits', 'Assigned and due counts'),
-  sentry: contract(['compact', 'standard', 'full'], 'Unresolved count and top issue', 'Named unresolved issues', 'All unresolved issues that fit', 'Unresolved count and top issue'),
-  todoist: contract(['compact', 'standard', 'full'], 'Due and overdue counts', 'Due task sections', 'All due tasks that fit', 'Due and overdue counts'),
-  onThisDay: contract(['compact', 'standard', 'full'], 'One historical event', 'Three historical events', 'Events, births, and deaths', 'Year and event'),
-  publicHolidays: contract(['compact', 'standard', 'full'], 'Next national holiday', 'Next three national holidays', 'Current and next-year national holidays', 'Next holiday and date'),
-  auroraKp: contract(['compact', 'standard', 'full'], 'Current Kp and next peak', 'Current Kp and next four intervals', 'Bounded three-day Kp forecast', 'Current Kp and next peak'),
+  monthCal: contract('framed', ['standard'], RESOURCE_STATES, undefined, 'Complete month'),
+  sun: contract('framed', ['compact', 'standard'], RESOURCE_STATES, 'Next sun event', 'Sunrise and sunset', undefined, 'Next sun event'),
+  moon: contract('framed', ['compact'], RESOURCE_STATES, 'Current phase', undefined, undefined, 'Current phase'),
+  quote: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Quote', 'Readable full quote'),
+  clock: contract('intrinsic', ['compact', 'standard', 'full'], READY_STATES, 'Current time', 'Time and date', 'Large, legible time and date', 'Time · date'),
+  greeting: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Greeting', 'More legible greeting'),
+  worldClocks: contract('intrinsic', ['compact', 'standard', 'full'], READY_STATES, 'Primary world clock', 'Selected clocks', 'All selected clocks', 'Primary world clock'),
+  countdown: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Countdown', 'Countdown detail', undefined, 'Next countdown'),
+  search: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Search action', 'More legible search action'),
+  focus: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Focus action', 'Focus detail', undefined, 'Focus text and completion'),
+  links: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Primary link action', 'Selected quick links'),
+  habits: contract('framed', ['compact'], READY_STATES, 'Habit action', undefined, undefined, 'Habits done today'),
+  bookmarks: contract('bar', ['compact', 'standard'], READY_STATES, 'Bookmark marks', 'Named bookmark bar', undefined, 'Full readable bookmark bar'),
+  status: contract('framed', ['compact', 'standard'], PARTIAL_RESOURCE_STATES, 'Service health', 'Service dots and active issues', undefined, 'Service health'),
+  github: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected primary count or graph', 'Selected graph or rows', 'Graph, stats, and all selected row families', 'Selected activity counts'),
+  gitlab: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected primary count or graph', 'Selected graph or rows', 'All selected GitLab sections', 'Selected activity counts'),
+  jira: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected-view count', 'Prioritized issue rows', 'All selected Jira sections', 'Selected issue counts'),
+  vercel: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Deployment health', 'Selected deployment rows or summary', 'All selected deployment sections', 'Deployment health'),
+  homeassistant: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected entity or action', 'Selected entities and actions', 'Complete selected home composition', 'Selected entity state'),
+  rss: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Top headline', 'Selected headlines', 'All selected headlines that fit', 'Top headline'),
+  crypto: contract('framed', ['compact', 'standard'], PARTIAL_RESOURCE_STATES, 'Primary coin price', 'Selected coin prices', undefined, 'Primary coin price'),
+  readingList: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Unread count and newest title', 'Unread reading queue', 'Unread and recently read pages', 'Unread count and newest title'),
+  recentlyClosed: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Latest closed type and age', 'Recently closed session types', 'All restorable session types by kind', 'Closed count and latest type'),
+  downloads: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Active count and newest filename', 'Active and recent downloads', 'All recent download states', 'Active count and newest filename'),
+  tabGroups: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Group count and first group', 'Open browser workspaces', 'All groups by window', 'Group count and first group'),
+  timer: contract('framed', ['compact'], READY_STATES, 'Timer action', undefined, undefined, 'Timer state'),
+  tasks: contract('framed', ['compact'], READY_STATES, 'Tasks action', undefined, undefined, 'Tasks action'),
+  notes: contract('framed', ['compact'], READY_STATES, 'Notes action', undefined, undefined, 'Notes action'),
+  linear: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Assigned and due counts', 'Prioritized assigned work', 'All assigned work that fits', 'Assigned and due counts'),
+  sentry: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Unresolved count and top issue', 'Named unresolved issues', 'All unresolved issues that fit', 'Unresolved count and top issue'),
+  todoist: contract('framed', ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Due and overdue counts', 'Due task sections', 'All due tasks that fit', 'Due and overdue counts'),
+  onThisDay: contract('framed', ['compact', 'standard', 'full'], RESOURCE_STATES, 'One historical event', 'Three historical events', 'Events, births, and deaths', 'Year and event', {
+    compact: {
+      purpose: 'One historical event for the local date',
+      essential: ['title', 'local date', 'event year', 'event summary'],
+      signature: ['historical event'],
+      supporting: ['provider attribution'],
+      narrowSafety: ['tighten spacing', 'clamp event summary'],
+      overflow: { kind: 'provider', label: 'More on Wikipedia' },
+    },
+    standard: {
+      purpose: 'Three historical events for the local date',
+      essential: ['title', 'local date', 'event year', 'event summary'],
+      signature: ['historical event list'],
+      supporting: ['provider attribution'],
+      narrowSafety: ['tighten spacing', 'clamp event summaries'],
+      overflow: { kind: 'provider', label: 'More on Wikipedia' },
+    },
+    full: {
+      purpose: 'Historical events, births, and deaths for the local date',
+      essential: ['title', 'local date', 'event year', 'event summary'],
+      signature: ['historical event list'],
+      supporting: ['births', 'deaths', 'provider attribution'],
+      narrowSafety: ['tighten spacing', 'clamp event summaries', 'clamp birth and death summaries'],
+      overflow: { kind: 'provider', label: 'More on Wikipedia' },
+    },
+  }),
+  publicHolidays: contract('framed', ['compact', 'standard', 'full'], RESOURCE_STATES, 'Next national holiday', 'Next three national holidays', 'Current and next-year national holidays', 'Next holiday and date'),
+  auroraKp: contract('framed', ['compact', 'standard', 'full'], RESOURCE_STATES, 'Current Kp and next peak', 'Current Kp and next four intervals', 'Bounded three-day Kp forecast', 'Current Kp and next peak'),
 })
+
+/** Compatibility name for existing content-contract consumers. */
+export const WIDGET_SIZE_CONTRACTS = WIDGET_PRESENTATION_CONTRACTS
 
 function joinNames(items: readonly SelectedCanvasContent[]): string {
   const labels = items.map((item) => item.label)

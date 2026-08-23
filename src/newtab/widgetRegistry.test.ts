@@ -4,7 +4,7 @@ import { defaults, type Settings, type WidgetToggles } from '../lib/storage/sche
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId, type JiraConfig, type RssConfig } from '../services/connectors/types'
 import { resolveWidgetRenderer, WIDGET_RENDERER_KEYS } from './widgetRenderers'
 import { WIDGET_REGISTRY, selectActiveWidgetRegistry, type WidgetRegistryEntry } from './widgetRegistry'
-import { contentConflictFor, WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
+import { contentConflictFor, WIDGET_PRESENTATION_CONTRACTS, WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
 
 const EXPECTED = [
   ['weather', 'Weather', 'day', 0, 'automatic', ['day'], 'standard', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
@@ -133,8 +133,11 @@ describe('source-owned widget registry', () => {
 
   it('uses the content contract rather than legacy footprint variants to offer Canvas sizes', () => {
     for (const row of WIDGET_REGISTRY) {
-      expect(row.canvasSizes, row.id).toEqual(WIDGET_SIZE_CONTRACTS[row.id].sizes)
+      expect(row.canvasSizes, row.id).toBe(WIDGET_PRESENTATION_CONTRACTS[row.id].sizes)
+      expect(row.presentationContract).toBe(WIDGET_PRESENTATION_CONTRACTS[row.id])
+      expect(row.contentContract).toBe(row.presentationContract)
       expect(row.contentContract).toBe(WIDGET_SIZE_CONTRACTS[row.id])
+      expect(row.supportsDocked).toBe(row.presentationContract.docked !== undefined)
     }
   })
 
@@ -146,6 +149,7 @@ describe('source-owned widget registry', () => {
       expect(Object.isFrozen(row.eligibleZones)).toBe(true)
       expect(Object.isFrozen(row.allowedVariants)).toBe(true)
       expect(Object.isFrozen(row.canvasSizes)).toBe(true)
+      expect(Object.isFrozen(row.presentationContract)).toBe(true)
       expect(Object.isFrozen(row.footprints)).toBe(true)
       expect(Object.isFrozen(row.defaultPlacements)).toBe(true)
       for (const placement of Object.values(row.defaultPlacements)) expect(Object.isFrozen(placement)).toBe(true)

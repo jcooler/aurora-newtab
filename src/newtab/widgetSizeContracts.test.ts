@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { contentConflictFor, WIDGET_SIZE_CONTRACTS, type SelectedCanvasContent } from './widgetSizeContracts'
+import { BLOCK_IDS } from '../lib/layout/types'
+import {
+  contentConflictFor,
+  WIDGET_PRESENTATION_CONTRACTS,
+  WIDGET_SIZE_CONTRACTS,
+  type SelectedCanvasContent,
+} from './widgetSizeContracts'
 
 describe('Canvas widget size contracts', () => {
   it('offers only useful, ordered sizes for connector cards and their primary values', () => {
@@ -8,7 +14,7 @@ describe('Canvas widget size contracts', () => {
     expect(WIDGET_SIZE_CONTRACTS.crypto.sizes).toEqual(['compact', 'standard'])
     expect(WIDGET_SIZE_CONTRACTS.timer.sizes).toEqual(['compact'])
     for (const id of ['linear', 'sentry', 'todoist'] as const) {
-      expect(WIDGET_SIZE_CONTRACTS[id]).toEqual({
+      expect(WIDGET_SIZE_CONTRACTS[id]).toMatchObject({
         sizes: ['compact', 'standard', 'full'],
         compact: expect.any(String),
         standard: expect.any(String),
@@ -57,14 +63,14 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
   })
 
   it('declares every browser-native widget at Compact, Standard, Full, and Docked', () => {
-    expect(WIDGET_SIZE_CONTRACTS.readingList).toEqual({
+    expect(WIDGET_SIZE_CONTRACTS.readingList).toMatchObject({
       sizes: ['compact', 'standard', 'full'],
       compact: 'Unread count and newest title',
       standard: 'Unread reading queue',
       full: 'Unread and recently read pages',
       docked: 'Unread count and newest title',
     })
-    expect(WIDGET_SIZE_CONTRACTS.recentlyClosed).toEqual({
+    expect(WIDGET_SIZE_CONTRACTS.recentlyClosed).toMatchObject({
       sizes: ['compact', 'standard', 'full'],
       compact: 'Latest closed type and age',
       standard: 'Recently closed session types',
@@ -78,5 +84,75 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
   it('Month offers only the complete month (batch-2 owner review removed compact)', () => {
     expect(WIDGET_SIZE_CONTRACTS.monthCal.sizes).toEqual(['standard'])
     expect(WIDGET_SIZE_CONTRACTS.monthCal.compact).toBeUndefined()
+  })
+})
+
+describe('shared frame presentation contracts', () => {
+  const idsFor = (presentationClass: 'bar' | 'framed' | 'intrinsic') =>
+    Object.entries(WIDGET_PRESENTATION_CONTRACTS)
+      .filter(([, contract]) => contract.presentationClass === presentationClass)
+      .map(([id]) => id)
+      .sort()
+
+  it('declares the Weather and On This Day reference-pair contracts', () => {
+    expect(WIDGET_PRESENTATION_CONTRACTS.weather).toMatchObject({
+      presentationClass: 'framed',
+      sizes: ['compact', 'standard', 'full'],
+      stackSizes: ['compact', 'standard', 'full'],
+      states: ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'],
+    })
+    expect(WIDGET_PRESENTATION_CONTRACTS.onThisDay).toMatchObject({
+      presentationClass: 'framed',
+      sizes: ['compact', 'standard', 'full'],
+      stackSizes: ['compact', 'standard', 'full'],
+      states: ['loading', 'ready', 'empty', 'stale', 'hard-error'],
+    })
+    expect(WIDGET_PRESENTATION_CONTRACTS.weather.tiers.standard).toEqual({
+      purpose: 'Current conditions and forecast context',
+      essential: ['temperature', 'condition', 'location'],
+      signature: ['forecast trend'],
+      supporting: ['feels like', 'wind', 'humidity'],
+      narrowSafety: ['tighten spacing', 'shorten location', 'truncate condition'],
+      overflow: { kind: 'details', label: 'Weather details' },
+    })
+    expect(WIDGET_PRESENTATION_CONTRACTS.onThisDay.tiers.standard).toEqual({
+      purpose: 'Three historical events for the local date',
+      essential: ['title', 'local date', 'event year', 'event summary'],
+      signature: ['historical event list'],
+      supporting: ['provider attribution'],
+      narrowSafety: ['tighten spacing', 'clamp event summaries'],
+      overflow: { kind: 'provider', label: 'More on Wikipedia' },
+    })
+  })
+
+  it('classifies every known identity and only allows declared stack sizes', () => {
+    expect(WIDGET_PRESENTATION_CONTRACTS.bookmarks.presentationClass).toBe('bar')
+    expect(WIDGET_PRESENTATION_CONTRACTS.clock.presentationClass).toBe('intrinsic')
+    for (const id of BLOCK_IDS) {
+      const contract = WIDGET_PRESENTATION_CONTRACTS[id]
+      expect(contract.stackSizes.every((tier) => contract.sizes.includes(tier)), id).toBe(true)
+    }
+    expect(idsFor('bar')).toEqual(['bookmarks'])
+    expect(idsFor('intrinsic')).toEqual([
+      'clock', 'countdown', 'focus', 'greeting', 'links', 'quote', 'search', 'worldClocks',
+    ])
+    expect(idsFor('framed')).toEqual([
+      'auroraKp', 'crypto', 'downloads', 'github', 'gitlab', 'habits', 'homeassistant',
+      'ics', 'jira', 'linear', 'monthCal', 'moon', 'notes', 'onThisDay', 'publicHolidays',
+      'readingList', 'recentlyClosed', 'rss', 'sentry', 'status', 'sun', 'tabGroups',
+      'tasks', 'timer', 'todoist', 'vercel', 'weather',
+    ])
+  })
+
+  it('freezes the single authoritative contract map and its identity rows', () => {
+    expect(WIDGET_SIZE_CONTRACTS).toBe(WIDGET_PRESENTATION_CONTRACTS)
+    expect(Object.isFrozen(WIDGET_PRESENTATION_CONTRACTS)).toBe(true)
+    for (const contract of Object.values(WIDGET_PRESENTATION_CONTRACTS)) {
+      expect(Object.isFrozen(contract)).toBe(true)
+      expect(Object.isFrozen(contract.sizes)).toBe(true)
+      expect(Object.isFrozen(contract.stackSizes)).toBe(true)
+      expect(Object.isFrozen(contract.states)).toBe(true)
+      expect(Object.isFrozen(contract.tiers)).toBe(true)
+    }
   })
 })
