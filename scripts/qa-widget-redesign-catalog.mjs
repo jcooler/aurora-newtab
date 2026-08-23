@@ -48,6 +48,20 @@ Source commit: \`${sourceCommit}\`
 
 ${SOURCE_WIDGET_IDS.length} live source identities map to ${TARGET_WIDGETS.length} target designs. Calendar consolidates ICS, Month, and Public Holidays.
 
+| Target | Sources | Presentations | States |
+| --- | --- | --- | --- |
+${TARGET_WIDGETS.map((target) => `| ${markdownCell(target.label)} | ${markdownCell(target.sourceIds.join(', '))} | ${markdownCell(target.tiers.join(', '))} | ${markdownCell(target.states.join(', ') || 'Ready only')} |`).join('\n')}
+
+## Per-tier information budgets
+
+| Target | Tier | Purpose | Essential | Signature |
+| --- | --- | --- | --- | --- |
+${TARGET_WIDGETS.flatMap((target) => target.tiers.map((tier) => { const budget = target.budgets[tier]; return `| ${markdownCell(target.label)} | ${tier} | ${markdownCell(budget.purpose)} | ${markdownCell(budget.essential.join(', '))} | ${markdownCell(budget.signature.join(', '))} |` })).join('\n')}
+
+## Theme and state coverage
+
+Every target has dark, light, and bright-pink evidence at its primary tier. Declared loading, empty, stale, partial, setup, permission, and error states are captured where applicable.
+
 ## Captures
 
 | Capture | Kind | Evidence |
@@ -99,6 +113,7 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
 
   const sourceCommit = git(root, ['log', '-1', '--format=%H', '--', 'mockups/widget-redesign'])
   const dirtyStatus = git(root, ['status', '--porcelain'])
+  if (exact && dirtyStatus) throw new Error(`Exact catalog requires a clean worktree before generation:\n${dirtyStatus}`)
   const sourceHashes = Object.fromEntries(await Promise.all(SOURCE_FILES.map(async (file) => [file, await hashFile(resolve(root, file))])))
   const server = await startCatalogServer({ repoRoot: root })
   const browser = await chromium.launch({ headless: true })
@@ -165,7 +180,10 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
   const evidence = { version: 1, sourceCommit, dirtyStatus, exact, generatedAt: new Date().toISOString(), sourceHashes, captures: results, failures }
   await writeFile(resolveOutput(out, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
   await writeFile(resolveOutput(out, 'CATALOG.md'), catalogMarkdown({ sourceCommit, captures: results }), 'utf8')
-  await writeFile(resolveOutput(out, 'WIDGET-REDESIGN-MOCKUP-QA.md'), reportMarkdown({ sourceCommit, exact, results, failures }), 'utf8')
+  const reportPath = exact
+    ? resolve(root, 'docs/superpowers/reports/WIDGET-REDESIGN-MOCKUP-QA.md')
+    : resolveOutput(out, 'WIDGET-REDESIGN-MOCKUP-QA.md')
+  await writeFile(reportPath, reportMarkdown({ sourceCommit, exact, results, failures }), 'utf8')
   if (exact && failures.length) throw new Error(`Widget redesign catalog failed: ${failures.length} captures`)
   return evidence
 }
