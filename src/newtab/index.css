@@ -2060,7 +2060,7 @@ select > option {
    legacy Weather chip and Quote figure both sized themselves against the
    viewport, which let their painted/hit-test areas escape into the adjacent
    allocation even though the BoardItem rectangles themselves did not overlap. */
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) {
   width: 100%;
   max-width: 100%;
 }
@@ -2131,7 +2131,7 @@ select > option {
   max-width: none;
 }
 
-.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame),
 .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div,
 .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
   width: 100%;
@@ -2143,7 +2143,7 @@ select > option {
   max-width: 100%;
 }
 @media (min-height: 201px) {
-  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]),
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]),
   .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div,
   .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div {
     width: 100%;

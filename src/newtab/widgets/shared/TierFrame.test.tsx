@@ -54,4 +54,10 @@ describe('TierFrame', () => {
     expect(declarationBlock('.tier-frame:focus-within')).toMatch(/outline:\s*2px solid var\(--accent\)\s*;/)
     expect(indexCss).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.tier-frame\s*\{\s*transition:\s*none\s*;/)
   })
+
+  it('keeps legacy Weather width guards from overriding the shared frame contract', () => {
+    expect(indexCss).toMatch(/\[data-block-id="weather"\]:not\(\.z-30\) > section:not\(\.tier-frame\)\s*\{\s*width:\s*100%/)
+    expect(indexCss).toMatch(/\[data-block-id="weather"\]:not\(\.z-30\) > section:not\(\.tier-frame\),/)
+    expect(indexCss).toMatch(/\[data-block-id="weather"\] > section:not\(\.tier-frame\):has\(input\[aria-label="Search for a city"\]\),/)
+  })
 })
