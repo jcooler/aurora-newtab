@@ -33,7 +33,7 @@ const stackFace = (capture, members) => renderStack({
   members: members.map((id) => ({
     id,
     label: byId.get(id).label,
-    html: face(id, capture.tier, capture),
+    html: face(id, capture.tier, capture, { presentation: 'stack' }),
   })),
 })
 

@@ -205,6 +205,18 @@ test('presents Greeting as ambient frameless content by default', async () => {
       boxShadow: 'none',
       headerDisplay: 'none',
     })
+
+    await page.goto(`${server.origin}/mockups/widget-redesign/capture/greeting-standard-stack-ready-dark`)
+    const stackSurface = await page.locator('[data-widget-id="greeting"]').evaluate((node) => ({
+      surface: node.getAttribute('data-surface'),
+      background: getComputedStyle(node).backgroundColor,
+      headerDisplay: getComputedStyle(node.querySelector('.widget-frame__header')).display,
+    }))
+    assert.deepEqual(stackSurface, {
+      surface: 'card',
+      background: 'rgb(37, 44, 57)',
+      headerDisplay: 'flex',
+    })
   } finally {
     await browser.close()
     await server.close()
