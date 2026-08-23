@@ -113,7 +113,10 @@
   }
   .tier-frame--full .weather-tier-summary [data-weather-summary-metrics],
   .tier-frame--full .weather-tier-summary [data-weather-summary-hourly] > span {
-    min-height: 3rem;
+    min-height: 2.5rem;
+  }
+  .tier-frame--full .weather-tier-summary [data-weather-summary-metrics] {
+    min-height: 2.25rem;
   }
 }
 .weather-tier-state {
