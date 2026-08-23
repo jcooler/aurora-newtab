@@ -13,6 +13,12 @@ import type { ConnectorConfig, SentryConfig } from '../../../services/connectors
 import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
+const SENTRY_FRAME_ROWS: Readonly<Record<CanvasSize, number>> = {
+  compact: 0,
+  standard: 2,
+  full: 2,
+}
+
 function connectedSentry(config: ConnectorConfig | undefined): SentryConfig | null {
   if (!config || !('organization' in config) || !('region' in config)) return null
   const sentry = config as SentryConfig
@@ -69,11 +75,7 @@ function SentryInner({
     `${issues.length} unresolved`,
     topTrending?.shortId ?? null,
   ]
-  const visible = canvasSize === 'full'
-    ? issues
-    : canvasSize === 'standard'
-      ? issues.slice(0, sentryItemLimit(config))
-      : []
+  const visible = issues.slice(0, Math.min(SENTRY_FRAME_ROWS[canvasSize], sentryItemLimit(config)))
   const detailRows = issues.slice(0, Math.min(3, sentryItemLimit(config)))
 
   const retry = () => {

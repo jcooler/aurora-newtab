@@ -14,6 +14,12 @@ import type { ConnectorConfig, LinearConfig } from '../../../services/connectors
 import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
+const LINEAR_FRAME_ROWS: Readonly<Record<CanvasSize, number>> = {
+  compact: 0,
+  standard: 2,
+  full: 3,
+}
+
 function connectedLinear(config: ConnectorConfig | undefined): LinearConfig | null {
   if (!config || !('displayName' in config)) return null
   const linear = config as LinearConfig
@@ -56,11 +62,7 @@ function LinearInner({ config, canvasSize, docked }: { config: LinearConfig; can
     `${issues.length} assigned`,
     dueSoon > 0 ? `${dueSoon} due soon` : issues.length > 0 ? 'Nothing due soon' : null,
   ]
-  const visible = canvasSize === 'full'
-    ? issues
-    : canvasSize === 'standard'
-      ? issues.slice(0, linearItemLimit(config))
-      : []
+  const visible = issues.slice(0, Math.min(LINEAR_FRAME_ROWS[canvasSize], linearItemLimit(config)))
   const detailRows = issues.slice(0, Math.min(3, linearItemLimit(config)))
   const retry = () => {
     void storage.update('connectorSnapshots', (previous) => {

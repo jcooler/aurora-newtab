@@ -65,6 +65,16 @@ describe('LinearWidget', () => {
     expect((await storage.get('connectorSnapshots')).linear).toBeUndefined()
   })
 
+  it.each(['compact', 'standard', 'full'] as const)('uses the exact %s frame for ready data', async (canvasSize) => {
+    mount(await seededStorage(CONNECTED), { canvasSize })
+    await screen.findByText('2 assigned')
+    const frame = screen.getByRole('region', { name: 'Linear' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()
+  })
+
   it('renders Compact assigned and due facts without rows', async () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'compact' })
     expect(await screen.findByText('2 assigned')).toBeTruthy()
@@ -96,13 +106,18 @@ describe('LinearWidget', () => {
     expect(link.getAttribute('target')).toBe('_blank')
   })
 
-  it('keeps all 25 Full rows inside the local scrollport', async () => {
+  it('bounds Full to three prioritized rows without an internal scroll owner', async () => {
     const issues = Array.from({ length: 25 }, (_, index) => issue(index, index === 1 ? { state: { name: 'Todo', type: 'unstarted' } } : {}))
     mount(await seededStorage(CONNECTED, { issues }), { canvasSize: 'full' })
-    expect(await screen.findByText('Build Aurora 24')).toBeTruthy()
+    expect(await screen.findByText('Build Aurora 0')).toBeTruthy()
+    expect(screen.getByText('Build Aurora 2')).toBeTruthy()
+    expect(screen.queryByText('Build Aurora 3')).toBeNull()
+    expect(screen.queryByText('Build Aurora 24')).toBeNull()
     expect(screen.getByRole('heading', { name: 'In Progress' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Todo' })).toBeTruthy()
-    expect(document.querySelector('[data-work-widget-scroll]')?.className).toContain('overflow-y-auto')
+    const frame = screen.getByRole('region', { name: 'Linear' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('full')
+    expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()
   })
 
   it('opens Docked detail with named top work', async () => {

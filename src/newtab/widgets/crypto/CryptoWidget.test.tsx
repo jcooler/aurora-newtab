@@ -48,10 +48,10 @@ async function seededStorage(
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, props: { canvasSize?: 'compact' | 'standard'; docked?: boolean } = {}) {
   return render(
     <StorageProvider storage={storage}>
-      <CryptoWidget />
+      <CryptoWidget {...props} />
     </StorageProvider>,
   )
 }
@@ -71,6 +71,20 @@ describe('CryptoWidget', () => {
     expect(screen.queryByText('$67,412')).toBeNull()
   })
 
+  it.each([
+    ['compact', 1],
+    ['standard', 3],
+  ] as const)('uses the exact %s authored frame with selected coin cells', async (canvasSize, expectedCells) => {
+    mount(await seededStorage(CONNECTED), { canvasSize })
+    await screen.findByText('doge')
+    const frame = screen.getByRole('region', { name: 'Crypto' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.querySelectorAll('[data-crypto-cell]')).toHaveLength(expectedCells)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelector('[class*="overflow-y-auto"], [class*="overflow-y-scroll"]')).toBeNull()
+  })
+
   it('renders one cell per seeded coin (symbol, price, change) in the CONFIGURED order, not market-cap order', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
@@ -79,7 +93,7 @@ describe('CryptoWidget', () => {
     // — `uppercase` (asserted separately below) is a CSS text-transform,
     // which never changes the underlying text node, only its painted glyphs.
     await screen.findByText('doge')
-    const cells = [...document.querySelectorAll('section[aria-label="Crypto"] > div > span')]
+    const cells = [...document.querySelectorAll('section[aria-label="Crypto"] [data-crypto-cell]')]
     expect(cells.map((c) => c.querySelector('span:first-child')?.textContent)).toEqual(['doge', 'btc', 'eth'])
     expect(screen.getByText('$67,412')).toBeTruthy()
     expect(screen.getByText('$0.1234')).toBeTruthy()
@@ -111,10 +125,7 @@ describe('CryptoWidget', () => {
     const storage = await seededStorage({ enabled: true, coins: ['bitcoin'] }, zeroData)
     mount(storage)
     const zeroChip = await screen.findByText('0.0%')
-    // Canvas ink (Task 60 fix round): the crypto strip floats on the photo, so
-    // even the muted zero-change tint uses the fixed --canvas-fg-muted, not the
-    // panelColor-adaptive --fg-muted.
-    expect(zeroChip.className).toContain('text-canvas-fg-muted')
+    expect(zeroChip.className).toContain('text-fg-muted')
 
     // Re-mount fresh for the positive/negative cases (the DOGE/BTC/ETH fixture).
     document.body.innerHTML = ''
@@ -129,7 +140,9 @@ describe('CryptoWidget', () => {
     const storage = await seededStorage(CONNECTED, { coins: [] })
     mount(storage)
     const message = await screen.findByText('No prices right now.')
-    expect(message.className).toContain('text-photo')
+    expect(message.className).toContain('text-fg-muted')
+    expect(screen.getByRole('region', { name: 'Crypto' }).getAttribute('data-tier-frame-state')).toBe('empty')
+    expect(screen.getByText('3 selected')).toBeTruthy()
   })
 
   it('caps rendered cells at 5', async () => {
@@ -153,7 +166,7 @@ describe('CryptoWidget', () => {
 
   it('uses Compact for one useful primary coin instead of shrinking every selected price into the same strip', async () => {
     const storage = await seededStorage(CONNECTED)
-    render(<StorageProvider storage={storage}><CryptoWidget canvasSize="compact" /></StorageProvider>)
+    mount(storage, { canvasSize: 'compact' })
     expect(await screen.findByText('doge')).toBeTruthy()
     expect(screen.queryByText('btc')).toBeNull()
   })

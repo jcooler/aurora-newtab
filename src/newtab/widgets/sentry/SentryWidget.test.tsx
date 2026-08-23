@@ -92,6 +92,16 @@ describe('SentryWidget', () => {
     expect((await incomplete.get('connectorSnapshots')).sentry).toBeUndefined()
   })
 
+  it.each(['compact', 'standard', 'full'] as const)('uses the exact %s frame for ready data', async (canvasSize) => {
+    mount(await seededStorage(CONNECTED), { canvasSize })
+    await screen.findByText('2 unresolved')
+    const frame = screen.getByRole('region', { name: 'Sentry' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()
+  })
+
   it('renders a useful Compact glance and no issue rows', async () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'compact' })
     expect(await screen.findByText('2 unresolved')).toBeTruthy()
@@ -128,15 +138,19 @@ describe('SentryWidget', () => {
     expect(link.getAttribute('rel')).toContain('noopener')
   })
 
-  it('keeps maximum Full data inside the shared local scrollport', async () => {
+  it('bounds Full to two rich issue rows without an internal scroll owner', async () => {
     const data = { issues: Array.from({ length: 25 }, (_, index) => issue(index)) }
     mount(await seededStorage({ ...CONNECTED, itemLimit: 10 }, data), { canvasSize: 'full' })
-    expect(await screen.findByText('Checkout failure 24')).toBeTruthy()
+    expect(await screen.findByText('Checkout failure 1')).toBeTruthy()
+    expect(screen.queryByText('Checkout failure 2')).toBeNull()
+    expect(screen.queryByText('Checkout failure 24')).toBeNull()
     const lead = screen.getByText('Checkout failure 0').closest('li')
     expect(lead?.textContent).toContain('First seen')
     expect(lead?.textContent).toContain('Priority high')
     expect(lead?.textContent).toContain('Regression')
-    expect(document.querySelector('[data-work-widget-scroll]')?.className).toContain('overflow-y-auto')
+    const frame = screen.getByRole('region', { name: 'Sentry' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('full')
+    expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()
   })
 
   it('opens a Docked detail with named issue context', async () => {

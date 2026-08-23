@@ -179,9 +179,9 @@ git commit -m "feat: frame developer and service widgets"
 - Modify: `src/newtab/widgets/crypto/CryptoWidget.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Add and observe focused RED tests widget by widget.** Require exact frame/state for every declared tier, bounded useful rows, one truthful overflow destination, no internal scrollbar, and Docked XOR free parity. Todoist completion confirmation, Home Assistant actions/tray, RSS links, and Crypto single/multi-coin selection must remain functional.
-- [ ] **Step 2: Implement one widget at a time after its RED.** Let the shared Work shell provide geometry for Linear, Sentry, and Todoist, but keep each widget's authored counts, priority, action, and row caps. Frame Home Assistant, RSS, and Crypto directly while preserving their current data and settings authorities.
-- [ ] **Step 3: Run GREEN and commit.** Run all six test files, Work shell tests, TypeScript, and diff hygiene, then commit:
+- [x] **Step 1: Add and observe focused RED tests widget by widget.** Require exact frame/state for every declared tier, bounded useful rows, one truthful overflow destination, no internal scrollbar, and Docked XOR free parity. Todoist completion confirmation, Home Assistant actions/tray, RSS links, and Crypto single/multi-coin selection must remain functional.
+- [x] **Step 2: Implement one widget at a time after its RED.** Let the shared Work shell provide geometry for Linear, Sentry, and Todoist, but keep each widget's authored counts, priority, action, and row caps. Frame Home Assistant, RSS, and Crypto directly while preserving their current data and settings authorities.
+- [x] **Step 3: Run GREEN and commit.** Run all six test files, Work shell tests, TypeScript, and diff hygiene, then commit:
 
 ```powershell
 git add src/newtab/widgets/linear src/newtab/widgets/sentry src/newtab/widgets/todoist src/newtab/widgets/homeassistant src/newtab/widgets/rss src/newtab/widgets/crypto src/newtab/index.css

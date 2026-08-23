@@ -4,6 +4,7 @@ import { fetchCrypto, type CoinRow, type CryptoData } from '../../../services/co
 import type { CryptoConfig } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import DockLine from '../shared/DockLine'
+import TierFrame from '../shared/TierFrame'
 
 // CryptoConfig caps at 5 coins (types.ts's own comment) and the service's
 // own PER_PAGE mirrors it — this is a defensive re-slice at the display
@@ -58,40 +59,41 @@ function CryptoInner({ crypto, canvasSize, docked }: { crypto: CryptoConfig; can
   }
 
   return (
-    // A slim floating STRIP, not a panel — no bg-panel-solid/shadow/rounded
-    // card surface (unlike GithubWidget/VercelWidget/etc.). Content-tight
-    // (owner direction 2026-08-18: EVERY selected coin on one quote-like
-    // line): the strip is exactly as wide as its one row of cells — the old
-    // fixed w-88 forced five cells to overflow a 22rem box.
-    <section aria-label="Crypto" data-canvas-size={canvasSize} className="w-max max-w-[100vw] text-center">
-      {empty ? (
-        <p className="text-photo text-sm text-canvas-fg-muted">No prices right now.</p>
-      ) : (
-        <div className="flex flex-nowrap items-baseline justify-center gap-4">
-          {rows.map((coin) => (
-            <CoinCell key={coin.id} coin={coin} />
-          ))}
-        </div>
-      )}
-    </section>
+    <TierFrame
+      label="Crypto"
+      tier={canvasSize}
+      state={empty ? 'empty' : 'ready'}
+      data-canvas-size={canvasSize}
+      className="flex min-h-0 flex-col text-center"
+    >
+      <header className="flex min-h-8 items-center justify-between gap-3 border-b border-hairline px-3 py-1">
+        <h2 className="text-sm font-semibold">Crypto</h2>
+        <span className="text-[11px] text-fg-muted">{coins.length} selected</span>
+      </header>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3">
+        {empty ? (
+          <p className="text-sm text-fg-muted">No prices right now.</p>
+        ) : (
+          <div className="flex flex-wrap items-baseline justify-center gap-x-4 gap-y-3">
+            {rows.map((coin) => (
+              <CoinCell key={coin.id} coin={coin} />
+            ))}
+          </div>
+        )}
+      </div>
+    </TierFrame>
   )
 }
 
-/** `{SYMBOL} {price} {±x.x%}` — a single-line cell, never wrapped and never
- *  truncated (numeric data truncating mid-digit would be actively
- *  misleading, unlike a headline title). The symbol/price share the
- *  baseline `text-photo` legibility shadow (index.css's @utility, a
- *  text-shadow only — it carries no color of its own) plus the fixed
- *  `text-canvas-fg` photo ink (Task 60 fix round: this strip floats on the
- *  photo, so its ink must NOT follow the panelColor-adaptive --fg), so it
- *  composes cleanly with the change span's own tint below; the change span is
- *  the ONLY part with a state-driven color. */
+/** `{SYMBOL} {price} {±x.x%}` is one unbroken quote cell. Numeric data is
+ * never truncated mid-digit. The shared frame owns a panel-adaptive text
+ * chain, while only the movement value carries state color. */
 function CoinCell({ coin }: { coin: CoinRow }) {
   return (
-    <span className="text-photo text-canvas-fg flex items-baseline gap-1 text-sm font-medium">
+    <span data-crypto-cell="" className="flex items-baseline gap-1 text-sm font-medium text-fg">
       <span className="uppercase">{coin.symbol}</span>
       <span>{formatPrice(coin.price)}</span>
-      <span className={tintClass(coin.change24h)}>{formatChange(coin.change24h)}</span>
+      <span className={`text-xs ${tintClass(coin.change24h)}`}>{formatChange(coin.change24h)}</span>
     </span>
   )
 }
@@ -134,5 +136,5 @@ function formatChange(change: number): string {
 function tintClass(change: number): string {
   if (change > 0) return 'text-emerald-300'
   if (change < 0) return 'text-red-400'
-  return 'text-canvas-fg-muted'
+  return 'text-fg-muted'
 }

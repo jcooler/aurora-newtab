@@ -369,6 +369,20 @@ describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ru
 })
 
 describe('HomeAssistantWidget — DOM contract', () => {
+  it.each([
+    ['compact', 'compact'],
+    ['standard', 'standard'],
+    ['expanded', 'full'],
+  ] as const)('uses the exact %s authored frame as %s', async (stageVariant, tier) => {
+    const storage = await seededStorage(CONNECTED)
+    mount(storage, stageVariant)
+    const frame = await screen.findByRole('region', { name: 'Home Assistant' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.getAttribute('data-ha-content-variant')).toBe(stageVariant)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+  })
+
   it('progresses from summary states to compact controls to controls plus detail', async () => {
     const states = Array.from({ length: 6 }, (_, index): HaState => ({
       id: `sensor.room_${index + 1}`,
@@ -409,12 +423,14 @@ describe('HomeAssistantWidget — DOM contract', () => {
     expect(screen.queryByRole('button', { name: 'Run Evening routine' })).toBeNull()
   })
 
-  it('renders section[aria-label="Home Assistant"] at w-80', async () => {
+  it('renders Home Assistant inside one bounded frame instead of an intrinsic strip', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
     const section = await screen.findByRole('region', { name: 'Home Assistant' })
     expect(section.tagName).toBe('SECTION')
-    expect(section.className).toContain('w-80')
+    expect(section.className).toContain('tier-frame--standard')
+    expect(section.className).not.toContain('w-80')
+    expect(section.querySelector('[class*="overflow-y-auto"]')).toBeNull()
   })
 
   it('renders <button aria-label="Run {name}"> with the name as the visible text', async () => {
@@ -423,6 +439,7 @@ describe('HomeAssistantWidget — DOM contract', () => {
     const button = await screen.findByRole('button', { name: 'Run Movie night' })
     expect(button.tagName).toBe('BUTTON')
     expect(button.textContent).toBe('Movie night')
+    expect(button.className).toContain('text-sm')
   })
 })
 

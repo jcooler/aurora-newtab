@@ -77,6 +77,28 @@ describe('RssWidget', () => {
     expect(screen.queryByText('Hacker News')).toBeNull()
   })
 
+  it.each([
+    ['compact', 'compact', 1],
+    ['standard', 'standard', 4],
+    ['expanded', 'full', 6],
+  ] as const)('uses the exact %s authored frame with bounded linked headlines', async (stageVariant, tier, expectedRows) => {
+    const headlines = Array.from({ length: 10 }, (_, i): Headline => ({
+      source: `Source ${i}`,
+      title: `Framed headline ${i}`,
+      url: `https://example.com/framed-${i}`,
+      publishedAt: 100 - i,
+    }))
+    mount(await seededStorage({ enabled: true, feeds: ['https://example.com/feed'], shownCount: 10 }, headlines), stageVariant)
+    await screen.findByText('Framed headline 0')
+    const frame = screen.getByRole('region', { name: 'Headlines' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.querySelectorAll('li')).toHaveLength(expectedRows)
+    expect(frame.querySelectorAll('li a')).toHaveLength(expectedRows)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelector('[class*="overflow-y-auto"], [class*="overflow-y-scroll"]')).toBeNull()
+  })
+
   it('drops feed A immediately while a preserved mount waits for feed B', async () => {
     const configForA: RssConfig = {
       enabled: true,
@@ -138,60 +160,6 @@ describe('RssWidget', () => {
     expect(screen.getByText('The Verge')).toBeTruthy()
   })
 
-  it('trims to the first RSS_SHORT_ROWS (4) rows on the short tier: rows past the 4th carry short:hidden, the first four do not (re-derived with the compact card — 4 compact rows clear the Notes pill by 35px at the 451 short floor)', async () => {
-    // Six headlines so there are rows beyond the 4-row short cap. jsdom has no
-    // media queries, so this pins the class WIRING; the live 451h no-overlap +
-    // pill-clickable proof is scripts/preview.mjs's rail probe.
-    const six: Headline[] = [0, 1, 2, 3, 4, 5].map((i) => ({
-      source: `Src ${i}`,
-      title: `Row ${i} headline`,
-      url: `https://example.com/${i}`,
-      publishedAt: 50 - i,
-    }))
-    const storage = await seededStorage(
-      { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
-      six,
-    )
-    const { container } = mount(storage)
-    await screen.findByText('Row 0 headline')
-    const rows = [...container.querySelectorAll('li')]
-    expect(rows.length).toBe(6)
-    // First four always visible; rows 5th+ drop on short (row-level, so the
-    // card CONDENSES rather than disappearing entirely — headlines survive short).
-    expect(rows[0].className).toBe('')
-    expect(rows[3].className).toBe('')
-    expect(rows[4].classList.contains('short:hidden')).toBe(true)
-    expect(rows[5].classList.contains('short:hidden')).toBe(true)
-  })
-
-  it('does NOT trim on the mid tier anymore: the compact (dense) 8-row card fits the 601px mid floor with 41px to spare, so no row carries mid:hidden (RSS_MID_ROWS raised to the display max)', async () => {
-    // Eight headlines (RSS's display max, shownCount:8). jsdom has no media
-    // queries, so this pins the class WIRING; the live 601h no-overlap +
-    // pill-clickable proof is the mid-height and resize-sweep probes in
-    // scripts/preview.mjs.
-    const eight: Headline[] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({
-      source: `Src ${i}`,
-      title: `Row ${i} headline`,
-      url: `https://example.com/${i}`,
-      publishedAt: 50 - i,
-    }))
-    const storage = await seededStorage(
-      { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
-      eight,
-    )
-    const { container } = mount(storage)
-    await screen.findByText('Row 0 headline')
-    const rows = [...container.querySelectorAll('li')]
-    expect(rows.length).toBe(8)
-    // NO row carries mid:hidden — the compact card shows every headline on mid
-    // (the deploys card below it yields on dense instead, freeing the room).
-    for (let i = 0; i < 8; i++) expect(rows[i].classList.contains('mid:hidden')).toBe(false)
-    // The short trim still applies to rows past the 4th (a disjoint tier).
-    expect(rows[3].classList.contains('short:hidden')).toBe(false)
-    expect(rows[4].classList.contains('short:hidden')).toBe(true)
-    expect(rows[7].classList.contains('short:hidden')).toBe(true)
-  })
-
   it('progresses from prioritized headlines to a fuller configured feed by allocation variant', async () => {
     const eight: Headline[] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({
       source: `Src ${i}`,
@@ -205,18 +173,18 @@ describe('RssWidget', () => {
     )
     const view = mount(storage, 'compact')
     await screen.findByText('Variant 0 headline')
-    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(2)
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(1)
 
     view.rerender(<StorageProvider storage={storage}><RssWidget stageVariant="standard" /></StorageProvider>)
-    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(6)
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(4)
 
     view.rerender(<StorageProvider storage={storage}><RssWidget stageVariant="expanded" /></StorageProvider>)
     expect([...document.querySelectorAll('section[aria-label="Headlines"] li a')].map((row) => row.getAttribute('href'))).toEqual(
-      eight.map(({ url }) => url),
+      eight.slice(0, 6).map(({ url }) => url),
     )
   })
 
-  it('uses the Full Canvas variant cap for all 10 configured headlines', async () => {
+  it('uses the Full frame cap for six configured headlines and routes each visible row to its article', async () => {
     const ten: Headline[] = Array.from({ length: 10 }, (_, i) => ({
       source: 'Example',
       title: `Full headline ${i}`,
@@ -230,7 +198,8 @@ describe('RssWidget', () => {
     mount(storage, 'expanded')
 
     await screen.findByText('Full headline 0')
-    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(10)
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(6)
+    expect(screen.queryByText('Full headline 6')).toBeNull()
   })
 
   it("each headline is an external link (target=_blank, rel carries noopener + noreferrer)", async () => {

@@ -19,11 +19,18 @@ import type { ConnectorConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 import DockLine from '../shared/DockLine'
+import TierFrame, { type TierFrameTier } from '../shared/TierFrame'
 
 const HA_VARIANT_LIMITS: Readonly<Record<WidgetVariant, Readonly<{ states: number; actions: number }>>> = {
   compact: { states: 2, actions: 0 },
   standard: { states: 4, actions: 2 },
   expanded: { states: 6, actions: 3 },
+}
+
+const HA_FRAME_TIER: Readonly<Record<WidgetVariant, TierFrameTier>> = {
+  compact: 'compact',
+  standard: 'standard',
+  expanded: 'full',
 }
 
 // The Home Assistant widget — Task 102 (W3-SP5), the ninth connector's board
@@ -41,15 +48,9 @@ const HA_VARIANT_LIMITS: Readonly<Record<WidgetVariant, Readonly<{ states: numbe
 // it failed. This is why the inner gate below checks `data.entities === null`
 // rather than rendering the buttons unconditionally once picked.
 //
-// This widget is modeled on StatusWidget.tsx's own shape (a snapshot-backed
-// connector widget with NO settings-tab toggle — see registry.ts's own
-// homeassistantDescriptor comment: `settings.widgets` has no `homeassistant`
-// member, this is a connector card, not a Widgets-tab entry), not on
-// GitlabWidget's panel-card shape: the section below floats DIRECTLY on the
-// photo (no bg-panel-solid/rounded-2xl/shadow-lg), the same "slim floating
-// strip, not a panel" idiom CryptoWidget.tsx's own doc comment documents —
-// see its ink discipline note on ActionButton below for why the chips need
-// the fixed `-canvas-` ink family and the buttons don't.
+// This widget is snapshot-backed with no Widgets-tab toggle. The shared tier
+// frame owns its panel-adaptive surface and ink; the utility tray remains a
+// portal fed by this same mounted snapshot owner.
 
 /** Narrow `connectors.homeassistant` (a ConnectorConfig union member, or
  *  undefined) to a CONNECTED HomeAssistantConfig, defensively — same shape as
@@ -212,45 +213,47 @@ function HomeAssistantInner({
   const actionLimit = stageVariant === 'compact' && chips.length === 0 ? 1 : limits.actions
   const visibleActions = actions.slice(0, actionLimit)
 
+  const selectionSummary = [
+    chips.length > 0 ? `${chips.length} states` : null,
+    actions.length > 0 ? `${actions.length} actions` : null,
+  ].filter((value): value is string => value !== null).join(' · ')
   const dashboard = (
-    // A slim floating card, not a panel — no bg-panel-solid/rounded-2xl/
-    // shadow-lg (unlike GithubWidget/GitlabWidget/JiraWidget/VercelWidget in
-    // this same rail column): CryptoWidget.tsx's own "slim floating STRIP,
-    // not a panel" idiom, `w-80` only for width parity with the panel cards
-    // stacked above it in this column (ics/rss/vercel), not for a shared
-    // surface. Left-aligned (this column's own `items-start`), not
-    // text-center (unlike the bottom band's centered strips).
-    <section aria-label="Home Assistant" data-ha-content-variant={stageVariant} className="w-80 text-fg">
-      {visibleChips.length > 0 && (
-        <ul className="flex flex-wrap gap-x-3 gap-y-1">
-          {visibleChips.map((s) => (
-            // Photo-floating text — `-canvas-` ink (StatusWidget.tsx:134-151's
-            // own "the trap": a panel-adaptive `text-fg` here would silently
-            // re-tint toward black under a light panelColor pick, since this
-            // chip has no panel surface of its own to carry that tint against)
-            // plus `text-photo`'s edge-definition shadow, the same pairing
-            // every other direct-on-photo text in this app uses (Clock,
-            // Greeting, CryptoWidget's own coin cells).
-            <li key={s.id} className="text-photo text-sm text-canvas-fg">
-              {chipCopy(s)}
-            </li>
-          ))}
-        </ul>
-      )}
-      {visibleActions.length > 0 && (
-        <div className={`flex flex-wrap gap-2${visibleChips.length > 0 ? ' mt-2' : ''}`}>
-          {visibleActions.map((a) => (
-            <ActionButton
-              key={a.id}
-              action={a}
-              instanceUrl={instanceUrl}
-              token={token}
-              snapshotEpoch={config.snapshotEpoch}
-            />
-          ))}
-        </div>
-      )}
-    </section>
+    <TierFrame
+      label="Home Assistant"
+      tier={HA_FRAME_TIER[stageVariant]}
+      state="ready"
+      data-ha-content-variant={stageVariant}
+      className="flex min-h-0 flex-col"
+    >
+      <header className="flex min-h-9 items-center justify-between gap-3 border-b border-hairline px-3 py-2">
+        <h2 className="text-sm font-semibold">Home Assistant</h2>
+        <span className="text-[11px] text-fg-muted">{selectionSummary}</span>
+      </header>
+      <div className="min-h-0 flex-1 overflow-hidden p-3">
+        {visibleChips.length > 0 && (
+          <ul className="flex flex-wrap gap-x-3 gap-y-1">
+            {visibleChips.map((s) => (
+              <li key={s.id} className="text-sm text-fg">
+                {chipCopy(s)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {visibleActions.length > 0 && (
+          <div className={`flex flex-wrap gap-2${visibleChips.length > 0 ? ' mt-2' : ''}`}>
+            {visibleActions.map((a) => (
+              <ActionButton
+                key={a.id}
+                action={a}
+                instanceUrl={instanceUrl}
+                token={token}
+                snapshotEpoch={config.snapshotEpoch}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </TierFrame>
   )
   const tray = utilityTray?.activeTool === 'homeassistant' && utilityTray.host
     ? createPortal(
@@ -302,10 +305,10 @@ function HomeAssistantInner({
 // change, so a press reads as "acknowledged" a beat before the real
 // success/error tint lands.
 const BTN_TINT = {
-  idle: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
-  pending: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] scale-95 brightness-125 transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:scale-100',
-  success: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-accent shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
-  error: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-red-400 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
+  idle: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-sm text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
+  pending: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-sm text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] scale-95 brightness-125 transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:scale-100',
+  success: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-sm text-accent shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
+  error: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-sm text-red-400 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
 } as const satisfies Record<OperationState, string>
 
 /** One independently guarded Home Assistant service call. Configuration

@@ -4,11 +4,18 @@ import { fetchHeadlines, type Headline } from '../../../services/connectors/rss'
 import type { RssConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
 import DockLine from '../shared/DockLine'
+import TierFrame, { type TierFrameTier } from '../shared/TierFrame'
 
-const RSS_VARIANT_ROWS: Readonly<Record<WidgetVariant, number>> = {
-  compact: 2,
-  standard: 6,
-  expanded: 10,
+const RSS_FRAME_ROWS: Readonly<Record<WidgetVariant, number>> = {
+  compact: 1,
+  standard: 4,
+  expanded: 6,
+}
+
+const RSS_FRAME_TIER: Readonly<Record<WidgetVariant, TierFrameTier>> = {
+  compact: 'compact',
+  standard: 'standard',
+  expanded: 'full',
 }
 
 export default function RssWidget({
@@ -37,36 +44,6 @@ export default function RssWidget({
   return <RssInner rss={rss} stageVariant={stageVariant} docked={docked} />
 }
 
-// Short-tier row cap (resize-continuity task — RE-DERIVED for the compact/dense
-// skin). On the `short` tier (451-600px tall) the bottom-anchored Notes pill
-// rises as the window shrinks: its top is (viewport - bottom-4(16px) -
-// pill-height(38px)) = viewport - 54, so at the tier's OWN worst case — its 451px
-// MINIMUM — the pill top sits at 397px. This card's top is fixed by the flow
-// above it: rail-top-left(120) + the COMPACT calendar(~70) + the 16px flow gap
-// => rss top ~206. MEASURED (scripts/preview.mjs rail probe, 1600x451): with the
-// dense skin (p-2 + text-xs rows) each row is ~36px and the card chrome ~12px, so
-// N rows = 12 + 36N px. N=4 (card ~156, bottom ~362) clears the 397 pill top by
-// 35px; N=5 (bottom ~398) would overrun it — 4 is the most rows that still hold
-// the >=16px floor. `xshort` (<=450) hides the whole card via the wrapper's own
-// xshort:hidden, so this only governs `short`.
-const RSS_SHORT_ROWS = 4
-
-// Mid-tier row cap (resize-continuity task — RE-DERIVED for the compact/dense
-// skin: RAISED to the display max, i.e. NO trim on mid). On `mid` (601-864) the
-// bottom-anchored Notes pill sits at 547 at the tier's 601px worst (height-54),
-// and deploys (vercel) yields across the whole dense band (see App.tsx), leaving
-// THIS card as the left column's lowest — its bottom is what must clear the pill.
-// MEASURED (scripts/preview.mjs's short|mid fencepost, 1600x601): with the dense
-// skin (row ~36px, p-2 chrome ~12px => N rows = 12 + 36N) and the compact
-// calendar above it (rss top ~206), the 8-row mid-tier card bottoms at ~506 —
-// clearing the 547 pill by 41px. So the compact card fits every headline on mid
-// with room to spare and needs no trim: the mid-tier cap is 8. Full Canvas can
-// use its taller allocation for 10 configured headlines; `short`
-// (RSS_SHORT_ROWS=4) trims because its 451px floor puts the pill ~150px higher;
-// `xshort` hides the whole card. The three tiers are disjoint (index.css), so
-// only one row cap ever applies at a time.
-const RSS_MID_ROWS = 8
-
 function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant: WidgetVariant; docked?: boolean }) {
   const { feeds, shownCount } = rss
   // Stale-while-refreshing by construction: the hook returns the cached
@@ -81,7 +58,8 @@ function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant:
   // Cap at shownCount here too, not just in the service: a snapshot written
   // under a larger shownCount that the user later lowered must honor the
   // current setting without waiting for the next refresh.
-  const headlines = (data ?? []).slice(0, Math.min(shownCount, RSS_VARIANT_ROWS[stageVariant]))
+  const availableHeadlines = (data ?? []).slice(0, shownCount)
+  const headlines = availableHeadlines.slice(0, RSS_FRAME_ROWS[stageVariant])
   if (headlines.length === 0) return null
 
   // Docked tier (NL-P5 batch 2): the first headline as one dense line — the
@@ -89,34 +67,22 @@ function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant:
   if (docked) return <DockLine label="Headlines" facts={[headlines[0].title]} />
 
   return (
-    // Solid card (Jon's darker-color ruling — "put a background on the news
-    // rss stuff"): the same bg-panel-solid + rounded-2xl + shadow-lg card
-    // language GithubWidget uses, so the news column reads as a finished
-    // surface rather than bare photo-floating text. `p-2.5` + `gap-1`
-    // (tighter than GitHub's own p-3/gap-2) is deliberate and LOAD-BEARING,
-    // not cosmetic: carding adds padding+radius height, and the left column's
-    // measured mid-height floors are pinned against its 8-row mid-tier cap;
-    // the 10-row Full Canvas allocation is used only above that constrained tier.
-    // below by >=16px each (scripts/preview.mjs's ics + vercel gap probes,
-    // and the combined-defaults gate's 190-pair check, all re-measured for
-    // this batch). w-72 is unchanged (the horizontal extent, and the ~380px
-    // of clearance to the centered column, are the same as the bare version).
-    <section aria-label="Headlines" className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg">
-      <ul className="flex flex-col gap-1">
-        {headlines.map((h, i) => {
-          // Rows past RSS_SHORT_ROWS drop on `short`, and rows past RSS_MID_ROWS
-          // drop on `mid` too, so the card can't grow over the Notes pill at
-          // either tier's own worst-case floor (see the constants). The tiers
-          // are disjoint, so a row carrying both classes only ever hides under
-          // whichever one actually matches — never both at once.
-          const hide = [
-            i >= RSS_SHORT_ROWS ? 'short:hidden' : '',
-            i >= RSS_MID_ROWS ? 'mid:hidden' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')
+    <TierFrame
+      label="Headlines"
+      tier={RSS_FRAME_TIER[stageVariant]}
+      state="ready"
+      data-rss-content-variant={stageVariant}
+      className="flex min-h-0 flex-col"
+    >
+      <header className="flex min-h-8 items-center justify-between gap-3 border-b border-hairline px-3 py-1">
+        <h2 className="text-sm font-semibold">Headlines</h2>
+        <span className="text-[11px] text-fg-muted">{headlines.length} of {availableHeadlines.length}</span>
+      </header>
+      <div className="min-h-0 flex-1 overflow-hidden p-2">
+        <ul className="flex flex-col gap-0.5">
+        {headlines.map((h) => {
           return (
-            <li key={h.url} className={hide || undefined}>
+            <li key={h.url}>
             {/* External site, so target/rel differ from the in-page launcher
                 links: a new tab, and rel that severs window.opener and strips
                 the referrer. The whole row is one link — title is the click
@@ -133,20 +99,21 @@ function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant:
               title={h.title}
               className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
             >
-              <span data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{h.source}</span>
+              <span data-stage-text-tier="metadata" className="block truncate text-[11px] leading-4 text-fg-muted">{h.source}</span>
               {/* truncate is a single-line ellipsis — never a wrap, never a
                   scroll region — with the full string one hover away via the
                   title attribute on the link above. The list is capped at
                   shownCount rows in RssInner, so height is bounded by
                   construction rather than by a scroll container. */}
-              <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+              <span className="block truncate text-sm font-medium leading-5 text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
                 {h.title}
               </span>
             </a>
           </li>
           )
         })}
-      </ul>
-    </section>
+        </ul>
+      </div>
+    </TierFrame>
   )
 }

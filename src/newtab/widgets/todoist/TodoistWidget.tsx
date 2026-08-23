@@ -20,6 +20,12 @@ import type { ConnectorConfig, TodoistConfig } from '../../../services/connector
 import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
+const TODOIST_FRAME_ROWS: Readonly<Record<CanvasSize, number>> = {
+  compact: 0,
+  standard: 2,
+  full: 2,
+}
+
 function connectedTodoist(config: ConnectorConfig | undefined): TodoistConfig | null {
   if (!config || !('accountLabel' in config)) return null
   const todoist = config as TodoistConfig
@@ -73,11 +79,10 @@ function TodoistInner({ config, canvasSize, docked }: { config: TodoistConfig; c
   const overdue = tasks.filter((task) => task.bucket === 'overdue').length
   const dueToday = tasks.filter((task) => task.bucket === 'today').length
   const dockFacts = [`${dueToday} due today`, `${overdue} overdue`]
-  const visible = canvasSize === 'full'
-    ? tasks
-    : canvasSize === 'standard'
-      ? tasks.filter((task) => task.bucket !== 'upcoming').slice(0, todoistItemLimit(config))
-      : []
+  const tierTasks = canvasSize === 'standard'
+    ? tasks.filter((task) => task.bucket !== 'upcoming')
+    : tasks
+  const visible = tierTasks.slice(0, Math.min(TODOIST_FRAME_ROWS[canvasSize], todoistItemLimit(config)))
   const detailRows = tasks.slice(0, Math.min(3, todoistItemLimit(config)))
 
   const retry = () => {

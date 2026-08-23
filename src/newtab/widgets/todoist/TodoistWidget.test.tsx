@@ -64,6 +64,16 @@ describe('TodoistWidget', () => {
     expect((await storage.get('connectorSnapshots')).todoist).toBeUndefined()
   })
 
+  it.each(['compact', 'standard', 'full'] as const)('uses the exact %s frame for ready data', async (canvasSize) => {
+    mount(await seededStorage(CONNECTED), { canvasSize })
+    await screen.findByText('2 due')
+    const frame = screen.getByRole('region', { name: 'Todoist' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()
+  })
+
   it('renders Compact due facts without task rows', async () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'compact' })
     expect(await screen.findByText('2 due')).toBeTruthy()
@@ -92,14 +102,18 @@ describe('TodoistWidget', () => {
     expect(link.getAttribute('target')).toBe('_blank')
   })
 
-  it('keeps 25 Full rows in the local scrollport and opens named Docked detail', async () => {
+  it('bounds Full to two due rows without a card scroll owner and keeps named Docked detail', async () => {
     const fullTasks = [task(0, 'overdue'), task(1, 'today'), ...Array.from({ length: 23 }, (_, index) => task(index + 2, 'upcoming'))]
     const full = mount(await seededStorage(CONNECTED, { ...DATA, tasks: fullTasks }), { canvasSize: 'full' })
-    expect(await screen.findByText('Ship Aurora 24')).toBeTruthy()
+    expect(await screen.findByText('Ship Aurora 1')).toBeTruthy()
+    expect(screen.queryByText('Ship Aurora 2')).toBeNull()
+    expect(screen.queryByText('Ship Aurora 24')).toBeNull()
     expect(screen.getByRole('heading', { name: 'Overdue' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Upcoming' })).toBeTruthy()
-    expect(document.querySelector('[data-work-widget-scroll]')?.className).toContain('overflow-y-auto')
+    expect(screen.queryByRole('heading', { name: 'Upcoming' })).toBeNull()
+    const frame = screen.getByRole('region', { name: 'Todoist' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('full')
+    expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()
     full.unmount()
 
     mount(await seededStorage(CONNECTED), { docked: true })
