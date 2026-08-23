@@ -230,3 +230,29 @@ test('keeps Calendar useful and explicit through remote-source states', () => {
   assert.match(failure, /Month remains available/)
   assert.match(failure, /data-month-grid/)
 })
+
+test('renders every work identity with tier-specific structure and richer Full content', () => {
+  const workTargets = TARGET_WIDGETS.filter(({ family }) => family === 'work')
+  assert.equal(workTargets.length, 8)
+  for (const target of workTargets) {
+    for (const tier of target.tiers) {
+      const html = renderFace(target.id, tier)
+      assert.match(html, new RegExp(`data-work-signature="${target.id}"`))
+    }
+    if (target.tiers.includes('full')) assert.match(renderFace(target.id, 'full'), /data-full-detail/)
+  }
+
+  const githubStandard = renderFace('github', 'standard')
+  const githubFull = renderFace('github', 'full')
+  assert.ok(count(githubStandard, 'data-contribution-cell') >= 70)
+  assert.ok(count(githubFull, 'data-contribution-cell') > count(githubStandard, 'data-contribution-cell'))
+  assert.ok(count(renderFace('gitlab', 'compact'), 'data-contribution-cell') >= 35)
+
+  assert.match(renderFace('jira', 'standard'), /data-issue-key/)
+  assert.match(renderFace('vercel', 'standard'), /data-deployment-state/)
+  assert.match(renderFace('status', 'standard'), /Claude/)
+  assert.match(renderFace('status', 'standard'), /Operational|Degraded|Outage/)
+  assert.match(renderFace('linear', 'full'), /data-cycle-progress/)
+  assert.match(renderFace('sentry', 'full'), /data-issue-fingerprint/)
+  assert.match(renderFace('todoist', 'standard'), /data-due-lane/)
+})

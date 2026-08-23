@@ -720,6 +720,69 @@ h1 {
 .calendar-consolidation footer button { min-height: 30px; padding: 5px 9px; border: 1px solid #526174; border-radius: 8px; background: transparent; color: #dbe4ee; font-size: 8px; }
 .calendar-consolidation footer button:last-child { background: #dfe9f2; color: #17202b; }
 
+.work-dock { display: flex; min-width: 0; width: 100%; gap: 8px; align-items: baseline; }
+.work-dock strong { font-family: var(--font-data); font-size: 14px; }
+.work-dock span { font-size: 10px; }
+.work-dock i { margin-left: auto; overflow: hidden; color: #8f9daf; font-size: 9px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.contribution-face { display: grid; width: 100%; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; }
+.contribution-face header { display: flex; gap: 6px; align-items: baseline; }
+.contribution-face header strong { font-family: var(--font-display); font-size: 24px; font-weight: 500; }
+.contribution-face header span, .contribution-face header small { color: #99a7b8; font-size: 8px; }
+.contribution-face header small { margin-left: auto; }
+.contribution-graph { display: grid; min-height: 0; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 2px; align-content: stretch; }
+.contribution-graph i { min-width: 3px; border-radius: 1px; background: #313b49; }
+.contribution-graph i[data-level="1"] { background: #496959; }
+.contribution-graph i[data-level="2"] { background: #5f856d; }
+.contribution-graph i[data-level="3"] { background: #79a183; }
+.contribution-graph i[data-level="4"] { background: #9bc39f; }
+.contribution-face footer { display: flex; gap: 10px; color: #8f9daf; font-size: 7px; }
+.contribution-face--compact header strong { font-size: 18px; }
+
+.issue-face, .linear-face, .deployment-face, .sentry-face, .todoist-face, .status-face { display: grid; width: 100%; min-height: 0; align-content: start; gap: 7px; }
+.issue-distribution { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.issue-distribution span { color: #9aa8b8; font-size: 8px; }
+.issue-distribution span b { color: #eef3f8; font-family: var(--font-data); font-size: 17px; }
+.issue-distribution > i { grid-column: 1 / -1; height: 4px; background: #d1a270; }
+.work-rows { display: grid; }
+.work-rows article, .deployment-face article, .sentry-face article, .todoist-face article { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; min-height: 35px; gap: 7px; align-items: center; border-top: 1px solid rgb(255 255 255 / 8%); }
+.work-rows article > b { color: #9cc8ed; font-family: var(--font-data); font-size: 8px; }
+.work-rows article > div, .deployment-face article > div, .sentry-face article > div, .todoist-face article > div { display: grid; min-width: 0; }
+.work-rows strong, .work-rows span, .deployment-face strong, .deployment-face span, .sentry-face strong, .sentry-face span, .todoist-face strong, .todoist-face span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-rows strong, .deployment-face strong, .sentry-face strong, .todoist-face strong { font-size: 9px; }
+.work-rows span, .deployment-face span, .sentry-face span, .todoist-face span { color: #8593a4; font-size: 7px; }
+.work-rows small, .deployment-face small, .todoist-face small { color: #9eacbc; font-size: 7px; }
+.deployment-face article { grid-template-columns: 8px minmax(0, 1fr) auto; }
+.deployment-face article > i { width: 7px; height: 7px; border-radius: 50%; background: #8eb89a; }
+.deployment-face article[data-deployment-state="Building"] > i { background: #d6b36c; }
+.deployment-face footer { color: #8492a4; font-family: var(--font-data); font-size: 7px; }
+.status-face article { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; min-height: 27px; gap: 7px; align-items: center; border-top: 1px solid rgb(255 255 255 / 8%); }
+.status-face article i { width: 7px; height: 7px; border-radius: 50%; background: #8eb89a; }
+.status-face article[data-service-state="Degraded"] i { background: #d6b36c; }
+.status-face article strong { font-size: 9px; }
+.status-face article span { color: #9ca9b8; font-size: 7px; }
+.status-face--docked article { width: 100%; border: 0; }
+.linear-face > header { display: grid; grid-template-columns: 1fr auto; gap: 5px; }
+.linear-face > header strong { font-size: 10px; }
+.linear-face > header span { color: #9aa8b8; font-size: 8px; }
+.linear-face > header i { grid-column: 1 / -1; height: 4px; background: #3c4655; }
+.linear-face > header i b { display: block; height: 100%; background: #91b7d7; }
+.sentry-face > header, .todoist-face > header { display: flex; gap: 6px; align-items: baseline; }
+.sentry-face > header strong, .todoist-face > header strong { font-family: var(--font-display); font-size: 22px; font-weight: 500; }
+.sentry-face > header span, .todoist-face > header span { color: #98a6b7; font-size: 8px; }
+.sentry-face article { grid-template-columns: 8px minmax(0, 1fr); }
+.sentry-face article > i { width: 7px; height: 20px; background: #d47676; }
+.sentry-face article > i[data-level="warning"] { background: #d4ae6e; }
+.sentry-face code { color: #748497; font-family: var(--font-data); font-size: 6px; }
+.todoist-face > header span { margin-left: auto; color: #d58a82; }
+.todoist-face article { grid-template-columns: 13px minmax(0, 1fr) auto; }
+.todoist-face article > i { width: 11px; height: 11px; border: 1px solid #8594a7; border-radius: 50%; }
+.issue-face[data-full-detail], .deployment-face[data-full-detail], .linear-face[data-full-detail], .sentry-face[data-full-detail], .todoist-face[data-full-detail] { height: 100%; align-content: stretch; }
+.issue-face[data-full-detail], .linear-face[data-full-detail], .todoist-face[data-full-detail] { grid-template-rows: auto minmax(0, 1fr); }
+.issue-face[data-full-detail] .work-rows, .linear-face[data-full-detail] .work-rows { grid-template-rows: repeat(3, 1fr); }
+.deployment-face[data-full-detail] { grid-template-rows: repeat(3, 1fr) auto; }
+.sentry-face[data-full-detail] { grid-template-rows: auto repeat(3, 1fr); }
+.todoist-face[data-full-detail] > div { display: grid; grid-template-rows: repeat(4, 1fr); }
+
 .state-surface { display: grid; gap: 7px; align-content: center; }
 .state-surface span { color: #b9c4d2; font-size: 13px; }
 

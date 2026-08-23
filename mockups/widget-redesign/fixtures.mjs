@@ -135,6 +135,57 @@ const FIXTURES = Object.freeze({
     current: '3.7', label: 'Unsettled', peak: 'Kp 5.0 at 11 PM',
     forecast: Object.freeze([2.1, 2.8, 3.7, 4.2, 5.0, 4.4, 3.6, 3.0, 2.4, 2.1, 1.8, 2.2]),
   }),
+  github: Object.freeze({ count: 684, streak: 18, reviews: 4, prs: 3, issues: 7, notifications: 5 }),
+  gitlab: Object.freeze({ count: 412, streak: 11, reviews: 3, prs: 6, issues: 4, notifications: 2 }),
+  jira: Object.freeze({
+    assigned: 12, due: 3,
+    issues: Object.freeze([
+      Object.freeze({ key: 'AUR-214', title: 'Calendar consolidation review', state: 'In review', priority: 'High' }),
+      Object.freeze({ key: 'AUR-209', title: 'Weather full-density pass', state: 'In progress', priority: 'Medium' }),
+      Object.freeze({ key: 'AUR-201', title: 'Core tier measurements', state: 'Done', priority: 'Low' }),
+    ]),
+  }),
+  vercel: Object.freeze({
+    project: 'aurora-catalog', state: 'Ready', age: '8m ago', branch: 'feat/widget-redesign', duration: '42s',
+    deployments: Object.freeze([
+      Object.freeze({ project: 'aurora-catalog', state: 'Ready', age: '8m', branch: 'widget-redesign' }),
+      Object.freeze({ project: 'portfolio', state: 'Building', age: '2m', branch: 'main' }),
+      Object.freeze({ project: 'graze', state: 'Ready', age: '1h', branch: 'quote-flow' }),
+    ]),
+  }),
+  status: Object.freeze({
+    services: Object.freeze([
+      Object.freeze({ name: 'Claude', state: 'Operational' }),
+      Object.freeze({ name: 'GitHub', state: 'Operational' }),
+      Object.freeze({ name: 'Vercel', state: 'Degraded' }),
+      Object.freeze({ name: 'Cloudflare', state: 'Operational' }),
+    ]),
+  }),
+  linear: Object.freeze({
+    assigned: 9, due: 2, cycle: 'Widget systems', completed: 18, total: 27,
+    issues: Object.freeze([
+      Object.freeze({ key: 'AUR-88', title: 'Approve Calendar states', state: 'Review', team: 'Design' }),
+      Object.freeze({ key: 'AUR-84', title: 'Build work identity boards', state: 'Started', team: 'Web' }),
+      Object.freeze({ key: 'AUR-79', title: 'Verify measured tiers', state: 'Done', team: 'QA' }),
+    ]),
+  }),
+  sentry: Object.freeze({
+    unresolved: 14,
+    issues: Object.freeze([
+      Object.freeze({ title: 'TypeError in Calendar sync', events: 284, age: '12m', fingerprint: 'calendar-sync-42', level: 'error' }),
+      Object.freeze({ title: 'Weather refresh timeout', events: 61, age: '2h', fingerprint: 'weather-fetch-08', level: 'warning' }),
+      Object.freeze({ title: 'Stack position mismatch', events: 18, age: '1d', fingerprint: 'stack-layout-17', level: 'error' }),
+    ]),
+  }),
+  todoist: Object.freeze({
+    due: 6, overdue: 2,
+    tasks: Object.freeze([
+      Object.freeze({ title: 'Review Calendar full view', lane: 'Overdue', project: 'Aurora', priority: 'P1' }),
+      Object.freeze({ title: 'Inspect work widgets', lane: 'Today', project: 'Aurora', priority: 'P1' }),
+      Object.freeze({ title: 'Write QA notes', lane: 'Today', project: 'Personal', priority: 'P2' }),
+      Object.freeze({ title: 'Prepare owner walkthrough', lane: 'Upcoming', project: 'Aurora', priority: 'P2' }),
+    ]),
+  }),
 })
 
 const SCENARIOS = Object.freeze({

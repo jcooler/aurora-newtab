@@ -125,6 +125,17 @@ const calendarSkyGallery = () => {
   `
 }
 
+const workGallery = () => {
+  const targets = TARGET_WIDGETS.filter(({ family }) => family === 'work')
+  return `<section class="family-gallery family-gallery--work" aria-labelledby="work-title" data-family-section="work">
+    <div class="section-heading"><div><span class="eyebrow">Work pulse · 8 identities</span><h2 id="work-title">Pressure, progress, and health.</h2></div><p>Each service keeps the visual structure that makes it recognizable, with larger tiers adding decisions rather than empty canvas.</p></div>
+    <div class="showcase-list">${targets.map((target, index) => `<article class="widget-showcase" data-work-showcase="${target.id}" data-family="work" data-search="${target.label.toLowerCase()}">
+      <header class="widget-showcase__heading"><span>${String(index + 1).padStart(2, '0')}</span><div><h3>${target.label}</h3><p>${target.budgets[target.primaryTier].purpose}</p></div><small>${target.presentation}</small></header>
+      <div class="capture-run" aria-label="${target.label} tier comparison">${target.tiers.map((tier) => `<div class="capture-stage capture-stage--${tier}"><span>${tier}</span>${renderWidgetFace({ id: target.id, tier, state: 'ready', theme: 'dark' }, fixtureFor(target.id, 'dense'))}</div>`).join('')}</div>
+    </article>`).join('')}</div>
+  </section>`
+}
+
 const shell = `
   <div class="catalog" data-catalog-app>
     <header class="catalog-hero">
@@ -159,7 +170,7 @@ const shell = `
         </select>
       </label>
     </nav>
-    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${calendarSkyGallery()}${inventory()}`}
+    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${calendarSkyGallery()}${workGallery()}${inventory()}`}
     <footer class="catalog-footer">
       <span>Design-only HTML/CSS</span>
       <span>${SOURCE_WIDGET_IDS.length} sources checked</span>
