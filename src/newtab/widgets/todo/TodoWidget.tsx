@@ -207,7 +207,6 @@ function TodoInner({
                 <p className="rounded-lg border border-dashed border-panel-border px-3 py-3 text-sm text-fg-muted">No open tasks. Your queue is clear.</p>
               ) : null}
             </div>
-            {openItems.length > 2 ? <p className="text-[11px] text-fg-muted">+{openItems.length - 2} more in Tasks</p> : null}
           </div>
         </TierFrame>
       )}

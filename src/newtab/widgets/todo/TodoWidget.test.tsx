@@ -62,6 +62,7 @@ describe('TodoWidget', () => {
     const actions = screen.getAllByRole('checkbox')
     expect(actions).toHaveLength(2)
     expect(screen.queryByText('Archive old layouts')).toBeNull()
+    expect(screen.queryByText('+1 more in Tasks')).toBeNull()
 
     fireEvent.click(actions[0]!)
     await act(async () => {})
