@@ -320,7 +320,7 @@ function CalendarMonth({ items, todayKey, weekStart, viewControl, roomy = false 
         {viewControl}
       </div>
       <table aria-label={label} className="mt-0.5 w-full table-fixed border-collapse text-center">
-        <thead><tr>{weekdays.map((day, index) => <th key={`${day}-${index}`} scope="col" className="pb-0.5 text-[10px] font-medium text-fg-muted">{day}</th>)}</tr></thead>
+        <thead><tr>{weekdays.map((day, index) => <th key={`${day}-${index}`} scope="col" className="pb-0.5 text-[11px] font-medium text-fg-muted">{day}</th>)}</tr></thead>
         <tbody>
           {Array.from({ length: 6 }, (_, row) => (
             <tr key={row}>

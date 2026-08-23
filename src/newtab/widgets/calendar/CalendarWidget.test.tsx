@@ -233,6 +233,7 @@ describe('CalendarWidget', () => {
     expect(screen.getByTestId('calendar-full-month').querySelector('[data-calendar-density="roomy"]')).toBeTruthy()
     expect(screen.getByTestId('calendar-full-agenda')).toBeTruthy()
     expect(screen.getAllByRole('region', { name: 'Calendar' })).toHaveLength(1)
+    expect([...screen.getAllByRole('columnheader')].every((header) => header.className.includes('text-[11px]'))).toBe(true)
   })
 
   it.each(['compact', 'standard'] as const)('renders the %s agenda in its exact ready TierFrame', async (canvasSize) => {
