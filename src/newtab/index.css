@@ -85,7 +85,7 @@
 .weather-summary-full-context dt {
   overflow: hidden;
   color: var(--tier-frame-muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
