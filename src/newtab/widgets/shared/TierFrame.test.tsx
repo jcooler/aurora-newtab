@@ -60,7 +60,8 @@ describe('TierFrame', () => {
   it('pins exact desktop frames, proportional narrow safety, adaptive panel tokens, focus, and motion safety', () => {
     const frame = declarationBlock('.tier-frame')
     expect(frame).toMatch(/box-sizing:\s*border-box\s*;/)
-    expect(frame).toMatch(/width:\s*min\(var\(--tier-frame-width\),\s*calc\(100vw - 24px\)\)\s*;/)
+    expect(frame).toMatch(/width:\s*var\(--tier-frame-width\)\s*;/)
+    expect(frame).toMatch(/max-width:\s*calc\(100vw - 24px\)\s*;/)
     expect(frame).toMatch(/flex:\s*0 0 auto\s*;/)
     expect(frame).toMatch(/height:\s*auto\s*;/)
     expect(frame).toMatch(/aspect-ratio:\s*var\(--tier-frame-ratio\)\s*;/)
