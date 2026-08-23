@@ -112,8 +112,8 @@ Omit optional files from `git add` when RED proves no production change is neede
 - Modify: `src/newtab/widgets/shared/TierFrame.test.tsx` only with the matching RED
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Add RED shell tests.** For ready, loading, empty, stale/retained, permission/setup, partial, and hard-error examples, require one exact `TierFrame`, stable tier/state attributes, no `data-work-widget-scroll` or `data-browser-widget-scroll`, no `overflow-y-auto`/`scroll`, and a bounded details/refresh path. Pin routine text at 14px where possible and metadata at 11px.
-- [ ] **Step 2: Observe RED.** Run:
+- [x] **Step 1: Add RED shell tests.** For ready, loading, empty, stale/retained, permission/setup, partial, and hard-error examples, require one exact `TierFrame`, stable tier/state attributes, no `data-work-widget-scroll` or `data-browser-widget-scroll`, no `overflow-y-auto`/`scroll`, and a bounded details/refresh path. Pin routine text at 14px where possible and metadata at 11px.
+- [x] **Step 2: Observe RED.** Run:
 
 ```powershell
 npx vitest run src/newtab/widgets/work/WorkWidgetShell.test.tsx src/newtab/widgets/browser/BrowserWidgetShell.test.tsx src/newtab/widgets/shared/TierFrame.test.tsx
@@ -121,8 +121,8 @@ npx vitest run src/newtab/widgets/work/WorkWidgetShell.test.tsx src/newtab/widge
 
 Expected: both shells use intrinsic width classes and local vertical scroll owners.
 
-- [ ] **Step 3: Implement presentation-only shells.** Replace shell geometry with `TierFrame`; retain `WorkResourceBody`, `BrowserResourceBody`, Dock details, portals, focus return, retries, and state semantics. The shell owns header/body framing only. It does not choose row counts or fetch data.
-- [ ] **Step 4: Run GREEN and commit.** Run the Step 2 command, TypeScript, and diff hygiene, then commit:
+- [x] **Step 3: Implement presentation-only shells.** Replace shell geometry with `TierFrame`; retain `WorkResourceBody`, `BrowserResourceBody`, Dock details, portals, focus return, retries, and state semantics. The shell owns header/body framing only. It does not choose row counts or fetch data.
+- [x] **Step 4: Run GREEN and commit.** Run the Step 2 command, TypeScript, and diff hygiene, then commit:
 
 ```powershell
 git add src/newtab/widgets/work/WorkWidgetShell.tsx src/newtab/widgets/work/WorkWidgetShell.test.tsx src/newtab/widgets/browser/BrowserWidgetShell.tsx src/newtab/widgets/browser/BrowserWidgetShell.test.tsx src/newtab/widgets/glance/GlanceWidgetShell.tsx src/newtab/widgets/shared/TierFrame.tsx src/newtab/widgets/shared/TierFrame.test.tsx src/newtab/index.css

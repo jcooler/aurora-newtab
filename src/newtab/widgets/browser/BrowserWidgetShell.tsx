@@ -4,11 +4,15 @@ import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import type { BrowserResourceState } from '../../../lib/hooks/useBrowserResource'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { anchorPanel } from '../../../lib/layout/anchor'
+import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationState } from '../../widgetSizeContracts'
 
-const SIZE_CLASS: Record<CanvasSize, string> = {
-  compact: 'w-[min(18rem,calc(100vw_-_2rem))]',
-  standard: 'w-[min(22rem,calc(100vw_-_2rem))]',
-  full: 'w-[min(30rem,calc(100vw_-_2rem))]',
+function browserFrameState<T>(state: BrowserResourceState<T>, empty: boolean): WidgetPresentationState {
+  if (state.status === 'checking') return 'loading'
+  if (state.status === 'permission-required') return 'permission-required'
+  if (state.status === 'error') return state.data === null ? 'hard-error' : 'stale'
+  if (empty) return 'empty'
+  return state.refreshing ? 'stale' : 'ready'
 }
 
 export function browserDockSummary<T>(
@@ -89,12 +93,13 @@ export function BrowserWidgetShell<T>({
   children: ReactNode
 }) {
   return (
-    <section
-      aria-label={title}
+    <TierFrame
+      label={title}
+      tier={canvasSize}
+      state={browserFrameState(state, empty)}
       data-browser-widget=""
       data-browser-resource-state={state.status}
-      data-canvas-size={canvasSize}
-      className={`${SIZE_CLASS[canvasSize]} overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}
+      className="flex min-h-0 flex-col"
     >
       <header className="flex min-h-10 items-center justify-between gap-3 border-b border-hairline px-3 py-2">
         <h2 className="text-sm font-semibold">{title}</h2>
@@ -102,7 +107,7 @@ export function BrowserWidgetShell<T>({
           <span className="text-xs text-fg-muted">Refreshing…</span>
         ) : null}
       </header>
-      <div data-browser-widget-scroll="" className="max-h-[min(42rem,calc(100vh_-_6rem))] overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-hidden p-3">
         <BrowserResourceBody
           title={title}
           state={state}
@@ -113,7 +118,7 @@ export function BrowserWidgetShell<T>({
           {children}
         </BrowserResourceBody>
       </div>
-    </section>
+    </TierFrame>
   )
 }
 

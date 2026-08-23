@@ -12,6 +12,7 @@ describe('BrowserWidgetShell', () => {
     )
     expect(screen.getByText('Enable Reading List in Settings.')).toBeTruthy()
     expect(screen.queryByText('rows')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Reading List' }).dataset.tierFrameState).toBe('permission-required')
 
     view.rerender(
       <BrowserWidgetShell title="Reading List" canvasSize="standard" state={{ status: 'checking' }} empty={false} emptyLabel="Reading list clear">
@@ -19,6 +20,7 @@ describe('BrowserWidgetShell', () => {
       </BrowserWidgetShell>,
     )
     expect(screen.getByText('Checking Reading List…')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Reading List' }).dataset.tierFrame).toBe('standard')
 
     view.rerender(
       <BrowserWidgetShell title="Reading List" canvasSize="full" state={{ status: 'ready', data: [], refreshedAt: 1, refreshing: false }} empty emptyLabel="Reading list clear">
@@ -26,6 +28,7 @@ describe('BrowserWidgetShell', () => {
       </BrowserWidgetShell>,
     )
     expect(screen.getByText('Reading list clear')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Reading List' }).dataset.tierFrameState).toBe('empty')
   })
 
   it('retains children with a visible stale/error message and bounded Refresh', () => {
@@ -41,16 +44,16 @@ describe('BrowserWidgetShell', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
-  it('bounds maximum result sets inside a local widget scrollport', () => {
+  it('keeps maximum result fixtures inside one exact frame with no local scroll owner', () => {
     render(
       <BrowserWidgetShell title="Downloads" canvasSize="full" state={{ status: 'ready', data: Array.from({ length: 25 }), refreshedAt: 1, refreshing: false }} empty={false} emptyLabel="No downloads">
         <p>maximum rows</p>
       </BrowserWidgetShell>,
     )
-    const scrollport = document.querySelector('[data-browser-widget-scroll]')
-    expect(scrollport).toBeTruthy()
-    expect(scrollport?.className).toContain('overflow-y-auto')
-    expect(scrollport?.className).toContain('max-h-')
+    const shell = screen.getByRole('region', { name: 'Downloads' })
+    expect(shell.dataset.tierFrame).toBe('full')
+    expect(document.querySelector('[data-browser-widget-scroll]')).toBeNull()
+    expect(shell.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
   })
 
   it('keeps every degraded resource state as one truthful dock line with detail and retry', async () => {

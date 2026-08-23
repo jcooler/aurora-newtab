@@ -38,6 +38,15 @@ describe('TierFrame', () => {
     expect(frame.textContent).toBe('Forecast')
   })
 
+  it('passes presentation evidence attributes to the one painted section', () => {
+    render(
+      <TierFrame label="Linear" tier="compact" state="loading" data-work-resource-state="loading">
+        <p>Loading Linear</p>
+      </TierFrame>,
+    )
+    expect(screen.getByRole('region', { name: 'Linear' }).getAttribute('data-work-resource-state')).toBe('loading')
+  })
+
   it('pins exact desktop frames, proportional narrow safety, adaptive panel tokens, focus, and motion safety', () => {
     const frame = declarationBlock('.tier-frame')
     expect(frame).toMatch(/box-sizing:\s*border-box\s*;/)

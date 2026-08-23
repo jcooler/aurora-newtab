@@ -16,7 +16,7 @@ const CASES: Array<[WorkPresentationState, string]> = [
 
 describe('WorkWidgetShell', () => {
   it.each<WorkPresentationState>(['setup', 'loading', 'empty', 'hard-error'])(
-    'shrinks the %s no-row state to its useful content',
+    'keeps the %s state inside the requested exact frame',
     (presentation) => {
       render(
         <WorkWidgetShell
@@ -29,7 +29,10 @@ describe('WorkWidgetShell', () => {
           <p>ISS-42</p>
         </WorkWidgetShell>,
       )
-      expect(screen.getByRole('region', { name: 'Linear' }).className).toContain('w-max')
+      const shell = screen.getByRole('region', { name: 'Linear' })
+      expect(shell.dataset.tierFrame).toBe('full')
+      expect(shell.className).toContain('tier-frame--full')
+      expect(shell.className).not.toContain('w-max')
     },
   )
 
@@ -45,7 +48,9 @@ describe('WorkWidgetShell', () => {
       </WorkWidgetShell>,
     )
     const shell = screen.getByRole('region', { name: 'Linear' })
-    expect(shell.className).toContain('w-[min(30rem,calc(100vw_-_2rem))]')
+    expect(shell.dataset.tierFrame).toBe('full')
+    expect(shell.dataset.tierFrameState).toBe('ready')
+    expect(shell.className).toContain('tier-frame--full')
     expect(shell.className).not.toContain('w-max')
   })
 
@@ -64,7 +69,7 @@ describe('WorkWidgetShell', () => {
     expect(screen.getByText(expected)).toBeTruthy()
   })
 
-  it('keeps retained data visible with retry and bounds Full results to a local scrollport', () => {
+  it('keeps retained data visible with retry and never creates a framed-card scroll owner', () => {
     const refresh = vi.fn()
     render(
       <WorkWidgetShell
@@ -79,9 +84,10 @@ describe('WorkWidgetShell', () => {
       </WorkWidgetShell>,
     )
     expect(screen.getByText('ISS-42')).toBeTruthy()
-    const scrollport = document.querySelector('[data-work-widget-scroll]')
-    expect(scrollport?.className).toContain('overflow-y-auto')
-    expect(scrollport?.className).toContain('max-h-')
+    const shell = screen.getByRole('region', { name: 'Linear' })
+    expect(shell.dataset.tierFrameState).toBe('partial')
+    expect(document.querySelector('[data-work-widget-scroll]')).toBeNull()
+    expect(shell.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
     screen.getByRole('button', { name: 'Refresh Linear' }).click()
     expect(refresh).toHaveBeenCalledTimes(1)
   })

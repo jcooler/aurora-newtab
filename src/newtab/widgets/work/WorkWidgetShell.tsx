@@ -5,12 +5,18 @@ import { anchorPanel } from '../../../lib/layout/anchor'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import DockLine from '../shared/DockLine'
 import type { WorkPulseTone } from '../shared/WorkPulseSummary'
+import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationState } from '../../widgetSizeContracts'
 import { compactFacts, type WorkPresentationState } from './workPresentation'
 
-const SIZE_CLASS: Record<CanvasSize, string> = {
-  compact: 'w-[min(18rem,calc(100vw_-_2rem))]',
-  standard: 'w-[min(22rem,calc(100vw_-_2rem))]',
-  full: 'w-[min(30rem,calc(100vw_-_2rem))]',
+const FRAME_STATE: Readonly<Record<WorkPresentationState, WidgetPresentationState>> = {
+  setup: 'permission-required',
+  loading: 'loading',
+  empty: 'empty',
+  'hard-error': 'hard-error',
+  'retained-error': 'partial',
+  stale: 'stale',
+  ready: 'ready',
 }
 
 export function WorkResourceBody({
@@ -91,17 +97,14 @@ export function WorkWidgetShell({
   onRefresh?: () => void
   children: ReactNode
 }) {
-  const widthClass = presentation === 'ready' || presentation === 'stale' || presentation === 'retained-error'
-    ? SIZE_CLASS[canvasSize]
-    : 'w-max max-w-[calc(100vw_-_2rem)]'
-
   return (
-    <section
-      aria-label={title}
+    <TierFrame
+      label={title}
+      tier={canvasSize}
+      state={FRAME_STATE[presentation]}
       data-work-widget=""
       data-work-resource-state={presentation}
-      data-canvas-size={canvasSize}
-      className={`${widthClass} overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}
+      className="flex min-h-0 flex-col"
     >
       <header className="flex min-h-10 items-center justify-between gap-3 border-b border-hairline px-3 py-2">
         <h2 className="text-sm font-semibold">{title}</h2>
@@ -110,8 +113,7 @@ export function WorkWidgetShell({
         ) : null}
       </header>
       <div
-        data-work-widget-scroll=""
-        className="max-h-[min(42rem,calc(100vh_-_6rem))] overflow-y-auto p-3"
+        className="min-h-0 flex-1 overflow-hidden p-3"
       >
         <WorkResourceBody
           title={title}
@@ -124,7 +126,7 @@ export function WorkWidgetShell({
           {children}
         </WorkResourceBody>
       </div>
-    </section>
+    </TierFrame>
   )
 }
 
