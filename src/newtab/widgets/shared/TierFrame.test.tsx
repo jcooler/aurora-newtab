@@ -88,4 +88,9 @@ describe('TierFrame', () => {
     expect(indexCss).toMatch(/\[data-block-id="weather"\]:not\(\.z-30\) > section:not\(\.tier-frame\),/)
     expect(indexCss).toMatch(/\[data-block-id="weather"\] > section:not\(\.tier-frame\):has\(input\[aria-label="Search for a city"\]\),/)
   })
+
+  it('keeps the legacy compact allocation width guard off every shared frame', () => {
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\][\s\S]*?\) > :not\(\.tier-frame\)\s*\{\s*box-sizing:\s*border-box/)
+    expect(indexCss).not.toMatch(/\[data-block-id="rss"\]\s*\) > \*\s*\{\s*box-sizing:\s*border-box;\s*width:\s*100%;\s*max-width:\s*100%/)
+  })
 })

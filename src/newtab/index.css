@@ -2352,7 +2352,7 @@ select > option {
   [data-block-id="vercel"],
   [data-block-id="homeassistant"],
   [data-block-id="rss"]
-) > * {
+) > :not(.tier-frame) {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
