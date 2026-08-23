@@ -86,6 +86,10 @@ output/
 # At-a-glance widget and NWS Weather Chromium evidence scratch.
 .qa-at-a-glance-*
 
+# SF-P1 shared-frame preliminary witness scratch; owner catalog is tracked.
+.qa-shared-frame-p1-profile/
+.qa-shared-frame-p1-evidence/
+
 # Expansion platform scratch scaffolds and Chromium catalog evidence.
 .aurora-expansion-*/
 .qa-expansion-platform-*/
