@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "commit": "884ba2b18bf3209e14638dcf0208ffd8d8702260",
+  "commit": "9b0a8f7ff69055e6059d4f5ffc47b2e1ed7af0d6",
   "buildMode": "preview evidence; production adapters remain compiled out",
   "approvedTargets": [
     "clock",
@@ -440,6 +440,205 @@
       "scrollHeight": 282,
       "minTextPx": 12,
       "internalScrollOwners": 0
+    },
+    {
+      "key": "owner-visible-canvas",
+      "filenames": [
+        "owner-visible-canvas.png",
+        "owner-visible-canvas-greeting-edit.png"
+      ],
+      "greeting": {
+        "rootTag": "DIV",
+        "tierFrames": 0,
+        "text": "Good afternoon, Jon.",
+        "title": "Good afternoon, Jon.",
+        "clientWidth": 408,
+        "scrollWidth": 408
+      },
+      "measurements": {
+        "clock": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "worldClocks": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "countdown": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "search": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "focus": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "links": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "quote": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "weather": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "ics": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "status": {
+          "width": 320,
+          "height": 200,
+          "scrollWidth": 318,
+          "scrollHeight": 198
+        },
+        "tasks": {
+          "width": 216,
+          "height": 132,
+          "scrollWidth": 214,
+          "scrollHeight": 130
+        },
+        "notes": {
+          "width": 216,
+          "height": 132,
+          "scrollWidth": 214,
+          "scrollHeight": 130
+        },
+        "timer": {
+          "width": 216,
+          "height": 132,
+          "scrollWidth": 214,
+          "scrollHeight": 130
+        },
+        "habits": {
+          "width": 216,
+          "height": 132,
+          "scrollWidth": 214,
+          "scrollHeight": 130
+        }
+      },
+      "visibleBounds": {
+        "bookmarks": {
+          "x": 658.8359375,
+          "y": 12,
+          "width": 282.328125,
+          "height": 30
+        },
+        "clock": {
+          "x": 432,
+          "y": 134,
+          "width": 320,
+          "height": 200
+        },
+        "greeting": {
+          "x": 996.0234375,
+          "y": 37.40625,
+          "width": 407.953125,
+          "height": 51.1875
+        },
+        "worldClocks": {
+          "x": 832,
+          "y": 134,
+          "width": 320,
+          "height": 200
+        },
+        "countdown": {
+          "x": 432,
+          "y": 413,
+          "width": 320,
+          "height": 200
+        },
+        "search": {
+          "x": 832,
+          "y": 413,
+          "width": 320,
+          "height": 200
+        },
+        "focus": {
+          "x": 432,
+          "y": 683,
+          "width": 320,
+          "height": 200
+        },
+        "links": {
+          "x": 832,
+          "y": 683,
+          "width": 320,
+          "height": 200
+        },
+        "quote": {
+          "x": 1264,
+          "y": 683,
+          "width": 320,
+          "height": 200
+        },
+        "weather": {
+          "x": 32,
+          "y": 134,
+          "width": 320,
+          "height": 200
+        },
+        "ics": {
+          "x": 32,
+          "y": 413,
+          "width": 320,
+          "height": 200
+        },
+        "status": {
+          "x": 32,
+          "y": 683,
+          "width": 320,
+          "height": 200
+        },
+        "timer": {
+          "x": 1316,
+          "y": 399.296875,
+          "width": 216,
+          "height": 132
+        },
+        "tasks": {
+          "x": 1316,
+          "y": 111.296875,
+          "width": 216,
+          "height": 132
+        },
+        "notes": {
+          "x": 1316,
+          "y": 255.296875,
+          "width": 216,
+          "height": 132
+        },
+        "habits": {
+          "x": 1316,
+          "y": 543.296875,
+          "width": 216,
+          "height": 132
+        }
+      }
     }
   ],
   "storageWrites": [
@@ -447,9 +646,6 @@
       "key": "weather-on-this-day",
       "theme": "dark",
       "writes": [
-        [
-          "weatherAlertCache"
-        ],
         [
           "layouts"
         ]
@@ -583,12 +779,11 @@
     }
   ],
   "approvedRequests": [
-    "GET https://api.weather.gov/alerts/active?point=33.749,-84.388",
     "GET https://api.weather.gov/alerts/active?point=33.749,-84.388"
   ],
   "summary": {
-    "captures": 30,
-    "approvedRequests": 2,
+    "captures": 31,
+    "approvedRequests": 1,
     "runtimeErrors": 0,
     "failedRequests": 0,
     "unexpectedRequests": 0
