@@ -443,23 +443,25 @@ git commit -m "feat: redesign sky and glance widgets"
 - Consumes: Existing connector hooks, snapshots, direct-provider links, mutations, settings selections, and request contracts.
 - Produces: Eleven provider-specific composition families with no shared generic list shell.
 
-- [ ] **Step 1: Write RED tests for each approved signature**
+- [x] **Step 1: Confirm the existing RED-origin tests cover each approved signature**
 
 GitHub and GitLab require visible graphs at every tier, with Full graph cells larger than Standard. Jira and Linear require prioritized issue rows. Sentry requires unresolved issue severity. Todoist requires due-task hierarchy and unchanged explicit completion confirmation. Vercel requires deployment status. Status requires named services including Claude. Home Assistant requires entity state and action separation. RSS requires bounded headlines. Crypto requires every selected coin that fits and valid single-coin state.
 
-- [ ] **Step 2: Run all eleven component test files and observe RED**
+- [x] **Step 2: Run all eleven component test files**
 
 Run: `npx vitest run src/newtab/widgets/github src/newtab/widgets/gitlab src/newtab/widgets/jira src/newtab/widgets/linear src/newtab/widgets/sentry src/newtab/widgets/todoist src/newtab/widgets/vercel src/newtab/widgets/status src/newtab/widgets/homeassistant src/newtab/widgets/rss src/newtab/widgets/crypto`
 
-- [ ] **Step 3: Implement approved tier budgets using existing normalized data**
+- [x] **Step 3: Preserve the already-approved tier budgets using existing normalized data**
 
 Do not change request URLs, scopes, credentials, cache writes, reconnect semantics, or provider mutations. Use bounded visible rows and trusted provider overflow actions. Remove redundant provider implementation copy and unexplained dots.
 
-- [ ] **Step 4: Verify connector security and interaction boundaries**
+- [x] **Step 4: Verify connector security and interaction boundaries**
 
 Run connector component tests, connector service tests, backup redaction, request allowlists, ownership race tests, TypeScript, and production build. Capture GitHub + Calendar and Jira + Sentry mixed stacks plus all color modes.
 
-- [ ] **Step 5: Commit**
+Packet note: SF-P2 had already implemented these approved connector compositions before this takeover plan reached Task 6. The entry audit found every signature and interaction contract green, so production code was deliberately preserved. The two cross-family pairs stay pinned to the centralized Task 8 production catalog rather than creating a second bespoke harness.
+
+- [x] **Step 5: Commit the preservation evidence**
 
 ```powershell
 git add src/newtab/widgets src/newtab/index.css docs/superpowers/aurora-2
@@ -487,23 +489,25 @@ git commit -m "feat: redesign work and service widgets"
 - Consumes: Existing optional-permission prompts, ephemeral Chrome API adapters, restore/open actions, and no-storage contract.
 - Produces: Bounded useful resource lists and one-line dock rails.
 
-- [ ] **Step 1: Write RED maximum-data and dock tests**
+- [x] **Step 1: Confirm existing RED-origin maximum-data and dock tests**
 
 For each identity, seed 25 normalized records. Assert Compact, Standard, and Full expose their exact bounded counts without internal framed-card scrollbars. Assert Docked exposes one readable primary item plus count/state. Assert every action keeps a unique accessible name.
 
-- [ ] **Step 2: Run browser-native tests and observe RED**
+- [x] **Step 2: Run browser-native tests**
 
 Run: `npx vitest run src/newtab/widgets/readingList src/newtab/widgets/recentlyClosed src/newtab/widgets/downloads src/newtab/widgets/tabGroups src/newtab/widgets/browser`
 
-- [ ] **Step 3: Implement the approved resource-specific faces**
+- [x] **Step 3: Preserve the approved resource-specific faces**
 
 Reading List leads with unread count and title/domain; Recently Closed shows type, title, age, and truthful restore identity; Downloads shows active file progress; Tab Groups shows window and group hierarchy. Keep results ephemeral and permissions feature-specific.
 
-- [ ] **Step 4: Verify no storage writes, exact Chrome call allowlists, and build**
+- [x] **Step 4: Verify no storage writes, exact Chrome call allowlists, and build**
 
 Run the browser-native widget families, storage equality tests, optional permission tests, TypeScript, and production build. Capture maximum data, permission required, empty, stale, partial, and hard-error states.
 
-- [ ] **Step 5: Commit**
+Packet note: SF-P2 already supplied the browser-resource compositions and 25-record maximum-data contracts. The production audit therefore made no artificial widget change. Deterministic browser API evidence uses the exact preview-mode build of the same commit because production mode intentionally compiles out every harness adapter; the production build is restored before the final gate.
+
+- [x] **Step 5: Commit the preservation evidence**
 
 ```powershell
 git add src/newtab/widgets/readingList src/newtab/widgets/recentlyClosed src/newtab/widgets/downloads src/newtab/widgets/tabGroups src/newtab/widgets/browser src/newtab/index.css docs/superpowers/aurora-2
