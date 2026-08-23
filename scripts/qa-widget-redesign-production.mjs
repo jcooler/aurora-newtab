@@ -10,7 +10,7 @@ import sharp from 'sharp'
 import { MIXED_STACKS, TARGET_WIDGETS } from '../mockups/widget-redesign/catalog-model.mjs'
 import { assertCleanTrackedStatus } from './build-contracts.mjs'
 import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
-import { parsePresentationAuthority, resolveSfP1ContextOptions } from './qa-shared-frame-p1.mjs'
+import { parsePresentationAuthority, resolveSfP1BrowserMode, resolveSfP1ContextOptions } from './qa-shared-frame-p1.mjs'
 import { snapshotScope, workFixtures } from './qa-shared-frame-p2.mjs'
 
 export const APPROVED_TARGET_IDS = Object.freeze(TARGET_WIDGETS.map(({ id }) => id))
@@ -164,7 +164,7 @@ export async function runProductionQa() {
   const captures = []
   let context
   try {
-    context = await chromium.launchPersistentContext(profile, resolveSfP1ContextOptions({ headed: false }, dist))
+    context = await chromium.launchPersistentContext(profile, resolveSfP1ContextOptions(resolveSfP1BrowserMode([]), dist))
     await context.addInitScript(initEvidenceBoundary)
     const page = context.pages()[0] ?? await context.newPage()
     page.setDefaultTimeout(20_000)
