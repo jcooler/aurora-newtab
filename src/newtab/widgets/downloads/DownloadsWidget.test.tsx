@@ -73,7 +73,7 @@ describe('DownloadsWidget', () => {
       expect(new Set(names).size).toBe(names.length)
       expect(actions.every((button) => button.className.includes('text-sm'))).toBe(true)
       const overflowSummary = screen.getByText(`${25 - visibleRows} more in Chrome Downloads`)
-      expect(overflowSummary.parentElement?.className).toContain('space-y-1')
+      expect(overflowSummary.parentElement?.className).toContain('space-y-0')
     }
   })
 
