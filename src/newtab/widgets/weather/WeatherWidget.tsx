@@ -240,10 +240,15 @@ export default function WeatherWidget({
   // shows even when the peak falls on an odd hour the grid never samples.
   const slots = forecastSlots(hours)
   const range = forecastRange(hours)
-  const trendSignal = callout ?? (range
+  const dailyContext = range
     ? `High ${displayTemp(range.hiC, settings.units)} · Low ${displayTempWithUnit(range.loC, settings.units)}`
-    : null)
+    : null
+  const trendSignal = [callout, dailyContext].filter(Boolean).join(' ') || null
   const summarySlots = slots.slice(0, 4)
+  const peakRain = hours.reduce(
+    (best, point) => (best === null || point.precipProb > best.precipProb ? point : best),
+    null as (typeof hours)[number] | null,
+  )
   const environment = snapshot?.environment
   const environmentAqi = environment?.status === 'available' && environment.usAqi !== null
     ? aqiReading(environment.usAqi)
@@ -623,7 +628,7 @@ export default function WeatherWidget({
               </span>
             ) : null}
             {summarySize !== 'compact' && trendSignal ? (
-              <span data-weather-summary-row="trend" data-weather-summary-trend="" data-panel-accent-text="" data-canvas-type-role="body" className="truncate text-accent">
+              <span data-weather-summary-row="trend" data-weather-summary-trend="" data-weather-daily-context="" data-panel-accent-text="" data-canvas-type-role="body" className="truncate text-accent">
                 {trendSignal}
               </span>
             ) : null}
@@ -660,6 +665,42 @@ export default function WeatherWidget({
                   </span>
                 ))}
               </div>
+            ) : null}
+            {summarySize === 'full' ? (
+              <dl data-weather-full-context="" className="weather-summary-full-context grid grid-cols-6 gap-2 border-t border-panel-border pt-2">
+                <div>
+                  <dt>Air</dt>
+                  <dd>{environmentAqi ? `${environmentAqi.value} ${environmentAqi.category}` : 'Unavailable'}</dd>
+                </div>
+                <div>
+                  <dt>UV</dt>
+                  <dd>{environmentUv ? `${environmentUv.value} ${environmentUv.category}` : 'Unavailable'}</dd>
+                </div>
+                <div>
+                  <dt>Pollen</dt>
+                  <dd>{environmentPollen?.kind === 'reading'
+                    ? `${environmentPollen.label} ${environmentPollen.grainsPerCubicMeter}`
+                    : environmentPollen?.kind === 'clear'
+                      ? 'None'
+                      : 'Unavailable'}</dd>
+                </div>
+                <div>
+                  <dt>Rain</dt>
+                  <dd>{peakRain && peakRain.precipProb >= PRECIP_FLOOR
+                    ? `${peakRain.precipProb}% ${compactHour(peakRain.time, settings.use24Hour)}`
+                    : 'None'}</dd>
+                </div>
+                <div>
+                  <dt>Sun</dt>
+                  <dd>{snapshot.sunriseISO && snapshot.sunsetISO
+                    ? `${clockTime(snapshot.sunriseISO, settings.use24Hour)}-${clockTime(snapshot.sunsetISO, settings.use24Hour)}`
+                    : 'Unavailable'}</dd>
+                </div>
+                <div>
+                  <dt>Wind</dt>
+                  <dd>{displayWind(snapshot.current.windKmh, settings.units)}</dd>
+                </div>
+              </dl>
             ) : null}
             {frameState === 'partial' ? (
               <span

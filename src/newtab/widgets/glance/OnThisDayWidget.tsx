@@ -51,7 +51,7 @@ function OnThisDayInner({
     localDay.key,
     isOnThisDayData,
   )
-  const events = data?.events ?? []
+  const events = distinctYears(data?.events ?? [])
   const presentation = glancePresentationState(true, state, data !== null && events.length === 0)
   const retry = () => {
     void storage.update('connectorSnapshots', (previous) => {
@@ -224,9 +224,18 @@ function ProviderDestination({ href }: { href: string }) {
       rel="noopener noreferrer"
       className="on-this-day-tier-provider min-h-9"
     >
-      More on Wikipedia
+      Read more on Wikipedia
     </a>
   )
+}
+
+function distinctYears(events: readonly OnThisDayEvent[]): OnThisDayEvent[] {
+  const seen = new Set<number>()
+  return events.filter((event) => {
+    if (seen.has(event.year)) return false
+    seen.add(event.year)
+    return true
+  })
 }
 
 function Attribution() {

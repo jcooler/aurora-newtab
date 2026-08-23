@@ -76,6 +76,29 @@
 .weather-tier-summary [data-weather-summary-hourly] svg {
   margin-top: 0.125rem;
 }
+.tier-frame--full .weather-tier-summary [data-weather-summary-metrics] {
+  min-height: 2.25rem;
+}
+.tier-frame--full .weather-tier-summary [data-weather-summary-hourly] > span {
+  min-height: 2.75rem;
+}
+.weather-summary-full-context dt {
+  overflow: hidden;
+  color: var(--tier-frame-muted);
+  font-size: 10px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.weather-summary-full-context dd {
+  overflow: hidden;
+  margin-top: 0.125rem;
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 @media (max-width: 483px) {
   .tier-frame--full .weather-tier-summary {
     gap: 0.375rem;

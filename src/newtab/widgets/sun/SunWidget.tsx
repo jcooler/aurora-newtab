@@ -77,8 +77,8 @@ function SunInner({
         <p className="text-[11px] text-fg-muted">{location.label}</p>
       </header>
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <p><span aria-hidden className="mr-2 text-xl">☀</span><span className="text-fg-muted">Sunrise</span><strong className="block font-medium">{formatClock(times.sunrise, settings.use24Hour)}</strong></p>
-        <p><span aria-hidden className="mr-2 text-xl">☾</span><span className="text-fg-muted">Sunset</span><strong className="block font-medium">{formatClock(times.sunset, settings.use24Hour)}</strong></p>
+        <p><span data-sunrise-glyph="" aria-hidden className="mr-2 text-xl text-amber-300">☀</span><span className="text-fg-muted">Sunrise</span><strong className="block font-medium">{formatClock(times.sunrise, settings.use24Hour)}</strong></p>
+        <p><span data-sunset-glyph="" aria-hidden className="mr-2 text-xl text-orange-300">◓</span><span className="text-fg-muted">Sunset</span><strong className="block font-medium">{formatClock(times.sunset, settings.use24Hour)}</strong></p>
       </div>
       <div className="mt-auto flex items-center justify-between text-[11px] text-fg-muted">
         <span>Daylight {daylight}</span>

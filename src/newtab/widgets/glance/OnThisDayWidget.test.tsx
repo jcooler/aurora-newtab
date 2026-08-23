@@ -86,7 +86,7 @@ describe('OnThisDayWidget', () => {
     expect(within(compact).getByText('1969')).toBeTruthy()
     expect(within(compact).getByRole('link', { name: 'Historical event 0' })).toBeTruthy()
     expect(within(compact).queryByText('Historical event 1')).toBeNull()
-    const provider = within(compact).getByRole('link', { name: 'More on Wikipedia' })
+    const provider = within(compact).getByRole('link', { name: 'Read more on Wikipedia' })
     expect(provider.getAttribute('href')).toBe('https://en.wikipedia.org/wiki/August_22')
   })
 
@@ -99,7 +99,7 @@ describe('OnThisDayWidget', () => {
     expect(within(standard).getAllByRole('listitem')).toHaveLength(3)
     expect(within(standard).getByText('1967')).toBeTruthy()
     expect(within(standard).queryByText('Historical event 3')).toBeNull()
-    expect(within(standard).getAllByRole('link', { name: 'More on Wikipedia' })).toHaveLength(1)
+    expect(within(standard).getAllByRole('link', { name: 'Read more on Wikipedia' })).toHaveLength(1)
   })
 
   it('visually clamps a long Compact event to two lines without truncating its accessible text', async () => {
@@ -123,10 +123,29 @@ describe('OnThisDayWidget', () => {
     expect(within(full).getByText('Notable birth')).toBeTruthy()
     expect(within(full).getByText('1800')).toBeTruthy()
     expect(within(full).getByText('Notable death')).toBeTruthy()
-    expect(within(full).getAllByRole('link', { name: 'More on Wikipedia' })).toHaveLength(1)
+    expect(within(full).getAllByRole('link', { name: 'Read more on Wikipedia' })).toHaveLength(1)
     expect(within(full).getByRole('link', { name: 'Historical event 0' }).className).toContain('[-webkit-line-clamp:2]')
     expect(within(full).getByRole('link', { name: 'Historical event 0' }).className).toContain('min-h-9')
-    expect(within(full).getByRole('link', { name: 'More on Wikipedia' }).className).toContain('min-h-9')
+    expect(within(full).getByRole('link', { name: 'Read more on Wikipedia' }).className).toContain('min-h-9')
+  })
+
+  it('keeps one heading, one date, and distinct year markers inside the Standard row budget', async () => {
+    mount(await seededStorage({
+      ...DATA,
+      events: [
+        { year: 1969, text: 'First 1969 event' },
+        { year: 1969, text: 'Second 1969 event' },
+        { year: 1968, text: 'A 1968 event' },
+        { year: 1967, text: 'A 1967 event' },
+      ],
+    }), { canvasSize: 'standard' })
+    await screen.findByText('First 1969 event')
+
+    const standard = frame('standard')
+    expect(within(standard).getAllByRole('heading', { name: 'On This Day' })).toHaveLength(1)
+    expect(within(standard).getAllByText('August 22')).toHaveLength(1)
+    expect(within(standard).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(standard).getAllByText(/^19\d{2}$/).map((node) => node.textContent)).toEqual(['1969', '1968', '1967'])
   })
 
   it('opens the same contextual rows from one dense Docked line', async () => {

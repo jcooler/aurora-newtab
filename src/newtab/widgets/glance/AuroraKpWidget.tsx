@@ -173,9 +173,18 @@ function ForecastList({
       className={standard ? 'mt-1 grid grid-cols-2 gap-x-3 gap-y-1' : `${grouped ? '' : 'mt-3'} flex flex-col gap-1.5`}
     >
       {rows.map((row) => (
-        <li key={`${row.time}-${row.kp}`} data-testid="kp-forecast-row" className={`group flex items-center justify-between text-sm ${standard ? 'gap-2' : 'gap-4'}`}>
-          <span className={glanceRowClass}>{time(row.time)}</span>
-          <span className="font-medium tabular-nums text-fg">Kp {kp(row.kp)}{row.scale ? ` · ${row.scale}` : ''}</span>
+        <li key={`${row.time}-${row.kp}`} data-testid="kp-forecast-row" className={`group grid min-w-0 gap-1 text-sm ${standard ? '' : 'py-0.5'}`}>
+          <span className="flex min-w-0 items-center justify-between gap-2">
+            <span className={glanceRowClass}>{time(row.time)}</span>
+            <span className="font-medium tabular-nums text-fg">Kp {kp(row.kp)}{row.scale ? ` · ${row.scale}` : ''}</span>
+          </span>
+          <span aria-hidden="true" className="h-1 overflow-hidden rounded-full bg-fg/10">
+            <span
+              data-kp-meter=""
+              className="block h-full rounded-full bg-accent"
+              style={{ width: `${Math.min(100, (row.kp / 9) * 100)}%` }}
+            />
+          </span>
         </li>
       ))}
     </ul>

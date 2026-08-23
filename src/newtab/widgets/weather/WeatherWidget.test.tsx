@@ -206,15 +206,24 @@ describe('WeatherWidget collapsed chip', () => {
     expect(within(standard).getByText('Wind')).toBeTruthy()
     expect(within(standard).getByText('Humidity')).toBeTruthy()
     expect(standard.querySelector('[data-weather-summary-trend]')).toBeTruthy()
+    expect(standard.querySelector('[data-weather-daily-context]')).toBeTruthy()
     expectFlatFrame(standard)
   })
 
-  it('authors Full ready Weather with its four-slot hourly signature', async () => {
+  it('authors Full as a complete forecast briefing without opening details', async () => {
     await renderWidget({ stageVariant: 'expanded' })
 
     const full = frame('full')
     expect(within(full).getByTestId('weather-summary-hourly')).toBeTruthy()
     expect(full.querySelectorAll('[data-weather-summary-hourly] > span')).toHaveLength(4)
+    expect(full.querySelector('[data-weather-daily-context]')?.textContent).toMatch(/High .*Low/)
+    const context = full.querySelector('[data-weather-full-context]')!
+    expect(context.textContent).toContain('Air')
+    expect(context.textContent).toContain('UV')
+    expect(context.textContent).toContain('Pollen')
+    expect(context.textContent).toContain('Rain')
+    expect(context.textContent).toContain('Sun')
+    expect(full.textContent).toContain('Wind')
     expectFlatFrame(full)
   })
 

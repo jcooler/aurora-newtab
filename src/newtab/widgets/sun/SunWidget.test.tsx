@@ -75,6 +75,16 @@ describe('SunWidget', () => {
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
   })
 
+  it('uses distinct sunrise and sunset glyphs in Standard', async () => {
+    vi.setSystemTime(NYC_SOLSTICE)
+    const { container } = await renderWithSun({ canvasSize: 'standard' })
+    const sunrise = container.querySelector('[data-sunrise-glyph]')
+    const sunset = container.querySelector('[data-sunset-glyph]')
+    expect(sunrise).toBeTruthy()
+    expect(sunset).toBeTruthy()
+    expect(sunrise?.textContent).not.toBe(sunset?.textContent)
+  })
+
   it('Docked renders one bare dense line, smaller than the compact card (batch-2 owner review)', async () => {
     vi.setSystemTime(NYC_SOLSTICE)
     const { container } = await renderWithSun({ docked: true })
