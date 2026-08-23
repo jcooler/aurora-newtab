@@ -27,7 +27,7 @@ describe('ContributionGraph tier composition', () => {
     expect(screen.getByRole('img', { name: /contribution activity/i }).style.gridAutoColumns).toBe('8px')
     expect(container.querySelector('[data-contribution-months]')).toBeNull()
     expect(screen.queryByText('Jan')).toBeNull()
-    expect(screen.getByText('contributions')).toBeTruthy()
+    expect(screen.getByText('contributions').closest('[data-contribution-summary]')).toBeTruthy()
     expect(screen.getByText('day streak')).toBeTruthy()
   })
 

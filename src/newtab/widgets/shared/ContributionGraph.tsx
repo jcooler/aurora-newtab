@@ -95,7 +95,7 @@ export default function ContributionGraph({
 
       {/* Stat line: bright tabular total, accent tabular streak — the card's one
           accent point. "contributions", not the board's "commits". */}
-      <p className="mt-2 text-xs text-fg-muted">
+      <p data-contribution-summary className="mt-2 text-xs text-fg-muted">
         <span className="font-semibold tabular-nums text-fg">{contributions.total}</span> contributions
         <span aria-hidden className="mx-1.5 text-fg-muted/40">
           ·
