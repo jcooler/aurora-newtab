@@ -72,6 +72,7 @@ output/
 .qa-dy-p1-*
 .playwright-profile-qa-dy-p1/
 .playwright-profile-qa-dy-p1-window/
+.playwright-profile-qa-dy-p1-inset/
 
 # Focused Weather environmental-enrichment witness scratch.
 .qa-weather-enrichment-*

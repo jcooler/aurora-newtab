@@ -59,7 +59,7 @@ export interface DockedWidgetPlacement {
 
 The optional shape is absent-safe. `LAYOUTS_DOCUMENT_VERSION` remains 1 and the top-level storage schema version does not change solely for these fields. The layouts cleaner and backup validator recognize finite optional values and preserve absence. No boot rewrite materializes `y` or `returnTier`.
 
-## 4. Exact legacy behavior
+## 4. Legacy behavior and the outer-perimeter exception
 
 An existing placement with no `y` must remain at the current legacy baseline. It must not be interpreted as `50` and must not jump to the vertical center of the new band.
 
@@ -67,7 +67,9 @@ The renderer keeps a legacy baseline path for absent-Y members. It uses the curr
 
 Mixed docks are valid: an old absent-Y member and a newly positioned member can coexist. Saving another edit does not materialize or normalize the old member.
 
-The browser witness must compare old-layout screenshots and measured member rectangles before and after the feature with no explicit Y edits. Equality is a release requirement, not an inferred property.
+The original DY-P1 browser witness compares old-layout screenshots and measured member rectangles before and after the two-axis feature with no explicit Y edits. That immutable 16px/72px baseline remains the acceptance evidence for the original packet and must never be replaced.
+
+The owner-approved 5px outer-perimeter refinement is an explicit exception to absolute viewport rectangles and full-page screenshot equality because moving the parent band necessarily moves its absent-Y children. It does not permit Aurora to materialize Y, rewrite storage, reorder members, or alter the internal legacy 16px/2px margins. A separate additive witness must prove exact 5px band bounds, inclusive corner docking, member containment, unchanged layouts bytes and reading order, toolbar clearance, and zero unexpected writes or runtime failures.
 
 ## 5. Placement band
 

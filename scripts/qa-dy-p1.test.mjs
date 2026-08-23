@@ -153,3 +153,28 @@ test('the runnable real-window manifest requires the caller-reviewed dist and re
     assert.equal(manifest.behaviors.includes(id), true, id)
   }
 })
+
+test('the additive five-pixel refinement witness preserves the frozen baseline and probes the new perimeter', () => {
+  const manifest = describeScript('scripts/qa-dock-inset.mjs')
+  assert.deepEqual(manifest.viewports, [
+    { width: 600, height: 800 },
+    { width: 1408, height: 445 },
+  ])
+  assert.deepEqual(manifest.behaviors, [
+    'exact-five-pixel-bands',
+    'inclusive-five-pixel-corners',
+    'four-pixel-canvas-exit',
+    'member-containment',
+    'legacy-storage-byte-stability',
+    'stored-reading-order',
+    'toolbar-clearance',
+    'layouts-only-write-rejection',
+  ])
+  assert.deepEqual(manifest.provenance, {
+    build: 'git-head-preview-build',
+    recordsCommit: true,
+    rejectsDirtyTrackedSource: true,
+    verifiesBuiltCommit: true,
+    replacesFrozenBaseline: false,
+  })
+})
