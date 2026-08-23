@@ -1304,7 +1304,7 @@ async function run() {
           const metadata = element.closest('[data-stage-text-tier="metadata"]') !== null || fontSize <= 12.5
           if (Number.isFinite(fontSize)) textRuns.push({ text, role: metadata ? 'metadata' : 'routine', fontSize })
           if (rect.left < frameRect.left - 0.5 || rect.top < frameRect.top - 0.5 || rect.right > frameRect.right + 0.5 || rect.bottom > frameRect.bottom + 0.5) {
-            clippedElements.push(text || element.tagName.toLowerCase())
+            clippedElements.push(`${text || element.tagName.toLowerCase()}|rect=${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.right.toFixed(1)},${rect.bottom.toFixed(1)}|frame=${frameRect.left.toFixed(1)},${frameRect.top.toFixed(1)},${frameRect.right.toFixed(1)},${frameRect.bottom.toFixed(1)}`)
           }
         }
         if (root.scrollWidth > root.clientWidth + 0.5 || root.scrollHeight > root.clientHeight + 0.5) {
