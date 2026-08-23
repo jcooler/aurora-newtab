@@ -178,3 +178,17 @@ test('the additive five-pixel refinement witness preserves the frozen baseline a
     replacesFrozenBaseline: false,
   })
 })
+
+test('the five-pixel witness observes storage and failures before the measured reload boots', () => {
+  const source = readFileSync(resolve(process.cwd(), 'scripts/qa-dock-inset.mjs'), 'utf8')
+  const observer = source.indexOf('page.addInitScript')
+  const seededBytes = source.indexOf('const seededBytes = await layoutsBytes()')
+  const measuredReload = source.indexOf("await page.reload({ waitUntil: 'domcontentloaded' })", seededBytes)
+  const loadedBytes = source.indexOf('const loadedBytes = await layoutsBytes()', measuredReload)
+  assert.ok(observer >= 0, 'missing pre-boot storage observer')
+  assert.ok(observer < measuredReload, 'storage observer must install before measured reload')
+  assert.ok(seededBytes >= 0 && seededBytes < measuredReload, 'seeded bytes must be captured before reload')
+  assert.ok(loadedBytes > measuredReload, 'loaded bytes must be compared after reload')
+  const postReloadReset = source.indexOf('runtimeErrors.length = 0', measuredReload)
+  assert.equal(postReloadReset, -1, 'measured boot errors must not be cleared after reload')
+})

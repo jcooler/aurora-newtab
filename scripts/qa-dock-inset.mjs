@@ -113,6 +113,13 @@ page.on('pageerror', (error) => runtimeErrors.push(`page: ${String(error)}`))
 page.on('requestfailed', (request) => {
   failedRequests.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText ?? 'failed'}`)
 })
+await page.addInitScript(() => {
+  window.__dockInsetWrites = []
+  if (!globalThis.chrome?.storage?.onChanged) return
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local') window.__dockInsetWrites.push(Object.keys(changes).sort())
+  })
+})
 
 const waitForWidgets = async () => {
   await page.waitForSelector('[data-canvas-surface]')
@@ -145,13 +152,6 @@ const seedLegacyLayout = () => page.evaluate(async ({ blockIds }) => {
 const layoutsBytes = () => page.evaluate(async () => {
   const { layouts } = await chrome.storage.local.get('layouts')
   return JSON.stringify(layouts)
-})
-
-const armWriteLog = () => page.evaluate(() => {
-  window.__dockInsetWrites = []
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local') window.__dockInsetWrites.push(Object.keys(changes).sort())
-  })
 })
 
 const readWriteLog = () => page.evaluate(() => window.__dockInsetWrites ?? [])
@@ -218,14 +218,15 @@ try {
 
   for (const viewport of DOCK_INSET_VIEWPORTS) {
     await seedLegacyLayout()
+    const seededBytes = await layoutsBytes()
     await page.setViewportSize(viewport)
-    await page.reload({ waitUntil: 'domcontentloaded' })
-    await waitForWidgets()
     runtimeErrors.length = 0
     failedRequests.length = 0
-    await armWriteLog()
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await waitForWidgets()
 
-    const beforeBytes = await layoutsBytes()
+    const loadedBytes = await layoutsBytes()
+    if (loadedBytes !== seededBytes) fail(`${viewport.width}x${viewport.height}: measured load changed legacy layouts bytes`)
     const before = await geometryState()
     if (!before.top || !before.bottom) throw new Error(`${viewport.width}x${viewport.height}: missing dock lane`)
     const expectedHeight = dockHeight(viewport.height)
@@ -274,7 +275,7 @@ try {
     await page.waitForSelector('[data-editing]', { state: 'detached' })
 
     const afterBytes = await layoutsBytes()
-    if (afterBytes !== beforeBytes) fail(`${viewport.width}x${viewport.height}: Cancel changed legacy layouts bytes`)
+    if (afterBytes !== seededBytes) fail(`${viewport.width}x${viewport.height}: Cancel changed legacy layouts bytes`)
     const writes = await readWriteLog()
     for (const keys of writes) {
       const expected = keys.join(',') === 'layouts'
@@ -282,7 +283,7 @@ try {
       if (keys.includes('layout')) fail(`${viewport.width}x${viewport.height}: wrote frozen legacy layout key`)
       if (!expected) fail(`${viewport.width}x${viewport.height}: unexpected write ${keys.join(',')}`)
     }
-    if (writes.length !== 0) fail(`${viewport.width}x${viewport.height}: Cancel path wrote ${writes.length} times`)
+    if (writes.length !== 0) fail(`${viewport.width}x${viewport.height}: measured load/Cancel path wrote ${writes.length} times`)
 
     evidence.captures.push({
       viewport,
@@ -292,7 +293,8 @@ try {
       internalMargins: Object.fromEntries([...before.top.members, ...before.bottom.members].map((member) => [member.id, member.margins])),
       toolbarTop,
       cornerModes: { atFive, atFour, returnedFive },
-      byteStable: afterBytes === beforeBytes,
+      loadByteStable: loadedBytes === seededBytes,
+      byteStable: afterBytes === seededBytes,
     })
     evidence.runtimeErrors.push(...runtimeErrors.map((message) => ({ viewport, message })))
     evidence.failedRequests.push(...failedRequests.map((message) => ({ viewport, message })))
