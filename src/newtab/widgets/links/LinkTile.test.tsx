@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import LinkTile from './LinkTile'
 
 vi.mock('./linksLogic', () => ({ faviconUrl: (url: string) => `favicon:${url}` }))
@@ -40,6 +40,25 @@ describe('LinkTile navigation', () => {
     )
     expect(container.querySelector('a')).toBeNull()
     expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('uses a meaningful path label as readable Standard stack destination copy', () => {
+    render(
+      <LinkTile
+        link={{ id: 'mail', title: 'Mail', url: 'https://mail.example.com/inbox' }}
+        index={0}
+        count={1}
+        canvasSize="standard"
+        presentation="stack"
+        onMove={vi.fn()}
+        onRemove={vi.fn()}
+        onDragStart={vi.fn()}
+        onDropOn={vi.fn()}
+        onDragEnd={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('inbox')).toBeTruthy()
+    expect(screen.queryByText('mail.example.com')).toBeNull()
   })
 
   it.each(['https:example.com', 'https:/example.com'])(

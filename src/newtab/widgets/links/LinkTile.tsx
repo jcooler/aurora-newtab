@@ -40,7 +40,10 @@ export default function LinkTile({
     }
   }
   if (presentation === 'stack') {
-    const domain = new URL(link.url).hostname.replace(/^www\./, '')
+    const parsed = new URL(link.url)
+    const domain = parsed.hostname.replace(/^www\./, '')
+    const pathLabel = parsed.pathname.split('/').filter(Boolean).at(-1) ?? ''
+    const destination = pathLabel && !/^\d+$/.test(pathLabel) ? pathLabel.replace(/[-_]+/g, ' ') : domain
     return (
       <div
         draggable
@@ -55,7 +58,7 @@ export default function LinkTile({
           {canvasSize === 'standard' ? (
             <span data-testid="quick-link-copy" className="core-quick-link__copy">
               <strong>{link.title}</strong>
-              <small>{domain}</small>
+              <small>{destination}</small>
             </span>
           ) : null}
         </a>
