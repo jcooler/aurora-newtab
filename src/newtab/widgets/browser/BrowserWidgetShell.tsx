@@ -107,7 +107,7 @@ export function BrowserWidgetShell<T>({
           <span className="text-xs text-fg-muted">Refreshing…</span>
         ) : null}
       </header>
-      <div className="min-h-0 flex-1 overflow-hidden p-3">
+      <div className={`min-h-0 flex-1 overflow-hidden ${state.status === 'error' && state.data !== null ? 'p-2' : 'p-3'}`}>
         <BrowserResourceBody
           title={title}
           state={state}
