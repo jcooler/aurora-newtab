@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -59,6 +59,11 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'Service status' })
+}
+
 describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
   it('renders nothing — and never runs the snapshot refresh — when the connector is disabled', async () => {
     const storage = await seededStorage({ ...CONNECTED, enabled: false }, null)
@@ -98,6 +103,13 @@ describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
 })
 
 describe('StatusWidget — DOM contract', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Service status' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
   it.each(['compact', 'standard'] as const)('uses the exact %s frame with named service dots and no card scrollbar', async (tier) => {
     const storage = await seededStorage(CONNECTED, {
       services: [
@@ -106,7 +118,7 @@ describe('StatusWidget — DOM contract', () => {
       ],
     })
     mount(storage, tier)
-    const frame = await screen.findByRole('region', { name: 'Service status' })
+    const frame = await readyFrame()
     expect(frame.getAttribute('data-tier-frame')).toBe(tier)
     expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
     expect(frame.className).toContain(`tier-frame--${tier}`)
@@ -176,19 +188,19 @@ describe('StatusWidget — DOM contract', () => {
   it('shows named dots at every explicit framed size', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     const view = mount(storage, 'compact')
-    const compact = await screen.findByRole('region', { name: 'Service status' })
+    const compact = await readyFrame()
     // Compact still names each service; the exact frame bounds the row.
     expect(compact.querySelectorAll('span[title]')).toHaveLength(2)
     expect(compact.textContent).toContain('GitHub')
     expect(compact.querySelector('[title="GitHub: All Systems Operational"]')).toBeTruthy()
 
     view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="standard" /></StorageProvider>)
-    const standard = await screen.findByRole('region', { name: 'Service status' })
+    const standard = await readyFrame()
     expect(standard.querySelectorAll('span[title]')).toHaveLength(2)
     expect(standard.textContent).toContain('GitHub')
 
     view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="full" /></StorageProvider>)
-    const full = await screen.findByRole('region', { name: 'Service status' })
+    const full = await readyFrame()
     expect(full.querySelectorAll('span[title]')).toHaveLength(2)
     expect(full.textContent).toContain('Cloudflare')
   })
@@ -196,7 +208,7 @@ describe('StatusWidget — DOM contract', () => {
   it('defaults an unqualified board render to the exact Standard frame', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Service status' })
+    const section = await readyFrame()
     expect(section.getAttribute('data-tier-frame')).toBe('standard')
     expect(section.className).toContain('tier-frame--standard')
   })
@@ -204,7 +216,7 @@ describe('StatusWidget — DOM contract', () => {
   it('renders one dot (span[title]) per service, index-aligned to the snapshot', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Service status' })
+    const section = await readyFrame()
     const dots = section.querySelectorAll('span[title]')
     expect(dots.length).toBe(2)
   })
@@ -212,11 +224,17 @@ describe('StatusWidget — DOM contract', () => {
   it('all-green renders dots only — zero <p> trouble lines', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Service status' })
+    const section = await readyFrame()
     expect(section.querySelectorAll('span[title]').length).toBe(2)
     expect(section.querySelectorAll('p').length).toBe(0)
     expect(screen.getByText('All operational, 2 services')).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-status-tone')).toBe('quiet')
+  })
+
+  it('keeps an empty frame when a configured status poll returns no services', async () => {
+    mount(await seededStorage(CONNECTED, { services: [] }), 'standard')
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-tier-frame-state')).toBe('empty'))
+    expect(screen.getByText('No service results right now.')).toBeTruthy()
   })
 })
 
@@ -287,7 +305,7 @@ describe('StatusWidget — trouble lines', () => {
     }
     const storage = await seededStorage(CONNECTED, data)
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Service status' })
+    const section = await readyFrame()
     expect(section.querySelectorAll('span[title]').length).toBe(2)
     expect(section.querySelectorAll('p').length).toBe(0)
     expect(screen.getByText('1 unreachable, 2 services')).toBeTruthy()

@@ -138,6 +138,11 @@ function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'standard')
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Home Assistant' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'Home Assistant' })
+}
+
 describe('HomeAssistantWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
   it('renders nothing — and never runs the snapshot refresh — when the connector is disabled', async () => {
     const storage = await seededStorage({ ...CONNECTED, enabled: false }, null)
@@ -190,20 +195,19 @@ describe('HomeAssistantWidget — gate (zero-hooks-in-the-gate, no-husk law)', (
   it('renders when only actions are picked, with no entities at all', async () => {
     const storage = await seededStorage({ ...CONNECTED, entities: [] }, { entities: [] })
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Home Assistant' })
-    expect(section).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Run Movie night' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Run Movie night' })).toBeTruthy()
+    const section = screen.getByRole('region', { name: 'Home Assistant' })
     expect(section.querySelectorAll('li').length).toBe(0)
   })
 
-  it('an action-only config stays absent while health is pending, then appears after an authenticated empty result', async () => {
+  it('an action-only config keeps its loading frame while health is pending, then exposes actions after an authenticated result', async () => {
     const health = deferred<HomeAssistantData>()
     vi.mocked(fetchHomeAssistant).mockReturnValue(health.promise)
     const storage = await seededStorage({ ...CONNECTED, entities: [] }, null)
     const { container } = mount(storage)
 
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
-    expect(container.firstChild).toBeNull()
+    expect(container.firstElementChild?.getAttribute('data-tier-frame-state')).toBe('loading')
 
     await act(async () => {
       health.resolve({ entities: [] })
@@ -230,7 +234,7 @@ describe('HomeAssistantWidget — gate (zero-hooks-in-the-gate, no-husk law)', (
     const { container } = mount(storage)
 
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
-    expect(container.firstChild).toBeNull()
+    expect(container.firstElementChild?.getAttribute('data-tier-frame-state')).toBe('loading')
     expect(screen.queryByRole('button', { name: 'Run Movie night' })).toBeNull()
 
     await act(async () => {
@@ -240,20 +244,20 @@ describe('HomeAssistantWidget — gate (zero-hooks-in-the-gate, no-husk law)', (
     expect(await screen.findByRole('button', { name: 'Run Movie night' })).toBeTruthy()
   })
 
-  it('an action-only config stays absent when its pending health refresh reports failure', async () => {
+  it('an action-only config changes its loading frame to hard-error when health fails', async () => {
     const health = deferred<HomeAssistantData>()
     vi.mocked(fetchHomeAssistant).mockReturnValue(health.promise)
     const storage = await seededStorage({ ...CONNECTED, entities: [] }, null)
     const { container } = mount(storage)
 
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
-    expect(container.firstChild).toBeNull()
+    expect(container.firstElementChild?.getAttribute('data-tier-frame-state')).toBe('loading')
 
     await act(async () => {
       health.resolve({ entities: null })
     })
 
-    expect(container.firstChild).toBeNull()
+    expect(container.firstElementChild?.getAttribute('data-tier-frame-state')).toBe('hard-error')
     expect(screen.queryByRole('button', { name: 'Run Movie night' })).toBeNull()
   })
 })
@@ -285,7 +289,7 @@ describe('HomeAssistantWidget — chip copy', () => {
   it('chips render as <ul> of <li> pills inside the section', async () => {
     const storage = await seededStorage(CONNECTED, { entities: [KITCHEN, PORCH] })
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Home Assistant' })
+    const section = await readyFrame()
 
     const list = section.querySelector('ul')!
     expect(list).toBeTruthy()
@@ -333,7 +337,7 @@ describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ru
       await storage.set('connectors', { homeassistant: configB })
     })
     await waitFor(() => expect(screen.queryByText('Kitchen 21.5°C')).toBeNull())
-    expect(screen.queryByRole('region', { name: 'Home Assistant' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Home Assistant' }).getAttribute('data-tier-frame-state')).toBe('loading')
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(2))
 
     await act(async () => {
@@ -352,12 +356,12 @@ describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ru
     expect(stored?.data).toEqual({ entities: [kitchenB] })
   })
 
-  it('a failed poll (entities: null) renders NOTHING — chips AND buttons both hide', async () => {
+  it('a failed poll keeps a hard-error frame while chips and buttons both hide', async () => {
     const storage = await seededStorage(CONNECTED, { entities: null })
     const { container } = mount(storage)
     await act(async () => {})
 
-    expect(container.firstChild).toBeNull()
+    expect(container.firstElementChild?.getAttribute('data-tier-frame-state')).toBe('hard-error')
     expect(screen.queryByRole('button', { name: 'Run Movie night' })).toBeNull()
   })
 
@@ -366,9 +370,22 @@ describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ru
     mount(storage)
     expect(await screen.findByRole('button', { name: 'Run Movie night' })).toBeTruthy()
   })
+
+  it('keeps an empty frame when every selected entity has disappeared and there are no actions', async () => {
+    mount(await seededStorage({ ...CONNECTED, actions: [] }, { entities: [] }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Home Assistant' }).getAttribute('data-tier-frame-state')).toBe('empty'))
+    expect(screen.getByText('No selected Home Assistant items are available.')).toBeTruthy()
+  })
 })
 
 describe('HomeAssistantWidget — DOM contract', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Home Assistant' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
   it.each([
     ['compact', 'compact'],
     ['standard', 'standard'],
@@ -376,7 +393,7 @@ describe('HomeAssistantWidget — DOM contract', () => {
   ] as const)('uses the exact %s authored frame as %s', async (stageVariant, tier) => {
     const storage = await seededStorage(CONNECTED)
     mount(storage, stageVariant)
-    const frame = await screen.findByRole('region', { name: 'Home Assistant' })
+    const frame = await readyFrame()
     expect(frame.getAttribute('data-tier-frame')).toBe(tier)
     expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
     expect(frame.getAttribute('data-ha-content-variant')).toBe(stageVariant)

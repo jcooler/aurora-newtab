@@ -57,6 +57,13 @@ function mount(storage: AuroraStorage, props: { canvasSize?: 'compact' | 'standa
 }
 
 describe('CryptoWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), { canvasSize: 'compact' })
+    const frame = await screen.findByRole('region', { name: 'Crypto' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
   it('Docked renders one dense line with the first coin cell and no strip (NL-P5 batch 2)', async () => {
     const storage = await seededStorage(CONNECTED)
     render(

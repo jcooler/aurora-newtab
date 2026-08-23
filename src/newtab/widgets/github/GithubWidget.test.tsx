@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -74,7 +74,19 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'GitHub' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'GitHub' })
+}
+
 describe('GithubWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'GitHub' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
   it.each([
     ['compact', '8px', false],
     ['standard', '9px', false],
@@ -95,12 +107,12 @@ describe('GithubWidget', () => {
   it('makes Full visibly richer than Standard without removing either selected row family', async () => {
     const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
     const standardView = mount(await seededStorage(config, DATA_WITH_GRAPH), 'standard')
-    const standardFrame = await screen.findByRole('region', { name: 'GitHub' })
+    const standardFrame = await readyFrame()
     expect(standardFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(1)
     standardView.unmount()
 
     mount(await seededStorage(config, DATA_WITH_GRAPH), 'full')
-    const fullFrame = await screen.findByRole('region', { name: 'GitHub' })
+    const fullFrame = await readyFrame()
     expect(fullFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(2)
     expect(screen.getByText('Fix the flaky login test').className).not.toContain('dense:text-xs')
     expect(screen.getByText('Crash on cold start')).toBeTruthy()
@@ -406,8 +418,7 @@ describe('GithubWidget', () => {
   it('strictly graph-only with NO contributions data (old snapshot / empty days) renders null — nothing it could ever show', async () => {
     const storage = await seededStorage(GRAPH_ONLY, { prs: [], issues: [], notifications: 3, contributions: null, etags: {} })
     const { container } = mount(storage)
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   // Fix wave — the quiet-day empty line must follow the GRAPH'S tier, not a data
@@ -514,8 +525,7 @@ describe('GithubWidget', () => {
       etags: {},
     })
     const { container } = mount(storage)
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('notifications-only with count null (endpoint unavailable) → also renders null', async () => {
@@ -527,8 +537,7 @@ describe('GithubWidget', () => {
       etags: {},
     })
     const { container } = mount(storage)
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('notifications-only WITH a positive count → the card renders (the chip carries it, no rows, no graph)', async () => {

@@ -62,6 +62,14 @@ function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'expanded')
 }
 
 describe('RssWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    const config: RssConfig = { enabled: true, feeds: ['https://feeds.example/a'], shownCount: 5 }
+    mount(await seededStorage(config, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Headlines' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
   it('Docked renders one dense line with the first headline and no card (NL-P5 batch 2)', async () => {
     const config: RssConfig = { enabled: true, feeds: ['https://feeds.example/a'], shownCount: 5 }
     const storage = await seededStorage(config)
@@ -237,12 +245,11 @@ describe('RssWidget', () => {
     expect((await storage.get('connectorSnapshots')).rss).toBeUndefined()
   })
 
-  it('renders nothing when enabled with feeds but the snapshot has no headlines yet', async () => {
+  it('keeps an empty frame when enabled feeds currently have no headlines', async () => {
     const storage = await seededStorage({ enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 5 }, [])
-    const { container } = mount(storage)
-    await act(async () => {})
-
-    expect(container.firstChild).toBeNull()
+    mount(storage)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Headlines' }).getAttribute('data-tier-frame-state')).toBe('empty'))
+    expect(screen.getByText('No headlines right now.')).toBeTruthy()
   })
 
   it('survives a hand-edited backup restoring { enabled: true } with no feeds array — renders nothing, never throws', async () => {

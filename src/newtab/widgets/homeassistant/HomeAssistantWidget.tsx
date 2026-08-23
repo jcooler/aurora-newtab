@@ -19,7 +19,7 @@ import type { ConnectorConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 import DockLine from '../shared/DockLine'
-import TierFrame, { type TierFrameTier } from '../shared/TierFrame'
+import TierFrame, { ResourceFrameStatus, resourceFrameState, type TierFrameTier } from '../shared/TierFrame'
 
 const HA_VARIANT_LIMITS: Readonly<Record<WidgetVariant, Readonly<{ states: number; actions: number }>>> = {
   compact: { states: 2, actions: 0 },
@@ -166,7 +166,7 @@ function HomeAssistantInner({
   // accepts one (useConnectorSnapshot's own signature requires it) but
   // deliberately ignores it rather than threading it anywhere, so a
   // reviewer scanning call sites never mistakes this for a carry-forward.
-  const { data } = useConnectorSnapshot<HomeAssistantData>(
+  const { data, state } = useConnectorSnapshot<HomeAssistantData>(
     'homeassistant',
     config,
     (_prev) => fetchHomeAssistant(instanceUrl, token, picked),
@@ -178,9 +178,21 @@ function HomeAssistantInner({
   // instance must never turn a still-rendered button into a guaranteed error
   // tint on every press.
   if (!data || data.entities === null) {
-    return utilityTray?.activeTool === 'homeassistant' && utilityTray.host
+    const tray = utilityTray?.activeTool === 'homeassistant' && utilityTray.host
       ? createPortal(<p className="text-sm text-fg-muted">Home Assistant actions are unavailable.</p>, utilityTray.host)
       : null
+    if (docked) return tray
+    const frameState = data?.entities === null ? 'hard-error' : resourceFrameState(state)
+    return (
+      <>
+        <ResourceFrameStatus
+          label="Home Assistant"
+          tier={HA_FRAME_TIER[stageVariant]}
+          state={frameState === 'hard-error' ? 'hard-error' : 'loading'}
+        />
+        {tray}
+      </>
+    )
   }
 
   const chips = data.entities
@@ -192,7 +204,17 @@ function HomeAssistantInner({
   // `actions` never depends on the poll (it's static config, not fetched
   // state), so it alone can still justify rendering — this only returns null
   // when NEITHER would leave anything visible.
-  if (chips.length === 0 && actions.length === 0) return null
+  if (chips.length === 0 && actions.length === 0) {
+    if (docked) return null
+    return (
+      <ResourceFrameStatus
+        label="Home Assistant"
+        tier={HA_FRAME_TIER[stageVariant]}
+        state="empty"
+        message="No selected Home Assistant items are available."
+      />
+    )
+  }
 
   // Docked tier (NL-P5 batch 2): the first chip's own copy (or the actions
   // count when only actions are picked) as one dense line — the SAME
@@ -221,7 +243,7 @@ function HomeAssistantInner({
     <TierFrame
       label="Home Assistant"
       tier={HA_FRAME_TIER[stageVariant]}
-      state="ready"
+      state={resourceFrameState(state)}
       data-ha-content-variant={stageVariant}
       className="flex min-h-0 flex-col"
     >

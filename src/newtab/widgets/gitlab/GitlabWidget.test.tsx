@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -69,7 +69,19 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'GitLab' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'GitLab' })
+}
+
 describe('GitlabWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'GitLab' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
   it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
     const storage = await seededStorage(CONNECTED)
     render(
@@ -303,12 +315,12 @@ describe('GitlabWidget — composed card (wave 2)', () => {
 
   it('makes Full visibly richer than Standard while keeping assigned and review rows', async () => {
     const standardView = mount(await seededMulti(ALL_ON, FULL_DATA), 'standard')
-    const standardFrame = await screen.findByRole('region', { name: 'GitLab' })
+    const standardFrame = await readyFrame()
     expect(standardFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(1)
     standardView.unmount()
 
     mount(await seededMulti(ALL_ON, FULL_DATA), 'full')
-    const fullFrame = await screen.findByRole('region', { name: 'GitLab' })
+    const fullFrame = await readyFrame()
     expect(fullFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(2)
     expect(screen.getByText('Add rate limiting to the ingest API').className).not.toContain('dense:text-xs')
     expect(screen.getByText('Review: refactor the auth guard')).toBeTruthy()
@@ -413,22 +425,19 @@ describe('GitlabWidget — composed card (wave 2)', () => {
 
   it('strictly graph-only with NO contributions data → renders null (nothing it could ever show)', async () => {
     const { container } = mount(await seededMulti(GRAPH_ONLY, { ...DATA, contributions: null, todos: 0 }))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('strictly graph-only, stacked WITH github\'s graph → renders null (the graph never shows, so nothing would)', async () => {
     const { container } = mount(await seededMulti(GRAPH_ONLY, FULL_DATA, { github: GITHUB_GRAPH_ON }))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   // ── No-husk law ──
 
   it('to-dos-only with 0 to-dos → renders null (never a bare "GitLab" heading)', async () => {
     const { container } = mount(await seededMulti(TODOS_ONLY, { ...DATA, mrs: [], reviewMrs: [], todos: 0 }))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('to-dos-only WITH a positive count → the card renders (the chip carries it)', async () => {

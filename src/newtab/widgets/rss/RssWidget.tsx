@@ -4,7 +4,7 @@ import { fetchHeadlines, type Headline } from '../../../services/connectors/rss'
 import type { RssConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
 import DockLine from '../shared/DockLine'
-import TierFrame, { type TierFrameTier } from '../shared/TierFrame'
+import TierFrame, { ResourceFrameStatus, resourceFrameState, type TierFrameTier } from '../shared/TierFrame'
 
 const RSS_FRAME_ROWS: Readonly<Record<WidgetVariant, number>> = {
   compact: 1,
@@ -52,15 +52,24 @@ function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant:
   // here — the dashboard stays quiet; the connector card in Settings is where
   // refresh state would surface). No cached data at all (first ever load still
   // in flight, or a total failure) renders nothing rather than an empty shell.
-  const { data } = useConnectorSnapshot<Headline[]>('rss', rss, () =>
+  const { data, state } = useConnectorSnapshot<Headline[]>('rss', rss, () =>
     fetchHeadlines(feeds, shownCount),
   )
+  const tier = RSS_FRAME_TIER[stageVariant]
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="Headlines" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
   // Cap at shownCount here too, not just in the service: a snapshot written
   // under a larger shownCount that the user later lowered must honor the
   // current setting without waiting for the next refresh.
   const availableHeadlines = (data ?? []).slice(0, shownCount)
   const headlines = availableHeadlines.slice(0, RSS_FRAME_ROWS[stageVariant])
-  if (headlines.length === 0) return null
+  if (headlines.length === 0) {
+    if (docked) return null
+    return <ResourceFrameStatus label="Headlines" tier={tier} state={state.operation === 'error' ? 'hard-error' : 'empty'} message="No headlines right now." />
+  }
 
   // Docked tier (NL-P5 batch 2): the first headline as one dense line — the
   // SAME first-item derivation the card renders, no second fetch.
@@ -69,8 +78,8 @@ function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant:
   return (
     <TierFrame
       label="Headlines"
-      tier={RSS_FRAME_TIER[stageVariant]}
-      state="ready"
+      tier={tier}
+      state={resourceFrameState(state)}
       data-rss-content-variant={stageVariant}
       className="flex min-h-0 flex-col"
     >

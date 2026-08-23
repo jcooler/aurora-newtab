@@ -8,7 +8,7 @@ import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig, JiraConf
 import ContributionGraph from '../shared/ContributionGraph'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
-import TierFrame from '../shared/TierFrame'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
@@ -105,6 +105,8 @@ export default function GitlabWidget({ canvasSize, docked }: { canvasSize?: Canv
   const [connectors] = useStoredKey('connectors')
   const gitlab = connectedGitlab(connectors?.gitlab)
   if (!gitlab) return null
+  const views = resolveViews(DEFAULT_GITLAB_VIEWS, gitlab.views)
+  if (!views.activityGraph && !views.mergeRequests && !views.reviewAsks && !views.todos) return null
 
   // The activity graph's reveal tier (below) depends on the OTHER forge cards
   // sharing the right rail's flow column (github, jira). `soleForgeCard`: neither
@@ -146,7 +148,7 @@ export default function GitlabWidget({ canvasSize, docked }: { canvasSize?: Canv
       token={gitlab.token}
       instanceUrl={gitlab.instanceUrl}
       username={gitlab.username}
-      views={resolveViews(DEFAULT_GITLAB_VIEWS, gitlab.views)}
+      views={views}
       soleForgeCard={soleForgeCard}
       githubGraphEnabled={githubGraphEnabled}
       jiraEnabled={jiraEnabled}
@@ -191,10 +193,12 @@ function GitlabInner({
   const { data, state } = useConnectorSnapshot<GitlabData>('gitlab', gitlab, (prev) =>
     fetchGitlab(instanceUrl, token, username, views, prev),
   )
-  // No cached data yet (first-ever load in flight, or a total failure) renders
-  // nothing rather than an empty shell — same as GithubInner/RssInner.
-  if (!data) return null
   const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="GitLab" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
   const framed = canvasSize !== undefined
 
   // Old snapshots predate the contributions field — read it defensively. An
@@ -376,7 +380,7 @@ function GitlabInner({
     <TierFrame
       label="GitLab"
       tier={tier}
-      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
+      state={resourceFrameState(state, showEmpty)}
       data-canvas-size={tier}
       {...(graphYieldedToGithub ? { 'data-yield': 'github' } : {})}
       // Full earns its footprint (batch-2 owner review): a wider card whose

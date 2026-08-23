@@ -13,7 +13,7 @@ import {
 } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
-import TierFrame from '../shared/TierFrame'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 
 // The status widget — Task 84 (W3-SP2), the eighth connector and the third
 // no-auth one (crypto.ts/ics.ts's own company) to reach the newtab page.
@@ -92,14 +92,22 @@ function StatusInner({
   const { data, state } = useConnectorSnapshot<StatusData>('status', config, (prev) =>
     fetchStatus(services, prev),
   )
-  if (!data) return null
   const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="Service status" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
   const framed = canvasSize !== undefined
 
   // fetchStatus returns one entry per configured service, INDEX-ALIGNED with
   // `services` (its own doc comment) — rendered as-is, in configured order,
   // for the dot row.
   const rows = data.services
+  if (rows.length === 0) {
+    if (docked) return null
+    return <ResourceFrameStatus label="Service status" tier={tier} state="empty" message="No service results right now." />
+  }
 
   // Trouble = minor/major/critical — unknown is explicitly NOT trouble (a
   // gray "couldn't check" dot, not a red claim that something is actually
@@ -150,7 +158,7 @@ function StatusInner({
     <TierFrame
       label="Service status"
       tier={tier}
-      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
+      state={resourceFrameState(state)}
       data-status-tone={tone}
       data-canvas-size={tier}
       className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-left`}

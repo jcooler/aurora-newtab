@@ -5,7 +5,7 @@ import type { ConnectorConfig, GithubConfig } from '../../../services/connectors
 import ContributionGraph from '../shared/ContributionGraph'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
-import TierFrame from '../shared/TierFrame'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
@@ -101,10 +101,12 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
   // All four sections off: the user asked for nothing to show, so render no
   // empty shell — the settings copy owns that explanation.
   if (!views.commitGraph && !views.pulls && !views.issues && !views.notifications) return null
-  // No cached data yet (first-ever load in flight, or a total failure) renders
-  // nothing rather than an empty shell — same as RssInner.
-  if (!data) return null
   const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="GitHub" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
   const framed = canvasSize !== undefined
 
   // Old snapshots predate the contributions field — read it defensively. An
@@ -244,7 +246,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
     <TierFrame
       label="GitHub"
       tier={tier}
-      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
+      state={resourceFrameState(state, showEmpty)}
       data-canvas-size={tier}
       className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
     >

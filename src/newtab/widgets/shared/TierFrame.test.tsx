@@ -2,7 +2,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import indexCss from '../../index.css?raw'
-import TierFrame, { type TierFrameProps } from './TierFrame'
+import TierFrame, { resourceFrameState, type TierFrameProps } from './TierFrame'
 import type { WidgetPresentationState } from '../../widgetSizeContracts'
 
 function declarationBlock(selector: string): string {
@@ -45,6 +45,16 @@ describe('TierFrame', () => {
       </TierFrame>,
     )
     expect(screen.getByRole('region', { name: 'Linear' }).getAttribute('data-work-resource-state')).toBe('loading')
+  })
+
+  it('maps connector resource truth to the shared frame state vocabulary', () => {
+    expect(resourceFrameState({ operation: 'idle', freshness: 'unknown', hasData: false })).toBe('loading')
+    expect(resourceFrameState({ operation: 'pending', freshness: 'unknown', hasData: false })).toBe('loading')
+    expect(resourceFrameState({ operation: 'error', freshness: 'unknown', hasData: false })).toBe('hard-error')
+    expect(resourceFrameState({ operation: 'error', freshness: 'stale', hasData: true })).toBe('partial')
+    expect(resourceFrameState({ operation: 'pending', freshness: 'stale', hasData: true })).toBe('stale')
+    expect(resourceFrameState({ operation: 'success', freshness: 'fresh', hasData: true }, true)).toBe('empty')
+    expect(resourceFrameState({ operation: 'success', freshness: 'fresh', hasData: true })).toBe('ready')
   })
 
   it('pins exact desktop frames, proportional narrow safety, adaptive panel tokens, focus, and motion safety', () => {

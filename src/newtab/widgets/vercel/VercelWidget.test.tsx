@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -70,14 +70,26 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Vercel' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'Vercel' })
+}
+
 describe('VercelWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Vercel' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
   it.each([
     ['compact', 0],
     ['standard', 2],
     ['full', 3],
   ] as const)('uses the exact %s frame and bounds failed-first named deployments to %i', async (tier, rowCount) => {
     mount(await seededStorage(CONNECTED, DATA), tier)
-    const frame = await screen.findByRole('region', { name: 'Vercel' })
+    const frame = await readyFrame()
     expect(frame.getAttribute('data-tier-frame')).toBe(tier)
     expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
     expect(frame.className).toContain(`tier-frame--${tier}`)
@@ -292,14 +304,12 @@ describe('VercelWidget — composed card (wave 2)', () => {
 
   it('both views off → renders null (never a bare "Vercel" heading)', async () => {
     const { container } = mount(await seededStorage(BOTH_OFF, SUMMARY_DATA))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('statusSummary-only with NO deployments → renders null', async () => {
     const { container } = mount(await seededStorage(SUMMARY_ONLY, { deployments: [] }))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('statusSummary-only WITH deployments present → the card renders (the summary line carries it, no rows, no empty line)', async () => {

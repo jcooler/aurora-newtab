@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -68,7 +68,19 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Jira' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'Jira' })
+}
+
 describe('JiraWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Jira' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
   it.each([
     ['compact', 0],
     ['standard', 2],
@@ -83,7 +95,7 @@ describe('JiraWidget', () => {
       ],
     }
     mount(await seededStorage(CONNECTED, data), tier)
-    const frame = await screen.findByRole('region', { name: 'Jira' })
+    const frame = await readyFrame()
     expect(frame.getAttribute('data-tier-frame')).toBe(tier)
     expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
     expect(frame.className).toContain(`tier-frame--${tier}`)
@@ -339,8 +351,7 @@ describe('JiraWidget — composed card (wave 2)', () => {
   it('status-chips-only with empty counts → renders null (never a bare "Jira" heading)', async () => {
     const storage = await seededStorage(CHIPS_ONLY, { issues: [], counts: {}, dueSoon: [] })
     const { container } = mount(storage)
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('status-chips-only WITH counts present → the card renders (the chip carries it, no rows, no empty line)', async () => {

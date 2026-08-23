@@ -7,7 +7,7 @@ import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, JiraConfig, JiraViews, GitlabConfig, GithubConfig } from '../../../services/connectors/types'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
-import TierFrame from '../shared/TierFrame'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
@@ -86,6 +86,8 @@ export default function JiraWidget({ canvasSize, docked }: { canvasSize?: Canvas
   const [connectors] = useStoredKey('connectors')
   const jira = connectedJira(connectors?.jira)
   if (!jira) return null
+  const views = resolveViews(DEFAULT_JIRA_VIEWS, jira.views)
+  if (!views.assigned && !views.dueSoon && !views.statusChips) return null
 
   // Task 77 — the due-soon section-tier fix (mirrors GitlabWidget.tsx's
   // reviewAsksTier, symmetric derivation, see index.css's
@@ -119,7 +121,7 @@ export default function JiraWidget({ canvasSize, docked }: { canvasSize?: Canvas
       site={jira.site}
       email={jira.email}
       apiToken={jira.apiToken}
-      views={resolveViews(DEFAULT_JIRA_VIEWS, jira.views)}
+      views={views}
       gitlabEnabled={gitlabEnabled}
       gitlabReviewAsksEnabled={gitlabReviewAsksEnabled}
       anyGraphEnabled={anyGraphEnabled}
@@ -163,8 +165,12 @@ function JiraInner({
   const { data, state } = useConnectorSnapshot<JiraData>('jira', jira, (prev) =>
     fetchJira(site, email, apiToken, views, prev),
   )
-  if (!data) return null
   const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="Jira" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
   const framed = canvasSize !== undefined
 
   // A disabled list is empty regardless of what the snapshot still carries.
@@ -297,7 +303,7 @@ function JiraInner({
     <TierFrame
       label="Jira"
       tier={tier}
-      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
+      state={resourceFrameState(state, showEmpty)}
       data-canvas-size={tier}
       className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
     >

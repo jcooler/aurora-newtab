@@ -4,7 +4,7 @@ import { fetchCrypto, type CoinRow, type CryptoData } from '../../../services/co
 import type { CryptoConfig } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import DockLine from '../shared/DockLine'
-import TierFrame from '../shared/TierFrame'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 
 // CryptoConfig caps at 5 coins (types.ts's own comment) and the service's
 // own PER_PAGE mirrors it — this is a defensive re-slice at the display
@@ -36,10 +36,14 @@ function CryptoInner({ crypto, canvasSize, docked }: { crypto: CryptoConfig; can
   // own doc comment). No cached data yet (first-ever load still in flight,
   // or a total failure) renders nothing rather than an empty shell — same
   // as every other connector widget.
-  const { data } = useConnectorSnapshot<CryptoData>('crypto', crypto, (prev) =>
+  const { data, state } = useConnectorSnapshot<CryptoData>('crypto', crypto, (prev) =>
     fetchCrypto(coins, prev),
   )
-  if (!data) return null
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="Crypto" tier={canvasSize} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
 
   // fetchCrypto already reorders its rows to the CONFIGURED id order (see
   // crypto.ts's own doc comment) — this widget renders that order as-is
@@ -62,7 +66,7 @@ function CryptoInner({ crypto, canvasSize, docked }: { crypto: CryptoConfig; can
     <TierFrame
       label="Crypto"
       tier={canvasSize}
-      state={empty ? 'empty' : 'ready'}
+      state={resourceFrameState(state, empty)}
       data-canvas-size={canvasSize}
       className="flex min-h-0 flex-col text-center"
     >

@@ -5,7 +5,7 @@ import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, VercelConfig, VercelViews } from '../../../services/connectors/types'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
-import TierFrame from '../shared/TierFrame'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 const MAX_DEPLOYMENTS = 5
@@ -64,11 +64,13 @@ export default function VercelWidget({ canvasSize, docked }: { canvasSize?: Canv
   const [connectors] = useStoredKey('connectors')
   const vercel = connectedVercel(connectors?.vercel)
   if (!vercel) return null
+  const views = resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)
+  if (!views.deployments && !views.statusSummary) return null
   return (
     <VercelInner
       vercel={vercel}
       token={vercel.token}
-      views={resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)}
+      views={views}
       canvasSize={canvasSize}
       docked={docked}
     />
@@ -99,8 +101,12 @@ function VercelInner({
   const { data, state } = useConnectorSnapshot<VercelData>('vercel', vercel, (prev) =>
     fetchVercel(token, views, prev),
   )
-  if (!data) return null
   const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="Vercel" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
   const framed = canvasSize !== undefined
 
   // UNSLICED — the status summary below counts EVERY deployment the
@@ -182,7 +188,7 @@ function VercelInner({
     <TierFrame
       label="Vercel"
       tier={tier}
-      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
+      state={resourceFrameState(state, showRowsEmpty)}
       data-canvas-size={tier}
       className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
     >
