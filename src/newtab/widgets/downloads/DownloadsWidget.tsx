@@ -145,7 +145,7 @@ function DownloadDetail({
           const active = item.state === 'in_progress'
           const context = `${item.filename}, ${stateLabel(item)}, item ${index + 1} of ${rows.length}`
           return (
-            <article key={item.id} aria-label={context} className={dense ? 'grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 py-1' : 'py-2'}>
+            <article key={item.id} aria-label={context} className={dense ? 'grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 py-1' : 'py-2'}>
               <div className={dense ? 'min-w-0' : 'flex min-w-0 items-center gap-2'}>
                 <span className={dense ? 'block truncate text-sm font-medium' : 'min-w-0 flex-1 truncate text-sm font-medium'}>{item.filename}</span>
                 <span className={`${item.dangerous ? 'text-amber-300' : 'text-fg-muted'} ${dense ? 'block truncate text-[11px]' : 'shrink-0 text-[11px]'}`}>

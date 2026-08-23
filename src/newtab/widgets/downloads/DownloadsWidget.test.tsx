@@ -68,10 +68,12 @@ describe('DownloadsWidget', () => {
 
     if (visibleRows > 0) {
       const actions = [...frame.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
+      const rows = [...frame.querySelectorAll<HTMLElement>('article')]
       const names = actions.map((button) => button.getAttribute('aria-label'))
       expect(names.every(Boolean)).toBe(true)
       expect(new Set(names).size).toBe(names.length)
       expect(actions.every((button) => button.className.includes('text-sm'))).toBe(true)
+      expect(rows.every((row) => row.className.includes('min-h-9'))).toBe(true)
       const overflowSummary = screen.getByText(`${25 - visibleRows} more in Chrome Downloads`)
       expect(overflowSummary.parentElement?.className).toContain('space-y-0')
     }
