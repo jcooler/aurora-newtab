@@ -8,6 +8,7 @@ import {
   buildSfP1EvidenceManifest,
   formatSfP1Catalog,
   resolveSfP1BrowserMode,
+  resolveSfP1ContextOptions,
   setSfP1ScenarioViewport,
   validateSfP1EvidenceManifest,
 } from './qa-shared-frame-p1.mjs'
@@ -132,10 +133,12 @@ test('real-window mode requires headed viewport:null and cannot call page.setVie
   const mode = resolveSfP1BrowserMode(['--headed', '--real-window'])
   assert.equal(mode.contextViewport, null)
   assert.equal(mode.emulatesViewport, false)
+  assert.equal('deviceScaleFactor' in resolveSfP1ContextOptions(mode, 'dist'), false)
   const page = { setViewportSize: async () => assert.fail('real-window mode attempted emulation') }
   await setSfP1ScenarioViewport(page, { width: 412, height: 915 }, mode)
 
   const emulated = resolveSfP1BrowserMode([])
+  assert.equal(resolveSfP1ContextOptions(emulated, 'dist').deviceScaleFactor, 1)
   let received = null
   await setSfP1ScenarioViewport({ setViewportSize: async (viewport) => { received = viewport } }, { width: 412, height: 915 }, emulated)
   assert.deepEqual(received, { width: 412, height: 915 })

@@ -389,6 +389,19 @@ export function resolveSfP1BrowserMode(args = process.argv.slice(2)) {
   }
 }
 
+export function resolveSfP1ContextOptions(mode, dist) {
+  return {
+    channel: 'chromium',
+    headless: !mode.headed,
+    viewport: mode.contextViewport,
+    ...(mode.realWindow ? {} : { deviceScaleFactor: 1 }),
+    reducedMotion: 'reduce',
+    locale: 'en-US',
+    timezoneId: 'America/New_York',
+    args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
+  }
+}
+
 export async function setSfP1ScenarioViewport(page, viewport, mode) {
   if (!mode.emulatesViewport) return
   await page.setViewportSize(viewport)
@@ -1204,16 +1217,7 @@ async function run() {
   const fulfillJson = (route, body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
 
   try {
-    context = await chromium.launchPersistentContext(profileDir, {
-      channel: 'chromium',
-      headless: !headed,
-      viewport: browserMode.contextViewport,
-      deviceScaleFactor: 1,
-      reducedMotion: 'reduce',
-      locale: 'en-US',
-      timezoneId: 'America/New_York',
-      args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
-    })
+    context = await chromium.launchPersistentContext(profileDir, resolveSfP1ContextOptions(browserMode, dist))
     evidence.browser.version = context.browser()?.version() ?? 'unknown'
     await context.addInitScript(() => {
       if (location.protocol === 'chrome-extension:') {
