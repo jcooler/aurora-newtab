@@ -64,17 +64,17 @@ async function renderBar(
 }
 
 describe('BookmarksBar', () => {
-  it('keeps the free bar linear and gives stack presentations an exact framed face', async () => {
-    const freeView = await renderBar(nestedModel)
-    expect((await screen.findByRole('navigation', { name: 'Bookmarks bar' })).getAttribute('data-bookmarks-presentation')).toBe('bar')
-
-    freeView.unmount()
-    await renderBar(nestedModel, undefined, 'stack', 'standard')
-    const frame = await screen.findByRole('region', { name: 'Bookmarks' })
-    expect(frame.getAttribute('data-tier-frame')).toBe('standard')
-    expect(frame.querySelector('[data-bookmarks-presentation="stack"]')).toBeTruthy()
-    vi.mocked(loadBarModel).mockClear()
-  })
+  it.each(['free', 'stack', 'docked'] as const)(
+    'keeps the established single-line bookmarks bar in %s presentations',
+    async (presentation) => {
+      const view = await renderBar(nestedModel, undefined, presentation, 'standard')
+      const bar = await screen.findByRole('navigation', { name: 'Bookmarks bar' })
+      expect(bar.getAttribute('data-bookmarks-presentation')).toBe('bar')
+      expect(screen.queryByRole('region', { name: 'Bookmarks' })).toBeNull()
+      view.unmount()
+      vi.mocked(loadBarModel).mockClear()
+    },
+  )
   it('uses single-letter folder marks per the batch-1 owner review (N for News, D for Docs)', () => {
     expect(folderMonogram('News')).toBe('N')
     expect(folderMonogram('Docs')).toBe('D')

@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
 import { defaults } from '../../lib/storage/schema'
 import Greeting from './Greeting'
-import indexCss from '../index.css?raw'
 
 describe('Greeting restoration sampling', () => {
   it('changes daypart immediately when a sleeping tab regains focus', async () => {
@@ -27,28 +26,26 @@ describe('Greeting restoration sampling', () => {
 })
 
 describe('Greeting presentation surface', () => {
-  it('keeps the legacy full-width Greeting rule from overriding exact tier geometry', () => {
-    expect(indexCss).toMatch(/\.core-greeting-frame\s*\{[^}]*width:\s*var\(--tier-frame-width\)\s*;/)
-    expect(indexCss).toMatch(/\.core-greeting-frame\s*>\s*p\s*\{[^}]*font-size:\s*30px\s*;/)
-  })
-
-  it('keeps the free Greeting frameless and the stack Greeting framed', async () => {
+  it('keeps the established intrinsic Greeting instead of imposing a tier frame', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 23, 15, 0, 0))
     const storage = createStorage(memoryDriver())
     await storage.init()
-    const view = render(
+    await storage.set('settings', { ...defaults().settings, name: 'Jon' })
+    const { container } = render(
       <StorageProvider storage={storage}>
-        <Greeting canvasSize="standard" presentation="free" />
+        <Greeting />
       </StorageProvider>,
     )
     await act(async () => {})
-    expect(screen.getByTestId('greeting-face').dataset.tierSurface).toBe('none')
-
-    view.rerender(
-      <StorageProvider storage={storage}>
-        <Greeting canvasSize="standard" presentation="stack" />
-      </StorageProvider>,
-    )
-    expect(screen.getByRole('region', { name: 'Greeting' }).dataset.tierSurface).toBe('card')
+    const greeting = container.firstElementChild
+    const text = greeting?.querySelector('[data-canvas-type-role="greeting"]')
+    expect(greeting?.tagName).toBe('DIV')
+    expect(greeting?.classList.contains('aurora-greeting')).toBe(true)
+    expect(greeting?.hasAttribute('data-tier-frame')).toBe(false)
+    expect(text?.textContent).toBe('Good afternoon, Jon.')
+    expect(text?.getAttribute('title')).toBe('Good afternoon, Jon.')
+    vi.useRealTimers()
   })
 })
 

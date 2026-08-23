@@ -14,9 +14,19 @@ import { parsePresentationAuthority, resolveSfP1BrowserMode, resolveSfP1ContextO
 import { snapshotScope, workFixtures } from './qa-shared-frame-p2.mjs'
 
 export const APPROVED_TARGET_IDS = Object.freeze(TARGET_WIDGETS.map(({ id }) => id))
+export const OWNER_VISIBLE_CANVAS_CASE = Object.freeze({
+  key: 'owner-visible-canvas',
+  kind: 'owner-visible-canvas',
+  members: Object.freeze([
+    'bookmarks', 'clock', 'greeting', 'worldClocks', 'countdown', 'search',
+    'focus', 'links', 'quote', 'weather', 'ics', 'status', 'timer', 'tasks',
+    'notes', 'habits',
+  ]),
+})
 export const PRODUCTION_CASES = Object.freeze([
   ...APPROVED_TARGET_IDS.map((target) => Object.freeze({ key: target, kind: 'approved-target', target })),
   ...MIXED_STACKS.map((stack) => Object.freeze({ key: stack.id, kind: 'mixed-stack', members: [...stack.members], tier: stack.tier })),
+  OWNER_VISIBLE_CANVAS_CASE,
 ])
 
 const SOURCE_ID = Object.freeze({ calendar: 'ics' })
@@ -36,6 +46,7 @@ function exactSet(actual, expected, label) {
 export function assertProductionCoverage(cases) {
   exactSet(cases.filter(({ kind }) => kind === 'approved-target').map(({ target }) => target), APPROVED_TARGET_IDS, 'approved target inventory drifted')
   exactSet(cases.filter(({ kind }) => kind === 'mixed-stack').map(({ key }) => key), MIXED_STACKS.map(({ id }) => id), 'required mixed stack inventory drifted')
+  assert.deepEqual(cases.filter(({ kind }) => kind === 'owner-visible-canvas'), [OWNER_VISIBLE_CANVAS_CASE], 'owner-visible canvas case drifted')
   return cases
 }
 
@@ -94,6 +105,43 @@ function buildLayouts(authorityIds, stack) {
   return { version: 1, activeLayoutId: layout.id, layouts: [layout] }
 }
 
+const OWNER_VISIBLE_POINTS = Object.freeze({
+  bookmarks: Object.freeze({ x: 50, y: 3, tier: 'standard' }),
+  greeting: Object.freeze({ x: 76, y: 7, tier: 'compact' }),
+  weather: Object.freeze({ x: 12, y: 26, tier: 'standard' }),
+  clock: Object.freeze({ x: 37, y: 26, tier: 'standard' }),
+  worldClocks: Object.freeze({ x: 62, y: 26, tier: 'standard' }),
+  tasks: Object.freeze({ x: 87, y: 23, tier: 'compact' }),
+  ics: Object.freeze({ x: 12, y: 57, tier: 'standard' }),
+  countdown: Object.freeze({ x: 37, y: 57, tier: 'standard' }),
+  search: Object.freeze({ x: 62, y: 57, tier: 'standard' }),
+  notes: Object.freeze({ x: 87, y: 49, tier: 'compact' }),
+  status: Object.freeze({ x: 12, y: 87, tier: 'standard' }),
+  focus: Object.freeze({ x: 37, y: 87, tier: 'standard' }),
+  links: Object.freeze({ x: 62, y: 87, tier: 'standard' }),
+  quote: Object.freeze({ x: 87, y: 84, tier: 'standard' }),
+  timer: Object.freeze({ x: 87, y: 69, tier: 'compact' }),
+  habits: Object.freeze({ x: 76, y: 52, tier: 'compact' }),
+})
+
+export function buildOwnerVisibleLayout(authorityIds) {
+  const widgets = Object.fromEntries(authorityIds.map((id) => [id, { kind: 'hidden' }]))
+  let layer = 1
+  for (const [id, point] of Object.entries(OWNER_VISIBLE_POINTS)) {
+    if (!authorityIds.includes(id)) continue
+    widgets[id] = {
+      kind: 'free',
+      anchor: 'center',
+      offsetX: point.x - 50,
+      offsetY: point.y - 50,
+      tier: point.tier,
+      layer: layer++,
+    }
+  }
+  const layout = { id: 'owner-visible-redesign', name: 'Owner-visible redesign', widgets, stacks: [] }
+  return { version: 1, activeLayoutId: layout.id, layouts: [layout] }
+}
+
 async function inspectFrame(page, stack, activeMember) {
   const stackId = `stack-production-${stack.id}`
   const selector = `[data-stack-card="${stackId}"] [data-stack-member="${sourceId(activeMember)}"][data-stack-active="true"] [data-tier-frame="${stack.tier}"]`
@@ -128,6 +176,85 @@ async function inspectFrame(page, stack, activeMember) {
   assert.equal(measurement.internalScrollOwners, 0, `${stack.id} ${activeMember} added an internal scroll owner`)
   assert(measurement.minTextPx === null || measurement.minTextPx >= 11, `${stack.id} ${activeMember} drops below the 11px text floor`)
   return { selector, measurement }
+}
+
+async function inspectOwnerVisibleCanvas(page, output) {
+  const framed = Object.freeze({
+    clock: 'standard',
+    worldClocks: 'standard',
+    countdown: 'standard',
+    search: 'standard',
+    focus: 'standard',
+    links: 'standard',
+    quote: 'standard',
+    weather: 'standard',
+    ics: 'standard',
+    status: 'standard',
+    tasks: 'compact',
+    notes: 'compact',
+    timer: 'compact',
+    habits: 'compact',
+  })
+  const measurements = {}
+  for (const [id, tier] of Object.entries(framed)) {
+    const frame = page.locator(`[data-testid="canvas-item-${id}"] [data-tier-frame="${tier}"]`)
+    await frame.waitFor()
+    measurements[id] = await frame.evaluate((node) => {
+      const rect = node.getBoundingClientRect()
+      return {
+        width: rect.width,
+        height: rect.height,
+        scrollWidth: node.scrollWidth,
+        scrollHeight: node.scrollHeight,
+      }
+    })
+    const [expectedWidth, expectedHeight] = EXPECTED_DIMENSIONS[tier]
+    assert(Math.abs(measurements[id].width - expectedWidth) <= 1, `${id} standalone width drifted`)
+    assert(Math.abs(measurements[id].height - expectedHeight) <= 1, `${id} standalone height drifted`)
+    assert(measurements[id].scrollWidth <= measurements[id].width + 1, `${id} standalone clips horizontally`)
+    assert(measurements[id].scrollHeight <= measurements[id].height + 1, `${id} standalone clips vertically`)
+  }
+
+  const bookmarks = page.getByTestId('canvas-item-bookmarks')
+  await bookmarks.locator('nav[aria-label="Bookmarks bar"]').waitFor()
+  assert.equal(await bookmarks.locator('[data-tier-frame]').count(), 0, 'Bookmarks regressed from the readable bar to a tier card')
+
+  const greeting = page.getByTestId('canvas-item-greeting')
+  const greetingEvidence = await greeting.evaluate((node) => {
+    const root = node.querySelector('.aurora-greeting')
+    const text = root?.querySelector('[data-canvas-type-role="greeting"]')
+    return {
+      rootTag: root?.tagName ?? null,
+      tierFrames: node.querySelectorAll('[data-tier-frame]').length,
+      text: text?.textContent ?? '',
+      title: text?.getAttribute('title') ?? '',
+      clientWidth: text?.clientWidth ?? 0,
+      scrollWidth: text?.scrollWidth ?? 0,
+    }
+  })
+  assert.equal(greetingEvidence.rootTag, 'DIV', 'Greeting did not restore its intrinsic root')
+  assert.equal(greetingEvidence.tierFrames, 0, 'Greeting regressed to a tier card')
+  assert.equal(greetingEvidence.text, 'Good afternoon, Jon.', 'Greeting text drifted')
+  assert.equal(greetingEvidence.title, greetingEvidence.text, 'Greeting full-text fallback drifted')
+  assert(greetingEvidence.scrollWidth <= greetingEvidence.clientWidth + 1, 'Greeting text clips on the real canvas')
+
+  const normalFilename = 'owner-visible-canvas.png'
+  await page.screenshot({ path: resolve(output, normalFilename) })
+
+  await page.getByRole('button', { name: 'Layout: Owner-visible redesign' }).click()
+  await page.getByRole('menuitem', { name: 'Edit layout' }).click()
+  await greeting.click()
+  await page.getByRole('dialog', { name: 'Greeting inspector' }).waitFor()
+  const editFilename = 'owner-visible-canvas-greeting-edit.png'
+  await page.screenshot({ path: resolve(output, editFilename) })
+  await page.getByRole('toolbar', { name: 'Edit layout' }).getByRole('button', { name: 'Cancel' }).click()
+
+  for (const filename of [normalFilename, editFilename]) {
+    const metadata = await sharp(resolve(output, filename)).metadata()
+    assert.equal(metadata.width, 1600, `${filename} width drifted`)
+    assert.equal(metadata.height, 900, `${filename} height drifted`)
+  }
+  return { key: OWNER_VISIBLE_CANVAS_CASE.key, filenames: [normalFilename, editFilename], greeting: greetingEvidence, measurements }
 }
 
 function initEvidenceBoundary() {
@@ -257,6 +384,52 @@ export async function runProductionQa() {
         assert.deepEqual(legacyAfter, legacyBefore, `${stack.id} ${theme.id} changed legacy layout storage`)
       }
     }
+
+    await page.goto(seedUrl, { waitUntil: 'domcontentloaded' })
+    const ownerLayouts = buildOwnerVisibleLayout(authorityIds)
+    await page.evaluate(async ({ members, layouts }) => {
+      const current = await chrome.storage.local.get(null)
+      const settingId = (id) => ({ tasks: 'todo', worldClocks: 'clocks', countdown: 'countdown' })[id] ?? id
+      const widgets = Object.fromEntries(Object.keys(current.settings.widgets).map((id) => [id, false]))
+      for (const member of members) {
+        const id = settingId(member)
+        if (id in widgets) widgets[id] = true
+      }
+      const now = Date.now()
+      const today = '2026-08-23'
+      await chrome.storage.local.set({
+        settings: { ...current.settings, name: 'Jon', panelColor: null, widgets },
+        layouts,
+        calendarPreferences: { ...current.calendarPreferences, [layouts.activeLayoutId]: { defaultView: 'month', includePublicHolidays: true } },
+        worldClocks: [
+          { zone: 'America/New_York', label: 'New York' },
+          { zone: 'Europe/London', label: 'London' },
+          { zone: 'Asia/Tokyo', label: 'Tokyo' },
+        ],
+        countdowns: [{ id: 'launch', name: 'Aurora launch', date: '2026-09-07' }],
+        links: [
+          { id: 'mail', title: 'Mail', url: 'https://mail.example.invalid/inbox' },
+          { id: 'calendar', title: 'Calendar', url: 'https://calendar.example.invalid/today' },
+          { id: 'drive', title: 'Drive', url: 'https://drive.example.invalid/files' },
+          { id: 'aurora', title: 'Aurora', url: 'https://aurora.example.invalid/workspace' },
+          { id: 'github', title: 'GitHub', url: 'https://github.example.invalid/code' },
+          { id: 'home', title: 'Home', url: 'https://home.example.invalid/control' },
+        ],
+        habits: [
+          { id: 'water', name: 'Water', createdAt: now, log: [today] },
+          { id: 'walk', name: 'Walk', createdAt: now, log: [] },
+          { id: 'read', name: 'Read', createdAt: now, log: [today] },
+        ],
+        photoPrefs: { ...current.photoPrefs, mode: 'gradient' },
+      })
+    }, { members: OWNER_VISIBLE_CANVAS_CASE.members, layouts: ownerLayouts })
+    await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
+    await page.locator('[data-canvas-surface]').waitFor()
+    await page.evaluate(() => globalThis.__widgetRedesignProduction?.clear())
+    captures.push(await inspectOwnerVisibleCanvas(page, output))
+    const ownerWrites = await page.evaluate(() => globalThis.__widgetRedesignProduction?.writes ?? [])
+    assert(ownerWrites.every((keys) => keys.length === 1 && keys[0] === 'weatherAlertCache'), 'owner-visible inspection wrote outside the permitted weather cache')
+    assert(!ownerWrites.some((keys) => keys.includes('layouts')), 'owner-visible inspection persisted layout changes after Cancel')
 
     assert.equal(
       runtimeErrors.length + failedRequests.length + unexpectedRequests.length,

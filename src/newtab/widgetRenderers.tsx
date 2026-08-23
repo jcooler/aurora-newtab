@@ -70,6 +70,15 @@ function effectiveVariant({ stageVariant, canvasSize }: WidgetRendererProps): Wi
   return canvasSize
 }
 
+/** The redesign catalog's ordinary Compact/Standard/Full captures are the
+ * approved standalone canvas faces. These components originally exposed the
+ * same authored face only through their stack branch, so translate the
+ * canvas context at the renderer boundary without changing stored layout or
+ * data ownership. Greeting and Bookmarks deliberately do not use this path. */
+function approvedCanvasFace(presentation?: WidgetPresentationMode): WidgetPresentationMode | undefined {
+  return presentation === 'free' ? 'stack' : presentation
+}
+
 export const WIDGET_RENDERERS = {
   weather: (props) => (
     <WeatherWidget onExpandedChange={props.onWeatherExpandedChange} stageVariant={effectiveVariant(props)} docked={props.docked} />
@@ -78,16 +87,16 @@ export const WIDGET_RENDERERS = {
   monthCal: (props) => <MonthCalWidget canvasSize={props.canvasSize} stageVariant={props.stageVariant} />,
   sun: (props) => <SunWidget canvasSize={props.canvasSize} docked={props.docked} />,
   moon: (props) => <MoonWidget canvasSize={props.canvasSize} docked={props.docked} />,
-  quote: (props) => <QuoteWidget canvasSize={props.canvasSize} presentation={props.presentation} />,
-  clock: (props) => <Clock canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} />,
-  greeting: (props) => <Greeting canvasSize={props.canvasSize} presentation={props.presentation} />,
-  worldClocks: (props) => <WorldClocks canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} />,
-  countdown: (props) => <CountdownLine canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} />,
-  search: (props) => <SearchBar canvasSize={props.canvasSize} presentation={props.presentation} />,
-  focus: (props) => <FocusLine canvasSize={props.canvasSize} presentation={props.presentation} />,
-  links: (props) => <LinksWidget canvasSize={props.canvasSize} presentation={props.presentation} />,
+  quote: (props) => <QuoteWidget canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} />,
+  clock: (props) => <Clock canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} docked={props.docked} />,
+  greeting: (_props: WidgetRendererProps) => <Greeting />,
+  worldClocks: (props) => <WorldClocks canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} docked={props.docked} />,
+  countdown: (props) => <CountdownLine canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} docked={props.docked} />,
+  search: (props) => <SearchBar canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} />,
+  focus: (props) => <FocusLine canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} />,
+  links: (props) => <LinksWidget canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} />,
   habits: (props) => <HabitsWidget canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} />,
-  bookmarks: (props) => <BookmarksBar onPopoverOpenChange={props.onBookmarksPopoverOpenChange} canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} />,
+  bookmarks: ({ onBookmarksPopoverOpenChange, canvasSize }) => <BookmarksBar onPopoverOpenChange={onBookmarksPopoverOpenChange} canvasSize={canvasSize} />,
   status: (props) => <StatusWidget canvasSize={props.canvasSize} docked={props.docked} />,
   github: (props) => <GithubWidget canvasSize={props.canvasSize} docked={props.docked} />,
   gitlab: (props) => <GitlabWidget canvasSize={props.canvasSize} docked={props.docked} />,

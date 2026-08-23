@@ -8,7 +8,7 @@ describe('time and productivity widget renderers', () => {
     expectTypeOf<WidgetRendererProps['presentation']>().toEqualTypeOf<WidgetPresentationMode | undefined>()
   })
 
-  it.each(['clock', 'greeting', 'worldClocks', 'countdown', 'search', 'focus', 'links', 'quote', 'habits', 'bookmarks', 'timer', 'tasks', 'notes'] as const)(
+  it.each(['clock', 'worldClocks', 'countdown', 'search', 'focus', 'links', 'quote', 'habits', 'timer', 'tasks', 'notes'] as const)(
     'threads stack presentation through the %s renderer',
     (id) => {
       const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'stack' }) as ReactElement<{
@@ -19,6 +19,35 @@ describe('time and productivity widget renderers', () => {
       expect(element.props.presentation).toBe('stack')
     },
   )
+
+  it.each(['clock', 'worldClocks', 'countdown', 'search', 'focus', 'links', 'quote'] as const)(
+    'uses the approved redesigned %s face on the standalone canvas',
+    (id) => {
+      const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'free' }) as ReactElement<{
+        canvasSize?: CanvasSize
+        presentation?: WidgetPresentationMode
+      }>
+      expect(element.props.canvasSize).toBe('standard')
+      expect(element.props.presentation).toBe('stack')
+    },
+  )
+
+  it('keeps Greeting and Bookmarks on their established intrinsic renderers', () => {
+    const greeting = WIDGET_RENDERERS.greeting({ canvasSize: 'compact', presentation: 'stack' }) as ReactElement<{
+      canvasSize?: CanvasSize
+      presentation?: WidgetPresentationMode
+    }>
+    const bookmarks = WIDGET_RENDERERS.bookmarks({ canvasSize: 'standard', presentation: 'stack', docked: true }) as ReactElement<{
+      canvasSize?: CanvasSize
+      presentation?: WidgetPresentationMode
+      docked?: boolean
+    }>
+    expect(greeting.props.canvasSize).toBeUndefined()
+    expect(greeting.props.presentation).toBeUndefined()
+    expect(bookmarks.props.canvasSize).toBe('standard')
+    expect(bookmarks.props.presentation).toBeUndefined()
+    expect(bookmarks.props.docked).toBeUndefined()
+  })
 
   it('keeps Month Standard-only and never threads a Docked presentation', () => {
     const element = WIDGET_RENDERERS.monthCal({ canvasSize: 'standard', docked: true }) as ReactElement<{
