@@ -88,7 +88,7 @@ describe('RssWidget', () => {
   it.each([
     ['compact', 'compact', 1],
     ['standard', 'standard', 4],
-    ['expanded', 'full', 6],
+    ['expanded', 'full', 8],
   ] as const)('uses the exact %s authored frame with bounded linked headlines', async (stageVariant, tier, expectedRows) => {
     const headlines = Array.from({ length: 10 }, (_, i): Headline => ({
       source: `Source ${i}`,
@@ -190,11 +190,12 @@ describe('RssWidget', () => {
 
     view.rerender(<StorageProvider storage={storage}><RssWidget stageVariant="expanded" /></StorageProvider>)
     expect([...document.querySelectorAll('section[aria-label="Headlines"] li a')].map((row) => row.getAttribute('href'))).toEqual(
-      eight.slice(0, 6).map(({ url }) => url),
+      eight.map(({ url }) => url),
     )
+    expect(document.querySelector('[data-rss-headline-grid]')?.className).toContain('grid-cols-2')
   })
 
-  it('uses the Full frame cap for six configured headlines and routes each visible row to its article', async () => {
+  it('uses the Full frame for eight configured headlines and routes each visible row to its article', async () => {
     const ten: Headline[] = Array.from({ length: 10 }, (_, i) => ({
       source: 'Example',
       title: `Full headline ${i}`,
@@ -208,8 +209,9 @@ describe('RssWidget', () => {
     mount(storage, 'expanded')
 
     await screen.findByText('Full headline 0')
-    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(6)
-    expect(screen.queryByText('Full headline 6')).toBeNull()
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(8)
+    expect(screen.getByText('Full headline 7')).toBeTruthy()
+    expect(screen.queryByText('Full headline 8')).toBeNull()
   })
 
   it("each headline is an external link (target=_blank, rel carries noopener + noreferrer)", async () => {

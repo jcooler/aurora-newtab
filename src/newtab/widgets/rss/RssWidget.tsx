@@ -9,7 +9,7 @@ import TierFrame, { ResourceFrameStatus, resourceFrameState, type TierFrameTier 
 const RSS_FRAME_ROWS: Readonly<Record<WidgetVariant, number>> = {
   compact: 1,
   standard: 4,
-  expanded: 6,
+  expanded: 8,
 }
 
 const RSS_FRAME_TIER: Readonly<Record<WidgetVariant, TierFrameTier>> = {
@@ -88,10 +88,13 @@ function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant:
         <span className="text-[11px] text-fg-muted">{headlines.length} of {availableHeadlines.length}</span>
       </header>
       <div className="min-h-0 flex-1 overflow-hidden p-2">
-        <ul className="flex flex-col gap-0.5">
+        <ul
+          data-rss-headline-grid={tier === 'full' ? '' : undefined}
+          className={tier === 'full' ? 'grid h-full grid-cols-2 grid-rows-4 gap-x-4' : 'flex flex-col gap-0.5'}
+        >
         {headlines.map((h) => {
           return (
-            <li key={h.url}>
+            <li key={h.url} className={tier === 'full' ? 'flex min-w-0 items-center' : undefined}>
             {/* External site, so target/rel differ from the in-page launcher
                 links: a new tab, and rel that severs window.opener and strips
                 the referrer. The whole row is one link — title is the click
@@ -106,7 +109,7 @@ function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant:
               target="_blank"
               rel="noopener noreferrer"
               title={h.title}
-              className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
+              className="group block w-full cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
             >
               <span data-stage-text-tier="metadata" className="block truncate text-[11px] leading-4 text-fg-muted">{h.source}</span>
               {/* truncate is a single-line ellipsis — never a wrap, never a
