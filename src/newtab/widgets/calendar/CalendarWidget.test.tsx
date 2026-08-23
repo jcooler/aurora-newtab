@@ -230,7 +230,7 @@ describe('CalendarWidget', () => {
     const fullStorage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
     mountUnified(fullStorage, 'full')
     await act(async () => {})
-    expect(screen.getByTestId('calendar-full-month')).toBeTruthy()
+    expect(screen.getByTestId('calendar-full-month').querySelector('[data-calendar-density="roomy"]')).toBeTruthy()
     expect(screen.getByTestId('calendar-full-agenda')).toBeTruthy()
     expect(screen.getAllByRole('region', { name: 'Calendar' })).toHaveLength(1)
   })

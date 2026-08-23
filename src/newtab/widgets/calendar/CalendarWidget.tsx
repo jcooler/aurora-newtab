@@ -221,7 +221,7 @@ function UnifiedCalendarWidget({
       <TierFrame label="Calendar" tier="full" state={items.length > 0 ? 'ready' : 'empty'} className="p-4">
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-5">
           <div data-testid="calendar-full-month" className="min-w-0">
-            <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} />
+            <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} roomy />
           </div>
           <section data-testid="calendar-full-agenda" aria-label="Agenda" className="min-w-0 border-l border-panel-border pl-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted">Agenda</p>
@@ -296,7 +296,7 @@ function agendaWhen(item: CalendarAgendaItem, timeZone: string): string {
   return `${day}, ${time}`
 }
 
-function CalendarMonth({ items, todayKey, weekStart, viewControl }: { items: readonly CalendarAgendaItem[]; todayKey: string; weekStart: 'locale' | 'sunday' | 'monday'; viewControl?: ReactNode }) {
+function CalendarMonth({ items, todayKey, weekStart, viewControl, roomy = false }: { items: readonly CalendarAgendaItem[]; todayKey: string; weekStart: 'locale' | 'sunday' | 'monday'; viewControl?: ReactNode; roomy?: boolean }) {
   const [todayYear, todayMonth] = todayKey.split('-').map(Number)
   const [view, setView] = useState(() => new Date(todayYear!, todayMonth! - 1, 1))
   const locale = typeof navigator === 'undefined' ? 'en-US' : navigator.language
@@ -310,7 +310,7 @@ function CalendarMonth({ items, todayKey, weekStart, viewControl }: { items: rea
   const holiday = items.find((item) => item.kind === 'holiday' && item.dateKey >= `${monthKey}-01`)
   const step = (delta: number) => setView((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
   return (
-    <div className="min-h-0">
+    <div className="min-h-0" data-calendar-density={roomy ? 'roomy' : 'standard'}>
       <div className="flex h-7 items-center justify-between gap-1.5">
         <div className="flex min-w-0 items-center gap-0.5">
           <button type="button" aria-label="Previous month" onClick={() => step(-1)} className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">‹</button>
@@ -325,8 +325,8 @@ function CalendarMonth({ items, todayKey, weekStart, viewControl }: { items: rea
           {Array.from({ length: 6 }, (_, row) => (
             <tr key={row}>
               {cells.slice(row * 7, row * 7 + 7).map((cell) => (
-                <td key={cell.key} data-calendar-cell data-cell-key={cell.key} className="h-[18px] p-0 align-middle">
-                  <span className={`relative mx-auto flex size-[18px] items-center justify-center rounded-full text-[11px] leading-none ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} ${cell.key === todayKey ? 'ring-1 ring-accent' : ''}`}>
+                <td key={cell.key} data-calendar-cell data-cell-key={cell.key} className={`${roomy ? 'h-6' : 'h-[18px]'} p-0 align-middle`}>
+                  <span className={`relative mx-auto flex items-center justify-center rounded-full leading-none ${roomy ? 'size-5 text-xs' : 'size-[18px] text-[11px]'} ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} ${cell.key === todayKey ? 'ring-1 ring-accent' : ''}`}>
                     {cell.day}
                     <span aria-hidden className={`absolute -bottom-[2px] size-[2px] rounded-full bg-accent ${occupied.has(cell.key) ? '' : 'invisible'}`} />
                   </span>
