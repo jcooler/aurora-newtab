@@ -90,6 +90,10 @@ output/
 .qa-shared-frame-p1-profile/
 .qa-shared-frame-p1-evidence/
 
+# SF-P2 framed-catalog preliminary witness scratch; owner catalog is tracked.
+.qa-shared-frame-p2-profile/
+.qa-shared-frame-p2-evidence/
+
 # Expansion platform scratch scaffolds and Chromium catalog evidence.
 .aurora-expansion-*/
 .qa-expansion-platform-*/

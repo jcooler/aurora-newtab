@@ -66,7 +66,7 @@ function propertyName(node) {
   failClosed(`unsupported property name syntax: ${node.getText()}`)
 }
 
-function parsePresentationAuthority(source) {
+export function parsePresentationAuthority(source) {
   if (typeof source !== 'string' || source.length === 0) failClosed('source is empty')
   const file = ts.createSourceFile('widgetSizeContracts.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
   const declarations = new Map()
