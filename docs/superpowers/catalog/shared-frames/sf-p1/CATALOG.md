@@ -1,8 +1,8 @@
 # SF-P1 Shared Frame Owner Catalog
 
-- Preliminary build commit: `ce84b32cf030cb4a47fbb72c4bfe90098dab91cb`
-- Build provenance: `ce84b32cf030cb4a47fbb72c4bfe90098dab91cb`
-- Evidence mode: preliminary working-tree witness; not final exact-reviewed proof.
+- Reviewed product commit: `67168930d9a717129232375c5a5621bc5682f58c`
+- Final loaded build commit: `62dacdd65e41f52a71cc273dc28bb6ca44cddbc2` (post-rereview harness-only correction)
+- Evidence mode: final exact-build 36-capture catalog plus one headed `viewport:null` real-window witness.
 - Browser: chromium 151.0.7922.34; Playwright Chromium; DPR 1; reduced motion
 - Original-resolution captures: 36
 - Verdicts: 36 Useful, 0 Needs refinement, 0 Rejected

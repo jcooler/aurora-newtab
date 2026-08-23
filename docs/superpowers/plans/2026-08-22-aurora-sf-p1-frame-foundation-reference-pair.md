@@ -467,7 +467,7 @@ git commit -m "test: witness SF-P1 shared frames"
 - Modify: `docs/superpowers/aurora-2/ROADMAP.md`
 - Modify only after owner review: `docs/superpowers/aurora-2/DECISIONS.md`
 
-- [ ] **Step 1: Run the focused packet gate.** Use:
+- [x] **Step 1: Run the focused packet gate.** Use:
 
 ```powershell
 npx vitest run src/newtab/widgets/shared/TierFrame.test.tsx src/newtab/widgetSizeContracts.test.ts src/newtab/widgetRegistry.test.ts src/newtab/widgets/weather/WeatherWidget.test.tsx src/newtab/widgets/weather/LocationSetup.test.tsx src/newtab/widgets/glance/OnThisDayWidget.test.tsx src/newtab/widgets/work/WorkWidgetShell.test.tsx src/newtab/canvas/StackCard.test.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/App.test.tsx src/lib/layout
@@ -478,13 +478,13 @@ git diff --check
 
 `scripts/preview-information-first.test.mjs` must be invoked through `node --test`, never Vitest, so it cannot reproduce the owner's earlier `No test suite found` error.
 
-- [ ] **Step 2: Run the stabilized full gate once.** Run `npm test`, record exact file/test counts and any pre-existing warnings separately, and do not repeat it after documentation-only commits.
+- [x] **Step 2: Run the stabilized full gate once.** Run `npm test`, record exact file/test counts and any pre-existing warnings separately, and do not repeat it after documentation-only commits.
 
-- [ ] **Step 3: Commit the implementation-review candidate and push.** Update STATUS to `SF-P1 review pending`, include active/protected proof, and push the bounded candidate.
+- [x] **Step 3: Commit the implementation-review candidate and push.** Update STATUS to `SF-P1 review pending`, include active/protected proof, and push the bounded candidate.
 
-- [ ] **Step 4: Request one bounded code review.** Review the full SF-P1 range against the design and this plan. Require classification as Critical, Important, or Minor and a `Ready`/`With fixes` verdict. If fixes are required, observe a focused RED for each code defect, make one fix commit, run the affected focused gate, and request one rereview only. Ledger accepted Minor debt; do not churn it into a second cycle.
+- [x] **Step 4: Request one bounded code review.** Review the full SF-P1 range against the design and this plan. Require classification as Critical, Important, or Minor and a `Ready`/`With fixes` verdict. If fixes are required, observe a focused RED for each code defect, make one fix commit, run the affected focused gate, and request one rereview only. Ledger accepted Minor debt; do not churn it into a second cycle.
 
-- [ ] **Step 5: Rebuild from the exact reviewed commit.** After the review is Ready:
+- [x] **Step 5: Rebuild from the exact reviewed commit.** After the review is Ready:
 
 ```powershell
 npm run build:preview
@@ -494,9 +494,9 @@ Get-Content -Raw -Encoding utf8 dist/build-provenance.json
 
 The provenance commit must equal `HEAD`. If the build itself changes tracked files, stop and resolve that mismatch before owner evidence.
 
-- [ ] **Step 6: Run final exact-build Chromium evidence.** Rerun `node scripts/qa-shared-frame-p1.mjs` against that exact `dist`, inspect all originals, and record capture count, verdicts, measured dimensions, storage writes, runtime errors, failed/unapproved requests, stack geometry before/after each face change, narrow scaling, and theme results.
+- [x] **Step 6: Run final exact-build Chromium evidence.** Rerun `node scripts/qa-shared-frame-p1.mjs` against that exact `dist`, inspect all originals, and record capture count, verdicts, measured dimensions, storage writes, runtime errors, failed/unapproved requests, stack geometry before/after each face change, narrow scaling, and theme results.
 
-- [ ] **Step 7: Write the QA report and checkpoint.** `SHARED-FRAMES-SF-P1-QA.md` must include:
+- [x] **Step 7: Write the QA report and checkpoint.** `SHARED-FRAMES-SF-P1-QA.md` must include:
 
   - exact implementation and reviewed commit range;
   - focused/full/Node/typecheck counts;
@@ -511,7 +511,7 @@ The provenance commit must equal `HEAD`. If the build itself changes tracked fil
 
 Commit and push the report/ledger checkpoint. Do not mark SF-P1 owner accepted yet.
 
-- [ ] **Step 8: Stop at the required owner visual gate.** Present the exact reviewed Weather, On This Day, and reference-stack catalog concisely. Await owner acceptance or refinement. Do not create the SF-P2 implementation plan and do not migrate another widget before this gate is accepted.
+- [x] **Step 8: Stop at the required owner visual gate.** Present the exact reviewed Weather, On This Day, and reference-stack catalog concisely. Await owner acceptance or refinement. Do not create the SF-P2 implementation plan and do not migrate another widget before this gate is accepted.
 
 - [ ] **Step 9: Record owner disposition.** After acceptance, add A2-D074 (or the next live decision id), mark SF-P1 Verified/owner accepted in STATUS and ROADMAP, commit/push, prove both repositories again, then write the SF-P2 just-in-time plan. If rejected, preserve the evidence, record the exact refinements, and remain in SF-P1.
 
@@ -519,12 +519,12 @@ Commit and push the report/ledger checkpoint. Do not mark SF-P1 owner accepted y
 
 ## Plan Self-Review
 
-- [ ] The plan covers SF-P1 only and stops at its mandatory owner visual gate.
-- [ ] Every production edit follows an observed focused RED; a structurally already-green integration test does not force a meaningless code edit.
-- [ ] The authoritative contract keeps compatibility from one object rather than introducing a manually mirrored map.
-- [ ] Weather and On This Day remain their own data owners and use one renderer each free or stacked.
-- [ ] Docked Weather and Docked On This Day remain content-tight and behaviorally unchanged.
-- [ ] Other widgets and stacks remain visually unchanged until their bounded SF packet.
-- [ ] The exact frame dimensions, no-scroll law, state stability, theme variance, and narrow safety are measured in Chromium.
-- [ ] The Calendar/Month/Public Holidays Agenda idea is recorded but explicitly deferred.
-- [ ] No placeholder test, TODO production branch, dependency, storage migration, Store action, or protected-checkout write appears in the plan.
+- [x] The plan covers SF-P1 only and stops at its mandatory owner visual gate.
+- [x] Every production edit follows an observed focused RED; a structurally already-green integration test does not force a meaningless code edit.
+- [x] The authoritative contract keeps compatibility from one object rather than introducing a manually mirrored map.
+- [x] Weather and On This Day remain their own data owners and use one renderer each free or stacked.
+- [x] Docked Weather and Docked On This Day remain content-tight and behaviorally unchanged.
+- [x] Other widgets and stacks remain visually unchanged until their bounded SF packet.
+- [x] The exact frame dimensions, no-scroll law, state stability, theme variance, and narrow safety are measured in Chromium.
+- [x] The Calendar/Month/Public Holidays Agenda idea is recorded but explicitly deferred.
+- [x] No placeholder test, TODO production branch, dependency, storage migration, Store action, or protected-checkout write appears in the plan.
