@@ -173,7 +173,7 @@ function NotesInner({
             <strong className="text-sm font-semibold text-fg">Notes</strong>
             <span className="text-[11px] text-fg-muted">{preview ? 'Saved note' : 'Scratchpad'}</span>
           </span>
-          <span title={preview || undefined} className="line-clamp-3 text-sm leading-5 text-fg-muted">
+          <span title={preview || undefined} className="line-clamp-2 text-sm leading-5 text-fg-muted">
             {preview || 'Capture an idea, reminder, or detail.'}
           </span>
           <span className="mt-auto text-sm font-medium text-fg">Open notes</span>

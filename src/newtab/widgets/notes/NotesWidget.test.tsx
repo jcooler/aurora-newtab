@@ -41,6 +41,9 @@ describe('NotesWidget', () => {
     expect(frame.className).not.toContain('overflow-y')
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
     expect(screen.getByRole('button', { name: 'Notes' })).toBeTruthy()
+    const preview = screen.getByText('Capture an idea, reminder, or detail.')
+    expect(preview.className).toContain('line-clamp-2')
+    expect(preview.className).not.toContain('line-clamp-3')
     expect(screen.getByText('Open notes')).toBeTruthy()
   })
 
