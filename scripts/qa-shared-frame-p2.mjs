@@ -80,6 +80,13 @@ const STATE_REFERENCES = Object.freeze({
   'calendar-local': 'ics',
   public: 'publicHolidays',
 })
+const PLAIN_CLICK_REFERENCES = Object.freeze({
+  'developer-service': 'status',
+  connected: 'linear',
+  'browser-native': 'readingList',
+  'calendar-local': 'tasks',
+  public: 'publicHolidays',
+})
 
 const READY_SIGNATURE_SELECTORS = Object.freeze({
   ics: '[data-calendar-source]',
@@ -342,11 +349,18 @@ function installSfP2Init() {
     setNativeMode(mode) { configured.mode = mode },
     refreshNative(target) { events[target]?.emit({ id: 'sf-p2-refresh' }) },
   }
-  const nativeContains = chrome.permissions.contains.bind(chrome.permissions)
-  chrome.permissions.contains = async (details) => {
-    if (modeFor(configured.target) === 'permission-required' && details.permissions?.includes(configured.permission)) return false
-    return nativeContains(details)
+  const permissionApi = {
+    getAll: chrome.permissions.getAll.bind(chrome.permissions),
+    contains: async (details) => {
+      if (details.permissions?.includes(configured.permission)) return modeFor(configured.target) !== 'permission-required'
+      return chrome.permissions.contains(details)
+    },
+    request: chrome.permissions.request.bind(chrome.permissions),
+    remove: chrome.permissions.remove.bind(chrome.permissions),
+    onAdded: chrome.permissions.onAdded,
+    onRemoved: chrome.permissions.onRemoved,
   }
+  globalThis.__auroraPermissionsHarnessApi = permissionApi
 }
 
 export function resolveSfP2RuntimeMode(args = process.argv.slice(2)) {
@@ -401,8 +415,10 @@ export function resolveSfP2FixtureState(capture) {
     if (capture.state === 'hard-error') return { snapshot: 'native', network: 'error', renderedState: 'hard-error', transition: null }
     if (capture.state === 'stale') return { snapshot: 'native', network: 'ready', renderedState: 'stale', transition: 'hold' }
     if (capture.state === 'partial') return { snapshot: 'native', network: 'ready', renderedState: 'partial', transition: 'error' }
+    if (capture.state === 'permission-required') return { snapshot: 'native', network: 'permission-required', renderedState: 'permission-required', transition: null }
     return { snapshot: 'native', network: 'ready', renderedState: capture.state, transition: null }
   }
+  if (capture.state === 'permission-required') return { snapshot: 'fresh', network: 'ready', renderedState: 'permission-required', transition: null, setup: true }
   if (capture.state === 'loading') return { snapshot: 'none', network: 'hold', renderedState: 'loading', transition: null }
   if (capture.state === 'empty') return { snapshot: 'empty', network: 'ready', renderedState: 'empty', transition: null }
   if (capture.state === 'stale') return { snapshot: 'stale', network: 'hold', renderedState: 'stale', transition: null }
@@ -585,18 +601,23 @@ function interactionCaptures(widgets, interactionFamilies) {
   const byId = new Map(widgets.map((widget) => [widget.id, widget]))
   return interactionFamilies.flatMap((family) => {
     const widget = byId.get(family.widget)
-    const tier = widget.stackTiers.includes('standard') ? 'standard' : widget.stackTiers[0]
-    return STACK_INTERACTIONS.map((interaction) => capture({
-      key: `${widget.id}-${interaction}-${tier}-weather-dark-exact-short`,
-      kind: 'family-interaction',
-      widget: widget.id,
-      tier,
-      family: family.id,
-      viewport: 'exact-short',
-      fixture: `${widget.id}:ready:max-data`,
-      reference: 'weather',
-      interaction,
-    }))
+    assert(widget, `${family.id} interaction widget is missing`)
+    return STACK_INTERACTIONS.map((interaction) => {
+      const selected = interaction === 'stack-plain-click' ? byId.get(family.plainClickWidget) : widget
+      assert(selected, `${family.id} ${interaction} widget is missing`)
+      const selectedTier = selected.stackTiers.includes('standard') ? 'standard' : selected.stackTiers[0]
+      return capture({
+        key: `${selected.id}-${interaction}-${selectedTier}-weather-dark-exact-short`,
+        kind: 'family-interaction',
+        widget: selected.id,
+        tier: selectedTier,
+        family: family.id,
+        viewport: 'exact-short',
+        fixture: `${selected.id}:ready:max-data`,
+        reference: 'weather',
+        interaction,
+      })
+    })
   })
 }
 
@@ -674,7 +695,11 @@ export function buildSfP2CapturePlan(source) {
     assert(contract, `${id} state reference ${widget} is missing`)
     return { id, widget, states: [...contract.states] }
   })
-  const interactionFamilies = Object.entries(STATE_REFERENCES).map(([id, widget]) => ({ id, widget }))
+  const interactionFamilies = Object.entries(STATE_REFERENCES).map(([id, widget]) => ({
+    id,
+    widget,
+    plainClickWidget: PLAIN_CLICK_REFERENCES[id],
+  }))
   const captures = [
     ...readyCaptures(widgets),
     ...stackPairCaptures(widgets),
@@ -1179,6 +1204,10 @@ async function run() {
           configs[id] = fixture.config
           snapshots[id] = { scope: await scope(id, fixture.config, fixture.runtimeScope), fetchedAt: Date.now(), data: fixture.data }
         }
+        if (state.setup) {
+          if (capture.widget === 'linear') configs.linear = { ...configs.linear, token: '' }
+          if (capture.widget === 'publicHolidays') configs.publicHolidays = { ...configs.publicHolidays, countryCode: '' }
+        }
         const fixtureById = {
           status: { data: info.snapshots.status.data, empty: { services: [] } },
           ics: { data: info.snapshots.ics.data, empty: { events: [] } },
@@ -1315,7 +1344,7 @@ async function run() {
           : (root.matches(selector) && visible(root) ? 1 : 0)
             + [...root.querySelectorAll(selector)].filter(visible).length
         const mountedOwners = input.stacked
-          ? document.querySelectorAll(`[data-stack-member="${input.widget}"]`).length
+          ? document.querySelectorAll(`[data-stack-widget-owner="${input.widget}"]`).length
           : document.querySelectorAll(`[data-block-id="${input.widget}"]`).length
         const rootStyle = getComputedStyle(root)
         const ancestors = []
@@ -1403,7 +1432,29 @@ async function run() {
         await page.mouse.up()
       } else if (capture.interaction === 'stack-plain-click') {
         const target = page.locator(`${stackSelector(capture)} [data-stack-member="${capture.widget}"][data-stack-active="true"]`)
-        await target.click({ position: { x: 6, y: 6 } })
+        if (capture.widget === 'status') {
+          await target.getByRole('button').click()
+          await page.getByRole('dialog', { name: 'Service status details' }).waitFor()
+        } else if (capture.widget === 'readingList') {
+          await page.evaluate(() => { if (globalThis.__sfP2Harness) globalThis.__sfP2Harness.apiCalls.splice(0) })
+          await target.getByRole('button', { name: /^Mark .* read$/ }).first().click()
+          await page.waitForFunction(() => globalThis.__sfP2Harness?.apiCalls.some((call) => call.api === 'readingList.updateEntry'))
+        } else if (capture.widget === 'tasks') {
+          await target.getByRole('button', { name: 'Tasks' }).click()
+          await page.getByRole('dialog', { name: 'Tasks' }).waitFor()
+        } else {
+          const link = capture.widget === 'publicHolidays'
+            ? target.locator('a[href="https://date.nager.at"]')
+            : target.locator('a[href^="https://linear.app/"]').first()
+          await link.evaluate((element) => {
+            element.addEventListener('click', (event) => {
+              event.preventDefault()
+              element.setAttribute('data-sf-p2-clicked', 'true')
+            }, { once: true })
+          })
+          await link.click()
+          assert.equal(await link.getAttribute('data-sf-p2-clicked'), 'true', `${capture.key}: widget action did not receive the click`)
+        }
         assert.equal(await page.locator('[data-editing="true"], .canvas-item--editing, .canvas-item--selected').count(), 0, `${capture.key}: plain click painted edit chrome`)
       }
       if (['stack-next', 'stack-previous', 'stack-dot', 'stack-swipe'].includes(capture.interaction)) {
@@ -1440,10 +1491,10 @@ async function run() {
             globalThis.__sfP2Harness?.refreshNative(target)
           }, { mode: state.transition, target: capture.widget })
         }
+        await page.evaluate(() => getSelection()?.removeAllRanges())
         await runInteraction(capture)
         const frame = frameFor(capture, renderedState)
         await frame.waitFor({ state: 'visible' })
-        await page.evaluate(() => getSelection()?.removeAllRanges())
         const measurement = await measureFrame(capture, frame)
         let stack = null
         if (capture.kind === 'stack-pair' || capture.kind === 'family-interaction' || capture.kind === 'compatibility') {

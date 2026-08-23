@@ -441,12 +441,44 @@ test('runtime probes include the frame root, click the stack member, and map Tas
 test('state-family captures contain only states their selected identity can actually render', () => {
   const result = plan()
   expectFamily('developer-service', ['loading', 'ready', 'empty', 'stale'])
+  expectFamily('connected', ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'])
+  expectFamily('browser-native', ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'])
   expectFamily('calendar-local', ['loading', 'ready', 'empty', 'stale'])
+  expectFamily('public', ['loading', 'ready', 'empty', 'stale', 'permission-required', 'hard-error'])
 
   function expectFamily(id, expected) {
     const family = result.stateFamilies.find((entry) => entry.id === id)
     assert.deepEqual(family?.states, expected)
   }
+})
+
+test('plain-click evidence uses a real action per family and swipe selection is measured before cleanup', () => {
+  const result = plan()
+  const clickWidgets = Object.fromEntries(result.captures
+    .filter((capture) => capture.interaction === 'stack-plain-click')
+    .map((capture) => [capture.family, capture.widget]))
+  assert.deepEqual(clickWidgets, {
+    'developer-service': 'status',
+    connected: 'linear',
+    'browser-native': 'readingList',
+    'calendar-local': 'tasks',
+    public: 'publicHolidays',
+  })
+
+  const source = readFileSync(new URL('./qa-shared-frame-p2.mjs', import.meta.url), 'utf8')
+  const clearSelection = source.indexOf('getSelection()?.removeAllRanges()')
+  const runInteraction = source.indexOf('await runInteraction(capture)')
+  const measureFrame = source.indexOf('await measureFrame(capture, frame)')
+  assert.ok(clearSelection >= 0 && clearSelection < runInteraction, 'selection must be cleared before the gesture')
+  assert.ok(runInteraction < measureFrame, 'selection must be measured after the gesture')
+  assert.doesNotMatch(source.slice(runInteraction, measureFrame), /removeAllRanges/)
+
+  const interactionBody = source.slice(source.indexOf('const runInteraction'), source.indexOf('const screenshotCapture'))
+  assert.doesNotMatch(interactionBody, /position:\s*\{\s*x:\s*6,\s*y:\s*6\s*\}/)
+  assert.match(interactionBody, /Service status details/)
+  assert.match(interactionBody, /readingList\.updateEntry/)
+  assert.match(interactionBody, /getByRole\('button', \{ name: 'Tasks' \}\)/)
+  assert.match(interactionBody, /date\.nager\.at/)
 })
 
 test('Public Holidays probes rows below Full and grouped months only at Full', () => {
@@ -503,4 +535,15 @@ test('fixture-state routing distinguishes fresh, held, invalid, retained, and br
   assert.deepEqual(resolveSfP2FixtureState({ family: 'browser-native', state: 'partial' }), {
     snapshot: 'native', network: 'ready', renderedState: 'partial', transition: 'error',
   })
+  assert.deepEqual(resolveSfP2FixtureState({ family: 'browser-native', state: 'permission-required' }), {
+    snapshot: 'native', network: 'permission-required', renderedState: 'permission-required', transition: null,
+  })
+})
+
+test('browser-native permission fixtures grant ordinary states and deny only permission-required', () => {
+  const source = readFileSync(new URL('./qa-shared-frame-p2.mjs', import.meta.url), 'utf8')
+  assert.match(source, /globalThis\.__auroraPermissionsHarnessApi = permissionApi/)
+  assert.match(source, /contains: async \(details\) => \{/)
+  assert.match(source, /if \(details\.permissions\?\.includes\(configured\.permission\)\) return modeFor\(configured\.target\) !== 'permission-required'/)
+  assert.doesNotMatch(source, /chrome\.permissions\.contains =/)
 })

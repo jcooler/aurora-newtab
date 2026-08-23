@@ -148,18 +148,22 @@ export default function CanvasSurface({
         if (!memberEntry) return []
         const memberSize = item.tier
         const supported = memberEntry.presentationContract.stackSizes.includes(item.tier)
+        const owner = renderWidget(memberEntry, memberSize, false)
         return [{
           id: memberId,
           label: memberEntry.label,
           size: memberSize,
           content: supported
-            ? renderWidget(memberEntry, memberSize, false)
+            ? <div data-stack-widget-owner={memberId} className="contents">{owner}</div>
             : (
-              <StackCompatibilityFace
-                label={memberEntry.label}
-                tier={memberSize}
-                commonTiers={compatibility.commonTiers}
-              />
+              <>
+                <StackCompatibilityFace
+                  label={memberEntry.label}
+                  tier={memberSize}
+                  commonTiers={compatibility.commonTiers}
+                />
+                <div data-stack-widget-owner={memberId} hidden aria-hidden inert>{owner}</div>
+              </>
             ),
         }]
       })

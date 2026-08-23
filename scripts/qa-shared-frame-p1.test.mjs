@@ -61,8 +61,8 @@ test('derives the exact Weather and On This Day matrix from the committed presen
   )
 
   const changedStates = contractSource.replace(
-    "'partial', 'permission-required', 'hard-error'",
-    "'partial', 'hard-error'",
+    "const WEATHER_STATES = ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'] as const",
+    "const WEATHER_STATES = ['loading', 'ready', 'empty', 'stale', 'partial', 'hard-error'] as const",
   )
   assert.notEqual(changedStates, contractSource, 'the state mutation fixture must apply')
   assert.deepEqual(

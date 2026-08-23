@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "startedAt": "2026-08-23T12:53:15.236Z",
+  "startedAt": "2026-08-23T13:32:23.136Z",
   "build": {
-    "commit": "636a008336381b6df31a99fcddcdefd5d52a1ee4",
+    "commit": "a8f436c2c144c1fd2adcb104785cdf590314edc2",
     "provenance": {
-      "commit": "636a008336381b6df31a99fcddcdefd5d52a1ee4"
+      "commit": "a8f436c2c144c1fd2adcb104785cdf590314edc2"
     },
     "preliminaryWorkingTree": true,
-    "trackedStatus": ""
+    "trackedStatus": " M docs/superpowers/catalog/shared-frames/sf-p2/evidence.partial.json\n"
   },
   "browser": {
     "name": "chromium",
@@ -962,6 +962,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ],
         "compositions": {
@@ -1048,6 +1049,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ],
         "compositions": {
@@ -1134,6 +1136,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ],
         "compositions": {
@@ -1220,6 +1223,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ],
         "compositions": {
@@ -1415,6 +1419,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ],
         "compositions": {
@@ -1501,6 +1506,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ],
         "compositions": {
@@ -1587,6 +1593,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ],
         "compositions": {
@@ -1672,6 +1679,7 @@
           "ready",
           "empty",
           "stale",
+          "permission-required",
           "hard-error"
         ],
         "compositions": {
@@ -1845,6 +1853,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ]
       },
@@ -1857,6 +1866,7 @@
           "empty",
           "stale",
           "partial",
+          "permission-required",
           "hard-error"
         ]
       },
@@ -1878,6 +1888,7 @@
           "ready",
           "empty",
           "stale",
+          "permission-required",
           "hard-error"
         ]
       }
@@ -1885,23 +1896,28 @@
     "interactionFamilies": [
       {
         "id": "developer-service",
-        "widget": "status"
+        "widget": "status",
+        "plainClickWidget": "status"
       },
       {
         "id": "connected",
-        "widget": "linear"
+        "widget": "linear",
+        "plainClickWidget": "linear"
       },
       {
         "id": "browser-native",
-        "widget": "readingList"
+        "widget": "readingList",
+        "plainClickWidget": "readingList"
       },
       {
         "id": "calendar-local",
-        "widget": "ics"
+        "widget": "ics",
+        "plainClickWidget": "tasks"
       },
       {
         "id": "public",
-        "widget": "publicHolidays"
+        "widget": "publicHolidays",
+        "plainClickWidget": "publicHolidays"
       }
     ],
     "dimensions": {
@@ -5147,6 +5163,31 @@
         "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
       },
       {
+        "key": "linear-permission-required-standard-dark-laptop",
+        "filename": "linear-permission-required-standard-dark-laptop.png",
+        "kind": "family-state",
+        "widget": "linear",
+        "tier": "standard",
+        "state": "permission-required",
+        "family": "connected",
+        "theme": "dark",
+        "viewport": "laptop",
+        "fixture": "linear:permission-required",
+        "reference": null,
+        "interaction": null,
+        "assertions": [
+          "frame-dimensions",
+          "no-clipping",
+          "no-internal-scroll",
+          "text-floors",
+          "signature-content",
+          "one-data-owner",
+          "storage-audit"
+        ],
+        "verdict": "Useful",
+        "verdictReason": "The exact standard frame clearly directs an unconfigured Linear user to Settings without implying data is available."
+      },
+      {
         "key": "linear-hard-error-standard-dark-laptop",
         "filename": "linear-hard-error-standard-dark-laptop.png",
         "kind": "family-state",
@@ -5295,6 +5336,31 @@
         ],
         "verdict": "Useful",
         "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      },
+      {
+        "key": "readingList-permission-required-standard-dark-laptop",
+        "filename": "readingList-permission-required-standard-dark-laptop.png",
+        "kind": "family-state",
+        "widget": "readingList",
+        "tier": "standard",
+        "state": "permission-required",
+        "family": "browser-native",
+        "theme": "dark",
+        "viewport": "laptop",
+        "fixture": "readingList:permission-required",
+        "reference": null,
+        "interaction": null,
+        "assertions": [
+          "frame-dimensions",
+          "no-clipping",
+          "no-internal-scroll",
+          "text-floors",
+          "signature-content",
+          "one-data-owner",
+          "storage-audit"
+        ],
+        "verdict": "Useful",
+        "verdictReason": "The exact standard frame names Reading List and gives a truthful Settings action when its optional permission is absent."
       },
       {
         "key": "readingList-hard-error-standard-dark-laptop",
@@ -5520,6 +5586,31 @@
         ],
         "verdict": "Useful",
         "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      },
+      {
+        "key": "publicHolidays-permission-required-standard-dark-laptop",
+        "filename": "publicHolidays-permission-required-standard-dark-laptop.png",
+        "kind": "family-state",
+        "widget": "publicHolidays",
+        "tier": "standard",
+        "state": "permission-required",
+        "family": "public",
+        "theme": "dark",
+        "viewport": "laptop",
+        "fixture": "publicHolidays:permission-required",
+        "reference": null,
+        "interaction": null,
+        "assertions": [
+          "frame-dimensions",
+          "no-clipping",
+          "no-internal-scroll",
+          "text-floors",
+          "signature-content",
+          "one-data-owner",
+          "storage-audit"
+        ],
+        "verdict": "Useful",
+        "verdictReason": "The exact standard frame explains that a country must be chosen in Settings before holiday data can render."
       },
       {
         "key": "publicHolidays-hard-error-standard-dark-laptop",
@@ -6122,16 +6213,16 @@
         "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
       },
       {
-        "key": "ics-stack-plain-click-standard-weather-dark-exact-short",
-        "filename": "ics-stack-plain-click-standard-weather-dark-exact-short.png",
+        "key": "tasks-stack-plain-click-compact-weather-dark-exact-short",
+        "filename": "tasks-stack-plain-click-compact-weather-dark-exact-short.png",
         "kind": "family-interaction",
-        "widget": "ics",
-        "tier": "standard",
+        "widget": "tasks",
+        "tier": "compact",
         "state": "ready",
         "family": "calendar-local",
         "theme": "dark",
         "viewport": "exact-short",
-        "fixture": "ics:ready:max-data",
+        "fixture": "tasks:ready:max-data",
         "reference": "weather",
         "interaction": "stack-plain-click",
         "assertions": [
@@ -6144,7 +6235,7 @@
           "storage-audit"
         ],
         "verdict": "Useful",
-        "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+        "verdictReason": "A plain click opens the existing Tasks detail without changing stack geometry or selecting page text."
       },
       {
         "key": "publicHolidays-stack-initial-standard-weather-dark-exact-short",
@@ -6634,15 +6725,15 @@
     {
       "id": "connected",
       "adapter": "connected",
-      "planned": 48,
-      "completed": 48,
+      "planned": 49,
+      "completed": 49,
       "failed": 0
     },
     {
       "id": "browser-native",
       "adapter": "browser-native",
-      "planned": 38,
-      "completed": 38,
+      "planned": 39,
+      "completed": 39,
       "failed": 0
     },
     {
@@ -6655,8 +6746,8 @@
     {
       "id": "public",
       "adapter": "public",
-      "planned": 25,
-      "completed": 25,
+      "planned": 26,
+      "completed": 26,
       "failed": 0
     }
   ],
@@ -10377,6 +10468,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -10470,20 +10575,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -10645,6 +10736,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -10738,20 +10843,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -10918,6 +11009,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -11013,20 +11118,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -11035,13 +11126,13 @@
         "textRuns": [
           {
             "text": "GitHub",
-            "role": "metadata",
-            "fontSize": 11
+            "role": "routine",
+            "fontSize": 14
           },
           {
             "text": "4 unread",
             "role": "metadata",
-            "fontSize": 11
+            "fontSize": 12
           },
           {
             "text": "52 contributions·4 day streak",
@@ -11201,6 +11292,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -11294,20 +11399,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -11494,6 +11585,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -11587,20 +11692,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -11812,6 +11903,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -11905,20 +12010,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -12095,6 +12186,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -12188,20 +12293,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -12388,6 +12479,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -12481,20 +12586,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -12706,6 +12797,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -12801,20 +12906,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -12823,13 +12914,13 @@
         "textRuns": [
           {
             "text": "Jira",
-            "role": "metadata",
-            "fontSize": 11
+            "role": "routine",
+            "fontSize": 14
           },
           {
             "text": "1 In Progress · 1 To Do",
             "role": "metadata",
-            "fontSize": 11
+            "fontSize": 12
           },
           {
             "text": "2 active items",
@@ -12969,6 +13060,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -13062,20 +13167,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -13262,6 +13353,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -13355,20 +13460,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -13575,6 +13666,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -13670,20 +13775,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -13708,27 +13799,27 @@
           {
             "text": "2 ready",
             "role": "metadata",
-            "fontSize": 11
+            "fontSize": 12
           },
           {
             "text": "·",
             "role": "metadata",
-            "fontSize": 11
+            "fontSize": 12
           },
           {
             "text": "1 error",
             "role": "metadata",
-            "fontSize": 11
+            "fontSize": 12
           },
           {
             "text": "·",
             "role": "metadata",
-            "fontSize": 11
+            "fontSize": 12
           },
           {
             "text": "1 building",
             "role": "metadata",
-            "fontSize": 11
+            "fontSize": 12
           }
         ],
         "missingEssentialSelectors": [],
@@ -13863,6 +13954,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -13956,20 +14061,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -14181,6 +14272,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -14274,20 +14379,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -15479,6 +15570,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -15572,20 +15677,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -15752,6 +15843,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -15845,20 +15950,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -16031,6 +16122,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -16124,20 +16229,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -16310,6 +16401,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -16403,20 +16508,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -16589,6 +16680,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -16682,20 +16787,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -16868,6 +16959,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -16961,20 +17066,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -22599,6 +22690,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -22692,20 +22797,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -22867,6 +22958,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -22960,20 +23065,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -23155,6 +23246,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -23248,20 +23353,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -23453,6 +23544,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -23546,20 +23651,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -23721,6 +23812,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -23814,20 +23919,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -24019,6 +24110,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -24112,20 +24217,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -24357,6 +24448,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -24450,20 +24555,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -24630,6 +24721,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -24723,20 +24828,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -24933,6 +25024,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -25026,20 +25131,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -25201,6 +25292,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -25294,20 +25399,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -25504,6 +25595,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -25597,20 +25702,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -25837,6 +25928,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -25930,20 +26035,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -26110,6 +26201,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -26203,20 +26308,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -26413,6 +26504,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -26506,20 +26611,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -26726,6 +26817,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -26819,20 +26924,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -26999,6 +27090,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -27092,20 +27197,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -27297,6 +27388,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -27390,20 +27495,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -28822,6 +28913,229 @@
       "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
     },
     {
+      "key": "linear-permission-required-standard-dark-laptop",
+      "filename": "linear-permission-required-standard-dark-laptop.png",
+      "kind": "family-state",
+      "widget": "linear",
+      "tier": "standard",
+      "state": "permission-required",
+      "family": "connected",
+      "theme": "dark",
+      "viewport": "laptop",
+      "fixture": "linear:permission-required",
+      "reference": null,
+      "interaction": null,
+      "assertions": [
+        "frame-dimensions",
+        "no-clipping",
+        "no-internal-scroll",
+        "text-floors",
+        "signature-content",
+        "one-data-owner",
+        "storage-audit"
+      ],
+      "measurement": {
+        "frame": {
+          "left": 523,
+          "top": 284,
+          "right": 843,
+          "bottom": 484,
+          "width": 320,
+          "height": 200
+        },
+        "geometryDiagnostics": {
+          "computedWidth": "320px",
+          "computedHeight": "200px",
+          "computedMinWidth": "0px",
+          "computedMaxWidth": "1342px",
+          "tierFrameWidth": "320px",
+          "tierFrameRatio": "320 / 200",
+          "flexBasis": "auto",
+          "flexGrow": "0",
+          "flexShrink": "0",
+          "transform": "none",
+          "zoom": "1",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1,
+          "visualViewport": {
+            "width": 1366,
+            "height": 768,
+            "scale": 1
+          },
+          "ancestors": [
+            {
+              "tag": "div",
+              "className": "canvas-item",
+              "rect": {
+                "width": 320,
+                "height": 200
+              },
+              "width": "320px",
+              "maxWidth": "1350px",
+              "display": "flex",
+              "position": "absolute",
+              "transform": "matrix(1, 0, 0, 1, -160, -100)",
+              "zoom": "1"
+            },
+            {
+              "tag": "section",
+              "className": "canvas-surface",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "canvas-root",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "main",
+              "className": "aurora-canvas text-fg",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "body",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "html",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            }
+          ]
+        },
+        "clippedElements": [],
+        "internalScrollOwners": [],
+        "textRuns": [
+          {
+            "text": "Linear",
+            "role": "routine",
+            "fontSize": 14
+          },
+          {
+            "text": "Connect Linear in Settings.",
+            "role": "metadata",
+            "fontSize": 12
+          }
+        ],
+        "missingEssentialSelectors": [],
+        "missingSignatureSelectors": [],
+        "mountedOwners": 1,
+        "selectedText": "",
+        "compatibilityCopy": null
+      },
+      "stack": null,
+      "image": {
+        "relativePath": "docs/superpowers/catalog/shared-frames/sf-p2/linear-permission-required-standard-dark-laptop.png",
+        "pixelWidth": 1366,
+        "pixelHeight": 768
+      },
+      "storage": {
+        "changedKeys": [],
+        "writeCalls": [],
+        "facingChanged": false,
+        "reloadWrites": [],
+        "layoutBefore": {
+          "bytes": 1192,
+          "sha256": "c850c9ce6e38b83c382284a20c2383684af97b07885334c65ee6a5ca9c766271"
+        },
+        "layoutAfter": {
+          "bytes": 1192,
+          "sha256": "c850c9ce6e38b83c382284a20c2383684af97b07885334c65ee6a5ca9c766271"
+        },
+        "legacyBefore": {
+          "bytes": 5154,
+          "sha256": "5a8f017fd81b861631d20e12b48a3008edc011aa8714bc30e9ccb7526edc991c"
+        },
+        "legacyAfter": {
+          "bytes": 5154,
+          "sha256": "5a8f017fd81b861631d20e12b48a3008edc011aa8714bc30e9ccb7526edc991c"
+        }
+      },
+      "requestAudit": {
+        "approved": 0,
+        "failed": 0,
+        "unexpected": 0
+      },
+      "requests": [],
+      "verdict": "Useful",
+      "verdictReason": "The exact standard frame clearly directs an unconfigured Linear user to Settings without implying data is available."
+    },
+    {
       "key": "linear-hard-error-standard-dark-laptop",
       "filename": "linear-hard-error-standard-dark-laptop.png",
       "kind": "family-state",
@@ -29113,6 +29427,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -29206,20 +29534,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -29416,6 +29730,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -29509,20 +29837,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -29725,6 +30039,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -29818,20 +30146,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -30034,6 +30348,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -30127,20 +30455,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -30343,6 +30657,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -30436,20 +30764,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -30652,6 +30966,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -30745,20 +31073,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -31845,7 +32159,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -32103,7 +32417,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -32138,7 +32452,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -32391,7 +32705,7 @@
             "fontSize": 14
           },
           {
-            "text": "Window · 3h ago",
+            "text": "Window · 2h ago",
             "role": "metadata",
             "fontSize": 12
           }
@@ -32619,7 +32933,7 @@
             "fontSize": 14
           },
           {
-            "text": "Window · 1 tab · 3h ago",
+            "text": "Window · 1 tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -32634,7 +32948,7 @@
             "fontSize": 14
           },
           {
-            "text": "Tab · 3h ago",
+            "text": "Tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -32877,7 +33191,7 @@
             "fontSize": 14
           },
           {
-            "text": "Tab · 3h ago",
+            "text": "Tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -32892,7 +33206,7 @@
             "fontSize": 14
           },
           {
-            "text": "Tab · 3h ago",
+            "text": "Tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -32912,7 +33226,7 @@
             "fontSize": 14
           },
           {
-            "text": "Window · 1 tab · 3h ago",
+            "text": "Window · 1 tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -32927,7 +33241,7 @@
             "fontSize": 14
           },
           {
-            "text": "Window · 2 tabs · 3h ago",
+            "text": "Window · 2 tabs · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -34657,6 +34971,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -34750,20 +35078,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -34920,6 +35234,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -35015,20 +35343,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -35046,7 +35360,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -35208,6 +35522,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -35303,20 +35631,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -35339,7 +35653,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -35374,7 +35688,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -35536,6 +35850,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -35631,20 +35959,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -35662,7 +35976,7 @@
             "fontSize": 14
           },
           {
-            "text": "Window · 3h ago",
+            "text": "Window · 2h ago",
             "role": "metadata",
             "fontSize": 12
           }
@@ -35799,6 +36113,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -35894,20 +36222,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -35925,7 +36239,7 @@
             "fontSize": 14
           },
           {
-            "text": "Window · 1 tab · 3h ago",
+            "text": "Window · 1 tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -35940,7 +36254,7 @@
             "fontSize": 14
           },
           {
-            "text": "Tab · 3h ago",
+            "text": "Tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -36087,6 +36401,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -36182,20 +36510,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -36218,7 +36532,7 @@
             "fontSize": 14
           },
           {
-            "text": "Tab · 3h ago",
+            "text": "Tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -36233,7 +36547,7 @@
             "fontSize": 14
           },
           {
-            "text": "Tab · 3h ago",
+            "text": "Tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -36253,7 +36567,7 @@
             "fontSize": 14
           },
           {
-            "text": "Window · 1 tab · 3h ago",
+            "text": "Window · 1 tab · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -36268,7 +36582,7 @@
             "fontSize": 14
           },
           {
-            "text": "Window · 2 tabs · 3h ago",
+            "text": "Window · 2 tabs · 2h ago",
             "role": "metadata",
             "fontSize": 12
           },
@@ -36415,6 +36729,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -36508,20 +36836,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -36683,6 +36997,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -36776,20 +37104,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -36991,6 +37305,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -37084,20 +37412,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -37329,6 +37643,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -37422,20 +37750,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -37597,6 +37911,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -37690,20 +38018,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -37895,6 +38209,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -37988,20 +38316,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -38592,7 +38906,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -39073,7 +39387,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -39326,7 +39640,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -39403,6 +39717,229 @@
       "requests": [],
       "verdict": "Useful",
       "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+    },
+    {
+      "key": "readingList-permission-required-standard-dark-laptop",
+      "filename": "readingList-permission-required-standard-dark-laptop.png",
+      "kind": "family-state",
+      "widget": "readingList",
+      "tier": "standard",
+      "state": "permission-required",
+      "family": "browser-native",
+      "theme": "dark",
+      "viewport": "laptop",
+      "fixture": "readingList:permission-required",
+      "reference": null,
+      "interaction": null,
+      "assertions": [
+        "frame-dimensions",
+        "no-clipping",
+        "no-internal-scroll",
+        "text-floors",
+        "signature-content",
+        "one-data-owner",
+        "storage-audit"
+      ],
+      "measurement": {
+        "frame": {
+          "left": 523,
+          "top": 284,
+          "right": 843,
+          "bottom": 484,
+          "width": 320,
+          "height": 200
+        },
+        "geometryDiagnostics": {
+          "computedWidth": "320px",
+          "computedHeight": "200px",
+          "computedMinWidth": "0px",
+          "computedMaxWidth": "1342px",
+          "tierFrameWidth": "320px",
+          "tierFrameRatio": "320 / 200",
+          "flexBasis": "auto",
+          "flexGrow": "0",
+          "flexShrink": "0",
+          "transform": "none",
+          "zoom": "1",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1,
+          "visualViewport": {
+            "width": 1366,
+            "height": 768,
+            "scale": 1
+          },
+          "ancestors": [
+            {
+              "tag": "div",
+              "className": "canvas-item",
+              "rect": {
+                "width": 320,
+                "height": 200
+              },
+              "width": "320px",
+              "maxWidth": "1350px",
+              "display": "flex",
+              "position": "absolute",
+              "transform": "matrix(1, 0, 0, 1, -160, -100)",
+              "zoom": "1"
+            },
+            {
+              "tag": "section",
+              "className": "canvas-surface",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "canvas-root",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "main",
+              "className": "aurora-canvas text-fg",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "body",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "html",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            }
+          ]
+        },
+        "clippedElements": [],
+        "internalScrollOwners": [],
+        "textRuns": [
+          {
+            "text": "Reading List",
+            "role": "routine",
+            "fontSize": 14
+          },
+          {
+            "text": "Enable Reading List in Settings.",
+            "role": "routine",
+            "fontSize": 14
+          }
+        ],
+        "missingEssentialSelectors": [],
+        "missingSignatureSelectors": [],
+        "mountedOwners": 1,
+        "selectedText": "",
+        "compatibilityCopy": null
+      },
+      "stack": null,
+      "image": {
+        "relativePath": "docs/superpowers/catalog/shared-frames/sf-p2/readingList-permission-required-standard-dark-laptop.png",
+        "pixelWidth": 1366,
+        "pixelHeight": 768
+      },
+      "storage": {
+        "changedKeys": [],
+        "writeCalls": [],
+        "facingChanged": false,
+        "reloadWrites": [],
+        "layoutBefore": {
+          "bytes": 1192,
+          "sha256": "ddfbf0bff10f4be16aaa1cf3d9ebaffb674238c4bbe327005c1fd50374c80726"
+        },
+        "layoutAfter": {
+          "bytes": 1192,
+          "sha256": "ddfbf0bff10f4be16aaa1cf3d9ebaffb674238c4bbe327005c1fd50374c80726"
+        },
+        "legacyBefore": {
+          "bytes": 5154,
+          "sha256": "5a8f017fd81b861631d20e12b48a3008edc011aa8714bc30e9ccb7526edc991c"
+        },
+        "legacyAfter": {
+          "bytes": 5154,
+          "sha256": "5a8f017fd81b861631d20e12b48a3008edc011aa8714bc30e9ccb7526edc991c"
+        }
+      },
+      "requestAudit": {
+        "approved": 0,
+        "failed": 0,
+        "unexpected": 0
+      },
+      "requests": [],
+      "verdict": "Useful",
+      "verdictReason": "The exact standard frame names Reading List and gives a truthful Settings action when its optional permission is absent."
     },
     {
       "key": "readingList-hard-error-standard-dark-laptop",
@@ -39686,6 +40223,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -39781,20 +40332,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -39812,7 +40349,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -39974,6 +40511,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -40069,20 +40620,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -40100,7 +40637,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -40268,6 +40805,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -40363,20 +40914,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -40394,7 +40931,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -40562,6 +41099,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -40657,20 +41208,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -40688,7 +41225,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -40856,6 +41393,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -40951,20 +41502,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -40982,7 +41519,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -41150,6 +41687,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -41245,20 +41796,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -41276,7 +41813,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -41304,6 +41841,11 @@
             "text": "24 more in Chrome Reading List",
             "role": "metadata",
             "fontSize": 11
+          },
+          {
+            "text": "Marked Saved article 02 read",
+            "role": "metadata",
+            "fontSize": 12
           }
         ],
         "missingEssentialSelectors": [],
@@ -41564,7 +42106,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -41817,7 +42359,7 @@
             "fontSize": 14
           },
           {
-            "text": "3h ago",
+            "text": "2h ago",
             "role": "metadata",
             "fontSize": 11
           },
@@ -44559,6 +45101,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -44652,20 +45208,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -44817,6 +45359,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -44910,20 +45466,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -45095,6 +45637,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -45188,20 +45744,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -45593,6 +46135,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -45688,20 +46244,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -45710,8 +46252,8 @@
         "textRuns": [
           {
             "text": "☀ 7:04 → 8:15 · golden hour 7:42",
-            "role": "metadata",
-            "fontSize": 11
+            "role": "routine",
+            "fontSize": 14
           }
         ],
         "missingEssentialSelectors": [],
@@ -45846,6 +46388,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -45939,20 +46495,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -46144,6 +46686,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -46237,20 +46793,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -46407,6 +46949,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "100%",
+              "maxWidth": "100%",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -46500,20 +47056,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -46725,6 +47267,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -46818,20 +47374,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -46988,6 +47530,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -47081,20 +47637,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -47256,6 +47798,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -47349,20 +47905,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -47877,7 +48419,7 @@
         "internalScrollOwners": [],
         "textRuns": [
           {
-            "text": "Next: Release planning · in 59 min",
+            "text": "Next: Release planning · in 58 min",
             "role": "routine",
             "fontSize": 14
           },
@@ -48338,7 +48880,7 @@
         "internalScrollOwners": [],
         "textRuns": [
           {
-            "text": "Next: Release planning · in 59 min",
+            "text": "Next: Release planning · in 58 min",
             "role": "routine",
             "fontSize": 14
           },
@@ -48484,6 +49026,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -48577,20 +49133,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -48762,6 +49304,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -48855,20 +49411,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -49046,6 +49588,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -49139,20 +49695,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -49330,6 +49872,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -49423,20 +49979,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -49614,6 +50156,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -49707,20 +50263,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -49845,16 +50387,16 @@
       "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
     },
     {
-      "key": "ics-stack-plain-click-standard-weather-dark-exact-short",
-      "filename": "ics-stack-plain-click-standard-weather-dark-exact-short.png",
+      "key": "tasks-stack-plain-click-compact-weather-dark-exact-short",
+      "filename": "tasks-stack-plain-click-compact-weather-dark-exact-short.png",
       "kind": "family-interaction",
-      "widget": "ics",
-      "tier": "standard",
+      "widget": "tasks",
+      "tier": "compact",
       "state": "ready",
       "family": "calendar-local",
       "theme": "dark",
       "viewport": "exact-short",
-      "fixture": "ics:ready:max-data",
+      "fixture": "tasks:ready:max-data",
       "reference": "weather",
       "interaction": "stack-plain-click",
       "assertions": [
@@ -49868,20 +50410,20 @@
       ],
       "measurement": {
         "frame": {
-          "left": 544,
-          "top": 104.5,
-          "right": 864,
-          "bottom": 304.5,
-          "width": 320,
-          "height": 200
+          "left": 596,
+          "top": 138.5,
+          "right": 812,
+          "bottom": 270.5,
+          "width": 216,
+          "height": 132
         },
         "geometryDiagnostics": {
-          "computedWidth": "320px",
-          "computedHeight": "200px",
+          "computedWidth": "216px",
+          "computedHeight": "132px",
           "computedMinWidth": "0px",
           "computedMaxWidth": "1384px",
-          "tierFrameWidth": "320px",
-          "tierFrameRatio": "320 / 200",
+          "tierFrameWidth": "216px",
+          "tierFrameRatio": "216 / 132",
           "flexBasis": "auto",
           "flexGrow": "0",
           "flexShrink": "0",
@@ -49898,12 +50440,26 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
-                "width": 320,
-                "height": 200
+                "width": 216,
+                "height": 132
               },
-              "width": "320px",
+              "width": "216px",
               "maxWidth": "1392px",
               "display": "flex",
               "position": "static",
@@ -49914,10 +50470,10 @@
               "tag": "div",
               "className": "stack-card__members",
               "rect": {
-                "width": 320,
-                "height": 200
+                "width": 216,
+                "height": 132
               },
-              "width": "320px",
+              "width": "216px",
               "maxWidth": "none",
               "display": "grid",
               "position": "static",
@@ -49928,10 +50484,10 @@
               "tag": "div",
               "className": "stack-card",
               "rect": {
-                "width": 400,
-                "height": 236
+                "width": 296,
+                "height": 168
               },
-              "width": "400px",
+              "width": "296px",
               "maxWidth": "none",
               "display": "grid",
               "position": "relative",
@@ -49942,14 +50498,14 @@
               "tag": "div",
               "className": "canvas-item",
               "rect": {
-                "width": 400,
-                "height": 236
+                "width": 296,
+                "height": 168
               },
-              "width": "400px",
+              "width": "296px",
               "maxWidth": "1392px",
               "display": "flex",
               "position": "absolute",
-              "transform": "matrix(1, 0, 0, 1, -200, -118)",
+              "transform": "matrix(1, 0, 0, 1, -148, -84)",
               "zoom": "1"
             },
             {
@@ -49993,20 +50549,6 @@
               "position": "static",
               "transform": "none",
               "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
-              "transform": "none",
-              "zoom": "1"
             }
           ]
         },
@@ -50014,34 +50556,24 @@
         "internalScrollOwners": [],
         "textRuns": [
           {
-            "text": "Next: Release planning · in 58 min",
+            "text": "Tasks",
             "role": "routine",
             "fontSize": 14
           },
           {
-            "text": "Studio",
+            "text": "2 open",
             "role": "metadata",
             "fontSize": 11
           },
           {
-            "text": "15:00 Family appointment",
+            "text": "Inspect the common displays",
             "role": "routine",
             "fontSize": 14
           },
           {
-            "text": "Family",
-            "role": "metadata",
-            "fontSize": 11
-          },
-          {
-            "text": "Mon 13:00 Roadmap review",
+            "text": "Open tasks",
             "role": "routine",
             "fontSize": 14
-          },
-          {
-            "text": "Studio",
-            "role": "metadata",
-            "fontSize": 11
           }
         ],
         "missingEssentialSelectors": [],
@@ -50052,42 +50584,42 @@
       },
       "stack": {
         "card": {
-          "left": 504,
-          "top": 104.5,
-          "right": 904,
-          "bottom": 340.5,
-          "width": 400,
-          "height": 236
+          "left": 556,
+          "top": 138.5,
+          "right": 852,
+          "bottom": 306.5,
+          "width": 296,
+          "height": 168
         },
         "members": [
           {
             "id": "weather",
             "active": false,
             "frame": {
-              "left": 544,
-              "top": 104.5,
-              "right": 864,
-              "bottom": 304.5,
-              "width": 320,
-              "height": 200
+              "left": 596,
+              "top": 138.5,
+              "right": 812,
+              "bottom": 270.5,
+              "width": 216,
+              "height": 132
             }
           },
           {
-            "id": "ics",
+            "id": "tasks",
             "active": true,
             "frame": {
-              "left": 544,
-              "top": 104.5,
-              "right": 864,
-              "bottom": 304.5,
-              "width": 320,
-              "height": 200
+              "left": 596,
+              "top": 138.5,
+              "right": 812,
+              "bottom": 270.5,
+              "width": 216,
+              "height": 132
             }
           }
         ]
       },
       "image": {
-        "relativePath": "docs/superpowers/catalog/shared-frames/sf-p2/ics-stack-plain-click-standard-weather-dark-exact-short.png",
+        "relativePath": "docs/superpowers/catalog/shared-frames/sf-p2/tasks-stack-plain-click-compact-weather-dark-exact-short.png",
         "pixelWidth": 1408,
         "pixelHeight": 445
       },
@@ -50097,12 +50629,12 @@
         "facingChanged": false,
         "reloadWrites": [],
         "layoutBefore": {
-          "bytes": 1221,
-          "sha256": "8277ea730c3e6fea6894faaaf87fe5666494188e93f0f85e798f4985697640e4"
+          "bytes": 1224,
+          "sha256": "a7b764d22cb8caeb756491b8f98d621174eb147f4894ac02e5d363f760248dcd"
         },
         "layoutAfter": {
-          "bytes": 1221,
-          "sha256": "8277ea730c3e6fea6894faaaf87fe5666494188e93f0f85e798f4985697640e4"
+          "bytes": 1224,
+          "sha256": "a7b764d22cb8caeb756491b8f98d621174eb147f4894ac02e5d363f760248dcd"
         },
         "legacyBefore": {
           "bytes": 5154,
@@ -50120,7 +50652,7 @@
       },
       "requests": [],
       "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "verdictReason": "A plain click opens the existing Tasks detail without changing stack geometry or selecting page text."
     },
     {
       "key": "ics-ready-standard-light-common",
@@ -52543,6 +53075,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -52636,20 +53182,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -52821,6 +53353,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -52914,20 +53460,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -53129,6 +53661,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -53222,20 +53768,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -53457,6 +53989,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 216,
@@ -53550,20 +54096,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -53730,6 +54262,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -53823,20 +54369,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -54048,6 +54580,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 460,
@@ -54141,20 +54687,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -55343,6 +55875,229 @@
       "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
     },
     {
+      "key": "publicHolidays-permission-required-standard-dark-laptop",
+      "filename": "publicHolidays-permission-required-standard-dark-laptop.png",
+      "kind": "family-state",
+      "widget": "publicHolidays",
+      "tier": "standard",
+      "state": "permission-required",
+      "family": "public",
+      "theme": "dark",
+      "viewport": "laptop",
+      "fixture": "publicHolidays:permission-required",
+      "reference": null,
+      "interaction": null,
+      "assertions": [
+        "frame-dimensions",
+        "no-clipping",
+        "no-internal-scroll",
+        "text-floors",
+        "signature-content",
+        "one-data-owner",
+        "storage-audit"
+      ],
+      "measurement": {
+        "frame": {
+          "left": 523,
+          "top": 284,
+          "right": 843,
+          "bottom": 484,
+          "width": 320,
+          "height": 200
+        },
+        "geometryDiagnostics": {
+          "computedWidth": "320px",
+          "computedHeight": "200px",
+          "computedMinWidth": "0px",
+          "computedMaxWidth": "1342px",
+          "tierFrameWidth": "320px",
+          "tierFrameRatio": "320 / 200",
+          "flexBasis": "auto",
+          "flexGrow": "0",
+          "flexShrink": "0",
+          "transform": "none",
+          "zoom": "1",
+          "innerWidth": 1366,
+          "innerHeight": 768,
+          "devicePixelRatio": 1,
+          "visualViewport": {
+            "width": 1366,
+            "height": 768,
+            "scale": 1
+          },
+          "ancestors": [
+            {
+              "tag": "div",
+              "className": "canvas-item",
+              "rect": {
+                "width": 320,
+                "height": 200
+              },
+              "width": "320px",
+              "maxWidth": "1350px",
+              "display": "flex",
+              "position": "absolute",
+              "transform": "matrix(1, 0, 0, 1, -160, -100)",
+              "zoom": "1"
+            },
+            {
+              "tag": "section",
+              "className": "canvas-surface",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "canvas-root",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "main",
+              "className": "aurora-canvas text-fg",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "relative",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "body",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "html",
+              "className": "",
+              "rect": {
+                "width": 1366,
+                "height": 768
+              },
+              "width": "1366px",
+              "maxWidth": "none",
+              "display": "block",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            }
+          ]
+        },
+        "clippedElements": [],
+        "internalScrollOwners": [],
+        "textRuns": [
+          {
+            "text": "Public Holidays",
+            "role": "routine",
+            "fontSize": 14
+          },
+          {
+            "text": "Choose a country in Settings.",
+            "role": "metadata",
+            "fontSize": 12
+          }
+        ],
+        "missingEssentialSelectors": [],
+        "missingSignatureSelectors": [],
+        "mountedOwners": 1,
+        "selectedText": "",
+        "compatibilityCopy": null
+      },
+      "stack": null,
+      "image": {
+        "relativePath": "docs/superpowers/catalog/shared-frames/sf-p2/publicHolidays-permission-required-standard-dark-laptop.png",
+        "pixelWidth": 1366,
+        "pixelHeight": 768
+      },
+      "storage": {
+        "changedKeys": [],
+        "writeCalls": [],
+        "facingChanged": false,
+        "reloadWrites": [],
+        "layoutBefore": {
+          "bytes": 1192,
+          "sha256": "42707cdd2ab6557c76f1f59893b077103284b562024a2f0c3fa22cf458b90f55"
+        },
+        "layoutAfter": {
+          "bytes": 1192,
+          "sha256": "42707cdd2ab6557c76f1f59893b077103284b562024a2f0c3fa22cf458b90f55"
+        },
+        "legacyBefore": {
+          "bytes": 5154,
+          "sha256": "5a8f017fd81b861631d20e12b48a3008edc011aa8714bc30e9ccb7526edc991c"
+        },
+        "legacyAfter": {
+          "bytes": 5154,
+          "sha256": "5a8f017fd81b861631d20e12b48a3008edc011aa8714bc30e9ccb7526edc991c"
+        }
+      },
+      "requestAudit": {
+        "approved": 0,
+        "failed": 0,
+        "unexpected": 0
+      },
+      "requests": [],
+      "verdict": "Useful",
+      "verdictReason": "The exact standard frame explains that a country must be chosen in Settings before holiday data can render."
+    },
+    {
       "key": "publicHolidays-hard-error-standard-dark-laptop",
       "filename": "publicHolidays-hard-error-standard-dark-laptop.png",
       "kind": "family-state",
@@ -55643,6 +56398,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -55736,20 +56505,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -55951,6 +56706,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -56044,20 +56813,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -56265,6 +57020,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -56358,20 +57127,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -56579,6 +57334,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -56672,20 +57441,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -56893,6 +57648,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -56986,20 +57755,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -57207,6 +57962,20 @@
           "ancestors": [
             {
               "tag": "div",
+              "className": "contents",
+              "rect": {
+                "width": 0,
+                "height": 0
+              },
+              "width": "auto",
+              "maxWidth": "none",
+              "display": "contents",
+              "position": "static",
+              "transform": "none",
+              "zoom": "1"
+            },
+            {
+              "tag": "div",
               "className": "stack-card__member canvas-item",
               "rect": {
                 "width": 320,
@@ -57300,20 +58069,6 @@
               "maxWidth": "none",
               "display": "contents",
               "position": "static",
-              "transform": "none",
-              "zoom": "1"
-            },
-            {
-              "tag": "main",
-              "className": "aurora-canvas text-fg",
-              "rect": {
-                "width": 1408,
-                "height": 445
-              },
-              "width": "1408px",
-              "maxWidth": "none",
-              "display": "block",
-              "position": "relative",
               "transform": "none",
               "zoom": "1"
             }
@@ -58342,10 +59097,10 @@
     "browserClosed": true,
     "profileRemoved": true
   },
-  "finishedAt": "2026-08-23T12:54:30.114Z",
+  "finishedAt": "2026-08-23T13:33:41.147Z",
   "summary": {
-    "planned": 186,
-    "captures": 186,
+    "planned": 189,
+    "captures": 189,
     "captureFailures": 0,
     "requests": 36,
     "runtimeErrors": 0,

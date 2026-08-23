@@ -412,11 +412,14 @@ describe('CanvasSurface widget stacks', () => {
         viewport={{ width: 1408, height: 445 }}
         chrome="normal"
         onStepStack={onStepStack}
-        renderWidget={(entry, size) => { rendered.push(`${entry.id}:${size}`); return <span>{entry.label}:{size}</span> }}
+        renderWidget={(entry, size) => {
+          rendered.push(`${entry.id}:${size}`)
+          return <TierFrame label={entry.label} tier={size} state="ready"><span>{entry.label}:{size}</span></TierFrame>
+        }}
       />,
     )
 
-    expect(rendered).toEqual(['weather:full', 'clock:full'])
+    expect(rendered).toEqual(['weather:full', 'clock:full', 'timer:full'])
     const item = screen.getByTestId('canvas-item-stack:stack-day')
     expect(item.dataset.canvasObjectId).toBe('stack:stack-day')
     expect(item.dataset.blockId).toBe('clock')
@@ -427,6 +430,11 @@ describe('CanvasSurface widget stacks', () => {
     expect(within(item).getByRole('button', { name: 'Move Clock +2' })).toBeTruthy()
     expect(within(item).getByRole('button', { name: 'Clock settings' })).toBeTruthy()
     expect(item.querySelectorAll('[data-stack-member]')).toHaveLength(3)
+    expect(item.querySelectorAll('[data-stack-widget-owner="weather"]')).toHaveLength(1)
+    expect(item.querySelectorAll('[data-stack-widget-owner="clock"]')).toHaveLength(1)
+    expect(item.querySelectorAll('[data-stack-widget-owner="timer"]')).toHaveLength(1)
+    expect(item.querySelector('[data-stack-widget-owner="timer"]')?.hasAttribute('hidden')).toBe(true)
+    expect(item.querySelector('[data-stack-member="timer"] [data-tier-frame]')?.closest('[hidden]')).toBeNull()
     expect(item.querySelector('[aria-label="Timer compatibility"]')).toBeTruthy()
     expect(item.textContent).toContain('Timer is not available at Full.')
     expect(item.textContent).toContain('This stack supports Compact.')
@@ -448,7 +456,7 @@ describe('CanvasSurface widget stacks', () => {
         viewport={{ width: 1408, height: 445 }}
         chrome="normal"
         onStepStack={onStepStack}
-        renderWidget={(entry, size) => <span>{entry.label}:{size}</span>}
+        renderWidget={(entry, size) => <TierFrame label={entry.label} tier={size} state="ready"><span>{entry.label}:{size}</span></TierFrame>}
       />,
     )
     expect(screen.getByTestId('canvas-item-stack:stack-day')).toBe(item)

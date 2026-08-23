@@ -170,6 +170,12 @@ describe('shared frame presentation contracts', () => {
     }
   })
 
+  it('declares every reachable setup or permission-required frame state', () => {
+    for (const id of ['readingList', 'recentlyClosed', 'downloads', 'tabGroups', 'linear', 'sentry', 'todoist', 'publicHolidays'] as const) {
+      expect(WIDGET_PRESENTATION_CONTRACTS[id].states, id).toContain('permission-required')
+    }
+  })
+
   it('does not promise rejection states for connector fetchers that always return truthful data', () => {
     expect(WIDGET_PRESENTATION_CONTRACTS.status.states).toEqual(['loading', 'ready', 'empty', 'stale'])
     expect(WIDGET_PRESENTATION_CONTRACTS.ics.states).toEqual(['loading', 'ready', 'empty', 'stale'])
