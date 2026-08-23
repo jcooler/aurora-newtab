@@ -401,7 +401,7 @@ test('every ready widget and compatibility face has an explicit DOM signature pr
     ['[data-work-pulse-status-dots]'],
   )
   assert.deepEqual(
-    buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === 'linear' && entry.kind === 'free-tier'))
+    buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === 'linear' && entry.kind === 'free-tier' && entry.tier === 'standard'))
       .signatureSelectors,
     ['a[href^="https://linear.app/"]'],
   )
@@ -409,6 +409,39 @@ test('every ready widget and compatibility face has an explicit DOM signature pr
     buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.kind === 'compatibility')).signatureSelectors,
     ['.stack-compatibility-face'],
   )
+})
+
+test('ready probes follow each authored tier instead of demanding larger-tier rows from Compact', () => {
+  const compact = (widget) => buildSfP2DomProbe({
+    key: `${widget}-compact`, widget, tier: 'compact', state: 'ready', kind: 'free-tier',
+  }).signatureSelectors
+
+  for (const widget of ['jira', 'vercel']) assert.deepEqual(compact(widget), ['[data-work-pulse-summary]'])
+  for (const widget of ['linear', 'sentry', 'todoist']) assert.deepEqual(compact(widget), ['strong'])
+  for (const widget of ['readingList', 'recentlyClosed', 'downloads', 'tabGroups']) {
+    assert.deepEqual(compact(widget), ['header + div span'])
+  }
+  assert.deepEqual(compact('sun'), ['[aria-label="Sun times"]'])
+  assert.deepEqual(compact('moon'), ['strong'])
+  assert.deepEqual(compact('auroraKp'), ['strong'])
+})
+
+test('runtime probes include the frame root, click the stack member, and map Tasks to its settings key', () => {
+  const source = readFileSync(new URL('./qa-shared-frame-p2.mjs', import.meta.url), 'utf8')
+  assert.match(source, /root\.matches\(selector\)/)
+  assert.match(source, /data-stack-member="\$\{capture\.widget\}"\]\[data-stack-active="true"\].*\.click/s)
+  assert.match(source, /tasks:\s*'todo'/)
+})
+
+test('state-family captures contain only states their selected identity can actually render', () => {
+  const result = plan()
+  expectFamily('developer-service', ['loading', 'ready', 'empty', 'stale'])
+  expectFamily('calendar-local', ['loading', 'ready', 'empty', 'stale'])
+
+  function expectFamily(id, expected) {
+    const family = result.stateFamilies.find((entry) => entry.id === id)
+    assert.deepEqual(family?.states, expected)
+  }
 })
 
 test('Public Holidays probes rows below Full and grouped months only at Full', () => {

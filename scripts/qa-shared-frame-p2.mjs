@@ -108,6 +108,21 @@ const READY_SIGNATURE_SELECTORS = Object.freeze({
   publicHolidays: 'section[aria-label$="holidays"]',
   auroraKp: '[data-testid="kp-forecast-row"]',
 })
+const COMPACT_SIGNATURE_SELECTORS = Object.freeze({
+  jira: '[data-work-pulse-summary]',
+  vercel: '[data-work-pulse-summary]',
+  linear: 'strong',
+  sentry: 'strong',
+  todoist: 'strong',
+  readingList: 'header + div span',
+  recentlyClosed: 'header + div span',
+  downloads: 'header + div span',
+  tabGroups: 'header + div span',
+  sun: '[aria-label="Sun times"]',
+  moon: 'strong',
+  auroraKp: 'strong',
+})
+const SETTINGS_WIDGET_IDS = Object.freeze({ tasks: 'todo' })
 
 const FIXED_TIME = new Date('2026-08-23T12:00:00-04:00')
 const LOCAL_DAY_KEY = '2026-08-23'
@@ -365,11 +380,13 @@ export function buildSfP2DomProbe(capture) {
     return { essentialSelectors: [':scope'], signatureSelectors: ['.stack-compatibility-face'] }
   }
   const signature = capture.state === 'ready'
-    ? (capture.widget === 'github' || capture.widget === 'gitlab') && capture.tier === 'compact'
+    ? capture.tier === 'compact' && (capture.widget === 'github' || capture.widget === 'gitlab')
       ? '[data-contribution-summary]'
-      : capture.widget === 'publicHolidays' && capture.tier !== 'full'
-      ? 'li'
-      : READY_SIGNATURE_SELECTORS[capture.widget]
+      : capture.tier === 'compact' && COMPACT_SIGNATURE_SELECTORS[capture.widget]
+        ? COMPACT_SIGNATURE_SELECTORS[capture.widget]
+        : capture.widget === 'publicHolidays' && capture.tier !== 'full'
+          ? 'li'
+          : READY_SIGNATURE_SELECTORS[capture.widget]
     : '[role="status"], [role="alert"], button, p'
   assert(signature, `${capture.key}: no DOM signature selector for ${capture.widget}`)
   return { essentialSelectors: [':scope'], signatureSelectors: [signature] }
@@ -1135,7 +1152,7 @@ async function run() {
       const layouts = buildSfP2Layouts(manifest.authorityIds, capture)
       const theme = themeById.get(capture.theme)
       assert(theme, `${capture.key}: unknown theme ${capture.theme}`)
-      await page.evaluate(async ({ capture, state, layouts, authorityIds, work, publicData, panelColor, localDayKey }) => {
+      await page.evaluate(async ({ capture, state, layouts, authorityIds, work, publicData, panelColor, localDayKey, settingsWidgetIds }) => {
         const current = await chrome.storage.local.get(null)
         const info = current.informationFirstFixture
         if (!info?.configs || !info?.snapshots) throw new Error('information-first fixture authority is missing')
@@ -1187,7 +1204,7 @@ async function run() {
           ...Object.fromEntries(Object.keys(current.settings.widgets).map((id) => [id, false])),
           ...Object.fromEntries(authorityIds.map((id) => [id, false])),
         }
-        for (const id of enabled) widgetFlags[id] = true
+        for (const id of enabled) widgetFlags[settingsWidgetIds[id] ?? id] = true
         await chrome.storage.local.set({
           settings: {
             ...current.settings,
@@ -1210,7 +1227,17 @@ async function run() {
           layouts,
         })
         globalThis.__sfP2Harness?.clearWrites()
-      }, { capture, state, layouts, authorityIds: manifest.authorityIds, work, publicData, panelColor: theme.panelColor, localDayKey: LOCAL_DAY_KEY })
+      }, {
+        capture,
+        state,
+        layouts,
+        authorityIds: manifest.authorityIds,
+        work,
+        publicData,
+        panelColor: theme.panelColor,
+        localDayKey: LOCAL_DAY_KEY,
+        settingsWidgetIds: SETTINGS_WIDGET_IDS,
+      })
       const before = await page.evaluate(() => chrome.storage.local.get(null))
       const viewport = manifest.viewports.find((entry) => entry.id === capture.viewport)
       assert(viewport, `${capture.key}: unknown viewport ${capture.viewport}`)
@@ -1283,7 +1310,8 @@ async function run() {
         }
         const countSelector = (selector) => selector === ':scope'
           ? (visible(root) ? 1 : 0)
-          : [...root.querySelectorAll(selector)].filter(visible).length
+          : (root.matches(selector) && visible(root) ? 1 : 0)
+            + [...root.querySelectorAll(selector)].filter(visible).length
         const mountedOwners = input.stacked
           ? document.querySelectorAll(`[data-stack-member="${input.widget}"]`).length
           : document.querySelectorAll(`[data-block-id="${input.widget}"]`).length
@@ -1372,7 +1400,7 @@ async function run() {
         await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.5, { steps: 8 })
         await page.mouse.up()
       } else if (capture.interaction === 'stack-plain-click') {
-        const target = frameFor(capture, 'ready')
+        const target = page.locator(`${stackSelector(capture)} [data-stack-member="${capture.widget}"][data-stack-active="true"]`)
         await target.click({ position: { x: 6, y: 6 } })
         assert.equal(await page.locator('[data-editing="true"], .canvas-item--editing, .canvas-item--selected').count(), 0, `${capture.key}: plain click painted edit chrome`)
       }
