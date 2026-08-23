@@ -213,10 +213,14 @@ export async function runProductionQa() {
             sentry: { scope: fixtureScopes.sentry, fetchedAt: Date.now(), data: sentry.data },
             onThisDay: { scope: fixtureScopes.onThisDay, fetchedAt: Date.now(), data: onThisDay.data },
           }
+          const calendarPreferences = stack.members.includes('calendar')
+            ? { ...current.calendarPreferences, [layouts.activeLayoutId]: { defaultView: 'agenda', includePublicHolidays: true } }
+            : current.calendarPreferences
           await chrome.storage.local.set({
             settings: { ...current.settings, panelColor: theme.panelColor, widgetTextColor: null, widgets },
             connectors,
             connectorSnapshots,
+            calendarPreferences,
             layouts,
             photoPrefs: { ...current.photoPrefs, mode: 'gradient' },
           })
