@@ -97,7 +97,7 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
   const captures = requested ? allCaptures.filter(({ key }) => requested.has(key)) : allCaptures
   if (requested && captures.length !== requested.size) throw new Error(`Unknown capture keys: ${[...requested].filter((key) => !captures.some((capture) => capture.key === key)).join(', ')}`)
 
-  const sourceCommit = git(root, ['rev-parse', 'HEAD'])
+  const sourceCommit = git(root, ['log', '-1', '--format=%H', '--', 'mockups/widget-redesign'])
   const dirtyStatus = git(root, ['status', '--porcelain'])
   const sourceHashes = Object.fromEntries(await Promise.all(SOURCE_FILES.map(async (file) => [file, await hashFile(resolve(root, file))])))
   const server = await startCatalogServer({ repoRoot: root })
@@ -128,6 +128,7 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
           return scrollableX || scrollableY
         }).map((node) => node.className || node.tagName).slice(0, 20)
         const text = [...rootNode.querySelectorAll('*')].filter((node) => visible(node) && node.children.length === 0 && node.textContent.trim()).map((node) => ({ tag: node.tagName, size: Number.parseFloat(getComputedStyle(node).fontSize) }))
+        const routine = [...rootNode.querySelectorAll('.agenda-row strong, .history-face article p, .work-rows strong, .deployment-face article strong, .sentry-face article strong, .todoist-face article strong, .resource-face article strong, .home-face article strong, .rss-face article strong, blockquote, .tasks-face li span, .quick-link span, .bookmark span, .notes-face p, .calendar-consolidation p')].filter(visible).map((node) => Number.parseFloat(getComputedStyle(node).fontSize))
         const stack = rootNode.querySelector('[data-stack]')
         return {
           frames,
@@ -135,6 +136,7 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
           overflowOwners,
           essentialVisible: [...rootNode.querySelectorAll('[data-essential]')].filter(visible).length,
           textFloor: text.length ? Math.min(...text.map(({ size }) => size)) : null,
+          routineFloor: routine.length ? Math.min(...routine) : null,
           stack: stack ? { active: stack.querySelectorAll('[data-stack-active="true"]').length, memberSizes: [...stack.querySelectorAll('[data-stack-member] [data-tier-frame]')].map((frame) => ({ width: getComputedStyle(frame).width, height: getComputedStyle(frame).height })) } : null,
         }
       })
@@ -147,10 +149,12 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
       if (measures.pageOverflow) captureFailures.push('page overflow')
       if (measures.overflowOwners.length) captureFailures.push('internal overflow')
       if (measures.essentialVisible < 1) captureFailures.push('missing essential')
+      if (measures.textFloor !== null && measures.textFloor < 11) captureFailures.push('metadata text floor')
+      if (measures.routineFloor !== null && measures.routineFloor < 14) captureFailures.push('routine text floor')
       if (measures.stack && measures.stack.active !== 1) captureFailures.push('stack active count')
       if (Object.values(runtime).some((items) => items.length)) captureFailures.push('runtime or request')
       if (captureFailures.length) failures.push(`${capture.key}: ${captureFailures.join(', ')}`)
-      results.push({ key: capture.key, kind: capture.kind, filename, viewport, geometry: measures.frames, textFloor: measures.textFloor, overflowOwners: measures.overflowOwners, essentialVisible: measures.essentialVisible, stack: measures.stack, runtime, png: pngSize(png), failures: captureFailures })
+      results.push({ key: capture.key, kind: capture.kind, filename, viewport, geometry: measures.frames, textFloor: measures.textFloor, routineFloor: measures.routineFloor, overflowOwners: measures.overflowOwners, essentialVisible: measures.essentialVisible, stack: measures.stack, runtime, png: pngSize(png), failures: captureFailures })
       await context.close()
     }
   } finally {
