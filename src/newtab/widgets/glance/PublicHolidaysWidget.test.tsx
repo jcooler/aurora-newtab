@@ -157,7 +157,13 @@ describe('PublicHolidaysWidget tier frame states', () => {
 
     const standard = frame('standard')
     expect(standard.dataset.tierFrameState).toBe('stale')
-    expect(within(standard).getByText('Dec 25')).toBeTruthy()
+    const holidayRows = within(standard).getAllByRole('listitem')
+    expect(holidayRows).toHaveLength(3)
+    expect(holidayRows.every((row) => row.getAttribute('data-holiday-row-layout') === 'dense')).toBe(true)
+    expect(within(standard).getByText(/Dec 25/)).toBeTruthy()
+    expect(within(standard).getByText('Local Civic Day')).toBeTruthy()
+    const provider = within(standard).getByRole('link', { name: 'Open Nager.Date' })
+    expect(provider.parentElement?.getAttribute('data-holiday-context-layout')).toBe('dense')
     expect(within(standard).getByRole('status').textContent).toBe('Showing saved data while Public Holidays refreshes.')
     expectBoundedFrame(standard)
 
@@ -167,7 +173,7 @@ describe('PublicHolidaysWidget tier frame states', () => {
     })
     await waitFor(() => expect(standard.dataset.tierFrameState).toBe('partial'))
     expect(within(standard).getByText('Christmas Day')).toBeTruthy()
-    expect(within(standard).getByText('Dec 25')).toBeTruthy()
+    expect(within(standard).getByText(/Dec 25/)).toBeTruthy()
     expect(within(standard).getByRole('status').textContent).toBe('Public Holidays is unavailable.')
   })
 

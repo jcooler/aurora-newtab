@@ -71,7 +71,7 @@ function HabitsInner({
         <h2 className="text-sm font-semibold">Habits</h2>
         <span className="text-[11px] text-fg-muted">{doneToday}/{habits.length} today</span>
       </header>
-      <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-1.5">
+      <div data-habits-grid="" className="grid min-h-0 flex-1 grid-cols-3 content-start gap-1.5">
       {visible.map((h) => {
         const todayDone = h.log.includes(todayKey)
         const count = streak(h.log, todayKey)

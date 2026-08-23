@@ -72,6 +72,16 @@ describe('HabitsWidget', () => {
     expect(screen.getByRole('button', { name: /Stretch/ })).toBeTruthy()
   })
 
+  it('fits all six Compact habit controls into two rows', async () => {
+    await renderWithHabits(Array.from({ length: 6 }, (_, i) => habit(`h${i}`, `Habit ${i + 1}`)))
+
+    const frame = screen.getByRole('region', { name: 'Habits' })
+    const grid = frame.querySelector<HTMLElement>('[data-habits-grid]')
+    expect(grid).toBeTruthy()
+    expect(grid!.className).toContain('grid-cols-3')
+    expect(frame.querySelectorAll('button')).toHaveLength(6)
+  })
+
   it('Docked renders one dense done-today tally and no chips (NL-P5 batch 2)', async () => {
     const todayKey = localDateKey(new Date())
     const storage = createStorage(memoryDriver())

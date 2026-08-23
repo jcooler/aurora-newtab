@@ -111,9 +111,9 @@ function AuroraKpInner({
           {canvasSize === 'full'
             ? <ForecastGroups rows={visible} />
             : canvasSize === 'standard'
-              ? <ForecastList rows={visible} />
+              ? <ForecastList rows={visible} standard />
               : null}
-          {canvasSize !== 'compact' ? <NoaaDestination /> : null}
+          {canvasSize !== 'compact' ? <NoaaDestination standard={canvasSize === 'standard'} /> : null}
         </>
       ) : null}
     </GlanceWidgetShell>
@@ -157,12 +157,23 @@ function ForecastGroups({ rows }: { rows: readonly KpInterval[] }) {
   )
 }
 
-function ForecastList({ rows, grouped = false }: { rows: readonly KpInterval[]; grouped?: boolean }) {
+function ForecastList({
+  rows,
+  grouped = false,
+  standard = false,
+}: {
+  rows: readonly KpInterval[]
+  grouped?: boolean
+  standard?: boolean
+}) {
   if (rows.length === 0) return null
   return (
-    <ul className={`${grouped ? '' : 'mt-3'} flex flex-col gap-1.5`}>
+    <ul
+      data-kp-forecast-layout={standard ? 'standard' : undefined}
+      className={standard ? 'mt-1 grid grid-cols-2 gap-x-3 gap-y-1' : `${grouped ? '' : 'mt-3'} flex flex-col gap-1.5`}
+    >
       {rows.map((row) => (
-        <li key={`${row.time}-${row.kp}`} data-testid="kp-forecast-row" className="group flex items-center justify-between gap-4 text-sm">
+        <li key={`${row.time}-${row.kp}`} data-testid="kp-forecast-row" className={`group flex items-center justify-between text-sm ${standard ? 'gap-2' : 'gap-4'}`}>
           <span className={glanceRowClass}>{time(row.time)}</span>
           <span className="font-medium tabular-nums text-fg">Kp {kp(row.kp)}{row.scale ? ` · ${row.scale}` : ''}</span>
         </li>
@@ -181,13 +192,14 @@ function dailyForecastSignature(rows: readonly KpInterval[]): KpInterval[] {
   return [...dailyPeak.values()].slice(0, 3)
 }
 
-function NoaaDestination() {
+function NoaaDestination({ standard = false }: { standard?: boolean }) {
   return (
     <a
       href="https://www.swpc.noaa.gov/products/planetary-k-index"
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-3 inline-flex min-h-9 items-center border-t border-hairline pt-2 text-sm font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+      data-kp-destination-layout={standard ? 'standard' : undefined}
+      className={`${standard ? 'mt-1 pt-1' : 'mt-3 pt-2'} inline-flex min-h-9 items-center border-t border-hairline text-sm font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent`}
     >
       Open NOAA Space Weather
     </a>

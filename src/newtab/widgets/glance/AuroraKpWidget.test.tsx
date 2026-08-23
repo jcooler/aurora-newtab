@@ -98,6 +98,13 @@ describe('AuroraKpWidget', () => {
     mount(await seededStorage(), { canvasSize: 'standard' })
     expect(await screen.findByText('G2 storm scale')).toBeTruthy()
     expect(screen.getAllByTestId('kp-forecast-row')).toHaveLength(4)
+    const standard = frame('standard')
+    const forecast = standard.querySelector<HTMLElement>('[data-kp-forecast-layout="standard"]')
+    expect(forecast).toBeTruthy()
+    expect(forecast!.className).toContain('grid-cols-2')
+    expect(forecast!.className).toContain('mt-1')
+    const destination = within(standard).getByRole('link', { name: 'Open NOAA Space Weather' })
+    expect(destination.getAttribute('data-kp-destination-layout')).toBe('standard')
   })
 
   it('authors Full as one bounded daily peak per forecast day with a NOAA path', async () => {
