@@ -627,7 +627,7 @@ export default function WeatherWidget({
                 {highestAlert.severity} · {highestAlert.event}
               </span>
             ) : null}
-            {summarySize !== 'compact' && trendSignal ? (
+            {summarySize === 'standard' && trendSignal ? (
               <span data-weather-summary-row="trend" data-weather-summary-trend="" data-weather-daily-context="" data-panel-accent-text="" data-canvas-type-role="body" className="truncate text-accent">
                 {trendSignal}
               </span>
@@ -696,9 +696,14 @@ export default function WeatherWidget({
                     ? `${clockTime(snapshot.sunriseISO, settings.use24Hour)}-${clockTime(snapshot.sunsetISO, settings.use24Hour)}`
                     : 'Unavailable'}</dd>
                 </div>
-                <div>
-                  <dt>Wind</dt>
-                  <dd>{displayWind(snapshot.current.windKmh, settings.units)}</dd>
+                <div
+                  data-weather-daily-context=""
+                  aria-label={dailyContext ?? 'Daily forecast unavailable'}
+                >
+                  <dt>Daily</dt>
+                  <dd title={dailyContext ?? undefined}>{range
+                    ? `${displayTemp(range.hiC, settings.units)} / ${displayTempWithUnit(range.loC, settings.units)}`
+                    : 'Unavailable'}</dd>
                 </div>
               </dl>
             ) : null}

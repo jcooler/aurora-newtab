@@ -216,7 +216,7 @@ describe('WeatherWidget collapsed chip', () => {
     const full = frame('full')
     expect(within(full).getByTestId('weather-summary-hourly')).toBeTruthy()
     expect(full.querySelectorAll('[data-weather-summary-hourly] > span')).toHaveLength(4)
-    expect(full.querySelector('[data-weather-daily-context]')?.textContent).toMatch(/High .*Low/)
+    expect(full.querySelector('[data-weather-daily-context]')?.getAttribute('aria-label')).toMatch(/High .*Low/)
     const context = full.querySelector('[data-weather-full-context]')!
     expect(context.textContent).toContain('Air')
     expect(context.textContent).toContain('UV')
