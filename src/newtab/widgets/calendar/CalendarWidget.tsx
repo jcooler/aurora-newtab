@@ -1,4 +1,6 @@
+import { useState, type ReactNode } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
+import { useStorage } from '../../../lib/storage/context'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useNow } from '../../../lib/hooks/useNow'
@@ -19,6 +21,18 @@ import DockLine from '../shared/DockLine'
 import TierFrame from '../shared/TierFrame'
 import type { WidgetPresentationState } from '../../widgetSizeContracts'
 import type { AsyncResourceState } from '../../../lib/asyncState'
+import {
+  calendarPreferenceFor,
+  updateCalendarLayoutPreference,
+} from '../../../lib/layout/calendarConsolidation'
+import {
+  fetchPublicHolidays,
+  isPublicHolidaysData,
+  normalizeHolidayCountryCode,
+  type PublicHolidaysData,
+} from '../../../services/connectors/publicHolidays'
+import type { PublicHolidaysConfig } from '../../../services/connectors/types'
+import { calendarMonthCells, composeCalendarItems, type CalendarAgendaItem } from './calendarComposition'
 
 // The calendar widget — Task 54, the seventh connector and the second
 // no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
@@ -65,7 +79,8 @@ export default function CalendarWidget({
   stageVariant = 'standard',
   canvasSize,
   docked,
-}: { stageVariant?: WidgetVariant; canvasSize?: CanvasSize; docked?: boolean } = {}) {
+  layoutId,
+}: { stageVariant?: WidgetVariant; canvasSize?: CanvasSize; docked?: boolean; layoutId?: string } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (RssWidget/CryptoWidget's own doc comments): the one useStoredKey read
   // runs every render (Rules of Hooks stay satisfied), but a disabled
@@ -89,6 +104,18 @@ export default function CalendarWidget({
   // (before the gate below) so the Rules-of-Hooks-free gate stays a single
   // early return; icsViewOf itself is a pure function, not a hook.
   const { view, upcomingCount, meetLinks } = icsViewOf(ics)
+  if (layoutId) {
+    return (
+      <UnifiedCalendarWidget
+        layoutId={layoutId}
+        ics={ics}
+        calendars={calendars}
+        holidayConfig={connectors?.publicHolidays as PublicHolidaysConfig | undefined}
+        canvasSize={canvasSize ?? (stageVariant === 'compact' ? 'compact' : 'standard')}
+        docked={docked}
+      />
+    )
+  }
   if (!ics?.enabled || calendars.length === 0) return null
   // key: a config change (add/remove/reorder, OR a view-mode/count change)
   // REMOUNTS the inner widget so selectAgenda re-runs from a clean slate
@@ -116,6 +143,206 @@ export default function CalendarWidget({
       docked={docked}
     />
   )
+}
+
+const DISABLED_ICS: IcsConfig = { enabled: false, calendars: [] }
+const DISABLED_HOLIDAYS: PublicHolidaysConfig = { enabled: false, countryCode: 'US' }
+
+function UnifiedCalendarWidget({
+  layoutId,
+  ics,
+  calendars,
+  holidayConfig,
+  canvasSize,
+  docked = false,
+}: {
+  layoutId: string
+  ics: IcsConfig | undefined
+  calendars: IcsCalendar[]
+  holidayConfig: PublicHolidaysConfig | undefined
+  canvasSize: CanvasSize
+  docked?: boolean
+}) {
+  const storage = useStorage()
+  const [preferences] = useStoredKey('calendarPreferences')
+  const [weekStart] = useStoredKey('calendarWeekStart')
+  const localDay = useLocalDay()
+  const now = useNow(60_000)
+  const activeIcs = ics?.enabled && calendars.length > 0 ? ics : DISABLED_ICS
+  const countryCode = normalizeHolidayCountryCode(holidayConfig?.countryCode)
+  const activeHolidays = holidayConfig?.enabled && countryCode
+    ? { ...holidayConfig, countryCode }
+    : DISABLED_HOLIDAYS
+
+  const icsSnapshot = useConnectorSnapshot<IcsData>(
+    'ics',
+    activeIcs,
+    (previous) => fetchIcs(calendars, Date.now(), previous, localDay.timeZone),
+    undefined,
+    { timeZone: localDay.timeZone },
+    isIcsData,
+  )
+  const holidaySnapshot = useConnectorSnapshot<PublicHolidaysData>(
+    'publicHolidays',
+    activeHolidays,
+    () => fetchPublicHolidays(activeHolidays.countryCode, localDay.now),
+    undefined,
+    localDay.key,
+    isPublicHolidaysData,
+  )
+  const preference = calendarPreferenceFor(preferences, layoutId)
+  const items = composeCalendarItems({
+    events: icsSnapshot.data?.events ?? [],
+    holidays: holidaySnapshot.data?.holidays ?? [],
+    includeHolidays: preference.includePublicHolidays,
+    now,
+    timeZone: localDay.timeZone,
+  })
+  const setView = (defaultView: 'agenda' | 'month') => {
+    if (defaultView === preference.defaultView) return
+    void updateCalendarLayoutPreference(storage, layoutId, { defaultView })
+  }
+
+  if (docked) {
+    const next = items[0]
+    return next ? <DockLine label="Calendar" facts={[next.title, agendaWhen(next, localDay.timeZone)]} /> : null
+  }
+
+  if (canvasSize === 'compact') {
+    return (
+      <TierFrame label="Calendar" tier="compact" state={items.length > 0 ? 'ready' : 'empty'} className="justify-center gap-2 px-3 py-2.5">
+        <CalendarAgenda items={items} limit={2} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+      </TierFrame>
+    )
+  }
+
+  if (canvasSize === 'full') {
+    return (
+      <TierFrame label="Calendar" tier="full" state={items.length > 0 ? 'ready' : 'empty'} className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-5 p-4">
+        <div data-testid="calendar-full-month" className="min-w-0">
+          <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} />
+        </div>
+        <section data-testid="calendar-full-agenda" aria-label="Agenda" className="min-w-0 border-l border-panel-border pl-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted">Agenda</p>
+          <CalendarAgenda items={items} limit={8} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+        </section>
+      </TierFrame>
+    )
+  }
+
+  const viewTabs = <CalendarViewTabs active={preference.defaultView} onChange={setView} />
+  return (
+    <TierFrame label="Calendar" tier="standard" state={items.length > 0 ? 'ready' : 'empty'} className="gap-1.5 px-3 pb-2.5 pt-2">
+      {preference.defaultView === 'month' ? (
+        <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} viewControl={viewTabs} />
+      ) : (
+        <>
+          <div className="flex min-h-7 items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-muted">Calendar</span>
+            {viewTabs}
+          </div>
+          <CalendarAgenda items={items} limit={4} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+        </>
+      )}
+    </TierFrame>
+  )
+}
+
+function CalendarViewTabs({ active, onChange }: { active: 'agenda' | 'month'; onChange: (view: 'agenda' | 'month') => void }) {
+  return (
+    <div role="tablist" aria-label="Calendar view" className="inline-flex shrink-0 rounded-lg border border-panel-border bg-black/10 p-0.5">
+      {(['agenda', 'month'] as const).map((view) => (
+        <button key={view} type="button" role="tab" aria-selected={active === view} onClick={() => onChange(view)} className={`min-h-7 rounded-md px-2.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-accent ${active === view ? 'bg-panel-border text-fg' : 'text-fg-muted hover:text-fg'}`}>
+          {view === 'agenda' ? 'Agenda' : 'Month'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function CalendarAgenda({
+  items,
+  limit,
+  timeZone,
+  emptyLabel,
+}: {
+  items: readonly CalendarAgendaItem[]
+  limit: number
+  timeZone: string
+  emptyLabel: string
+}) {
+  const visible = items.slice(0, limit)
+  if (visible.length === 0) return <p className="text-sm text-fg-muted">{emptyLabel}</p>
+  return (
+    <ul className="grid min-h-0 gap-1.5">
+      {visible.map((item) => (
+        <li key={`${item.kind}-${item.dateKey}-${item.title}-${item.start}`} className="flex min-w-0 items-baseline gap-2 text-sm">
+          <span className={`size-1.5 shrink-0 rounded-full ${item.kind === 'holiday' ? 'bg-accent' : 'bg-fg-muted'}`} aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-fg">{item.title}</span>
+          <time className="shrink-0 text-xs text-fg-muted">{agendaWhen(item, timeZone)}</time>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function agendaWhen(item: CalendarAgendaItem, timeZone: string): string {
+  const date = new Date(`${item.dateKey}T12:00:00`)
+  const day = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(date)
+  if (item.allDay) return day
+  const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone }).format(item.start)
+  return `${day}, ${time}`
+}
+
+function CalendarMonth({ items, todayKey, weekStart, viewControl }: { items: readonly CalendarAgendaItem[]; todayKey: string; weekStart: 'locale' | 'sunday' | 'monday'; viewControl?: ReactNode }) {
+  const [todayYear, todayMonth] = todayKey.split('-').map(Number)
+  const [view, setView] = useState(() => new Date(todayYear!, todayMonth! - 1, 1))
+  const locale = typeof navigator === 'undefined' ? 'en-US' : navigator.language
+  const cells = calendarMonthCells(view, weekStart, locale)
+  const label = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(view)
+  const weekdays = calendarMonthCells(new Date(2026, 1, 1), weekStart, locale)
+    .slice(0, 7)
+    .map((cell) => new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(new Date(`${cell.key}T12:00:00`)))
+  const occupied = new Set(items.map((item) => item.dateKey))
+  const monthKey = `${view.getFullYear()}-${String(view.getMonth() + 1).padStart(2, '0')}`
+  const holiday = items.find((item) => item.kind === 'holiday' && item.dateKey >= `${monthKey}-01`)
+  const step = (delta: number) => setView((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
+  return (
+    <div className="min-h-0">
+      <div className="flex h-8 items-center justify-between gap-1.5">
+        <div className="flex min-w-0 items-center gap-0.5">
+          <button type="button" aria-label="Previous month" onClick={() => step(-1)} className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">‹</button>
+          <span className="min-w-0 truncate text-sm font-semibold text-fg">{label}</span>
+          <button type="button" aria-label="Next month" onClick={() => step(1)} className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">›</button>
+        </div>
+        {viewControl}
+      </div>
+      <table aria-label={label} className="mt-0.5 w-full table-fixed border-collapse text-center">
+        <thead><tr>{weekdays.map((day, index) => <th key={`${day}-${index}`} scope="col" className="pb-0.5 text-[10px] font-medium text-fg-muted">{day}</th>)}</tr></thead>
+        <tbody>
+          {Array.from({ length: 6 }, (_, row) => (
+            <tr key={row}>
+              {cells.slice(row * 7, row * 7 + 7).map((cell) => (
+                <td key={cell.key} data-calendar-cell data-cell-key={cell.key} className="h-[18px] p-0 align-middle">
+                  <span className={`relative mx-auto flex size-[18px] items-center justify-center rounded-full text-[11px] leading-none ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} ${cell.key === todayKey ? 'ring-1 ring-accent' : ''}`}>
+                    {cell.day}
+                    <span aria-hidden className={`absolute -bottom-[2px] size-[2px] rounded-full bg-accent ${occupied.has(cell.key) ? '' : 'invisible'}`} />
+                  </span>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-2 min-h-5 border-t border-panel-border pt-1.5 text-[11px] text-fg-muted">
+        {holiday ? <span><span className="text-accent">{shortCalendarDate(holiday.dateKey)}</span> {holiday.title}</span> : <span>No holidays this month</span>}
+      </div>
+    </div>
+  )
+}
+
+function shortCalendarDate(dateKey: string): string {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(`${dateKey}T12:00:00`))
 }
 
 function CalendarInner({

@@ -137,9 +137,10 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
       overflow: { kind: 'details', label: 'Weather details' },
     },
   }),
-  ics: framedContract(['compact', 'standard'], ['compact', 'standard'], NON_REJECTING_RESOURCE_STATES, 'Next event', 'Selected calendar view', undefined, 'Next event', {
-    compact: tier('Next calendar event', ['event title', 'event time'], ['next event'], ['calendar name'], ['tighten spacing', 'clamp event title'], { kind: 'details', label: 'Calendar details' }),
-    standard: tier('Selected calendar view', ['event title', 'event time'], ['event agenda'], ['calendar name', 'additional events'], ['tighten spacing', 'bound event rows'], { kind: 'details', label: 'Calendar details' }),
+  ics: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PERMISSION_RESOURCE_STATES, 'Next date items', 'Agenda or complete month', 'Month and agenda together', 'Next relevant date item', {
+    compact: tier('Next date items', ['local date', 'next event or holiday', 'time or relative date'], ['agenda lead'], ['one additional date item'], ['tighten spacing', 'clamp titles'], { kind: 'details', label: 'Calendar details' }),
+    standard: tier('Agenda or complete month', ['labelled view switch', 'selected view content'], ['agenda list or seven-column grid'], ['calendar identity', 'holiday marker explanation'], ['tighten spacing', 'bound agenda rows', 'keep 42 month cells'], { kind: 'details', label: 'Calendar details' }),
+    full: tier('Month and agenda together', ['complete month', 'agenda'], ['two-region date composition'], ['calendar identity', 'holiday names', 'additional rows'], ['tighten spacing', 'bound agenda rows', 'keep 42 month cells'], { kind: 'details', label: 'Calendar details' }),
   }),
   // Batch-2 owner review: the compact Month ("takes up way too much space,
   // just remove it") is gone — the complete month is Month's only tier.

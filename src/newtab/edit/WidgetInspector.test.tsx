@@ -126,4 +126,27 @@ describe('WidgetInspector', () => {
     // window. A one-size 264px estimate incorrectly left it underneath.
     expect(dialog.style.top).toBe('186px')
   })
+
+  it('owns Calendar default view and public-holiday inclusion without changing geometry', () => {
+    const onCalendarPreference = vi.fn()
+    render(
+      <WidgetInspector
+        entry={WIDGET_REGISTRY_BY_ID.ics}
+        placement={{ kind: 'free', anchor: 'top-left', offsetX: 2, offsetY: 3, tier: 'standard', layer: 1 }}
+        anchorRect={rect(80, 60, 320, 200)}
+        overlapLabels={[]}
+        calendarPreference={{ defaultView: 'agenda', includePublicHolidays: true }}
+        onCalendarPreference={onCalendarPreference}
+        onTier={vi.fn()}
+        onLayer={vi.fn()}
+        onHide={vi.fn()}
+        onRestore={vi.fn()}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Calendar inspector' })
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Month' }))
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Include public holidays' }))
+    expect(onCalendarPreference).toHaveBeenNthCalledWith(1, { defaultView: 'month' })
+    expect(onCalendarPreference).toHaveBeenNthCalledWith(2, { includePublicHolidays: false })
+  })
 })

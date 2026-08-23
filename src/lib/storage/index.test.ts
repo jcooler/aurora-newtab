@@ -41,6 +41,8 @@ const KNOWN_KEYS = [
   'countdowns',
   'layout',
   'layouts',
+  'calendarPreferences',
+  'calendarWeekStart',
   'connectors',
   'connectorSnapshots',
   'habits',

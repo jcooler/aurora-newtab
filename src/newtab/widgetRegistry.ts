@@ -254,3 +254,35 @@ export function selectActiveWidgetRegistry(
     return [Object.freeze({ ...entry, selectedContent: Object.freeze([...selectedConnectorContent(availability.id, config)]) })]
   })
 }
+
+/** A consolidated layout can keep Calendar as a local Month/holiday surface
+ * even when no ICS feed is configured. Availability still owns the legacy
+ * pre-consolidation path; only an explicit canonical placement earns this
+ * additive mount. Unknown or malformed layout data is ignored here and is
+ * still validated by the named-layout resolver. */
+export function includeExplicitLayoutCalendar(
+  entries: readonly WidgetRegistryEntry[],
+  layoutsDocument: unknown,
+): WidgetRegistryEntry[] {
+  if (entries.some((entry) => entry.id === 'ics')) return [...entries]
+  if (!layoutsDocument || typeof layoutsDocument !== 'object') return [...entries]
+  const document = layoutsDocument as { activeLayoutId?: unknown; layouts?: unknown }
+  if (typeof document.activeLayoutId !== 'string' || !Array.isArray(document.layouts)) return [...entries]
+  const active = document.layouts.find((candidate) => (
+    candidate && typeof candidate === 'object' && (candidate as { id?: unknown }).id === document.activeLayoutId
+  )) as { widgets?: unknown; stacks?: unknown } | undefined
+  if (!active) return [...entries]
+  const widgets = active.widgets && typeof active.widgets === 'object'
+    ? active.widgets as Record<string, unknown>
+    : {}
+  const placement = widgets.ics
+  const standalone = placement && typeof placement === 'object'
+    && (placement as { kind?: unknown }).kind !== 'hidden'
+  const stacked = Array.isArray(active.stacks) && active.stacks.some((stack) => (
+    stack && typeof stack === 'object'
+    && Array.isArray((stack as { members?: unknown }).members)
+    && ((stack as { members: unknown[] }).members).includes('ics')
+  ))
+  if (!standalone && !stacked) return [...entries]
+  return [...entries, WIDGET_REGISTRY_BY_ID.ics].sort((left, right) => left.sourceOrder - right.sourceOrder)
+}

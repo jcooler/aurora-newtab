@@ -29,6 +29,15 @@ describe('time and productivity widget renderers', () => {
     expect(element.props.docked).toBeUndefined()
   })
 
+  it('threads the active layout id to the canonical Calendar renderer', () => {
+    const element = WIDGET_RENDERERS.ics({ canvasSize: 'standard', layoutId: 'work' }) as ReactElement<{
+      canvasSize?: CanvasSize
+      layoutId?: string
+    }>
+    expect(element.props.canvasSize).toBe('standard')
+    expect(element.props.layoutId).toBe('work')
+  })
+
   it.each(['sun', 'moon', 'habits', 'timer', 'tasks', 'notes'] as const)(
     'threads the exact canvasSize to %s',
     (id) => {

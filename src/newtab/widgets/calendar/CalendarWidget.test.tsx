@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -141,6 +141,19 @@ function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'standard',
   )
 }
 
+function mountUnified(storage: AuroraStorage, canvasSize: CanvasSize, docked = false) {
+  return render(
+    <StorageProvider storage={storage}>
+      <CalendarWidget
+        stageVariant={canvasSize === 'full' ? 'expanded' : canvasSize}
+        canvasSize={canvasSize}
+        docked={docked}
+        layoutId="work"
+      />
+    </StorageProvider>,
+  )
+}
+
 describe('CalendarWidget', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -149,6 +162,77 @@ describe('CalendarWidget', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.useRealTimers()
+  })
+
+  it('Standard exposes a labelled Agenda/Month switch and writes only its companion preference', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    await storage.set('connectors', { ics: CONNECTED })
+    await storage.set('connectorSnapshots', {
+      ics: {
+        scope: await connectorSnapshotScope('ics', CONNECTED, { timeZone: TIME_ZONE }),
+        fetchedAt: NOW,
+        data: { events: [EVENT_NEXT, EVENT_B] },
+      },
+    })
+    const write = vi.spyOn(driver, 'write')
+    write.mockClear()
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+
+    expect(screen.getByRole('tab', { name: 'Agenda', selected: true })).toBeTruthy()
+    const month = screen.getByRole('tab', { name: 'Month', selected: false })
+    fireEvent.click(month)
+    await act(async () => {})
+
+    expect(screen.getByRole('tab', { name: 'Month', selected: true })).toBeTruthy()
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(Object.keys(write.mock.calls[0]?.[0] ?? {})).toEqual(['calendarPreferences'])
+  })
+
+  it('Standard Month renders one complete 42-cell semantic month without an internal scroller', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
+    const holidayConfig = { enabled: true, countryCode: 'US' } as const
+    await storage.set('connectors', { ics: CONNECTED, publicHolidays: holidayConfig })
+    const snapshots = await storage.get('connectorSnapshots')
+    await storage.set('connectorSnapshots', {
+      ...snapshots,
+      publicHolidays: {
+        scope: await connectorSnapshotScope('publicHolidays', holidayConfig, '2026-08-07'),
+        fetchedAt: NOW,
+        data: { countryCode: 'US', year: 2026, holidays: [{ date: '2026-09-07', name: 'Labor Day' }] },
+      },
+    })
+    await storage.set('calendarPreferences', { work: { defaultView: 'month', includePublicHolidays: true } })
+    mountUnified(storage, 'standard')
+    await act(async () => {
+      for (let index = 0; index < 8; index += 1) await Promise.resolve()
+    })
+
+    const frame = screen.getByRole('region', { name: 'Calendar' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('standard')
+    expect(frame.querySelectorAll('[data-calendar-cell]')).toHaveLength(42)
+    expect(screen.getByRole('table', { name: /August 2026/ })).toBeTruthy()
+    const monthHeader = screen.getByText('August 2026').parentElement?.parentElement
+    expect(monthHeader?.contains(screen.getByRole('tablist', { name: 'Calendar view' }))).toBe(true)
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+  })
+
+  it('Compact stays agenda-led while Full renders Month and Agenda together', async () => {
+    const compactStorage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
+    const compact = mountUnified(compactStorage, 'compact')
+    await act(async () => {})
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.getByText(/Standup/)).toBeTruthy()
+    compact.unmount()
+
+    const fullStorage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
+    mountUnified(fullStorage, 'full')
+    await act(async () => {})
+    expect(screen.getByTestId('calendar-full-month')).toBeTruthy()
+    expect(screen.getByTestId('calendar-full-agenda')).toBeTruthy()
+    expect(screen.getAllByRole('region', { name: 'Calendar' })).toHaveLength(1)
   })
 
   it.each(['compact', 'standard'] as const)('renders the %s agenda in its exact ready TierFrame', async (canvasSize) => {

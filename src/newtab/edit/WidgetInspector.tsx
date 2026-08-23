@@ -1,5 +1,5 @@
 import { anchorPanel, VIEWPORT_PANEL_GUTTER, type PanelPlacement } from '../../lib/layout/anchor'
-import type { NamedLayoutPlacement, WidgetTier } from '../../lib/layout/namedLayouts'
+import type { CalendarLayoutPreference, NamedLayoutPlacement, WidgetTier } from '../../lib/layout/namedLayouts'
 import { dockedRenderSize, dockSizeVaries, type WidgetRegistryEntry } from '../widgetRegistry'
 
 const TIER_LABELS: Readonly<Record<WidgetTier, string>> = {
@@ -61,6 +61,8 @@ export default function WidgetInspector({
   onLayer,
   onHide,
   onRestore,
+  calendarPreference,
+  onCalendarPreference,
 }: {
   entry: WidgetRegistryEntry
   placement: NamedLayoutPlacement
@@ -71,6 +73,8 @@ export default function WidgetInspector({
   onLayer: (direction: 'forward' | 'backward') => void
   onHide: () => void
   onRestore: () => void
+  calendarPreference?: CalendarLayoutPreference
+  onCalendarPreference?: (patch: Partial<CalendarLayoutPreference>) => void
 }) {
   const viewport = {
     w: typeof window === 'undefined' ? 1 : window.innerWidth,
@@ -85,7 +89,7 @@ export default function WidgetInspector({
   const sizeRow = free || (docked && entry.canvasSizes.length > 1 && dockSizeVaries(entry))
   const panelSize = {
     w: PANEL_SIZE.w,
-    h: free ? PANEL_SIZE.h : sizeRow ? 164 : 124,
+    h: entry.id === 'ics' && calendarPreference ? (free ? 368 : 274) : free ? PANEL_SIZE.h : sizeRow ? 164 : 124,
   }
   const position = avoidToolbar(
     anchorPanel(anchorRect, panelSize, viewport),
@@ -154,6 +158,34 @@ export default function WidgetInspector({
               Bring forward
             </button>
           </div>
+        </div>
+      ) : null}
+      {entry.id === 'ics' && calendarPreference && onCalendarPreference ? (
+        <div className="edit-inspector__row" data-calendar-preferences="">
+          <span className="edit-inspector__label">Default view</span>
+          <div role="radiogroup" aria-label="Default Calendar view" className="edit-segment">
+            {(['agenda', 'month'] as const).map((view) => (
+              <button
+                key={view}
+                type="button"
+                role="radio"
+                aria-checked={calendarPreference.defaultView === view}
+                className="edit-segment__option"
+                onClick={() => onCalendarPreference({ defaultView: view })}
+              >
+                {view === 'agenda' ? 'Agenda' : 'Month'}
+              </button>
+            ))}
+          </div>
+          <label className="flex min-h-9 cursor-pointer items-center justify-between gap-3 text-xs text-fg">
+            <span>Include public holidays</span>
+            <input
+              type="checkbox"
+              checked={calendarPreference.includePublicHolidays}
+              onChange={(event) => onCalendarPreference({ includePublicHolidays: event.currentTarget.checked })}
+              className="size-4 accent-[var(--accent)]"
+            />
+          </label>
         </div>
       ) : null}
       <div className="edit-inspector__footer">

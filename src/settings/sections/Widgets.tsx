@@ -17,6 +17,7 @@ import Countdowns from './Countdowns'
 import Weather from './Weather'
 import WorldClocks from './WorldClocks'
 import { row, label, control, submitBtn } from './shared'
+import type { CalendarWeekStart } from '../../lib/layout/namedLayouts'
 
 interface WidgetGroup {
   title: string
@@ -99,6 +100,8 @@ export default function Widgets({
   countdowns,
   storage,
   location,
+  calendarWeekStart,
+  saveCalendarWeekStart,
 }: {
   settings: Settings
   patch: (p: Partial<Settings>) => void
@@ -107,6 +110,8 @@ export default function Widgets({
   countdowns: Countdown[] | undefined
   storage: AuroraStorage
   location: StoredLocation | null | undefined
+  calendarWeekStart: CalendarWeekStart
+  saveCalendarWeekStart: (value: CalendarWeekStart) => void
 }) {
   const [bookmarksPermissionDenied, setBookmarksPermissionDenied] = useState(false)
   const [browserPermissionDenied, setBrowserPermissionDenied] = useState<BrowserWidgetKey | null>(null)
@@ -230,6 +235,23 @@ export default function Widgets({
       ) : null}
 
       <div data-widget-editors="" className="mt-4 space-y-2 border-t border-hairline pt-4">
+        <DisclosureSection title="Calendar">
+          <div className={row}>
+            <label htmlFor="calendar-week-start" className={label}>Week starts</label>
+            <select
+              id="calendar-week-start"
+              value={calendarWeekStart}
+              onChange={(event) => saveCalendarWeekStart(event.currentTarget.value as CalendarWeekStart)}
+              className={control}
+            >
+              <option value="locale">Locale default</option>
+              <option value="sunday">Sunday</option>
+              <option value="monday">Monday</option>
+            </select>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-fg-muted">Calendar feeds and public-holiday country remain under Connectors. Layout-specific view options live in the Calendar inspector.</p>
+        </DisclosureSection>
+
         {location ? (
           <DisclosureSection title="Weather location">
             <Weather location={location} storage={storage} />

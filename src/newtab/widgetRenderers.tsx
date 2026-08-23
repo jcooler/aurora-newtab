@@ -43,6 +43,8 @@ import type { CanvasSize } from '../lib/layout/canvasTypes'
 export type WidgetPresentationMode = 'free' | 'stack' | 'docked'
 
 export interface WidgetRendererProps {
+  /** Stable named-layout identity for layout-local widget preferences. */
+  layoutId?: string
   stageVariant?: WidgetVariant
   canvasSize?: CanvasSize
   /** The current composition context. This is layout-local presentation only;
@@ -72,7 +74,7 @@ export const WIDGET_RENDERERS = {
   weather: (props) => (
     <WeatherWidget onExpandedChange={props.onWeatherExpandedChange} stageVariant={effectiveVariant(props)} docked={props.docked} />
   ),
-  ics: (props) => <CalendarWidget stageVariant={effectiveVariant(props)} canvasSize={props.canvasSize} docked={props.docked} />,
+  ics: (props) => <CalendarWidget stageVariant={effectiveVariant(props)} canvasSize={props.canvasSize} docked={props.docked} layoutId={props.layoutId} />,
   monthCal: (props) => <MonthCalWidget canvasSize={props.canvasSize} stageVariant={props.stageVariant} />,
   sun: (props) => <SunWidget canvasSize={props.canvasSize} docked={props.docked} />,
   moon: (props) => <MoonWidget canvasSize={props.canvasSize} docked={props.docked} />,

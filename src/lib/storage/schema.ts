@@ -1,5 +1,5 @@
 import { emptyLayoutV3, type StoredLayout } from '../layout/canvasTypes'
-import type { LayoutsDocument } from '../layout/namedLayouts'
+import type { CalendarLayoutPreferences, CalendarWeekStart, LayoutsDocument } from '../layout/namedLayouts'
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
@@ -323,6 +323,12 @@ export interface AuroraData {
    *  legacy `layout` key above stays byte-for-byte as recovery input and is
    *  never written by named-layouts code. */
   layouts: LayoutsDocument | null
+  /** Presentation-only Calendar choices keyed by stable named-layout id.
+   *  Separate from `layouts` so ordinary Agenda/Month switching never writes
+   *  placement geometry or bypasses edit-mode Save/Cancel. */
+  calendarPreferences: CalendarLayoutPreferences
+  /** Global Calendar convention; top-level so old stores default safely. */
+  calendarWeekStart: CalendarWeekStart
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>
   connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
   habits: Habit[]
@@ -388,6 +394,8 @@ export function defaults(): AuroraData {
     countdowns: [],
     layout: emptyLayoutV3(),
     layouts: null,
+    calendarPreferences: {},
+    calendarWeekStart: 'locale',
     connectors: {},
     connectorSnapshots: {},
     habits: [],

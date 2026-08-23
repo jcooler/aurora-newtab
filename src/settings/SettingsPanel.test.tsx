@@ -2495,6 +2495,17 @@ describe('SettingsPanel Habits section', () => {
 // Bookmarks toggle's own non-permission assertions, without the permission
 // side-effect.
 describe('SettingsPanel Widgets section (Month calendar toggle)', () => {
+  it('persists the global Calendar week-start convention separately from widget toggles', async () => {
+    const storage = await renderPanel()
+    openTab('Widgets')
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    const select = screen.getByLabelText('Week starts') as HTMLSelectElement
+    expect(select.value).toBe('locale')
+    await act(async () => { fireEvent.change(select, { target: { value: 'monday' } }) })
+    expect(await storage.get('calendarWeekStart')).toBe('monday')
+    expect((await storage.get('settings')).widgets.monthCal).toBe(false)
+  })
+
   it('the Month calendar label is present on the Widgets tab, off by default', async () => {
     const storage = await renderPanel()
     await openWidgetsTabAndWaitForLayout(storage)

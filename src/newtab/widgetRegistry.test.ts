@@ -3,7 +3,7 @@ import { BLOCK_IDS, type WidgetVariant } from '../lib/layout/types'
 import { defaults, type Settings, type WidgetToggles } from '../lib/storage/schema'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId, type JiraConfig, type RssConfig } from '../services/connectors/types'
 import { resolveWidgetRenderer, WIDGET_RENDERER_KEYS } from './widgetRenderers'
-import { WIDGET_REGISTRY, selectActiveWidgetRegistry, type WidgetRegistryEntry } from './widgetRegistry'
+import { includeExplicitLayoutCalendar, WIDGET_REGISTRY, selectActiveWidgetRegistry, type WidgetRegistryEntry } from './widgetRegistry'
 import { contentConflictFor, WIDGET_PRESENTATION_CONTRACTS, WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
 
 const EXPECTED = [
@@ -188,6 +188,26 @@ describe('source-owned widget registry', () => {
     expect(ids(second)).toEqual(['clock', 'greeting', 'focus', 'github', 'notes'])
     expect(settingsA.widgets).toEqual({ ...ALL_WIDGETS_OFF, weather: true })
     expect(connectorsA.rss.enabled).toBe(true)
+  })
+
+  it('keeps a consolidated Calendar mounted even when no ICS connector is enabled', () => {
+    const base = selectActiveWidgetRegistry(settingsWith(ALL_WIDGETS_OFF), {})
+    const layouts = {
+      version: 1,
+      activeLayoutId: 'work',
+      layouts: [{ id: 'work', name: 'Work', widgets: { ics: { kind: 'hidden' } }, stacks: [{ id: 'dates', anchor: 'top-left', offsetX: 0, offsetY: 0, tier: 'standard', layer: 1, members: ['ics', 'clock'], facing: 'ics' }] }],
+    }
+    expect(ids(includeExplicitLayoutCalendar(base, layouts))).toEqual(['ics', 'clock', 'greeting', 'focus'])
+  })
+
+  it('does not invent Calendar for an unconsolidated Month-only layout', () => {
+    const base = selectActiveWidgetRegistry(settingsWith({ ...ALL_WIDGETS_OFF, monthCal: true }), {})
+    const layouts = {
+      version: 1,
+      activeLayoutId: 'work',
+      layouts: [{ id: 'work', name: 'Work', widgets: { monthCal: { kind: 'free' } } }],
+    }
+    expect(ids(includeExplicitLayoutCalendar(base, layouts))).toEqual(['monthCal', 'clock', 'greeting', 'focus'])
   })
 
   it('models Jira and RSS size conflicts from the actual selected configuration', () => {

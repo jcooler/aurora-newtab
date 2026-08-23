@@ -31,6 +31,8 @@ const DATA_KEYS = [
   'countdowns',
   'layout',
   'layouts',
+  'calendarPreferences',
+  'calendarWeekStart',
   'connectors',
   'connectorSnapshots',
   'habits',

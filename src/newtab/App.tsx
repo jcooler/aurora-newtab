@@ -64,12 +64,14 @@ import type { UtilityCloseGuard, UtilityToolId, UtilityTrayBridge } from './comp
 import WidgetBoundary from './components/WidgetBoundary'
 import CanvasSurface from './canvas/CanvasSurface'
 import PaletteHost from './widgets/palette/PaletteHost'
-import { selectActiveWidgetRegistry } from './widgetRegistry'
+import { includeExplicitLayoutCalendar, selectActiveWidgetRegistry } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetPresentationMode, type WidgetRendererProps } from './widgetRenderers'
 import { useCanvasViewport } from './useCanvasViewport'
 import { projectTextScale } from './canvas/canvasTextScale'
 import { TimerSessionProvider, useTimerFlowState } from './widgets/timer/TimerSessionProvider'
 import FlowScreen from './flow/FlowScreen'
+import { calendarPreferenceFor, detectLegacyCalendarPlacements, updateCalendarLayoutPreference } from '../lib/layout/calendarConsolidation'
+import CalendarConsolidationPrompt from './widgets/calendar/CalendarConsolidationPrompt'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
@@ -94,6 +96,7 @@ function AuroraApp() {
   const [layout] = useStoredKey('layout')
   const [layouts] = useStoredKey('layouts')
   const [connectors] = useStoredKey('connectors')
+  const [calendarPreferences] = useStoredKey('calendarPreferences')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsFocusAnchor, setSettingsFocusAnchor] = useState<
     { tab: 'widgets' | 'connectors'; anchor: string; nonce: number } | null
@@ -102,6 +105,7 @@ function AuroraApp() {
   const [activeUtilityTool, setActiveUtilityTool] = useState<UtilityToolId | null>(null)
   const [utilityTrayHost, setUtilityTrayHost] = useState<HTMLDivElement | null>(null)
   const [bookmarksPopoverOpen, setBookmarksPopoverOpen] = useState(false)
+  const [calendarPromptDismissed, setCalendarPromptDismissed] = useState<ReadonlySet<string>>(() => new Set())
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const utilityTrayInvokerRef = useRef<HTMLButtonElement>(null)
   const utilityCloseGuardRef = useRef<{ tool: UtilityToolId; guard: UtilityCloseGuard } | null>(null)
@@ -200,9 +204,13 @@ function AuroraApp() {
     settings && isRecord(settings.widgets) && DENSITY_PREFERENCES.has(settings.layoutDensity)
       && storedLayout && connectors && isRecord(connectors),
   )
-  const activeEntries = useMemo(
+  const sourceEntries = useMemo(
     () => inputsReady && settings && connectors ? selectActiveWidgetRegistry(settings, connectors) : [],
     [connectors, inputsReady, settings],
+  )
+  const activeEntries = useMemo(
+    () => includeExplicitLayoutCalendar(sourceEntries, layouts),
+    [layouts, sourceEntries],
   )
   const enabledBlockIds = useMemo(() => activeEntries.map((entry) => entry.id), [activeEntries])
 
@@ -550,6 +558,10 @@ function AuroraApp() {
   const rendererProps: WidgetRendererProps = {
     onBookmarksPopoverOpenChange: setBookmarksPopoverOpen,
     utilityTray,
+    // A legacy Calendar placement stays on its compatibility face until the
+    // user explicitly saves consolidation. The atomic save creates this
+    // companion preference entry, which is the durable opt-in marker.
+    layoutId: calendarPreferences?.[activeLayout.id] ? activeLayout.id : undefined,
   }
   const elevatedIds = new Set<BlockId>([
     ...(bookmarksPopoverOpen ? ['bookmarks' as const] : []),
@@ -589,6 +601,11 @@ function AuroraApp() {
         return band.top + band.height + 8
       })()
     : undefined
+  const calendarPlacements = detectLegacyCalendarPlacements(activeLayout)
+  const showCalendarPrompt = layouts !== null
+    && !session
+    && calendarPlacements.length > 1
+    && !calendarPromptDismissed.has(activeLayout.id)
 
   return (
     <main
@@ -597,7 +614,7 @@ function AuroraApp() {
       data-editing={session ? 'true' : undefined}
       className="aurora-canvas text-fg"
     >
-      <div className="contents" inert={utilityTrayOpen && narrowModality}>
+      <div className="contents" inert={showCalendarPrompt || (utilityTrayOpen && narrowModality)}>
         <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} utilityTray={utilityTray} />
         <CanvasSurface
           activeLayout={renderedLayout}
@@ -746,6 +763,10 @@ function AuroraApp() {
               onLayer={(direction) => editMode.dispatch((current) => stepSelectedLayer(current, direction))}
               onHide={() => editMode.dispatch(hideSelected)}
               onRestore={() => editMode.dispatch(restoreSelectedDefaults)}
+              calendarPreference={entry.id === 'ics' ? calendarPreferenceFor(calendarPreferences, draftLayout.id) : undefined}
+              onCalendarPreference={entry.id === 'ics'
+                ? (patch) => { void updateCalendarLayoutPreference(storage, draftLayout.id, patch) }
+                : undefined}
             />
           )
         })() : null}
@@ -819,6 +840,15 @@ function AuroraApp() {
           <PaletteHost onOpenSettings={requestSettingsOpen} />
         </WidgetBoundary>
       </div>
+
+      {showCalendarPrompt ? (
+        <CalendarConsolidationPrompt
+          layout={activeLayout}
+          storage={storage}
+          onLater={() => setCalendarPromptDismissed((current) => new Set(current).add(activeLayout.id))}
+          onSaved={() => setCalendarPromptDismissed((current) => new Set(current).add(activeLayout.id))}
+        />
+      ) : null}
 
       <UtilityTray
         open={utilityTrayOpen}

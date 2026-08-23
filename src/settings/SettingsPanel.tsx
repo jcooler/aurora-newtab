@@ -95,6 +95,7 @@ export default function SettingsPanel({
   const [countdowns] = useStoredKey('countdowns')
   const [habits] = useStoredKey('habits')
   const [connectors] = useStoredKey('connectors')
+  const [calendarWeekStart, saveCalendarWeekStart] = useStoredKey('calendarWeekStart')
   const cleanup = usePermissionCleanup(storage)
   const [galleryError, setGalleryError] = useState<string | null>(null)
   // Reload the gallery whenever mode enters 'upload' or the uploadedAt nonce
@@ -172,6 +173,8 @@ export default function SettingsPanel({
             countdowns={countdowns}
             storage={storage}
             location={location}
+            calendarWeekStart={calendarWeekStart ?? 'locale'}
+            saveCalendarWeekStart={saveCalendarWeekStart}
           />
 
           <Layout storage={storage} open={open} layoutsDocument={layoutsDocument} />

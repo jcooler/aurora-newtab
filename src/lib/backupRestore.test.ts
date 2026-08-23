@@ -367,6 +367,8 @@ describe('backup restore coordinator', () => {
       countdowns: [{ id: 'before-countdown', name: 'Before countdown', date: '2026-12-31' }],
       layout: layoutV2FromLegacy({ clock: { x: 12, y: 34 } }),
       layouts: null,
+      calendarPreferences: {},
+      calendarWeekStart: 'locale',
       connectors: {},
       connectorSnapshots: {},
       habits: [{ id: 'before-habit', name: 'Before habit', createdAt: 10, log: ['2026-08-13'] }],

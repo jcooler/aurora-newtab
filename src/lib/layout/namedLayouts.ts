@@ -131,6 +131,33 @@ export interface LayoutsDocument {
   layouts: NamedLayout[]
 }
 
+export const CALENDAR_DEFAULT_VIEWS = ['agenda', 'month'] as const
+export type CalendarDefaultView = (typeof CALENDAR_DEFAULT_VIEWS)[number]
+export const CALENDAR_WEEK_STARTS = ['locale', 'sunday', 'monday'] as const
+export type CalendarWeekStart = (typeof CALENDAR_WEEK_STARTS)[number]
+
+export interface CalendarLayoutPreference {
+  defaultView: CalendarDefaultView
+  includePublicHolidays: boolean
+}
+
+export type CalendarLayoutPreferences = Record<string, CalendarLayoutPreference>
+
+export const DEFAULT_CALENDAR_LAYOUT_PREFERENCE: Readonly<CalendarLayoutPreference> = Object.freeze({
+  defaultView: 'agenda',
+  includePublicHolidays: true,
+})
+
+export function isCalendarLayoutPreferences(value: unknown): value is CalendarLayoutPreferences {
+  if (!isPlainObject(value)) return false
+  return Object.entries(value).every(([layoutId, preference]) => (
+    layoutId.trim().length > 0
+    && isPlainObject(preference)
+    && CALENDAR_DEFAULT_VIEWS.includes(preference.defaultView as CalendarDefaultView)
+    && typeof preference.includePublicHolidays === 'boolean'
+  ))
+}
+
 export const LAYOUTS_DOCUMENT_VALIDATION_MESSAGE = 'Layouts data is invalid.' as const
 
 export class LayoutsDocumentValidationError extends Error {

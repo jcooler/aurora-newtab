@@ -85,6 +85,18 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
     expect(WIDGET_SIZE_CONTRACTS.monthCal.sizes).toEqual(['standard'])
     expect(WIDGET_SIZE_CONTRACTS.monthCal.compact).toBeUndefined()
   })
+
+  it('makes canonical Calendar the complete docked-through-Full date composition', () => {
+    expect(WIDGET_SIZE_CONTRACTS.ics).toMatchObject({
+      sizes: ['compact', 'standard', 'full'],
+      stackSizes: ['compact', 'standard', 'full'],
+      compact: 'Next date items',
+      standard: 'Agenda or complete month',
+      full: 'Month and agenda together',
+      docked: 'Next relevant date item',
+    })
+    expect(WIDGET_SIZE_CONTRACTS.ics.tiers.full?.signature).toEqual(['two-region date composition'])
+  })
 })
 
 describe('shared frame presentation contracts', () => {
@@ -176,9 +188,11 @@ describe('shared frame presentation contracts', () => {
     }
   })
 
-  it('does not promise rejection states for connector fetchers that always return truthful data', () => {
+  it('keeps simple connector states narrow while Calendar models independent source failures', () => {
     expect(WIDGET_PRESENTATION_CONTRACTS.status.states).toEqual(['loading', 'ready', 'empty', 'stale'])
-    expect(WIDGET_PRESENTATION_CONTRACTS.ics.states).toEqual(['loading', 'ready', 'empty', 'stale'])
+    expect(WIDGET_PRESENTATION_CONTRACTS.ics.states).toEqual([
+      'loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error',
+    ])
   })
 
   it('freezes the single authoritative contract map and its identity rows', () => {
