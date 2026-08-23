@@ -120,7 +120,7 @@ const COMPACT_SIGNATURE_SELECTORS = Object.freeze({
   tabGroups: 'header + div span',
   sun: '[aria-label="Sun times"]',
   moon: 'strong',
-  auroraKp: 'strong',
+  auroraKp: 'p.text-xl',
 })
 const SETTINGS_WIDGET_IDS = Object.freeze({ tasks: 'todo' })
 
