@@ -12,9 +12,11 @@
     "test": "vitest run",
     "test:expansion-contract": "node scripts/expansion/run-contracts.mjs",
     "test:information-first-contract": "node --test scripts/preview-information-first.test.mjs",
+    "test:widget-redesign-catalog": "node --test scripts/widget-redesign-catalog-contracts.test.mjs scripts/qa-widget-redesign-catalog.test.mjs",
     "test:watch": "vitest",
     "store-shots": "node scripts/store-shots.mjs",
     "qa:information-first": "node scripts/preview-information-first.mjs",
+    "qa:widget-redesign-catalog": "node scripts/qa-widget-redesign-catalog.mjs",
     "qa:weather-enrichment": "node scripts/qa-weather-enrichment.mjs",
     "verify:photos": "node scripts/verify-photo-manifest.mjs"
   },
