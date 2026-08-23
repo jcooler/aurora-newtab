@@ -130,7 +130,14 @@ function SentryInner({
               </>
             ) : null}
           </div>
-          {visible.length > 0 ? <IssueList issues={visible} className="mt-3" full={canvasSize === 'full'} /> : null}
+          {visible.length > 0 ? (
+            <IssueList
+              issues={visible}
+              className={canvasSize === 'standard' ? 'mt-2' : 'mt-3'}
+              dense={canvasSize === 'standard'}
+              full={canvasSize === 'full'}
+            />
+          ) : null}
         </>
       ) : null}
     </WorkWidgetShell>
@@ -161,9 +168,19 @@ function seenLabel(prefix: string, value: string | null): string | null {
   return `${prefix} ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value))}`
 }
 
-function IssueList({ issues, className = '', full = false }: { issues: readonly SentryIssue[]; className?: string; full?: boolean }) {
+function IssueList({
+  issues,
+  className = '',
+  dense = false,
+  full = false,
+}: {
+  issues: readonly SentryIssue[]
+  className?: string
+  dense?: boolean
+  full?: boolean
+}) {
   return (
-    <ul className={`flex flex-col gap-2 ${className}`}>
+    <ul className={`flex flex-col ${dense ? 'gap-1' : 'gap-2'} ${className}`}>
       {issues.map((issue) => (
         <li key={issue.id}>
           <IssueRow issue={issue} full={full} />

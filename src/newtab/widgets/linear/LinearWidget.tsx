@@ -62,7 +62,10 @@ function LinearInner({ config, canvasSize, docked }: { config: LinearConfig; can
     `${issues.length} assigned`,
     dueSoon > 0 ? `${dueSoon} due soon` : issues.length > 0 ? 'Nothing due soon' : null,
   ]
-  const visible = issues.slice(0, Math.min(LINEAR_FRAME_ROWS[canvasSize], linearItemLimit(config)))
+  const frameRows = canvasSize === 'standard' && (presentation === 'stale' || presentation === 'retained-error')
+    ? 1
+    : LINEAR_FRAME_ROWS[canvasSize]
+  const visible = issues.slice(0, Math.min(frameRows, linearItemLimit(config)))
   const detailRows = issues.slice(0, Math.min(3, linearItemLimit(config)))
   const retry = () => {
     void storage.update('connectorSnapshots', (previous) => {

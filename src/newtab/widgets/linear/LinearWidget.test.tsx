@@ -113,6 +113,25 @@ describe('LinearWidget', () => {
     expect(priority.closest('li')?.querySelector('.min-w-0.flex-1')?.children).toHaveLength(2)
   })
 
+  it('reserves Standard frame space for the stale-data banner while retaining one useful row', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    mount(await seededStorage(CONNECTED, { issues: [issue(0), issue(1)] }, NOW - 20 * 60_000), { canvasSize: 'standard' })
+
+    expect(await screen.findByText('Showing saved data while Linear refreshes.')).toBeTruthy()
+    expect(screen.getByText('Build Aurora 0')).toBeTruthy()
+    expect(screen.queryByText('Build Aurora 1')).toBeNull()
+  })
+
+  it('reserves Standard frame space for the retained error and Refresh action while retaining one useful row', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    mount(await seededStorage(CONNECTED, { issues: [issue(0), issue(1)] }, NOW - 20 * 60_000), { canvasSize: 'standard' })
+
+    expect(await screen.findByText('Linear work request failed.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Refresh Linear' })).toBeTruthy()
+    expect(screen.getByText('Build Aurora 0')).toBeTruthy()
+    expect(screen.queryByText('Build Aurora 1')).toBeNull()
+  })
+
   it('bounds Full to three prioritized rows without an internal scroll owner', async () => {
     const issues = Array.from({ length: 25 }, (_, index) => issue(index, index === 1 ? { state: { name: 'Todo', type: 'unstarted' } } : {}))
     mount(await seededStorage(CONNECTED, { issues }), { canvasSize: 'full' })

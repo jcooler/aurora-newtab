@@ -165,15 +165,19 @@ function TodoistInner({ config, canvasSize, docked }: { config: TodoistConfig; c
             <p className="mt-2 max-w-full truncate text-xs text-fg-muted">Next: {tasks[0].content}</p>
           ) : null}
           {visible.length > 0 ? (
-            <TaskGroups
-              tasks={visible}
-              projects={projectNames}
-              onComplete={(task, button) => {
-                restoreFocusRef.current = button
-                setCompleteError(null)
-                setCompleteTarget(task)
-              }}
-            />
+            canvasSize === 'full' ? (
+              <TaskGroups
+                tasks={visible}
+                projects={projectNames}
+                onComplete={(task, button) => {
+                  restoreFocusRef.current = button
+                  setCompleteError(null)
+                  setCompleteTarget(task)
+                }}
+              />
+            ) : (
+              <div className="mt-3">{rows(visible)}</div>
+            )
           ) : null}
         </>
       ) : null}

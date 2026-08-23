@@ -138,6 +138,18 @@ describe('SentryWidget', () => {
     expect(link.getAttribute('rel')).toContain('noopener')
   })
 
+  it('fits both three-line Standard issue rows with bounded list spacing', async () => {
+    mount(await seededStorage(CONNECTED), { canvasSize: 'standard' })
+
+    const secondTitle = await screen.findByText('Checkout failure 1')
+    expect(secondTitle.closest('li')?.textContent).toContain('Error')
+    expect(secondTitle.closest('li')?.textContent).toContain('4 users')
+    expect(secondTitle.closest('li')?.textContent).toContain('Last seen')
+    const list = secondTitle.closest('ul')
+    expect(list?.className).toContain('mt-2')
+    expect(list?.className).toContain('gap-1')
+  })
+
   it('bounds Full to two rich issue rows without an internal scroll owner', async () => {
     const data = { issues: Array.from({ length: 25 }, (_, index) => issue(index)) }
     mount(await seededStorage({ ...CONNECTED, itemLimit: 10 }, data), { canvasSize: 'full' })

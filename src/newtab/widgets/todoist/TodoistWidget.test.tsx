@@ -91,12 +91,16 @@ describe('TodoistWidget', () => {
     }
     mount(await seededStorage(CONNECTED, { ...DATA, tasks: [recurring, task(1)] }), { canvasSize: 'standard' })
     const title = await screen.findByText('Ship Aurora 0')
-    expect(screen.getByRole('heading', { name: 'Overdue' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Overdue' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Today' })).toBeNull()
     expect(title.closest('li')?.textContent).toContain('Today at 2:00 PM')
     expect(title.closest('li')?.textContent).toContain('Priority 4')
     expect(title.closest('li')?.textContent).toContain('Recurring')
     expect(title.closest('li')?.textContent).toContain('30 min')
+    const second = screen.getByText('Ship Aurora 1').closest('li')
+    expect(second?.textContent).toContain('Personal · Today')
+    expect(second?.textContent).toContain('today · Priority 2')
+    expect(screen.getByRole('button', { name: 'Complete Ship Aurora 1' })).toBeTruthy()
     const link = title.closest('a') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('https://app.todoist.com/app/task/task-0')
     expect(link.getAttribute('target')).toBe('_blank')
