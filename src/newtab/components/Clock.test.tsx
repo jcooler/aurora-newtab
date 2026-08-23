@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
@@ -242,5 +242,27 @@ describe('Clock docked line (NL-P5 batch 1)', () => {
     expect(line.textContent).toContain('·')
     expect(document.querySelector('.clock-face')).toBeNull()
     expect(line.querySelector('time')).toBeTruthy()
+  })
+})
+
+describe('Clock authored stack presentations', () => {
+  it.each([
+    ['compact', false, false],
+    ['standard', true, false],
+    ['full', true, true],
+  ] as const)('authors %s content without changing the clock owner', async (canvasSize, showsDate, showsSeconds) => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <Clock canvasSize={canvasSize} presentation="stack" />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    expect(screen.getByRole('region', { name: 'Clock' }).dataset.tierFrame).toBe(canvasSize)
+    expect(screen.queryByTestId('clock-date') !== null).toBe(showsDate)
+    expect(screen.queryByTestId('clock-seconds') !== null).toBe(showsSeconds)
+    expect(screen.getByTestId('clock-zone')).toBeTruthy()
   })
 })

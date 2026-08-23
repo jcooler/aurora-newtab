@@ -22,6 +22,17 @@ function setup(focus: { text: string; date: string; done: boolean } | null) {
   return { driver, storage, view }
 }
 
+function setupStack(focus: { text: string; date: string; done: boolean } | null) {
+  const driver = memoryDriver({ focus })
+  const storage = createStorage(driver)
+  const view = render(
+    <StorageProvider storage={storage}>
+      <FocusLine canvasSize="standard" presentation="stack" />
+    </StorageProvider>,
+  )
+  return { driver, storage, view }
+}
+
 describe('FocusLine editor ownership', () => {
   beforeEach(() => {
     localDay.sample = {
@@ -212,5 +223,12 @@ describe('FocusLine editor ownership', () => {
 
     setup({ text: 'Readable focus', date: '2026-07-26', done: false })
     expect((await screen.findByText('Readable focus')).getAttribute('data-canvas-type-role')).toBe('support')
+  })
+
+  it('keeps the existing completion action in an exact stack face', async () => {
+    setupStack({ text: 'Ship the redesign', date: '2026-07-26', done: false })
+    expect(await screen.findByRole('region', { name: 'Focus' })).toHaveProperty('dataset.tierFrame', 'standard')
+    expect(screen.getByRole('checkbox')).toBeTruthy()
+    expect(screen.getByText('Ship the redesign')).toBeTruthy()
   })
 })

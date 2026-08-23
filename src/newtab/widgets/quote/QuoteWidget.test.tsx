@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -86,5 +86,18 @@ describe('QuoteWidget', () => {
 
     expect(container.firstChild).toBeNull()
     expect(localDay.hook).not.toHaveBeenCalled()
+  })
+
+  it('uses an exact editorial stack face while retaining the daily quote owner', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <QuoteWidget canvasSize="standard" presentation="stack" />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    expect(screen.getByRole('region', { name: 'Quote' }).dataset.tierFrame).toBe('standard')
+    expect(screen.getByRole('blockquote')).toBeTruthy()
   })
 })

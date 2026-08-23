@@ -1,8 +1,19 @@
 import { formatClock, formatDayContext } from '../../lib/clock'
 import { useNow } from '../../lib/hooks/useNow'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import type { CanvasSize } from '../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../widgetRenderers'
+import TierFrame from '../widgets/shared/TierFrame'
 
-export default function Clock({ docked = false }: { docked?: boolean } = {}) {
+export default function Clock({
+  canvasSize = 'standard',
+  presentation = 'free',
+  docked = false,
+}: {
+  canvasSize?: CanvasSize
+  presentation?: WidgetPresentationMode
+  docked?: boolean
+} = {}) {
   const [settings] = useStoredKey('settings')
   const now = useNow()
   if (!settings) return null
@@ -20,6 +31,23 @@ export default function Clock({ docked = false }: { docked?: boolean } = {}) {
           {formatDayContext(now, 'compact')}
         </span>
       </div>
+    )
+  }
+  if (presentation === 'stack') {
+    const showDate = canvasSize !== 'compact'
+    const showSeconds = canvasSize === 'full'
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time'
+    return (
+      <TierFrame label="Clock" tier={canvasSize} state="ready" className={`core-clock-stack core-clock-stack--${canvasSize}`}>
+        <div className="core-clock-stack__face">
+          <time dateTime={now.toISOString()} className="core-clock-stack__time tabular-nums">
+            {formatClock(now, settings.use24Hour)}
+            {showSeconds ? <small data-testid="clock-seconds">{String(now.getSeconds()).padStart(2, '0')}</small> : null}
+          </time>
+          {showDate ? <span data-testid="clock-date" className="core-clock-stack__date">{formatDayContext(now, 'long')}</span> : null}
+          <span data-testid="clock-zone" className="core-clock-stack__zone">{zone}</span>
+        </div>
+      </TierFrame>
     )
   }
   return (

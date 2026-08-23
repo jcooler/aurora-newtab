@@ -2,14 +2,30 @@ import { greetingFor } from '../../lib/clock'
 import { useNow } from '../../lib/hooks/useNow'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import AuroraBriefing from './AuroraBriefing'
+import type { CanvasSize } from '../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../widgetRenderers'
+import TierFrame from '../widgets/shared/TierFrame'
 
-export default function Greeting() {
+export default function Greeting({
+  canvasSize = 'standard',
+  presentation = 'free',
+}: {
+  canvasSize?: CanvasSize
+  presentation?: WidgetPresentationMode
+} = {}) {
   const [settings] = useStoredKey('settings')
   const now = useNow(30_000)
   if (!settings) return null
   const text = greetingFor(now.getHours(), settings.name)
   return (
-    <div className="aurora-greeting">
+    <TierFrame
+      label="Greeting"
+      tier={canvasSize}
+      state="ready"
+      surface={presentation === 'stack' ? 'card' : 'none'}
+      data-testid="greeting-face"
+      className={`aurora-greeting core-greeting-frame core-greeting-frame--${presentation}`}
+    >
       <p
       data-canvas-type-role="greeting"
       // `title` carries the full text whenever `truncate` below actually
@@ -99,7 +115,7 @@ export default function Greeting() {
       >
         {text}
       </p>
-      <AuroraBriefing />
-    </div>
+      {canvasSize === 'standard' ? <AuroraBriefing /> : null}
+    </TierFrame>
   )
 }

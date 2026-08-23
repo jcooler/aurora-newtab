@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
@@ -22,6 +22,27 @@ describe('Greeting restoration sampling', () => {
     act(() => window.dispatchEvent(new Event('focus')))
     expect(container.querySelector('p')!.textContent).toContain('afternoon')
     vi.useRealTimers()
+  })
+})
+
+describe('Greeting presentation surface', () => {
+  it('keeps the free Greeting frameless and the stack Greeting framed', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const view = render(
+      <StorageProvider storage={storage}>
+        <Greeting canvasSize="standard" presentation="free" />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    expect(screen.getByTestId('greeting-face').dataset.tierSurface).toBe('none')
+
+    view.rerender(
+      <StorageProvider storage={storage}>
+        <Greeting canvasSize="standard" presentation="stack" />
+      </StorageProvider>,
+    )
+    expect(screen.getByRole('region', { name: 'Greeting' }).dataset.tierSurface).toBe('card')
   })
 })
 

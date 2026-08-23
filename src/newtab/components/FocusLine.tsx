@@ -2,8 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocalDay } from '../../lib/hooks/useLocalDay'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import { currentFocus, setFocusText } from './focusLogic'
+import type { CanvasSize } from '../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../widgetRenderers'
+import TierFrame from '../widgets/shared/TierFrame'
 
-export default function FocusLine() {
+export default function FocusLine({
+  canvasSize = 'standard',
+  presentation = 'free',
+}: {
+  canvasSize?: CanvasSize
+  presentation?: WidgetPresentationMode
+} = {}) {
   const [stored, save] = useStoredKey('focus')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -74,7 +83,7 @@ export default function FocusLine() {
 
   if (stored === undefined) return null
 
-  return (
+  const content = (
     <div
       data-focus-footprint=""
       data-focus-state={!focus ? 'empty' : editing ? 'editing' : focus.done ? 'completed' : 'committed'}
@@ -178,4 +187,12 @@ export default function FocusLine() {
       )}
     </div>
   )
+  if (presentation === 'stack') {
+    return (
+      <TierFrame label="Focus" tier={canvasSize} state={focus ? 'ready' : 'empty'} className={`core-focus-stack core-focus-stack--${canvasSize}`}>
+        {content}
+      </TierFrame>
+    )
+  }
+  return content
 }

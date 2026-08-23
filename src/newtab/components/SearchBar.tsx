@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { searchWeb } from '../../services/search'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import type { CanvasSize } from '../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../widgetRenderers'
+import TierFrame from '../widgets/shared/TierFrame'
 
 const SEARCH_EDGE_MARGIN = 8
 const SEARCH_UTILITY_GAP = 8
@@ -44,7 +46,13 @@ export function projectSearchSafeGeometry({
   return { width, translateX: left - idealLeft, left, right: left + width }
 }
 
-export default function SearchBar({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
+export default function SearchBar({
+  canvasSize = 'standard',
+  presentation = 'free',
+}: {
+  canvasSize?: CanvasSize
+  presentation?: WidgetPresentationMode
+} = {}) {
   const [settings] = useStoredKey('settings')
   const formRef = useRef<HTMLFormElement>(null)
   const [geometry, setGeometry] = useState<SearchSafeGeometry | null>(null)
@@ -88,23 +96,24 @@ export default function SearchBar({ canvasSize }: { canvasSize?: CanvasSize } = 
       window.removeEventListener('resize', update)
       observer?.disconnect()
     }
-  }, [canvasSize, settings?.widgets.search])
+  }, [canvasSize, presentation, settings?.widgets.search])
 
   if (!settings?.widgets.search) return null
-  return (
+  const form = (
     <form
       ref={formRef}
       role="search"
       data-canvas-size={canvasSize}
       data-search-safe-zone=""
-      className="mt-8 mid:mt-4 short:mt-2 xshort:mt-1 max-[420px]:mb-3"
-      style={geometry ? { width: `${geometry.width}px`, transform: `translateX(${geometry.translateX}px)` } : undefined}
+      className={presentation === 'stack' ? 'core-search-stack__form' : 'mt-8 mid:mt-4 short:mt-2 xshort:mt-1 max-[420px]:mb-3'}
+      style={presentation !== 'stack' && geometry ? { width: `${geometry.width}px`, transform: `translateX(${geometry.translateX}px)` } : undefined}
       onSubmit={(e) => {
         e.preventDefault()
         const q = String(new FormData(e.currentTarget).get('q') ?? '').trim()
         if (q) void searchWeb(q)
       }}
     >
+      {presentation === 'stack' ? <span aria-hidden className="core-search-stack__icon">⌕</span> : null}
       <input
         name="q"
         type="search"
@@ -112,8 +121,19 @@ export default function SearchBar({ canvasSize }: { canvasSize?: CanvasSize } = 
         aria-label="Search the web"
         autoComplete="off"
         data-canvas-type-role="body"
-        className="w-full rounded-panel border border-panel-border bg-panel-solid px-4 py-2 mid:py-1 short:py-1 xshort:py-0.5 text-center text-fg placeholder:text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] outline-none focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className={presentation === 'stack'
+          ? 'core-search-stack__input outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
+          : 'w-full rounded-panel border border-panel-border bg-panel-solid px-4 py-2 mid:py-1 short:py-1 xshort:py-0.5 text-center text-fg placeholder:text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] outline-none focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'}
       />
+      {presentation === 'stack' && canvasSize === 'standard' ? <kbd>Enter</kbd> : null}
     </form>
   )
+  if (presentation === 'stack') {
+    return (
+      <TierFrame label="Search" tier={canvasSize} state="ready" className={`core-search-stack core-search-stack--${canvasSize}`}>
+        {form}
+      </TierFrame>
+    )
+  }
+  return form
 }

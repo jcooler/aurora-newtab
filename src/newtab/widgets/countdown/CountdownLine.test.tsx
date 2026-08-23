@@ -16,14 +16,22 @@ vi.mock('../../../lib/hooks/useLocalDay', () => ({ useLocalDay: () => {
   return localDay.sample
 } }))
 
-async function renderCountdown({ enabled = true, countdowns = [{ id: 'launch', name: 'Launch', date: '2026-07-27' }] } = {}) {
+async function renderCountdown({
+  enabled = true,
+  countdowns = [{ id: 'launch', name: 'Launch', date: '2026-07-27' }],
+  props = {},
+}: {
+  enabled?: boolean
+  countdowns?: { id: string; name: string; date: string }[]
+  props?: React.ComponentProps<typeof CountdownLine>
+} = {}) {
   const settings = defaults().settings
   settings.widgets.countdown = enabled
   const storage = createStorage(memoryDriver({
     settings,
     countdowns,
   }))
-  const view = render(<StorageProvider storage={storage}><CountdownLine /></StorageProvider>)
+  const view = render(<StorageProvider storage={storage}><CountdownLine {...props} /></StorageProvider>)
   await act(async () => {})
   return { storage, ...view }
 }
@@ -56,5 +64,11 @@ describe('CountdownLine local-day rollover', () => {
     const { container } = await renderCountdown({ countdowns: [] })
     expect(container.firstChild).toBeNull()
     expect(localDay.hook).not.toHaveBeenCalled()
+  })
+
+  it('uses the exact Standard stack face for the next countdown', async () => {
+    await renderCountdown({ props: { canvasSize: 'standard', presentation: 'stack' } })
+    expect(screen.getByRole('region', { name: 'Countdown' }).dataset.tierFrame).toBe('standard')
+    expect(screen.getByTestId('countdown-value').textContent).toContain('1 day')
   })
 })

@@ -110,4 +110,50 @@ describe('LinksWidget add editor', () => {
       expect(button.className).toContain('min-w-9')
     }
   })
+
+  it('renders six Standard stack links in two readable columns with destination copy', async () => {
+    const base = defaults()
+    const links = ['Mail', 'Calendar', 'Drive', 'Aurora', 'GitHub', 'Home'].map((title, index) => ({
+      id: `link-${index}`,
+      title,
+      url: `https://${title.toLowerCase()}.example.com/${index}`,
+    }))
+    const storage = createStorage(memoryDriver({
+      settings: { ...base.settings, widgets: { ...base.settings.widgets, links: true } },
+      links,
+    }))
+    render(
+      <StorageProvider storage={storage}>
+        <LinksWidget canvasSize="standard" presentation="stack" />
+      </StorageProvider>,
+    )
+
+    const frame = await screen.findByRole('region', { name: 'Quick links' })
+    expect(frame.dataset.linksLayout).toBe('2x3')
+    expect(screen.getAllByTestId('quick-link-copy')).toHaveLength(6)
+    expect(screen.getByText('mail.example.com')).toBeTruthy()
+  })
+
+  it('keeps links beyond the Standard six-item budget reachable without growing the frame', async () => {
+    const base = defaults()
+    const links = Array.from({ length: 7 }, (_, index) => ({
+      id: `link-${index}`,
+      title: `Place ${index + 1}`,
+      url: `https://place-${index + 1}.example.com`,
+    }))
+    const storage = createStorage(memoryDriver({
+      settings: { ...base.settings, widgets: { ...base.settings.widgets, links: true } },
+      links,
+    }))
+    render(
+      <StorageProvider storage={storage}>
+        <LinksWidget canvasSize="standard" presentation="stack" />
+      </StorageProvider>,
+    )
+    await screen.findByText('Place 1')
+    expect(screen.queryByText('Place 7')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Next quick links' }))
+    expect(screen.getByText('Place 7')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Quick links' }).dataset.tierFrame).toBe('standard')
+  })
 })

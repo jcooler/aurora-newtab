@@ -5,8 +5,17 @@ import { useStorage } from '../../../lib/storage/context'
 import type { QuickLink } from '../../../lib/storage/schema'
 import { addLink, moveLink, normalizeUrl, removeLink } from './linksLogic'
 import LinkTile from './LinkTile'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
+import TierFrame from '../shared/TierFrame'
 
-export default function LinksWidget() {
+export default function LinksWidget({
+  canvasSize = 'standard',
+  presentation = 'free',
+}: {
+  canvasSize?: CanvasSize
+  presentation?: WidgetPresentationMode
+} = {}) {
   const [settings] = useStoredKey('settings')
   const [links] = useStoredKey('links')
   const storage = useStorage()
@@ -14,6 +23,7 @@ export default function LinksWidget() {
   const [addError, setAddError] = useState(false)
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
+  const [linkPage, setLinkPage] = useState(0)
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
   const restoreAddFocus = useRef(false)
@@ -44,6 +54,111 @@ export default function LinksWidget() {
     setAddError(false)
     setTitle('')
     setUrl('')
+  }
+
+  if (presentation === 'stack') {
+    const pageCount = Math.max(1, Math.ceil(links.length / 6))
+    const safePage = Math.min(linkPage, pageCount - 1)
+    const pageStart = safePage * 6
+    const visibleLinks = links.slice(pageStart, pageStart + 6)
+    return (
+      <TierFrame
+        label="Quick links"
+        tier={canvasSize}
+        state={links.length === 0 ? 'empty' : 'ready'}
+        data-links-layout={canvasSize === 'standard' ? '2x3' : 'marks'}
+        className={`core-links-stack core-links-stack--${canvasSize}`}
+      >
+        <div className="core-links-stack__heading">
+          <span>Quick links</span>
+          {!adding ? (
+            <div className="core-links-stack__heading-actions">
+              {pageCount > 1 ? (
+                <>
+                  <button type="button" aria-label="Previous quick links" onClick={() => setLinkPage((safePage - 1 + pageCount) % pageCount)}>‹</button>
+                  <span>{safePage + 1}/{pageCount}</span>
+                  <button type="button" aria-label="Next quick links" onClick={() => setLinkPage((safePage + 1) % pageCount)}>›</button>
+                </>
+              ) : null}
+              <button
+                ref={addButtonRef}
+                type="button"
+                aria-label="Add quick link"
+                onClick={openEditor}
+                className="core-links-stack__add focus-visible:outline-2 focus-visible:outline-accent"
+              >+</button>
+            </div>
+          ) : null}
+        </div>
+        {adding ? (
+          <form
+            className="core-links-stack__editor"
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return
+              e.preventDefault()
+              closeEditor()
+            }}
+            onSubmit={(e) => {
+              e.preventDefault()
+              const normalized = normalizeUrl(url)
+              if (!normalized) {
+                setAddError(true)
+                urlInputRef.current?.focus()
+                return
+              }
+              update((l) => addLink(l, title, url))
+              closeEditor()
+            }}
+          >
+            <input name="title" placeholder="Title" aria-label="Link title" autoFocus value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
+            <input
+              ref={urlInputRef}
+              name="url"
+              placeholder="example.com"
+              aria-label="Link URL"
+              aria-invalid={addError ? 'true' : undefined}
+              aria-describedby={addError ? addErrorId : undefined}
+              value={url}
+              onChange={(e) => {
+                setUrl(e.currentTarget.value)
+                setAddError(false)
+              }}
+            />
+            <AssertiveAlert id={addErrorId}>{addError ? 'Enter a valid address.' : null}</AssertiveAlert>
+            <div>
+              <button type="submit">Add</button>
+              <button type="button" onClick={closeEditor}>Cancel</button>
+            </div>
+          </form>
+        ) : links.length === 0 ? (
+          <button type="button" onClick={openEditor} className="core-links-stack__empty">Add the first place you open every day.</button>
+        ) : (
+          <div className="core-links-stack__grid">
+            {visibleLinks.map((link, i) => {
+              const absoluteIndex = pageStart + i
+              return (
+              <LinkTile
+                key={link.id}
+                link={link}
+                index={absoluteIndex}
+                count={links.length}
+                presentation="stack"
+                canvasSize={canvasSize}
+                onMove={(from, to) => update((l) => moveLink(l, from, to))}
+                onRemove={(id) => update((l) => removeLink(l, id))}
+                onDragStart={(i2) => (dragFrom.current = i2)}
+                onDropOn={(to) => {
+                  if (dragFrom.current !== null) update((l) => moveLink(l, dragFrom.current!, to))
+                  dragFrom.current = null
+                }}
+                onDragEnd={() => (dragFrom.current = null)}
+              />
+              )
+            })}
+          </div>
+        )}
+      </TierFrame>
+    )
   }
 
   return (

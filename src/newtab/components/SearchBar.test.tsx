@@ -91,4 +91,19 @@ describe('SearchBar', () => {
     expect(input.classList.contains('focus-visible:outline-2')).toBe(true)
     expect(input.classList.contains('focus-visible:outline-offset-2')).toBe(true)
   })
+
+  it('keeps the real search action inside an exact Standard stack face', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <SearchBar canvasSize="standard" presentation="stack" />
+      </StorageProvider>,
+    )
+    await screen.findByRole('searchbox', { name: 'Search the web' })
+    expect(screen.getByRole('region', { name: 'Search' }).dataset.tierFrame).toBe('standard')
+    expect(screen.getByRole('search')).toBeTruthy()
+    expect(screen.getByPlaceholderText('Search the web')).toBeTruthy()
+    expect(screen.getByText('Enter')).toBeTruthy()
+  })
 })

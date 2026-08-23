@@ -8,6 +8,18 @@ describe('time and productivity widget renderers', () => {
     expectTypeOf<WidgetRendererProps['presentation']>().toEqualTypeOf<WidgetPresentationMode | undefined>()
   })
 
+  it.each(['clock', 'greeting', 'worldClocks', 'countdown', 'search', 'focus', 'links', 'quote'] as const)(
+    'threads stack presentation through the %s renderer',
+    (id) => {
+      const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'stack' }) as ReactElement<{
+        canvasSize?: CanvasSize
+        presentation?: WidgetPresentationMode
+      }>
+      expect(element.props.canvasSize).toBe('standard')
+      expect(element.props.presentation).toBe('stack')
+    },
+  )
+
   it('keeps Month Standard-only and never threads a Docked presentation', () => {
     const element = WIDGET_RENDERERS.monthCal({ canvasSize: 'standard', docked: true }) as ReactElement<{
       canvasSize?: CanvasSize
