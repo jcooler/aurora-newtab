@@ -164,6 +164,12 @@ describe('shared frame presentation contracts', () => {
     }
   })
 
+  it('declares only applicable states for synchronous local-data frames', () => {
+    for (const id of ['monthCal', 'sun', 'moon'] as const) {
+      expect(WIDGET_PRESENTATION_CONTRACTS[id].states, id).toEqual(['ready'])
+    }
+  })
+
   it('freezes the single authoritative contract map and its identity rows', () => {
     expect(WIDGET_SIZE_CONTRACTS).toBe(WIDGET_PRESENTATION_CONTRACTS)
     expect(Object.isFrozen(WIDGET_PRESENTATION_CONTRACTS)).toBe(true)

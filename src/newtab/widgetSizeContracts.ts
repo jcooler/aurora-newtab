@@ -140,14 +140,14 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
   }),
   // Batch-2 owner review: the compact Month ("takes up way too much space,
   // just remove it") is gone — the complete month is Month's only tier.
-  monthCal: framedContract(['standard'], ['standard'], RESOURCE_STATES, undefined, 'Complete month', undefined, undefined, {
+  monthCal: framedContract(['standard'], ['standard'], READY_STATES, undefined, 'Complete month', undefined, undefined, {
     standard: tier('Complete current month', ['month label', 'weekday labels', 'all calendar days'], ['month grid'], ['today marker'], ['tighten cells', 'shorten weekday labels'], { kind: 'none' }),
   }),
-  sun: framedContract(['compact', 'standard'], ['compact', 'standard'], RESOURCE_STATES, 'Next sun event', 'Sunrise and sunset', undefined, 'Next sun event', {
+  sun: framedContract(['compact', 'standard'], ['compact', 'standard'], READY_STATES, 'Next sun event', 'Sunrise and sunset', undefined, 'Next sun event', {
     compact: tier('Next sun event', ['event name', 'event time'], ['sun event icon'], [], ['tighten spacing', 'shorten event label'], { kind: 'none' }),
     standard: tier('Sunrise and sunset', ['sunrise time', 'sunset time'], ['sun path'], ['day length'], ['tighten spacing', 'shorten supporting copy'], { kind: 'none' }),
   }),
-  moon: framedContract(['compact'], ['compact'], RESOURCE_STATES, 'Current phase', undefined, undefined, 'Current phase', {
+  moon: framedContract(['compact'], ['compact'], READY_STATES, 'Current phase', undefined, undefined, 'Current phase', {
     compact: tier('Current moon phase', ['phase name'], ['moon phase icon'], ['illumination'], ['tighten spacing', 'shorten phase detail'], { kind: 'none' }),
   }),
   quote: contract('intrinsic', ['compact', 'standard'], READY_STATES, 'Quote', 'Readable full quote'),
