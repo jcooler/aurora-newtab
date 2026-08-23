@@ -105,6 +105,12 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
       .toMatch(/font-size:\s*12px\s*;/)
   })
 
+  it('keeps compact forge headings at the 11px metadata floor', () => {
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:is\([\s\S]*?\) > section > div:first-child > h2\s*\{[\s\S]*?font-size:\s*11px\s*;/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:is\([\s\S]*?\) > section > div:first-child > span\s*\{[\s\S]*?font-size:\s*11px\s*;/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:is\(\[data-block-id="github"\], \[data-block-id="gitlab"\]\) \[role="img"\] ~ p\s*\{[\s\S]*?font-size:\s*11px\s*;/)
+  })
+
   it('keeps compact Canvas Weather condition, location, and disclosure visible', () => {
     const summary = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span')
     expect(summary).toMatch(/flex-wrap:\s*wrap\s*;/)
