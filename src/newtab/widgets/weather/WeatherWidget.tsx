@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ResourceFeedback } from '../../../components/StateFeedback'
 import { useDialogEscape } from '../../../lib/dialogStack'
@@ -24,6 +24,31 @@ import { useWeatherAlerts } from './useWeatherAlerts'
 import { weatherPanelAnchor, type WeatherPanelAnchor } from './weatherPanelAnchor'
 import type { WidgetVariant } from '../../../lib/layout/types'
 import type { WeatherAlert } from '../../../lib/storage/schema'
+import type { WidgetPresentationState } from '../../widgetSizeContracts'
+import TierFrame, { type TierFrameTier } from '../shared/TierFrame'
+
+function WeatherSurface({
+  framed,
+  tier,
+  state,
+  className,
+  children,
+}: {
+  framed: boolean
+  tier: TierFrameTier
+  state: WidgetPresentationState
+  className: string
+  children: ReactNode
+}) {
+  if (framed) {
+    return (
+      <TierFrame label="Weather" tier={tier} state={state} className={className}>
+        {children}
+      </TierFrame>
+    )
+  }
+  return <section aria-label="Weather" className={className}>{children}</section>
+}
 
 /** Chevron — the panel's disclosure affordance, in both directions. Rotates
  *  rather than swapping glyphs so the control reads as one continuous thing. */
@@ -63,7 +88,7 @@ export default function WeatherWidget({
     error: alertError,
     refresh: refreshAlerts,
   } = useWeatherAlerts()
-  const summarySize = stageVariant === 'expanded' ? 'full' : stageVariant
+  const summarySize: TierFrameTier = stageVariant === 'expanded' ? 'full' : stageVariant
   const [expanded, setExpanded] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [panelAnchor, setPanelAnchor] = useState<WeatherPanelAnchor | null>(null)
@@ -230,7 +255,10 @@ export default function WeatherWidget({
   const highestAlert = activeAlerts[0] ?? null
   const urgentAlert = activeAlerts.find((alert) => alert.severity === 'Extreme' || alert.severity === 'Severe') ?? null
 
-  // Width caps. ORIGINALLY derived to keep this panel clear of the centred
+  // Legacy Docked-wrapper width caps. Non-Docked faces now take their exact
+  // geometry from TierFrame; the derivation below remains only because this
+  // migration must preserve Docked markup and sizing exactly. ORIGINALLY these
+  // caps were derived to keep this panel clear of the centred
   // bookmarks bar HORIZONTALLY, back when the two shared the top line: the
   // bar was capped at `max-w-[52vw]` (worst-case right edge 50vw + 26vw =
   // 76vw) and this panel is anchored `right-4`, so requiring 100vw − 16px −
@@ -358,6 +386,21 @@ export default function WeatherWidget({
   const widthClass = location === null
     ? 'w-[min(20rem,calc(100vw_-_2rem))]'
     : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))] xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]'
+  const partialFrame = Boolean(snapshot && (
+    alertError || (!enrichmentPending && environment?.status === 'unavailable')
+  ))
+  let frameState: WidgetPresentationState = 'ready'
+  if (location === null) frameState = 'permission-required'
+  else if (!location || (!snapshot && state.operation === 'pending')) frameState = 'loading'
+  else if (!snapshot && state.operation === 'error') frameState = 'hard-error'
+  else if (!snapshot) frameState = 'empty'
+  else if (state.freshness === 'stale' || state.operation === 'error') frameState = 'stale'
+  else if (partialFrame) frameState = 'partial'
+  else if (state.operation === 'pending') frameState = 'loading'
+  const framedSurface = !docked
+  const surfaceClassName = framedSurface
+    ? 'cursor-default'
+    : `cursor-default rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] ${widthClass}`
   const effectiveAnchor = panelAnchor ?? {
     left: 8,
     top: 8,
@@ -367,8 +410,10 @@ export default function WeatherWidget({
   }
 
   return (
-    <section
-      aria-label="Weather"
+    <WeatherSurface
+      framed={framedSurface}
+      tier={summarySize}
+      state={frameState}
       // `cursor-default` is load-bearing, not cosmetic. `cursor` inherits, and
       // its initial value `auto` resolves to the TEXT I-beam over text — so
       // every label, temperature and forecast line in here used to advertise
@@ -384,15 +429,15 @@ export default function WeatherWidget({
       // every on-page surface now carries the connector cards' opaque token).
       // The collapsed chip used to be the translucent bg-panel; it now matches
       // the expanded panel and the rest of the page.
-      className={`cursor-default rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] ${widthClass}`}
+      className={surfaceClassName}
     >
       {location === null && (
-        <div className="p-4">
+        <div className="weather-tier-state weather-tier-state--setup">
           <LocationSetup />
         </div>
       )}
       {location && !snapshot && (
-        <div className="p-4 text-sm text-fg-muted">
+        <div className="weather-tier-state text-sm text-fg-muted">
           <ResourceFeedback
             state={state}
             loading={'Loading weather\u2026'}
@@ -410,7 +455,7 @@ export default function WeatherWidget({
               disabled={loading}
               aria-busy={loading || undefined}
               aria-describedby={feedbackId}
-              className="mt-3 inline-flex min-h-9 cursor-pointer items-center text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
+              className="inline-flex min-h-9 cursor-pointer items-center text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
             >
               Refresh
             </button>
@@ -495,7 +540,7 @@ export default function WeatherWidget({
             // source-order tie to break between them.
             data-weather-summary=""
             data-weather-summary-size={summarySize}
-            className="weather-summary flex w-full cursor-pointer flex-col gap-2 rounded-panel px-4 py-3 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+            className="weather-summary weather-tier-summary flex h-full w-full cursor-pointer flex-col px-4 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
             <span data-weather-summary-row="current" className="flex w-full items-center gap-3">
               <WeatherIcon
@@ -569,7 +614,7 @@ export default function WeatherWidget({
               </dl>
             ) : null}
             {summarySize === 'full' && summarySlots.length > 0 ? (
-              <div data-weather-summary-row="hourly" data-weather-summary-hourly="" className="grid grid-cols-4 gap-1 border-t border-panel-border pt-2">
+              <div data-testid="weather-summary-hourly" data-weather-summary-row="hourly" data-weather-summary-hourly="" className="grid grid-cols-4 gap-1 border-t border-panel-border pt-2">
                 {summarySlots.map((slot) => (
                   <span key={slot.index} className="min-w-0 text-center">
                     <span data-canvas-type-role="metadata" className="block truncate text-fg-muted">
@@ -582,16 +627,29 @@ export default function WeatherWidget({
                 ))}
               </div>
             ) : null}
-            <ResourceFeedback
-              state={state}
-              loading={'Loading weather\u2026'}
-              refreshing={'Refreshing\u2026'}
-              stale="Updated a while ago"
-              offline={'Offline \u2014 showing cached'}
-              unavailable="Weather unavailable. Try again."
-              id={feedbackId}
-              className="text-fg-muted"
-            />
+            {frameState === 'partial' ? (
+              <span
+                id={feedbackId}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                data-canvas-type-role="metadata"
+                className="truncate text-fg-muted"
+              >
+                Weather details partially unavailable.
+              </span>
+            ) : (
+              <ResourceFeedback
+                state={state}
+                loading={'Loading weather\u2026'}
+                refreshing={'Refreshing\u2026'}
+                stale="Updated a while ago"
+                offline={'Offline \u2014 showing cached'}
+                unavailable="Weather unavailable. Try again."
+                id={feedbackId}
+                className="text-fg-muted"
+              />
+            )}
           </button>
           </>
           )}
@@ -912,7 +970,7 @@ export default function WeatherWidget({
           )}
         </>
       )}
-    </section>
+    </WeatherSurface>
   )
 }
 

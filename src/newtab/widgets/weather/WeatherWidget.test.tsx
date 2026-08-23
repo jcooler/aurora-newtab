@@ -60,6 +60,7 @@ async function renderWidget({
   stageVariant = 'standard',
   docked = false,
   use24Hour = false,
+  units = 'metric',
   alertCache,
 }: {
   location?: StoredLocation | null
@@ -68,13 +69,14 @@ async function renderWidget({
   stageVariant?: WidgetVariant
   docked?: boolean
   use24Hour?: boolean
+  units?: 'metric' | 'imperial'
   alertCache?: WeatherAlertCache | null
 } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
-  if (use24Hour) {
+  if (use24Hour || units !== 'metric') {
     const current = await storage.get('settings')
-    await storage.set('settings', { ...current, use24Hour: true })
+    await storage.set('settings', { ...current, use24Hour, units })
   }
   await storage.set('location', location)
   await storage.set('weatherCache', snapshot)
@@ -118,6 +120,21 @@ function activeAlertCache(severity: 'Extreme' | 'Severe' | 'Moderate' | 'Minor' 
 
 const toggle = () => screen.getByRole('button', { expanded: false })
 const openToggle = () => screen.getByRole('button', { expanded: true })
+
+function frame(tier: 'compact' | 'standard' | 'full'): HTMLElement {
+  const element = document.querySelector<HTMLElement>(`[data-tier-frame="${tier}"]`)
+  expect(element, `missing ${tier} Weather frame`).toBeTruthy()
+  return element!
+}
+
+function expectFlatFrame(element: HTMLElement): void {
+  expect(element.querySelector('.rounded-panel')).toBeNull()
+  expect(element.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
+}
+
+function expectNoFrameScroll(element: HTMLElement): void {
+  expect(element.querySelector('.overflow-y-auto:not([hidden]), .overflow-y-scroll:not([hidden])')).toBeNull()
+}
 
 async function expandPanel() {
   await act(async () => {
@@ -166,6 +183,41 @@ function domRect(left: number, top: number, right: number, bottom: number): DOMR
 }
 
 describe('WeatherWidget collapsed chip', () => {
+  it('authors Compact ready Weather inside the selected frame without metrics', async () => {
+    await renderWidget({
+      stageVariant: 'compact',
+      units: 'imperial',
+      snapshot: makeSnapshot({ current: { ...makeSnapshot().current, tempC: 22 } }),
+    })
+
+    const compact = frame('compact')
+    expect(compact.getAttribute('data-tier-frame')).toBe('compact')
+    expect(within(compact).getByText(/72/)).toBeTruthy()
+    expect(within(compact).queryByText('Feels')).toBeNull()
+    expectFlatFrame(compact)
+  })
+
+  it('authors Standard ready Weather with trend and flat supporting metrics', async () => {
+    await renderWidget({ stageVariant: 'standard' })
+
+    const standard = frame('standard')
+    expect(standard.dataset.tierFrame).toBe('standard')
+    expect(within(standard).getByText('Feels')).toBeTruthy()
+    expect(within(standard).getByText('Wind')).toBeTruthy()
+    expect(within(standard).getByText('Humidity')).toBeTruthy()
+    expect(standard.querySelector('[data-weather-summary-trend]')).toBeTruthy()
+    expectFlatFrame(standard)
+  })
+
+  it('authors Full ready Weather with its four-slot hourly signature', async () => {
+    await renderWidget({ stageVariant: 'expanded' })
+
+    const full = frame('full')
+    expect(within(full).getByTestId('weather-summary-hourly')).toBeTruthy()
+    expect(full.querySelectorAll('[data-weather-summary-hourly] > span')).toHaveLength(4)
+    expectFlatFrame(full)
+  })
+
   it('uses a Full allocation for useful inline hourly and metric content without auto-opening details', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     await renderWidget({ stageVariant: 'expanded' })
@@ -304,45 +356,6 @@ describe('WeatherWidget collapsed chip', () => {
     expect(summary.querySelector('[data-weather-empty-row]')).toBeNull()
   })
 
-  it('caps the collapsed chip against the room left beside the timer pill, not a viewport fraction', async () => {
-    await renderWidget()
-    const section = screen.getByRole('region', { name: 'Weather' })
-    // 8.5rem reserves both 1rem gutters plus the timer pill that bookends
-    // the same row (App.tsx: timer `left-4`, weather `right-4`).
-    expect(section.className).toContain('max-w-[min(24rem,calc(100vw_-_8.5rem))]')
-    expect(section.className).not.toContain('tight:max-w-[30vw]')
-  })
-
-  it('gives the no-location setup a viewport-contained narrow sheet instead of the collapsed chip cap', async () => {
-    await renderWidget({ location: null, snapshot: null })
-    const section = screen.getByRole('region', { name: 'Weather' })
-
-    expect(section.className).toContain('w-[min(20rem,calc(100vw_-_2rem))]')
-    expect(section.className).not.toContain('xshort:max-w-')
-  })
-
-  // The short-wide fix (the board's last open collision): at 800x450 the
-  // FORCED-WIDE (2-digit hour) clock's own right edge and this chip's
-  // natural-content left edge measured 48.9px into each other (this fix's
-  // own real-Chromium probe). jsdom can't compute the live calc()/var()
-  // against a real viewport (same limitation the height-aware clamp test
-  // above notes for Clock.tsx), so this pins the FORMULA the className
-  // carries — the real cross-size, both-worst-states proof is the preview
-  // harness's dedicated fencepost (scripts/preview.mjs).
-  it('narrows the collapsed cap at xshort to clear the clock\'s own rendered half-width', async () => {
-    await renderWidget()
-    const section = screen.getByRole('region', { name: 'Weather' })
-    // `50vw - 2rem - --clock-half-w`: the room left of this chip's own
-    // right-anchored edge (100vw - 1rem) after the clock's reach from
-    // viewport-centre (50vw + --clock-half-w) and the house 16px (1rem)
-    // floor are both subtracted. min() with the two EXISTING terms means
-    // this only ever narrows the cap, never widens it beyond the reading
-    // measure or the timer-pill room.
-    expect(section.className).toContain(
-      'xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]',
-    )
-  })
-
   it('opens as a viewport-owned finite sheet rather than a narrow Canvas sliver', async () => {
     await renderWidget()
     await expandPanel()
@@ -384,6 +397,78 @@ describe('WeatherWidget collapsed chip', () => {
     })
     expect(screen.getByText(/rain likely/i)).toBeTruthy()
     expect(screen.queryByText('Next 12 hours')).toBeNull()
+  })
+})
+
+describe('WeatherWidget tier frame states', () => {
+  it('keeps Compact setup inside a permission-required frame with both existing location paths', async () => {
+    await renderWidget({ location: null, snapshot: null, stageVariant: 'compact' })
+
+    const compact = frame('compact')
+    expect(compact.dataset.tierFrameState).toBe('permission-required')
+    expect(within(compact).getByText('Weather needs a location.')).toBeTruthy()
+    expect(within(compact).getByRole('button', { name: 'Use my location' })).toBeTruthy()
+    expect(within(compact).getByRole('combobox', { name: 'Search for a city' })).toBeTruthy()
+    expectNoFrameScroll(compact)
+  })
+
+  it('keeps Standard initial loading inside its selected frame with named status', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise<Response>(() => {}))
+    await renderWidget({ snapshot: null, stageVariant: 'standard' })
+
+    const standard = frame('standard')
+    expect(standard.dataset.tierFrameState).toBe('loading')
+    expect(within(standard).getByRole('status').textContent).toBe('Loading weather\u2026')
+    expectNoFrameScroll(standard)
+  })
+
+  it('keeps cached current conditions inside a stale Full frame while refresh is pending', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise<Response>(() => {}))
+    await renderWidget({
+      snapshot: makeSnapshot({ fetchedAt: Date.now() - 60 * 60 * 1000 }),
+      stageVariant: 'expanded',
+    })
+
+    const full = frame('full')
+    expect(full.dataset.tierFrameState).toBe('stale')
+    expect(within(full).getByText(/21/)).toBeTruthy()
+    expect(within(full).getByRole('status').textContent).toBe('Refreshing\u2026')
+    expectNoFrameScroll(full)
+  })
+
+  it('keeps current conditions inside a partial Standard frame when environment and alerts fail', async () => {
+    const unavailable: WeatherEnvironmentSnapshot = {
+      requestIdentity: environmentRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
+      fetchedAt: Date.now(),
+      status: 'unavailable',
+      usAqi: null,
+      uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('enrichment unavailable'))
+    await renderWidget({
+      snapshot: makeSnapshot({ environment: unavailable }),
+      alertCache: { ...activeAlertCache(), fetchedAt: Date.now() - 60 * 60 * 1000 },
+      stageVariant: 'standard',
+    })
+
+    const standard = frame('standard')
+    await waitFor(() => expect(standard.dataset.tierFrameState).toBe('partial'))
+    expect(within(standard).getByText(/21/)).toBeTruthy()
+    expect(within(standard).getByRole('status').textContent).toBe('Weather details partially unavailable.')
+    expectNoFrameScroll(standard)
+  })
+
+  it('keeps a Compact hard error fixed with Weather named and the existing Retry action', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('private provider detail'))
+    await renderWidget({ snapshot: null, stageVariant: 'compact' })
+    await screen.findByRole('alert')
+
+    const compact = frame('compact')
+    expect(compact.dataset.tierFrameState).toBe('hard-error')
+    expect(within(compact).getByRole('alert').textContent).toBe('Weather unavailable. Try again.')
+    expect(within(compact).getByRole('button', { name: 'Refresh' })).toBeTruthy()
+    expectNoFrameScroll(compact)
   })
 })
 
