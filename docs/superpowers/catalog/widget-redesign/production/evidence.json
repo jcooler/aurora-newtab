@@ -1,0 +1,596 @@
+{
+  "schemaVersion": 1,
+  "commit": "05eb85861c118a1450cff9ff262288271393b5f2",
+  "buildMode": "preview evidence; production adapters remain compiled out",
+  "approvedTargets": [
+    "clock",
+    "greeting",
+    "worldClocks",
+    "countdown",
+    "search",
+    "focus",
+    "links",
+    "quote",
+    "timer",
+    "tasks",
+    "notes",
+    "bookmarks",
+    "habits",
+    "calendar",
+    "weather",
+    "sun",
+    "moon",
+    "onThisDay",
+    "auroraKp",
+    "github",
+    "gitlab",
+    "jira",
+    "vercel",
+    "status",
+    "linear",
+    "sentry",
+    "todoist",
+    "readingList",
+    "recentlyClosed",
+    "downloads",
+    "tabGroups",
+    "homeassistant",
+    "rss",
+    "crypto"
+  ],
+  "mixedStacks": [
+    {
+      "id": "weather-on-this-day",
+      "tier": "standard",
+      "members": [
+        "weather",
+        "onThisDay"
+      ]
+    },
+    {
+      "id": "github-calendar",
+      "tier": "full",
+      "members": [
+        "github",
+        "calendar"
+      ]
+    },
+    {
+      "id": "tasks-notes",
+      "tier": "compact",
+      "members": [
+        "tasks",
+        "notes"
+      ]
+    },
+    {
+      "id": "clock-quote",
+      "tier": "standard",
+      "members": [
+        "clock",
+        "quote"
+      ]
+    },
+    {
+      "id": "jira-sentry",
+      "tier": "full",
+      "members": [
+        "jira",
+        "sentry"
+      ]
+    }
+  ],
+  "captures": [
+    {
+      "key": "weather-on-this-day",
+      "theme": "dark",
+      "member": "weather",
+      "filename": "weather-on-this-day-dark-weather.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "weather-on-this-day",
+      "theme": "dark",
+      "member": "onThisDay",
+      "filename": "weather-on-this-day-dark-onThisDay.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "weather-on-this-day",
+      "theme": "light",
+      "member": "weather",
+      "filename": "weather-on-this-day-light-weather.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "weather-on-this-day",
+      "theme": "light",
+      "member": "onThisDay",
+      "filename": "weather-on-this-day-light-onThisDay.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "weather-on-this-day",
+      "theme": "saturated",
+      "member": "weather",
+      "filename": "weather-on-this-day-saturated-weather.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "weather-on-this-day",
+      "theme": "saturated",
+      "member": "onThisDay",
+      "filename": "weather-on-this-day-saturated-onThisDay.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "github-calendar",
+      "theme": "dark",
+      "member": "github",
+      "filename": "github-calendar-dark-github.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "github-calendar",
+      "theme": "dark",
+      "member": "calendar",
+      "filename": "github-calendar-dark-calendar.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "github-calendar",
+      "theme": "light",
+      "member": "github",
+      "filename": "github-calendar-light-github.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "github-calendar",
+      "theme": "light",
+      "member": "calendar",
+      "filename": "github-calendar-light-calendar.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "github-calendar",
+      "theme": "saturated",
+      "member": "github",
+      "filename": "github-calendar-saturated-github.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "github-calendar",
+      "theme": "saturated",
+      "member": "calendar",
+      "filename": "github-calendar-saturated-calendar.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "dark",
+      "member": "tasks",
+      "filename": "tasks-notes-dark-tasks.png",
+      "width": 216,
+      "height": 132,
+      "scrollWidth": 214,
+      "scrollHeight": 130,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "dark",
+      "member": "notes",
+      "filename": "tasks-notes-dark-notes.png",
+      "width": 216,
+      "height": 132,
+      "scrollWidth": 214,
+      "scrollHeight": 130,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "light",
+      "member": "tasks",
+      "filename": "tasks-notes-light-tasks.png",
+      "width": 216,
+      "height": 132,
+      "scrollWidth": 214,
+      "scrollHeight": 130,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "light",
+      "member": "notes",
+      "filename": "tasks-notes-light-notes.png",
+      "width": 216,
+      "height": 132,
+      "scrollWidth": 214,
+      "scrollHeight": 130,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "saturated",
+      "member": "tasks",
+      "filename": "tasks-notes-saturated-tasks.png",
+      "width": 216,
+      "height": 132,
+      "scrollWidth": 214,
+      "scrollHeight": 130,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "saturated",
+      "member": "notes",
+      "filename": "tasks-notes-saturated-notes.png",
+      "width": 216,
+      "height": 132,
+      "scrollWidth": 214,
+      "scrollHeight": 130,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "clock-quote",
+      "theme": "dark",
+      "member": "clock",
+      "filename": "clock-quote-dark-clock.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "clock-quote",
+      "theme": "dark",
+      "member": "quote",
+      "filename": "clock-quote-dark-quote.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "clock-quote",
+      "theme": "light",
+      "member": "clock",
+      "filename": "clock-quote-light-clock.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "clock-quote",
+      "theme": "light",
+      "member": "quote",
+      "filename": "clock-quote-light-quote.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "clock-quote",
+      "theme": "saturated",
+      "member": "clock",
+      "filename": "clock-quote-saturated-clock.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "clock-quote",
+      "theme": "saturated",
+      "member": "quote",
+      "filename": "clock-quote-saturated-quote.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "dark",
+      "member": "jira",
+      "filename": "jira-sentry-dark-jira.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "dark",
+      "member": "sentry",
+      "filename": "jira-sentry-dark-sentry.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "light",
+      "member": "jira",
+      "filename": "jira-sentry-light-jira.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "light",
+      "member": "sentry",
+      "filename": "jira-sentry-light-sentry.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "saturated",
+      "member": "jira",
+      "filename": "jira-sentry-saturated-jira.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 11,
+      "internalScrollOwners": 0
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "saturated",
+      "member": "sentry",
+      "filename": "jira-sentry-saturated-sentry.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "minTextPx": 12,
+      "internalScrollOwners": 0
+    }
+  ],
+  "storageWrites": [
+    {
+      "key": "weather-on-this-day",
+      "theme": "dark",
+      "writes": [
+        [
+          "weatherAlertCache"
+        ],
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "weather-on-this-day",
+      "theme": "light",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "weather-on-this-day",
+      "theme": "saturated",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "github-calendar",
+      "theme": "dark",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "github-calendar",
+      "theme": "light",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "github-calendar",
+      "theme": "saturated",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "dark",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "light",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "tasks-notes",
+      "theme": "saturated",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "clock-quote",
+      "theme": "dark",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "clock-quote",
+      "theme": "light",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "clock-quote",
+      "theme": "saturated",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "dark",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "light",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    },
+    {
+      "key": "jira-sentry",
+      "theme": "saturated",
+      "writes": [
+        [
+          "layouts"
+        ]
+      ]
+    }
+  ],
+  "approvedRequests": [
+    "GET https://api.weather.gov/alerts/active?point=33.749,-84.388",
+    "GET https://api.weather.gov/alerts/active?point=33.749,-84.388"
+  ],
+  "summary": {
+    "captures": 30,
+    "approvedRequests": 2,
+    "runtimeErrors": 0,
+    "failedRequests": 0,
+    "unexpectedRequests": 0
+  }
+}
