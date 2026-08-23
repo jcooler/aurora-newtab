@@ -243,9 +243,11 @@ export async function runProductionQa() {
       }
     }
 
-    assert.equal(runtimeErrors.length, 0, `runtime errors: ${JSON.stringify(runtimeErrors)}`)
-    assert.equal(failedRequests.length, 0, `failed requests: ${JSON.stringify(failedRequests)}`)
-    assert.equal(unexpectedRequests.length, 0, `unexpected requests: ${JSON.stringify(unexpectedRequests)}`)
+    assert.equal(
+      runtimeErrors.length + failedRequests.length + unexpectedRequests.length,
+      0,
+      `runtime=${JSON.stringify(runtimeErrors)} failed=${JSON.stringify(failedRequests)} unexpected=${JSON.stringify(unexpectedRequests)}`,
+    )
     const evidence = {
       schemaVersion: 1,
       commit,
