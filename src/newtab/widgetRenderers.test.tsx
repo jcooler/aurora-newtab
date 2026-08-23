@@ -53,6 +53,7 @@ describe('time and productivity widget renderers', () => {
   it('lets redesigned Standard Quote and Quick Links frames own their exact width', () => {
     expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="standard"\]:not\(\[data-canvas-mode="docked"\]\):is\([\s\S]*?\) > :not\(\.tier-frame\)\s*\{/)
     expect(indexCss).not.toMatch(/\.canvas-item\[data-canvas-size="standard"\]:not\(\[data-canvas-mode="docked"\]\):is\([\s\S]*?\) > \*\s*\{/)
+    expect(indexCss).not.toMatch(/\[data-block-id="links"\] > section(?!:not\(\.tier-frame\))/)
   })
 
   it('keeps Month Standard-only and never threads a Docked presentation', () => {

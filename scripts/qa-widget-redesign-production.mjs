@@ -107,21 +107,21 @@ function buildLayouts(authorityIds, stack) {
 
 const OWNER_VISIBLE_POINTS = Object.freeze({
   bookmarks: Object.freeze({ x: 50, y: 3, tier: 'standard' }),
-  greeting: Object.freeze({ x: 76, y: 7, tier: 'compact' }),
+  greeting: Object.freeze({ x: 75, y: 7, tier: 'compact' }),
   weather: Object.freeze({ x: 12, y: 26, tier: 'standard' }),
   clock: Object.freeze({ x: 37, y: 26, tier: 'standard' }),
   worldClocks: Object.freeze({ x: 62, y: 26, tier: 'standard' }),
-  tasks: Object.freeze({ x: 87, y: 23, tier: 'compact' }),
+  tasks: Object.freeze({ x: 89, y: 19.7, tier: 'compact' }),
   ics: Object.freeze({ x: 12, y: 57, tier: 'standard' }),
   countdown: Object.freeze({ x: 37, y: 57, tier: 'standard' }),
   search: Object.freeze({ x: 62, y: 57, tier: 'standard' }),
-  notes: Object.freeze({ x: 87, y: 49, tier: 'compact' }),
+  notes: Object.freeze({ x: 89, y: 35.7, tier: 'compact' }),
   status: Object.freeze({ x: 12, y: 87, tier: 'standard' }),
   focus: Object.freeze({ x: 37, y: 87, tier: 'standard' }),
   links: Object.freeze({ x: 62, y: 87, tier: 'standard' }),
-  quote: Object.freeze({ x: 87, y: 84, tier: 'standard' }),
-  timer: Object.freeze({ x: 87, y: 69, tier: 'compact' }),
-  habits: Object.freeze({ x: 76, y: 52, tier: 'compact' }),
+  quote: Object.freeze({ x: 89, y: 87, tier: 'standard' }),
+  timer: Object.freeze({ x: 89, y: 51.7, tier: 'compact' }),
+  habits: Object.freeze({ x: 89, y: 67.7, tier: 'compact' }),
 })
 
 export function buildOwnerVisibleLayout(authorityIds) {
@@ -238,6 +238,25 @@ async function inspectOwnerVisibleCanvas(page, output) {
   assert.equal(greetingEvidence.title, greetingEvidence.text, 'Greeting full-text fallback drifted')
   assert(greetingEvidence.scrollWidth <= greetingEvidence.clientWidth + 1, 'Greeting text clips on the real canvas')
 
+  const visibleBounds = {}
+  for (const id of OWNER_VISIBLE_CANVAS_CASE.members.map(sourceId)) {
+    const bounds = await page.getByTestId(`canvas-item-${id}`).boundingBox()
+    assert(bounds, `${id} is missing from the owner-visible canvas`)
+    visibleBounds[id] = bounds
+  }
+  const ids = Object.keys(visibleBounds)
+  for (let leftIndex = 0; leftIndex < ids.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < ids.length; rightIndex += 1) {
+      const leftId = ids[leftIndex]
+      const rightId = ids[rightIndex]
+      const left = visibleBounds[leftId]
+      const right = visibleBounds[rightId]
+      const overlapWidth = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x)
+      const overlapHeight = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y)
+      assert(overlapWidth <= 1 || overlapHeight <= 1, `${leftId} overlaps ${rightId} on the owner-visible canvas`)
+    }
+  }
+
   const normalFilename = 'owner-visible-canvas.png'
   await page.screenshot({ path: resolve(output, normalFilename) })
 
@@ -254,7 +273,7 @@ async function inspectOwnerVisibleCanvas(page, output) {
     assert.equal(metadata.width, 1600, `${filename} width drifted`)
     assert.equal(metadata.height, 900, `${filename} height drifted`)
   }
-  return { key: OWNER_VISIBLE_CANVAS_CASE.key, filenames: [normalFilename, editFilename], greeting: greetingEvidence, measurements }
+  return { key: OWNER_VISIBLE_CANVAS_CASE.key, filenames: [normalFilename, editFilename], greeting: greetingEvidence, measurements, visibleBounds }
 }
 
 function initEvidenceBoundary() {

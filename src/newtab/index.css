@@ -2437,23 +2437,23 @@ select > option {
 
 /* Quick Links no longer spends forty compact pixels on the former centered
    rail offset. Its existing wrap and controls then fit the owned cell. */
-.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) {
   margin-top: 0;
   gap: 4px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div {
   width: 36px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div > span {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div > span {
   width: 36px;
   font-size: 14px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div > a,
-.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > button {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div > a,
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > button {
   width: 36px;
   height: 36px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div > a > img {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div > a > img {
   width: 16px;
   height: 16px;
 }
@@ -2705,23 +2705,23 @@ select > option {
 .canvas-item[data-canvas-size="standard"][data-block-id="quote"] figcaption {
   margin-top: 2px;
 }
-.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) {
   margin-top: 0;
   gap: 4px;
 }
-.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div,
-.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div > span {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div,
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div > span {
   width: 36px;
 }
-.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div > span {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div > span {
   font-size: 14px;
 }
-.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div > a,
-.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > button {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div > a,
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > button {
   width: 36px;
   height: 36px;
 }
-.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div > a > img {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div > a > img {
   width: 16px;
   height: 16px;
 }
