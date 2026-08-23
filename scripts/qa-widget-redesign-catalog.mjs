@@ -38,7 +38,8 @@ export const captureViewport = (capture) => capture.kind === 'comparison' || cap
 
 const hashFile = async (path) => createHash('sha256').update(await readFile(path)).digest('hex')
 const pngSize = (buffer) => ({ width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) })
-const git = (repoRoot, args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trim()
+export const trimGitOutput = (output) => String(output).trimEnd()
+const git = (repoRoot, args) => trimGitOutput(execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }))
 const GENERATED_EXACT_CATALOG = 'docs/superpowers/catalog/widget-redesign/v1/'
 const GENERATED_EXACT_REPORT = 'docs/superpowers/reports/WIDGET-REDESIGN-MOCKUP-QA.md'
 

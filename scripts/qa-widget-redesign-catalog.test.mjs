@@ -12,6 +12,7 @@ import {
   exactSourceDirtyLines,
   markdownCell,
   resolveOutput,
+  trimGitOutput,
 } from './qa-widget-redesign-catalog.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
@@ -22,6 +23,7 @@ test('enforces pure harness geometry, output, viewport, and Markdown contracts',
   assert.deepEqual(expectedFrame('full'), { width: 460, height: 284 })
   assert.throws(() => resolveOutput(resolve(repoRoot, 'catalog-output'), '../escape.png'), /outside catalog output/i)
   assert.equal(markdownCell('A | B\nC'), 'A \\| B C')
+  assert.equal(trimGitOutput(' M generated.md\r\n'), ' M generated.md')
   assert.deepEqual(captureViewport({ kind: 'comparison' }), { width: 1440, height: 900 })
   assert.deepEqual(captureViewport({ kind: 'free' }), { width: 1200, height: 760 })
 })
