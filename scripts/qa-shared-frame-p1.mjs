@@ -754,8 +754,8 @@ function contentProbe(widget, tier, state) {
     essentialSelectors: ['.on-this-day-tier-header h2', '.on-this-day-tier-header p', '.on-this-day-tier-list > li'],
     signatureSelectors: ['.on-this-day-tier-list'],
     expectedTexts: tier === 'full'
-      ? ['On This Day', 'August 22', 'Aurora history witness event', 'Born', 'Died', 'More on Wikipedia']
-      : ['On This Day', 'August 22', 'Aurora history witness event', 'More on Wikipedia'],
+      ? ['On This Day', 'August 22', 'Aurora history witness event', 'Born', 'Died', 'Read more on Wikipedia']
+      : ['On This Day', 'August 22', 'Aurora history witness event', 'Read more on Wikipedia'],
     forbiddenSelectors: ['[data-work-widget-scroll]', '.overflow-y-auto', '.overflow-y-scroll'],
     expectedEventCount: tier === 'compact' ? 1 : tier === 'standard' ? 3 : 5,
   }

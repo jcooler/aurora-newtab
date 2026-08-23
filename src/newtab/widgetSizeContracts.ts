@@ -255,7 +255,7 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
       signature: ['historical event'],
       supporting: ['provider attribution'],
       narrowSafety: ['tighten spacing', 'clamp event summary'],
-      overflow: { kind: 'provider', label: 'More on Wikipedia' },
+      overflow: { kind: 'provider', label: 'Read more on Wikipedia' },
     },
     standard: {
       purpose: 'Three historical events for the local date',
@@ -263,7 +263,7 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
       signature: ['historical event list'],
       supporting: ['provider attribution'],
       narrowSafety: ['tighten spacing', 'clamp event summaries'],
-      overflow: { kind: 'provider', label: 'More on Wikipedia' },
+      overflow: { kind: 'provider', label: 'Read more on Wikipedia' },
     },
     full: {
       purpose: 'Historical events, births, and deaths for the local date',
@@ -271,7 +271,7 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
       signature: ['historical event list'],
       supporting: ['births', 'deaths', 'provider attribution'],
       narrowSafety: ['tighten spacing', 'clamp event summaries', 'clamp birth and death summaries'],
-      overflow: { kind: 'provider', label: 'More on Wikipedia' },
+      overflow: { kind: 'provider', label: 'Read more on Wikipedia' },
     },
   }),
   publicHolidays: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], SETUP_RESOURCE_STATES, 'Next national holiday', 'Next three national holidays', 'Current and next-year national holidays', 'Next holiday and date', {

@@ -133,7 +133,7 @@ describe('shared frame presentation contracts', () => {
       signature: ['historical event list'],
       supporting: ['provider attribution'],
       narrowSafety: ['tighten spacing', 'clamp event summaries'],
-      overflow: { kind: 'provider', label: 'More on Wikipedia' },
+      overflow: { kind: 'provider', label: 'Read more on Wikipedia' },
     })
   })
 
