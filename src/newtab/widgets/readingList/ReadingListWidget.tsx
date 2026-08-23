@@ -93,6 +93,7 @@ export default function ReadingListWidget({
         items={data}
         onRefresh={resource.refresh}
         mode={canvasSize === 'full' ? 'full' : 'standard'}
+        showOverflowSummary={resource.state.status !== 'error'}
       />
     </BrowserWidgetShell>
   )
@@ -102,10 +103,12 @@ function ReadingListDetail({
   items,
   onRefresh,
   mode,
+  showOverflowSummary = true,
 }: {
   items: readonly ReadingListItem[]
   onRefresh: () => Promise<void>
   mode: 'standard' | 'full' | 'detail'
+  showOverflowSummary?: boolean
 }) {
   const [confirmUrl, setConfirmUrl] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState<string | null>(null)
@@ -170,7 +173,7 @@ function ReadingListDetail({
           {sections}
         </div>
       ) : sections}
-      {mode !== 'detail' && hiddenCount > 0 ? (
+      {showOverflowSummary && mode !== 'detail' && hiddenCount > 0 ? (
         <p data-reading-list-footer="" className="text-[11px] text-fg-muted">{hiddenCount} more in Chrome Reading List</p>
       ) : null}
       {announcement ? <p role="status" className="text-xs text-fg-muted">{announcement}</p> : null}

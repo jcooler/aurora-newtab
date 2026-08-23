@@ -191,6 +191,22 @@ describe('ReadingListWidget', () => {
     expect(screen.getByRole('status').textContent).toContain('Reading List unavailable')
   })
 
+  it('keeps retained-error Standard focused on one actionable row and recovery', () => {
+    vi.mocked(useBrowserResource).mockReturnValueOnce({
+      state: { status: 'error', data: ITEMS, refreshedAt: 1, message: 'Reading List unavailable' },
+      refresh,
+    })
+
+    render(<ReadingListWidget canvasSize="standard" />)
+
+    const frame = screen.getByRole('region', { name: 'Reading List' })
+    expect(frame.querySelectorAll('article')).toHaveLength(1)
+    expect(frame.querySelector('[data-reading-list-footer]')).toBeNull()
+    expect(screen.getByRole('link', { name: /^Open Launch notes,/ })).toBeTruthy()
+    const retry = screen.getByRole('button', { name: 'Refresh Reading List' })
+    expect(retry.className).toContain('min-h-9')
+  })
+
   it('renders all-read Standard as clear instead of a blank card', () => {
     vi.mocked(useBrowserResource).mockReturnValueOnce({
       state: { status: 'ready', data: ITEMS.map((item) => ({ ...item, hasBeenRead: true })), refreshedAt: 1, refreshing: false },
