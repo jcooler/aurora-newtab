@@ -218,14 +218,16 @@ function UnifiedCalendarWidget({
 
   if (canvasSize === 'full') {
     return (
-      <TierFrame label="Calendar" tier="full" state={items.length > 0 ? 'ready' : 'empty'} className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-5 p-4">
-        <div data-testid="calendar-full-month" className="min-w-0">
-          <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} />
+      <TierFrame label="Calendar" tier="full" state={items.length > 0 ? 'ready' : 'empty'} className="p-4">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-5">
+          <div data-testid="calendar-full-month" className="min-w-0">
+            <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} />
+          </div>
+          <section data-testid="calendar-full-agenda" aria-label="Agenda" className="min-w-0 border-l border-panel-border pl-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted">Agenda</p>
+            <CalendarAgenda items={items} limit={8} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+          </section>
         </div>
-        <section data-testid="calendar-full-agenda" aria-label="Agenda" className="min-w-0 border-l border-panel-border pl-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted">Agenda</p>
-          <CalendarAgenda items={items} limit={8} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
-        </section>
       </TierFrame>
     )
   }
@@ -309,7 +311,7 @@ function CalendarMonth({ items, todayKey, weekStart, viewControl }: { items: rea
   const step = (delta: number) => setView((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
   return (
     <div className="min-h-0">
-      <div className="flex h-8 items-center justify-between gap-1.5">
+      <div className="flex h-7 items-center justify-between gap-1.5">
         <div className="flex min-w-0 items-center gap-0.5">
           <button type="button" aria-label="Previous month" onClick={() => step(-1)} className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">‹</button>
           <span className="min-w-0 truncate text-sm font-semibold text-fg">{label}</span>
@@ -334,7 +336,7 @@ function CalendarMonth({ items, todayKey, weekStart, viewControl }: { items: rea
           ))}
         </tbody>
       </table>
-      <div className="mt-2 min-h-5 border-t border-panel-border pt-1.5 text-[11px] text-fg-muted">
+      <div className="mt-2 min-h-4 border-t border-panel-border pt-1.5 text-[11px] leading-4 text-fg-muted">
         {holiday ? <span><span className="text-accent">{shortCalendarDate(holiday.dateKey)}</span> {holiday.title}</span> : <span>No holidays this month</span>}
       </div>
     </div>
