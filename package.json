@@ -17,6 +17,7 @@
     "store-shots": "node scripts/store-shots.mjs",
     "qa:information-first": "node scripts/preview-information-first.mjs",
     "qa:widget-redesign-catalog": "node scripts/qa-widget-redesign-catalog.mjs",
+    "qa:widget-redesign-production": "node scripts/qa-widget-redesign-production.mjs --exact",
     "qa:weather-enrichment": "node scripts/qa-weather-enrichment.mjs",
     "verify:photos": "node scripts/verify-photo-manifest.mjs"
   },

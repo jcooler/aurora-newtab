@@ -139,7 +139,7 @@ const WORK_TOKENS = Object.freeze({
   todoist: 'FAKE_TODOIST_TOKEN_DO_NOT_USE',
 })
 
-function workFixtures() {
+export function workFixtures() {
   const issues = Array.from({ length: 25 }, (_, index) => ({
     id: `linear-${index + 1}`,
     identifier: `AUR-${index + 1}`,
@@ -962,7 +962,7 @@ function scopeCanonical(value) {
   return `{${Object.keys(value).filter((key) => value[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${scopeCanonical(value[key])}`).join(',')}}`
 }
 
-function snapshotScope(id, config, runtimeScope, version = 'v1') {
+export function snapshotScope(id, config, runtimeScope, version = 'v1') {
   const runtime = runtimeScope === undefined ? '' : `\n${scopeCanonical(runtimeScope)}`
   return `${id}:${version}:${createHash('sha256').update(`${id}\n${scopeCanonical(config)}${runtime}`).digest('hex')}`
 }
