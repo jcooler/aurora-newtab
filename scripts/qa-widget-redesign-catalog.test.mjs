@@ -6,8 +6,24 @@ import { chromium } from 'playwright'
 
 import { MIXED_STACKS, TARGET_WIDGETS } from '../mockups/widget-redesign/catalog-model.mjs'
 import { startCatalogServer } from './widget-redesign-catalog-server.mjs'
+import {
+  captureViewport,
+  expectedFrame,
+  markdownCell,
+  resolveOutput,
+} from './qa-widget-redesign-catalog.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
+
+test('enforces pure harness geometry, output, viewport, and Markdown contracts', () => {
+  assert.deepEqual(expectedFrame('compact'), { width: 216, height: 132 })
+  assert.deepEqual(expectedFrame('standard'), { width: 320, height: 200 })
+  assert.deepEqual(expectedFrame('full'), { width: 460, height: 284 })
+  assert.throws(() => resolveOutput(resolve(repoRoot, 'catalog-output'), '../escape.png'), /outside catalog output/i)
+  assert.equal(markdownCell('A | B\nC'), 'A \\| B C')
+  assert.deepEqual(captureViewport({ kind: 'comparison' }), { width: 1440, height: 900 })
+  assert.deepEqual(captureViewport({ kind: 'free' }), { width: 1200, height: 760 })
+})
 
 test('serves the standalone 36-to-34 catalog with exact calibration frames', async () => {
   const server = await startCatalogServer({ repoRoot })
