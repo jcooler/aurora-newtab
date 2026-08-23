@@ -66,7 +66,7 @@ test('all nine connector identities enumerate exactly the registry-promised size
   const source = readFileSync(new URL('../src/newtab/widgetSizeContracts.ts', import.meta.url), 'utf8')
   for (const [id, sizes] of Object.entries(exact)) {
     const escaped = sizes.map((size) => `'${size}'`).join(', ')
-    assert.match(source, new RegExp(`\\b${id}: contract\\(\\[${escaped}\\]`))
+    assert.match(source, new RegExp(`\\b${id}: contract\\('[^']+', \\[${escaped}\\]`))
   }
 })
 
