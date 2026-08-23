@@ -4,8 +4,21 @@ import test from 'node:test'
 
 import {
   applySfP2ReviewedVerdicts,
+  assertSfP2BuildContract,
+  assertSfP2CaptureMeasurement,
+  assertSfP2RequestAudit,
+  assertSfP2StorageAudit,
   buildSfP2CapturePlan,
+  buildSfP2CaptureFailure,
   buildSfP2EvidenceManifest,
+  buildSfP2DomProbe,
+  buildSfP2Layouts,
+  buildSfP2RuntimeStages,
+  formatSfP2Catalog,
+  resolveSfP2FixtureState,
+  resolveSfP2RuntimeMode,
+  shouldIgnoreSfP2BootstrapRequest,
+  validateSfP2RuntimeEvidence,
   validateSfP2CapturePlan,
   validateSfP2EvidenceManifest,
 } from './qa-shared-frame-p2.mjs'
@@ -35,7 +48,7 @@ test('derives every remaining framed widget from the presentation authority', ()
   }
 
   const changedSource = contractSource.replace(
-    "moon: framedContract(['compact'], ['compact'], RESOURCE_STATES",
+    "moon: framedContract(['compact'], ['compact'], READY_STATES",
     "moon: contract('intrinsic', ['compact'], RESOURCE_STATES",
   )
   assert.notEqual(changedSource, contractSource, 'the authority mutation fixture must apply')
@@ -75,6 +88,14 @@ test('covers representative states, interactions, viewports, themes, fixtures, a
   assert.equal(result.audits.storage.allowedKeys.join(','), 'layouts')
 })
 
+test('includes a legacy incompatible stack capture with explicit compatibility copy evidence', () => {
+  const result = plan()
+  assert.ok(result.captures.some((capture) => capture.kind === 'compatibility'
+    && capture.widget === 'moon'
+    && capture.reference === 'weather'
+    && capture.tier === 'full'))
+})
+
 test('fails closed for incomplete evidence dimensions and reviewed verdicts', () => {
   const missingReady = structuredClone(evidence())
   const target = missingReady.widgets.find((widget) => widget.id === 'github')
@@ -96,4 +117,352 @@ test('capture planning never manufactures verdicts and reviewed evidence require
   const capturePlan = validateSfP2CapturePlan(plan())
   assert.ok(capturePlan.captures.every((capture) => !('verdict' in capture)))
   assert.throws(() => applySfP2ReviewedVerdicts(capturePlan, {}), /missing a reviewed verdict/i)
+})
+
+test('preliminary working-tree mode is capture-only and reviewed catalog generation is a separate action', () => {
+  assert.deepEqual(resolveSfP2RuntimeMode(['--preliminary-working-tree']), {
+    headed: false,
+    preliminaryWorkingTree: true,
+    captureOnly: true,
+    catalogFromCapture: false,
+  })
+  assert.deepEqual(resolveSfP2RuntimeMode(['--catalog-from-capture']), {
+    headed: false,
+    preliminaryWorkingTree: false,
+    captureOnly: false,
+    catalogFromCapture: true,
+  })
+  assert.throws(
+    () => resolveSfP2RuntimeMode(['--capture-only', '--catalog-from-capture']),
+    /capture-only.*catalog-from-capture/i,
+  )
+})
+
+test('ignores external requests only during the unseeded bootstrap navigation', () => {
+  assert.equal(shouldIgnoreSfP2BootstrapRequest({ navigating: true, activeCapture: null }), true)
+  assert.equal(shouldIgnoreSfP2BootstrapRequest({ navigating: false, activeCapture: null }), false)
+  assert.equal(shouldIgnoreSfP2BootstrapRequest({ navigating: true, activeCapture: { key: 'github-ready' } }), false)
+})
+
+test('exact mode rejects dirty or stale dist while preliminary mode records dirty source truthfully', () => {
+  const input = {
+    commit: 'abc123',
+    expectedCommit: 'abc123',
+    provenanceText: JSON.stringify({ commit: 'abc123', builtAt: '2026-08-23T12:00:00.000Z' }),
+    trackedStatus: ' M src/newtab/widgets/status/StatusWidget.tsx\n',
+  }
+  assert.throws(
+    () => assertSfP2BuildContract({ ...input, preliminaryWorkingTree: false }),
+    /clean tracked worktree/i,
+  )
+  assert.throws(
+    () => assertSfP2BuildContract({ ...input, trackedStatus: '', provenanceText: '{"commit":"old"}', preliminaryWorkingTree: false }),
+    /provenance.*stale/i,
+  )
+  assert.deepEqual(assertSfP2BuildContract({ ...input, preliminaryWorkingTree: true }), {
+    provenance: { commit: 'abc123', builtAt: '2026-08-23T12:00:00.000Z' },
+    preliminaryWorkingTree: true,
+    trackedStatus: input.trackedStatus,
+  })
+})
+
+test('capture measurement fails closed on geometry, clipping, scroll, text, signatures, ownership, selection, and compatibility copy', () => {
+  const capture = { key: 'github-ready-standard', tier: 'standard', kind: 'free-tier' }
+  const valid = {
+    frame: { width: 320.25, height: 199.75 },
+    clippedElements: [],
+    internalScrollOwners: [],
+    textRuns: [
+      { text: 'Pull requests', role: 'routine', fontSize: 14 },
+      { text: 'Updated now', role: 'metadata', fontSize: 11 },
+    ],
+    missingEssentialSelectors: [],
+    missingSignatureSelectors: [],
+    mountedOwners: 1,
+    selectedText: '',
+    compatibilityCopy: null,
+  }
+  assert.equal(assertSfP2CaptureMeasurement(capture, valid, { standard: { width: 320, height: 200 } }), valid)
+
+  const mutations = [
+    ['frame width', { frame: { width: 321, height: 200 } }, /width/i],
+    ['clipping', { clippedElements: ['Contribution graph'] }, /clipp/i],
+    ['scroll', { internalScrollOwners: ['section'] }, /scroll/i],
+    ['routine floor', { textRuns: [{ text: 'Pull requests', role: 'routine', fontSize: 13.9 }] }, /14px/i],
+    ['metadata floor', { textRuns: [{ text: 'Updated now', role: 'metadata', fontSize: 10.9 }] }, /11px/i],
+    ['essential selector', { missingEssentialSelectors: ['[data-work-summary]'] }, /essential/i],
+    ['signature selector', { missingSignatureSelectors: ['[data-contribution-graph]'] }, /signature/i],
+    ['owner count', { mountedOwners: 2 }, /one mounted owner/i],
+    ['selected text', { selectedText: 'Pull requests' }, /selected text/i],
+  ]
+  for (const [label, change, pattern] of mutations) {
+    const broken = { ...structuredClone(valid), ...change }
+    assert.throws(() => assertSfP2CaptureMeasurement(capture, broken, { standard: { width: 320, height: 200 } }), pattern, label)
+  }
+  assert.throws(
+    () => assertSfP2CaptureMeasurement(capture, {
+      ...structuredClone(valid),
+      frame: { width: 157.828125, height: 96.46875 },
+      geometryDiagnostics: {
+        computedWidth: '216px',
+        computedHeight: '132px',
+        innerWidth: 1366,
+        visualViewport: { width: 1366, scale: 1 },
+        ancestors: [{ tag: 'div', transform: 'matrix(0.73, 0, 0, 0.73, 0, 0)', zoom: '1' }],
+      },
+    }, { standard: { width: 320, height: 200 } }),
+    /computedWidth.*216px.*matrix\(0\.73/s,
+  )
+  assert.throws(
+    () => assertSfP2CaptureMeasurement(
+      { ...capture, kind: 'compatibility' },
+      { ...structuredClone(valid), compatibilityCopy: '' },
+      { standard: { width: 320, height: 200 } },
+    ),
+    /compatibility copy/i,
+  )
+})
+
+test('storage audit permits only one exact facing write and always rejects legacy layout writes', () => {
+  const before = {
+    layout: { version: 3, marker: 'legacy' },
+    layouts: { version: 1, layouts: [{ stacks: [{ id: 'stack-p2', facing: 'weather', members: ['weather', 'status'] }] }] },
+    settings: { name: 'Aurora' },
+  }
+  const after = structuredClone(before)
+  after.layouts.layouts[0].stacks[0].facing = 'status'
+  assert.deepEqual(
+    assertSfP2StorageAudit({
+      capture: { key: 'status-stack-next', interaction: 'stack-next', widget: 'status' },
+      before,
+      after,
+      writeCalls: [['layouts']],
+    }),
+    { changedKeys: ['layouts'], writeCalls: [['layouts']], facingChanged: true },
+  )
+  assert.throws(
+    () => assertSfP2StorageAudit({
+      capture: { key: 'status-ready', interaction: null, widget: 'status' },
+      before,
+      after: before,
+      writeCalls: [['layout']],
+    }),
+    /legacy layout/i,
+  )
+  const wrong = structuredClone(after)
+  wrong.layouts.layouts[0].stacks[0].tier = 'full'
+  assert.throws(
+    () => assertSfP2StorageAudit({
+      capture: { key: 'status-stack-next', interaction: 'stack-next', widget: 'status' },
+      before,
+      after: wrong,
+      writeCalls: [['layouts']],
+    }),
+    /more than facing/i,
+  )
+  assert.throws(
+    () => assertSfP2StorageAudit({
+      capture: { key: 'status-ready', interaction: null, widget: 'status' },
+      before,
+      after: { ...before, settings: { name: 'Changed' } },
+      writeCalls: [['settings']],
+    }),
+    /unexpected storage/i,
+  )
+})
+
+test('request audit accepts only explicit method and URL pairs and rejects every failed request', () => {
+  const approvedRequests = new Set([
+    'GET https://api.github.com/user',
+    'POST https://api.linear.app/graphql',
+  ])
+  assert.deepEqual(assertSfP2RequestAudit({
+    requests: [
+      { method: 'GET', url: 'https://api.github.com/user', status: 200 },
+      { method: 'POST', url: 'https://api.linear.app/graphql', status: 200 },
+      { method: 'GET', url: 'https://api.github.com/user', status: null, outcome: 'held-approved' },
+    ],
+    failedRequests: [],
+    unexpectedRequests: [],
+    approvedRequests,
+  }), { approved: 3, failed: 0, unexpected: 0 })
+  assert.throws(() => assertSfP2RequestAudit({
+    requests: [{ method: 'GET', url: 'https://tracker.invalid/pixel', status: 200 }],
+    failedRequests: [],
+    unexpectedRequests: [],
+    approvedRequests,
+  }), /unapproved request/i)
+  assert.throws(() => assertSfP2RequestAudit({
+    requests: [],
+    failedRequests: [{ method: 'GET', url: 'https://api.github.com/user', error: 'net::ERR_FAILED' }],
+    unexpectedRequests: [],
+    approvedRequests,
+  }), /failed request/i)
+})
+
+test('runtime evidence requires one real row per planned capture and catalog generation requires reviewed verdicts', () => {
+  const manifest = evidence()
+  const captures = manifest.captures.map((capture) => ({
+    ...capture,
+    image: { relativePath: `docs/superpowers/catalog/shared-frames/sf-p2/${capture.filename}`, pixelWidth: 1600, pixelHeight: 900 },
+    measurement: {
+      frame: structuredClone(manifest.dimensions[capture.tier]),
+      clippedElements: [],
+      internalScrollOwners: [],
+      textRuns: [],
+      missingEssentialSelectors: [],
+      missingSignatureSelectors: [],
+      mountedOwners: 1,
+      selectedText: '',
+      compatibilityCopy: capture.kind === 'compatibility' ? 'Moon is not available at Full. Choose Compact.' : null,
+    },
+    storage: { changedKeys: [], writeCalls: [], facingChanged: false },
+    requestAudit: { approved: 0, failed: 0, unexpected: 0 },
+  }))
+  const runtime = {
+    schemaVersion: 1,
+    build: { commit: 'abc123', provenance: { commit: 'abc123' }, preliminaryWorkingTree: true },
+    browser: { name: 'chromium', version: 'test' },
+    manifest,
+    captures,
+    runtimeErrors: [],
+    failedRequests: [],
+    unexpectedRequests: [],
+  }
+  assert.equal(validateSfP2RuntimeEvidence(runtime), runtime)
+  const catalog = formatSfP2Catalog(runtime)
+  assert.match(catalog, /preliminary working-tree witness/i)
+  assert.match(catalog, /not final exact-reviewed proof/i)
+  assert.match(catalog, /github-ready-compact-dark-common\.png/)
+  assert.match(catalog, /Useful/)
+
+  const incomplete = structuredClone(runtime)
+  incomplete.captures.pop()
+  assert.throws(() => validateSfP2RuntimeEvidence(incomplete), /missing runtime capture/i)
+
+  const pending = structuredClone(runtime)
+  delete pending.captures[0].verdict
+  assert.throws(() => formatSfP2Catalog(pending), /usefulness verdict/i)
+})
+
+test('capture failures retain exact scenario identity without inventing evidence', () => {
+  assert.deepEqual(
+    buildSfP2CaptureFailure(
+      { key: 'github-ready-compact-dark-common', family: 'developer-service', widget: 'github' },
+      new Error('frame width drifted'),
+    ),
+    {
+      key: 'github-ready-compact-dark-common',
+      family: 'developer-service',
+      widget: 'github',
+      message: 'frame width drifted',
+    },
+  )
+})
+
+test('runtime stages assign every capture exactly once to a concrete family adapter', () => {
+  const capturePlan = plan()
+  const stages = buildSfP2RuntimeStages(capturePlan)
+  assert.deepEqual(stages.map(({ id }) => id), [
+    'developer-service',
+    'connected',
+    'browser-native',
+    'calendar-local',
+    'public',
+  ])
+  assert.ok(stages.every((stage) => stage.adapter === stage.id && stage.captures.length > 0))
+  const assigned = stages.flatMap((stage) => stage.captures.map(({ key }) => key))
+  assert.equal(assigned.length, capturePlan.captures.length)
+  assert.equal(new Set(assigned).size, assigned.length)
+})
+
+test('every ready widget and compatibility face has an explicit DOM signature probe', () => {
+  const capturePlan = plan()
+  for (const capture of capturePlan.captures.filter((entry) => entry.state === 'ready')) {
+    const probe = buildSfP2DomProbe(capture)
+    assert.ok(probe.essentialSelectors.length > 0, `${capture.key} has no essentials`)
+    assert.ok(probe.signatureSelectors.length > 0, `${capture.key} has no signatures`)
+  }
+  for (const widget of ['github', 'gitlab']) {
+    assert.deepEqual(
+      buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === widget && entry.kind === 'free-tier' && entry.tier === 'compact'))
+        .signatureSelectors,
+      ['[data-contribution-summary]'],
+    )
+    assert.deepEqual(
+      buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === widget && entry.kind === 'free-tier' && entry.tier === 'standard'))
+        .signatureSelectors,
+      ['[role="img"][aria-label*="contribution" i]'],
+    )
+  }
+  assert.deepEqual(
+    buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === 'status' && entry.kind === 'free-tier'))
+      .signatureSelectors,
+    ['[data-work-pulse-status-dots]'],
+  )
+  assert.deepEqual(
+    buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === 'linear' && entry.kind === 'free-tier'))
+      .signatureSelectors,
+    ['a[href^="https://linear.app/"]'],
+  )
+  assert.deepEqual(
+    buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.kind === 'compatibility')).signatureSelectors,
+    ['.stack-compatibility-face'],
+  )
+})
+
+test('Public Holidays probes rows below Full and grouped months only at Full', () => {
+  assert.deepEqual(
+    buildSfP2DomProbe({ key: 'publicHolidays-standard', widget: 'publicHolidays', tier: 'standard', state: 'ready', kind: 'free-tier' }).signatureSelectors,
+    ['li'],
+  )
+  assert.deepEqual(
+    buildSfP2DomProbe({ key: 'publicHolidays-full', widget: 'publicHolidays', tier: 'full', state: 'ready', kind: 'free-tier' }).signatureSelectors,
+    ['section[aria-label$="holidays"]'],
+  )
+})
+
+test('layout seeding preserves exact free tiers and builds manual Weather stack pairs without legacy layout data', () => {
+  const ids = plan().authorityIds
+  const free = buildSfP2Layouts(ids, { key: 'github-full', kind: 'free-tier', widget: 'github', tier: 'full' })
+  assert.deepEqual(free.layouts[0].widgets.github, {
+    kind: 'free', anchor: 'center', offsetX: 0, offsetY: 0, tier: 'full', layer: 7,
+  })
+  assert.equal(free.layouts[0].stacks, undefined)
+
+  const pair = buildSfP2Layouts(ids, { key: 'status-pair', kind: 'stack-pair', widget: 'status', tier: 'standard' })
+  assert.deepEqual(pair.layouts[0].stacks, [{
+    id: 'stack-sf-p2-status',
+    members: ['weather', 'status'],
+    facing: 'status',
+    anchor: 'center',
+    offsetX: 0,
+    offsetY: 0,
+    tier: 'standard',
+    layer: 7,
+  }])
+  assert.equal(pair.layouts[0].widgets.weather, undefined)
+  assert.equal(pair.layouts[0].widgets.status, undefined)
+
+  const compatibility = buildSfP2Layouts(ids, { key: 'moon-compat', kind: 'compatibility', widget: 'moon', tier: 'full' })
+  assert.equal(compatibility.layouts[0].stacks[0].facing, 'moon')
+  assert.equal(compatibility.layouts[0].stacks[0].tier, 'full')
+})
+
+test('fixture-state routing distinguishes fresh, held, invalid, retained, and browser transition states', () => {
+  assert.deepEqual(resolveSfP2FixtureState({ family: 'developer-service', state: 'ready' }), {
+    snapshot: 'fresh', network: 'ready', renderedState: 'ready', transition: null,
+  })
+  assert.deepEqual(resolveSfP2FixtureState({ family: 'connected', state: 'loading' }), {
+    snapshot: 'none', network: 'hold', renderedState: 'loading', transition: null,
+  })
+  assert.deepEqual(resolveSfP2FixtureState({ family: 'public', state: 'partial' }), {
+    snapshot: 'stale', network: 'invalid', renderedState: 'partial', transition: null,
+  })
+  assert.deepEqual(resolveSfP2FixtureState({ family: 'browser-native', state: 'stale' }), {
+    snapshot: 'native', network: 'ready', renderedState: 'stale', transition: 'hold',
+  })
+  assert.deepEqual(resolveSfP2FixtureState({ family: 'browser-native', state: 'partial' }), {
+    snapshot: 'native', network: 'ready', renderedState: 'partial', transition: 'error',
+  })
 })
