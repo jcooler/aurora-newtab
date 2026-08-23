@@ -127,7 +127,7 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
   })
 
   it.each([
-    '.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div > span',
+    '.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div > span',
     '.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] button[aria-label^="Run "]',
     '.canvas-item[data-canvas-size="compact"][data-block-id="crypto"] > section > div > span',
   ])('keeps ordinary glance text at the 14px floor for %s', (selector) => {
