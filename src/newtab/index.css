@@ -2844,6 +2844,7 @@ select > option {
 }
 
 .core-greeting-frame { width: var(--tier-frame-width); max-width: calc(100vw - 24px); justify-content: center; gap: 10px; padding: 18px 22px; }
+.core-greeting-frame > p { max-width: 100%; margin-top: 0; font-size: 30px; line-height: 1.05; }
 .core-greeting-frame--free { color: var(--canvas-fg); text-shadow: 0 2px 14px rgb(0 0 0 / 0.45); }
 .core-greeting-frame--stack { align-items: flex-start; color: var(--fg); text-shadow: none; }
 .core-greeting-frame--stack > p,

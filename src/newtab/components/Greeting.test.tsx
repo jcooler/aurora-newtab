@@ -29,6 +29,7 @@ describe('Greeting restoration sampling', () => {
 describe('Greeting presentation surface', () => {
   it('keeps the legacy full-width Greeting rule from overriding exact tier geometry', () => {
     expect(indexCss).toMatch(/\.core-greeting-frame\s*\{[^}]*width:\s*var\(--tier-frame-width\)\s*;/)
+    expect(indexCss).toMatch(/\.core-greeting-frame\s*>\s*p\s*\{[^}]*font-size:\s*30px\s*;/)
   })
 
   it('keeps the free Greeting frameless and the stack Greeting framed', async () => {
