@@ -314,8 +314,8 @@ git commit -m "test: witness SF-P2 framed catalog"
 - Modify: `docs/superpowers/aurora-2/ROADMAP.md`
 - Modify only after owner disposition: `docs/superpowers/aurora-2/DECISIONS.md`
 
-- [ ] **Step 1: Run the focused packet gate.** Run all modified widget, shell, contract, stack, inspector, App, renderer, and layout tests; the SF-P1 and SF-P2 Node contract tests; `scripts/preview-information-first.test.mjs` through `node --test`; TypeScript; and diff hygiene. Record exact counts.
-- [ ] **Step 2: Run the stabilized full gate once.** Run `npm test` once before review. Record exact file/test counts and warnings. Do not repeat it after docs-only commits or a focused fix cycle.
+- [x] **Step 1: Run the focused packet gate.** Run all modified widget, shell, contract, stack, inspector, App, renderer, and layout tests; the SF-P1 and SF-P2 Node contract tests; `scripts/preview-information-first.test.mjs` through `node --test`; TypeScript; and diff hygiene. Record exact counts.
+- [x] **Step 2: Run the stabilized full gate once.** Run `npm test` once before review. Record exact file/test counts and warnings. Do not repeat it after docs-only commits or a focused fix cycle.
 - [ ] **Step 3: Commit and push the review candidate.** Mark STATUS `SF-P2 review pending`, include active/protected proof, commit, push, and verify active HEAD equals upstream while the protected checkout remains clean at exact `eb1354b6a5b041fb6d494655c3dae1862572bc51`.
 - [ ] **Step 4: Request one bounded whole-packet review.** Review the SF-P2 range against the spec and plan. Classify findings Critical, Important, or Minor and return Ready or With fixes. If required, add focused RED regressions, make one fix commit, run only affected focused gates, and request one rereview. Ledger accepted Minor debt; do not create another cycle.
 - [ ] **Step 5: Rebuild exact reviewed `dist`.** Run `npm run build:preview`, then prove `dist/build-provenance.json` equals the Ready reviewed commit. Resolve any mismatch before owner evidence.
