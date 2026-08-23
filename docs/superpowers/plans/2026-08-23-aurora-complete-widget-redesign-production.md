@@ -397,19 +397,19 @@ git commit -m "feat: unify Calendar presentations"
 - Consumes: Existing caches, retry ownership, weather details panel, and Task 1 presentation context.
 - Produces: Approved visualization-led sky and glance faces.
 
-- [ ] **Step 1: Add RED tests for signature scale and row budgets**
+- [x] **Step 1: Add RED tests for signature scale and row budgets**
 
 Assert Full Weather contains hourly forecast, daily forecast, AQI, pollen, UV, precipitation timing, sun, and wind; Standard contains current plus daily context; Compact contains current conditions; Docked retains the full temperature scale in one 44px line. Assert On This Day renders its heading once, date once, bounded distinct years, and a truthful Read more action.
 
-- [ ] **Step 2: Run the five focused test files and observe RED**
+- [x] **Step 2: Run the five focused test files and observe RED**
 
 Run: `npx vitest run src/newtab/widgets/weather/WeatherWidget.test.tsx src/newtab/widgets/sun/SunWidget.test.tsx src/newtab/widgets/moon/MoonWidget.test.tsx src/newtab/widgets/glance/OnThisDayWidget.test.tsx src/newtab/widgets/glance/AuroraKpWidget.test.tsx`
 
-- [ ] **Step 3: Implement identity-specific faces without touching data owners**
+- [x] **Step 3: Implement identity-specific faces without touching data owners**
 
 Keep Weather movable to every corner and contain only its details expansion. Preserve cache retry, alert, civil-time, and unit behavior. Make Sun and Moon icons distinct; keep Docked smaller than Compact. Make Aurora & Kp's forecast visualization dominant and keep its stale state explicit.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run the five widget families, weather hooks, weather anchor tests, TypeScript, production build, and Weather + On This Day mixed-stack Chromium capture.
 
