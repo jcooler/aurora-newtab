@@ -138,8 +138,8 @@ function ReadingListDetail({
     }
   }
 
-  return (
-    <div className="space-y-3">
+  const sections = (
+    <>
       <ReadingSection
         title={showSectionTitles ? 'Unread' : undefined}
         items={unread}
@@ -160,8 +160,18 @@ function ReadingListDetail({
           perform={perform}
         />
       ) : null}
+    </>
+  )
+
+  return (
+    <div className={mode === 'full' ? 'space-y-2' : 'space-y-3'}>
+      {mode === 'full' ? (
+        <div data-reading-list-sections="parallel" className="grid grid-cols-2 gap-3">
+          {sections}
+        </div>
+      ) : sections}
       {mode !== 'detail' && hiddenCount > 0 ? (
-        <p className="text-[11px] text-fg-muted">{hiddenCount} more in Chrome Reading List</p>
+        <p data-reading-list-footer="" className="text-[11px] text-fg-muted">{hiddenCount} more in Chrome Reading List</p>
       ) : null}
       {announcement ? <p role="status" className="text-xs text-fg-muted">{announcement}</p> : null}
     </div>

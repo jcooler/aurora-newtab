@@ -122,6 +122,33 @@ describe('ReadingListWidget', () => {
     expect(screen.getByRole('button', { name: /^Mark Aurora story,.* unread$/ })).toBeTruthy()
   })
 
+  it('Full places one unread and one recently read row side by side above the remaining-count footer', () => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      url: `https://reading.example/item-${index + 1}`,
+      title: `Saved page ${index + 1}`,
+      host: 'reading.example',
+      hasBeenRead: index >= 18,
+      createdAt: index + 1,
+      updatedAt: 25 - index,
+    }))
+    vi.mocked(useBrowserResource).mockReturnValueOnce({
+      state: { status: 'ready', data: items, refreshedAt: 1, refreshing: false },
+      refresh,
+    })
+
+    render(<ReadingListWidget canvasSize="full" />)
+
+    const frame = screen.getByRole('region', { name: 'Reading List' })
+    const sections = frame.querySelector<HTMLElement>('[data-reading-list-sections="parallel"]')
+    const footer = frame.querySelector<HTMLElement>('[data-reading-list-footer]')
+    expect(sections).not.toBeNull()
+    expect(sections?.className).toContain('grid-cols-2')
+    expect(sections?.querySelectorAll('section')).toHaveLength(2)
+    expect(sections?.querySelectorAll('article')).toHaveLength(2)
+    expect(footer?.textContent).toBe('23 more in Chrome Reading List')
+    expect(frame.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
+  })
+
   it('Docked renders one clean line and opens the same actionable detail', async () => {
     render(<ReadingListWidget docked />)
     const line = screen.getByRole('button', { name: 'Reading List: 2 unread · Launch notes' })
