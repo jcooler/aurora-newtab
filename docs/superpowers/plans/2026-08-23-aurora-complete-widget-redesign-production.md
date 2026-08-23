@@ -531,7 +531,7 @@ git commit -m "feat: redesign browser resource widgets"
 - Consumes: Exact production build, all runtime widget identities, approved catalog keys, named layouts, docks, stacks, themes, and state fixtures.
 - Produces: Hash-bound production screenshots and one final QA verdict without Store mutation.
 
-- [ ] **Step 1: Write RED harness contracts**
+- [x] **Step 1: Write RED harness contracts**
 
 ```js
 test('requires exact reviewed dist provenance', () => {
@@ -546,15 +546,15 @@ test('pins every approved target and required mixed stack', () => {
 })
 ```
 
-- [ ] **Step 2: Run harness tests and observe RED**
+- [x] **Step 2: Run harness tests and observe RED**
 
 Run: `node --test scripts/qa-widget-redesign-production.test.mjs`
 
-- [ ] **Step 3: Implement exact-build production QA**
+- [x] **Step 3: Implement exact-build production QA**
 
 Build from clean HEAD, verify `dist` provenance, seed existing-layout-shaped storage, load the unpacked extension in Chromium, and capture every free, stack, docked, state, and color case. Record exact geometry, clipping, overflow, minimum text size, focus, runtime errors, failed requests, unexpected requests, and storage writes.
 
-- [ ] **Step 4: Run one stabilized gate**
+- [x] **Step 4: Run one stabilized gate**
 
 Run: `npm test`
 
@@ -568,7 +568,7 @@ Run: `git diff --check`
 
 Expected: all automated checks pass; every capture is individually useful; exact 1408x445 headed witness has no collision, clipping, scrollbar, ordinary-click selection, or layout write.
 
-- [ ] **Step 5: Record manual ceilings**
+- [x] **Step 5: Record manual ceilings**
 
 State explicitly that native Chrome permission prompts, live Home Assistant actions, private calendar availability, real screen-reader speech, physical touch, OS timezone changes, and genuine sleep/wake remain manual ceilings.
 
