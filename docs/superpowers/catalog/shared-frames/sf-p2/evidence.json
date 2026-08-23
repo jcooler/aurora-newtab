@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "startedAt": "2026-08-23T13:32:23.136Z",
+  "startedAt": "2026-08-23T13:40:34.492Z",
   "build": {
-    "commit": "a8f436c2c144c1fd2adcb104785cdf590314edc2",
+    "commit": "c4f98d0fa80652e817320eea0b3afc3ac17be4e5",
     "provenance": {
-      "commit": "a8f436c2c144c1fd2adcb104785cdf590314edc2"
+      "commit": "c4f98d0fa80652e817320eea0b3afc3ac17be4e5"
     },
-    "preliminaryWorkingTree": true,
-    "trackedStatus": " M docs/superpowers/catalog/shared-frames/sf-p2/evidence.partial.json\n"
+    "preliminaryWorkingTree": false,
+    "trackedStatus": ""
   },
   "browser": {
     "name": "chromium",
@@ -6774,6 +6774,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -6981,9 +6983,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-ready-standard-dark-common",
@@ -7007,6 +7007,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -7219,9 +7221,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "github-ready-compact-dark-common",
@@ -7245,6 +7245,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "github uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -7467,9 +7469,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "github uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "github-ready-standard-dark-common",
@@ -7493,6 +7493,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "github uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -7725,9 +7727,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "github uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "github-ready-full-dark-common",
@@ -7751,6 +7751,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "github uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -8008,9 +8010,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "github uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "gitlab-ready-compact-dark-common",
@@ -8034,6 +8034,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "gitlab uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -8256,9 +8258,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "gitlab uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "gitlab-ready-standard-dark-common",
@@ -8282,6 +8282,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "gitlab uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -8514,9 +8516,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "gitlab uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "gitlab-ready-full-dark-common",
@@ -8540,6 +8540,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "gitlab uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -8797,9 +8799,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "gitlab uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "jira-ready-compact-dark-common",
@@ -8823,6 +8823,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "jira uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -9025,9 +9027,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "jira uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "jira-ready-standard-dark-common",
@@ -9051,6 +9051,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "jira uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -9283,9 +9285,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "jira uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "jira-ready-full-dark-common",
@@ -9309,6 +9309,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "jira uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -9561,9 +9563,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "jira uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "vercel-ready-compact-dark-common",
@@ -9587,6 +9587,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "vercel uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -9814,9 +9816,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "vercel uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "vercel-ready-standard-dark-common",
@@ -9840,6 +9840,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "vercel uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -10097,9 +10099,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "vercel uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "vercel-ready-full-dark-common",
@@ -10123,6 +10123,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "vercel uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -10410,9 +10412,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "vercel uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-stack-compact-weather-dark-exact-short",
@@ -10436,6 +10436,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -10678,9 +10680,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-stack-standard-weather-dark-exact-short",
@@ -10704,6 +10704,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -10951,9 +10953,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "github-stack-compact-weather-dark-exact-short",
@@ -10977,6 +10977,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "github uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -11234,9 +11236,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "github uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "github-stack-standard-weather-dark-exact-short",
@@ -11260,6 +11260,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "github uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -11527,9 +11529,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "github uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "github-stack-full-weather-dark-exact-short",
@@ -11553,6 +11553,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "github uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -11845,9 +11847,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "github uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "gitlab-stack-compact-weather-dark-exact-short",
@@ -11871,6 +11871,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "gitlab uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -12128,9 +12130,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "gitlab uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "gitlab-stack-standard-weather-dark-exact-short",
@@ -12154,6 +12154,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "gitlab uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -12421,9 +12423,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "gitlab uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "gitlab-stack-full-weather-dark-exact-short",
@@ -12447,6 +12447,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "gitlab uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -12739,9 +12741,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "gitlab uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "jira-stack-compact-weather-dark-exact-short",
@@ -12765,6 +12765,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "jira uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -13002,9 +13004,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "jira uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "jira-stack-standard-weather-dark-exact-short",
@@ -13028,6 +13028,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "jira uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -13295,9 +13297,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "jira uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "jira-stack-full-weather-dark-exact-short",
@@ -13321,6 +13321,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "jira uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -13608,9 +13610,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "jira uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "vercel-stack-compact-weather-dark-exact-short",
@@ -13634,6 +13634,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "vercel uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -13896,9 +13898,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "vercel uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "vercel-stack-standard-weather-dark-exact-short",
@@ -13922,6 +13922,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "vercel uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -14214,9 +14216,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "vercel uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "vercel-stack-full-weather-dark-exact-short",
@@ -14240,6 +14240,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "vercel uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -14562,9 +14564,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "vercel uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-loading-standard-dark-laptop",
@@ -14588,6 +14588,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -14799,9 +14801,7 @@
           "status": null,
           "outcome": "harness-navigation-abort"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "status-ready-standard-dark-laptop",
@@ -14825,6 +14825,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -15037,9 +15039,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-empty-standard-dark-laptop",
@@ -15063,6 +15063,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -15255,9 +15257,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-stale-standard-dark-laptop",
@@ -15281,6 +15281,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -15512,9 +15514,7 @@
           "status": null,
           "outcome": "harness-navigation-abort"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "status-stack-initial-standard-weather-dark-exact-short",
@@ -15538,6 +15538,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -15785,9 +15787,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-stack-next-standard-weather-dark-exact-short",
@@ -15811,6 +15811,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -16064,9 +16066,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-stack-previous-standard-weather-dark-exact-short",
@@ -16090,6 +16090,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -16343,9 +16345,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-stack-dot-standard-weather-dark-exact-short",
@@ -16369,6 +16369,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -16622,9 +16624,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-stack-swipe-standard-weather-dark-exact-short",
@@ -16648,6 +16648,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -16901,9 +16903,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-stack-plain-click-standard-weather-dark-exact-short",
@@ -16927,6 +16927,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -17174,9 +17176,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-ready-standard-light-common",
@@ -17200,6 +17200,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -17412,9 +17414,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "status-ready-standard-saturated-common",
@@ -17438,6 +17438,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -17650,9 +17652,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "status uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "github-ready-full-dark-narrow-floor",
@@ -17676,6 +17676,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "github uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 69.5,
@@ -17933,9 +17935,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "github uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "github-ready-full-dark-planner-boundary",
@@ -17959,6 +17959,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "github uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 70,
@@ -18216,9 +18218,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "github uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "homeassistant-ready-compact-dark-common",
@@ -18242,6 +18242,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "homeassistant uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -18449,9 +18451,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "homeassistant uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "homeassistant-ready-standard-dark-common",
@@ -18475,6 +18475,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "homeassistant uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -18702,9 +18704,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "homeassistant uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "homeassistant-ready-full-dark-common",
@@ -18728,6 +18728,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "homeassistant uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -18965,9 +18967,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "homeassistant uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "rss-ready-compact-dark-common",
@@ -18991,6 +18991,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "rss uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -19198,9 +19200,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "rss uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "rss-ready-standard-dark-common",
@@ -19224,6 +19224,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "rss uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -19461,9 +19463,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "rss uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "rss-ready-full-dark-common",
@@ -19487,6 +19487,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "rss uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -19764,9 +19766,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "rss uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "crypto-ready-compact-dark-common",
@@ -19790,6 +19790,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "crypto uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -20002,9 +20004,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "crypto uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "crypto-ready-standard-dark-common",
@@ -20028,6 +20028,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "crypto uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -20270,9 +20272,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "crypto uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-ready-compact-dark-common",
@@ -20296,6 +20296,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -20503,9 +20505,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-ready-standard-dark-common",
@@ -20529,6 +20529,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -20771,9 +20773,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-ready-full-dark-common",
@@ -20797,6 +20797,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -21069,9 +21071,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sentry-ready-compact-dark-common",
@@ -21095,6 +21095,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sentry uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -21307,9 +21309,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sentry uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sentry-ready-standard-dark-common",
@@ -21333,6 +21333,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sentry uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -21575,9 +21577,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sentry uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sentry-ready-full-dark-common",
@@ -21601,6 +21601,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sentry uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -21853,9 +21855,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sentry uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "todoist-ready-compact-dark-common",
@@ -21879,6 +21879,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "todoist uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -22091,9 +22093,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "todoist uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "todoist-ready-standard-dark-common",
@@ -22117,6 +22117,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "todoist uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -22354,9 +22356,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "todoist uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "todoist-ready-full-dark-common",
@@ -22380,6 +22380,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "todoist uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -22632,9 +22634,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "todoist uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "homeassistant-stack-compact-weather-dark-exact-short",
@@ -22658,6 +22658,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "homeassistant uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -22900,9 +22902,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "homeassistant uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "homeassistant-stack-standard-weather-dark-exact-short",
@@ -22926,6 +22926,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "homeassistant uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -23188,9 +23190,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "homeassistant uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "homeassistant-stack-full-weather-dark-exact-short",
@@ -23214,6 +23214,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "homeassistant uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -23486,9 +23488,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "homeassistant uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "rss-stack-compact-weather-dark-exact-short",
@@ -23512,6 +23512,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "rss uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -23754,9 +23756,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "rss uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "rss-stack-standard-weather-dark-exact-short",
@@ -23780,6 +23780,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "rss uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -24052,9 +24054,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "rss uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "rss-stack-full-weather-dark-exact-short",
@@ -24078,6 +24078,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "rss uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -24390,9 +24392,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "rss uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "crypto-stack-compact-weather-dark-exact-short",
@@ -24416,6 +24416,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "crypto uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -24663,9 +24665,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "crypto uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "crypto-stack-standard-weather-dark-exact-short",
@@ -24689,6 +24689,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "crypto uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -24966,9 +24968,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "crypto uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stack-compact-weather-dark-exact-short",
@@ -24992,6 +24992,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -25234,9 +25236,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stack-standard-weather-dark-exact-short",
@@ -25260,6 +25260,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -25537,9 +25539,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stack-full-weather-dark-exact-short",
@@ -25563,6 +25563,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -25870,9 +25872,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sentry-stack-compact-weather-dark-exact-short",
@@ -25896,6 +25896,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sentry uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -26143,9 +26145,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sentry uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sentry-stack-standard-weather-dark-exact-short",
@@ -26169,6 +26169,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sentry uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -26446,9 +26448,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sentry uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sentry-stack-full-weather-dark-exact-short",
@@ -26472,6 +26472,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sentry uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -26759,9 +26761,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sentry uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "todoist-stack-compact-weather-dark-exact-short",
@@ -26785,6 +26785,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "todoist uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -27032,9 +27034,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "todoist uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "todoist-stack-standard-weather-dark-exact-short",
@@ -27058,6 +27058,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "todoist uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -27330,9 +27332,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "todoist uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "todoist-stack-full-weather-dark-exact-short",
@@ -27356,6 +27356,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "todoist uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -27643,9 +27645,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "todoist uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-loading-standard-dark-laptop",
@@ -27669,6 +27669,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -27876,9 +27878,7 @@
           "status": null,
           "outcome": "harness-navigation-abort"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "linear-ready-standard-dark-laptop",
@@ -27902,6 +27902,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -28144,9 +28146,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-empty-standard-dark-laptop",
@@ -28170,6 +28170,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -28367,9 +28369,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stale-standard-dark-laptop",
@@ -28393,6 +28393,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -28635,9 +28637,7 @@
           "status": null,
           "outcome": "harness-navigation-abort"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "linear-partial-standard-dark-laptop",
@@ -28661,6 +28661,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -28908,9 +28910,7 @@
           "status": 200,
           "outcome": "fulfilled-invalid-200"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "linear-permission-required-standard-dark-laptop",
@@ -28934,6 +28934,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "The exact standard frame clearly directs an unconfigured Linear user to Settings without implying data is available.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -29131,9 +29133,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "The exact standard frame clearly directs an unconfigured Linear user to Settings without implying data is available."
+      "requests": []
     },
     {
       "key": "linear-hard-error-standard-dark-laptop",
@@ -29157,6 +29157,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -29369,9 +29371,7 @@
           "status": 200,
           "outcome": "fulfilled-invalid-200"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "linear-stack-initial-standard-weather-dark-exact-short",
@@ -29395,6 +29395,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -29672,9 +29674,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stack-next-standard-weather-dark-exact-short",
@@ -29698,6 +29698,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -29981,9 +29983,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stack-previous-standard-weather-dark-exact-short",
@@ -30007,6 +30007,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -30290,9 +30292,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stack-dot-standard-weather-dark-exact-short",
@@ -30316,6 +30316,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -30599,9 +30601,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stack-swipe-standard-weather-dark-exact-short",
@@ -30625,6 +30625,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -30908,9 +30910,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-stack-plain-click-standard-weather-dark-exact-short",
@@ -30934,6 +30934,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -31211,9 +31213,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-ready-standard-light-common",
@@ -31237,6 +31237,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -31479,9 +31481,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "linear-ready-standard-saturated-common",
@@ -31505,6 +31505,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -31747,9 +31749,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "linear uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-ready-compact-dark-common",
@@ -31773,6 +31773,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -31975,9 +31977,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-ready-standard-dark-common",
@@ -32001,6 +32001,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -32228,9 +32230,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-ready-full-dark-common",
@@ -32254,6 +32254,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -32521,9 +32523,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "recentlyClosed-ready-compact-dark-common",
@@ -32547,6 +32547,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "recentlyClosed uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -32749,9 +32751,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "recentlyClosed uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "recentlyClosed-ready-standard-dark-common",
@@ -32775,6 +32775,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "recentlyClosed uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -33002,9 +33004,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "recentlyClosed uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "recentlyClosed-ready-full-dark-common",
@@ -33028,6 +33028,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "recentlyClosed uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -33295,9 +33297,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "recentlyClosed uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "downloads-ready-compact-dark-common",
@@ -33321,6 +33321,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "downloads uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -33528,9 +33530,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "downloads uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "downloads-ready-standard-dark-common",
@@ -33554,6 +33554,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "downloads uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -33801,9 +33803,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "downloads uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "downloads-ready-full-dark-common",
@@ -33827,6 +33827,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "downloads uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -34104,9 +34106,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "downloads uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tabGroups-ready-compact-dark-common",
@@ -34130,6 +34130,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "tabGroups uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -34337,9 +34339,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "tabGroups uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tabGroups-ready-standard-dark-common",
@@ -34363,6 +34363,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "tabGroups uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -34600,9 +34602,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "tabGroups uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tabGroups-ready-full-dark-common",
@@ -34626,6 +34626,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "tabGroups uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -34913,9 +34915,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "tabGroups uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-compact-weather-dark-exact-short",
@@ -34939,6 +34939,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -35176,9 +35178,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-standard-weather-dark-exact-short",
@@ -35202,6 +35202,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -35464,9 +35466,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-full-weather-dark-exact-short",
@@ -35490,6 +35490,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -35792,9 +35794,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "recentlyClosed-stack-compact-weather-dark-exact-short",
@@ -35818,6 +35818,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "recentlyClosed uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -36055,9 +36057,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "recentlyClosed uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "recentlyClosed-stack-standard-weather-dark-exact-short",
@@ -36081,6 +36081,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "recentlyClosed uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -36343,9 +36345,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "recentlyClosed uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "recentlyClosed-stack-full-weather-dark-exact-short",
@@ -36369,6 +36369,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "recentlyClosed uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -36671,9 +36673,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "recentlyClosed uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "downloads-stack-compact-weather-dark-exact-short",
@@ -36697,6 +36697,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "downloads uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -36939,9 +36941,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "downloads uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "downloads-stack-standard-weather-dark-exact-short",
@@ -36965,6 +36965,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "downloads uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -37247,9 +37249,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "downloads uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "downloads-stack-full-weather-dark-exact-short",
@@ -37273,6 +37273,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "downloads uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -37585,9 +37587,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "downloads uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tabGroups-stack-compact-weather-dark-exact-short",
@@ -37611,6 +37611,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "tabGroups uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -37853,9 +37855,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "tabGroups uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tabGroups-stack-standard-weather-dark-exact-short",
@@ -37879,6 +37879,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "tabGroups uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -38151,9 +38153,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "tabGroups uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tabGroups-stack-full-weather-dark-exact-short",
@@ -38177,6 +38177,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "tabGroups uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -38499,9 +38501,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "tabGroups uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-loading-standard-dark-laptop",
@@ -38525,6 +38525,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -38722,9 +38724,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-ready-standard-dark-laptop",
@@ -38748,6 +38748,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -38975,9 +38977,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-empty-standard-dark-laptop",
@@ -39001,6 +39001,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -39198,9 +39200,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stale-standard-dark-laptop",
@@ -39224,6 +39224,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -39456,9 +39458,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-partial-standard-dark-laptop",
@@ -39482,6 +39482,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -39714,9 +39716,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-permission-required-standard-dark-laptop",
@@ -39740,6 +39740,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "The exact standard frame names Reading List and gives a truthful Settings action when its optional permission is absent.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -39937,9 +39939,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "The exact standard frame names Reading List and gives a truthful Settings action when its optional permission is absent."
+      "requests": []
     },
     {
       "key": "readingList-hard-error-standard-dark-laptop",
@@ -39963,6 +39963,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -40165,9 +40167,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-initial-standard-weather-dark-exact-short",
@@ -40191,6 +40191,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -40453,9 +40455,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-next-standard-weather-dark-exact-short",
@@ -40479,6 +40479,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -40747,9 +40749,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-previous-standard-weather-dark-exact-short",
@@ -40773,6 +40773,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -41041,9 +41043,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-dot-standard-weather-dark-exact-short",
@@ -41067,6 +41067,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -41335,9 +41337,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-swipe-standard-weather-dark-exact-short",
@@ -41361,6 +41361,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -41629,9 +41631,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-stack-plain-click-standard-weather-dark-exact-short",
@@ -41655,6 +41655,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -41922,9 +41924,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-ready-standard-light-common",
@@ -41948,6 +41948,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -42175,9 +42177,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "readingList-ready-standard-saturated-common",
@@ -42201,6 +42201,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -42428,9 +42430,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "readingList uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-ready-compact-dark-common",
@@ -42454,6 +42454,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -42651,9 +42653,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-ready-standard-dark-common",
@@ -42677,6 +42677,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -42894,9 +42896,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "monthCal-ready-standard-dark-common",
@@ -42920,6 +42920,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "monthCal uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -43357,9 +43359,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "monthCal uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sun-ready-compact-dark-common",
@@ -43383,6 +43383,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sun uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -43575,9 +43577,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sun uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sun-ready-standard-dark-common",
@@ -43601,6 +43601,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sun uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -43838,9 +43840,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sun uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "moon-ready-compact-dark-common",
@@ -43864,6 +43864,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "moon uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -44066,9 +44068,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "moon uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "habits-ready-compact-dark-common",
@@ -44092,6 +44092,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "habits uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -44349,9 +44351,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "habits uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "timer-ready-compact-dark-common",
@@ -44375,6 +44375,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "timer uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -44577,9 +44579,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "timer uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tasks-ready-compact-dark-common",
@@ -44603,6 +44603,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "tasks uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -44810,9 +44812,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "tasks uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "notes-ready-compact-dark-common",
@@ -44836,6 +44836,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "notes uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -45043,9 +45045,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "notes uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-stack-compact-weather-dark-exact-short",
@@ -45069,6 +45069,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -45301,9 +45303,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-stack-standard-weather-dark-exact-short",
@@ -45327,6 +45327,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -45579,9 +45581,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "monthCal-stack-standard-weather-dark-exact-short",
@@ -45605,6 +45605,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "monthCal uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -46077,9 +46079,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "monthCal uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sun-stack-compact-weather-dark-exact-short",
@@ -46103,6 +46103,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sun uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -46330,9 +46332,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sun uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "sun-stack-standard-weather-dark-exact-short",
@@ -46356,6 +46356,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "sun uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -46628,9 +46630,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "sun uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "moon-stack-compact-weather-dark-exact-short",
@@ -46654,6 +46654,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "moon uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -46891,9 +46893,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "moon uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "habits-stack-compact-weather-dark-exact-short",
@@ -46917,6 +46917,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "habits uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -47209,9 +47211,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "habits uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "timer-stack-compact-weather-dark-exact-short",
@@ -47235,6 +47235,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "timer uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -47472,9 +47474,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "timer uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tasks-stack-compact-weather-dark-exact-short",
@@ -47498,6 +47498,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "tasks uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -47740,9 +47742,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "tasks uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "notes-stack-compact-weather-dark-exact-short",
@@ -47766,6 +47766,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "notes uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -48008,9 +48010,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "notes uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-loading-standard-dark-laptop",
@@ -48034,6 +48034,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -48245,9 +48247,7 @@
           "status": null,
           "outcome": "harness-navigation-abort"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "ics-ready-standard-dark-laptop",
@@ -48271,6 +48271,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -48488,9 +48490,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-empty-standard-dark-laptop",
@@ -48514,6 +48514,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -48706,9 +48708,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-stale-standard-dark-laptop",
@@ -48732,6 +48732,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -48968,9 +48970,7 @@
           "status": null,
           "outcome": "harness-navigation-abort"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "ics-stack-initial-standard-weather-dark-exact-short",
@@ -48994,6 +48994,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -49246,9 +49248,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-stack-next-standard-weather-dark-exact-short",
@@ -49272,6 +49272,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -49530,9 +49532,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-stack-previous-standard-weather-dark-exact-short",
@@ -49556,6 +49556,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -49814,9 +49816,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-stack-dot-standard-weather-dark-exact-short",
@@ -49840,6 +49840,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -50098,9 +50100,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-stack-swipe-standard-weather-dark-exact-short",
@@ -50124,6 +50124,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -50382,9 +50384,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "tasks-stack-plain-click-compact-weather-dark-exact-short",
@@ -50408,6 +50408,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "A plain click opens the existing Tasks detail without changing stack geometry or selecting page text.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -50650,9 +50652,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "A plain click opens the existing Tasks detail without changing stack geometry or selecting page text."
+      "requests": []
     },
     {
       "key": "ics-ready-standard-light-common",
@@ -50676,6 +50676,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -50893,9 +50895,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "ics-ready-standard-saturated-common",
@@ -50919,6 +50919,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -51136,9 +51138,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "ics uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "moon-compatibility-full-weather-dark-exact-short",
@@ -51162,6 +51162,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "The legacy mismatch is explicit, legible, non-destructive, and names the edit-mode recovery path.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -51399,9 +51401,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "The legacy mismatch is explicit, legible, non-destructive, and names the edit-mode recovery path."
+      "requests": []
     },
     {
       "key": "publicHolidays-ready-compact-dark-common",
@@ -51425,6 +51425,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -51642,9 +51644,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-ready-standard-dark-common",
@@ -51668,6 +51668,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -51915,9 +51917,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-ready-full-dark-common",
@@ -51941,6 +51941,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -52208,9 +52210,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "auroraKp-ready-compact-dark-common",
@@ -52234,6 +52234,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "auroraKp uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 692,
@@ -52446,9 +52448,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "auroraKp uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "auroraKp-ready-standard-dark-common",
@@ -52472,6 +52472,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "auroraKp uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -52729,9 +52731,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "auroraKp uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "auroraKp-ready-full-dark-common",
@@ -52755,6 +52755,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "auroraKp uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 570,
@@ -53017,9 +53019,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "auroraKp uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stack-compact-weather-dark-exact-short",
@@ -53043,6 +53043,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -53295,9 +53297,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stack-standard-weather-dark-exact-short",
@@ -53321,6 +53321,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -53603,9 +53605,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stack-full-weather-dark-exact-short",
@@ -53629,6 +53629,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -53931,9 +53933,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "auroraKp-stack-compact-weather-dark-exact-short",
@@ -53957,6 +53957,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "auroraKp uses the exact compact frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 596,
@@ -54204,9 +54206,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "auroraKp uses the exact compact frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "auroraKp-stack-standard-weather-dark-exact-short",
@@ -54230,6 +54230,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "auroraKp uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -54522,9 +54524,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "auroraKp uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "auroraKp-stack-full-weather-dark-exact-short",
@@ -54548,6 +54548,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "auroraKp uses the exact full frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 474,
@@ -54845,9 +54847,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "auroraKp uses the exact full frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-loading-standard-dark-laptop",
@@ -54871,6 +54871,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -55087,9 +55089,7 @@
           "status": null,
           "outcome": "harness-navigation-abort"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "publicHolidays-ready-standard-dark-laptop",
@@ -55113,6 +55113,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -55360,9 +55362,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-empty-standard-dark-laptop",
@@ -55386,6 +55386,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -55583,9 +55585,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stale-standard-dark-laptop",
@@ -55609,6 +55609,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -55870,9 +55872,7 @@
           "status": null,
           "outcome": "harness-navigation-abort"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "publicHolidays-permission-required-standard-dark-laptop",
@@ -55896,6 +55896,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "The exact standard frame explains that a country must be chosen in Settings before holiday data can render.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -56093,9 +56095,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "The exact standard frame explains that a country must be chosen in Settings before holiday data can render."
+      "requests": []
     },
     {
       "key": "publicHolidays-hard-error-standard-dark-laptop",
@@ -56119,6 +56119,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 523,
@@ -56340,9 +56342,7 @@
           "status": 200,
           "outcome": "fulfilled-invalid-200"
         }
-      ],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      ]
     },
     {
       "key": "publicHolidays-stack-initial-standard-weather-dark-exact-short",
@@ -56366,6 +56366,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -56648,9 +56650,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stack-next-standard-weather-dark-exact-short",
@@ -56674,6 +56674,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -56962,9 +56964,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stack-previous-standard-weather-dark-exact-short",
@@ -56988,6 +56988,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -57276,9 +57278,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stack-dot-standard-weather-dark-exact-short",
@@ -57302,6 +57302,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -57590,9 +57592,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stack-swipe-standard-weather-dark-exact-short",
@@ -57616,6 +57616,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -57904,9 +57906,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-stack-plain-click-standard-weather-dark-exact-short",
@@ -57930,6 +57930,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 544,
@@ -58212,9 +58214,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-ready-standard-light-common",
@@ -58238,6 +58238,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -58485,9 +58487,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     },
     {
       "key": "publicHolidays-ready-standard-saturated-common",
@@ -58511,6 +58511,8 @@
         "one-data-owner",
         "storage-audit"
       ],
+      "verdict": "Useful",
+      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision.",
       "measurement": {
         "frame": {
           "left": 640,
@@ -58758,9 +58760,7 @@
         "failed": 0,
         "unexpected": 0
       },
-      "requests": [],
-      "verdict": "Useful",
-      "verdictReason": "publicHolidays uses the exact standard frame with useful tier-specific content and no visible collision."
+      "requests": []
     }
   ],
   "captureFailures": [],
@@ -59097,7 +59097,7 @@
     "browserClosed": true,
     "profileRemoved": true
   },
-  "finishedAt": "2026-08-23T13:33:41.147Z",
+  "finishedAt": "2026-08-23T13:41:51.264Z",
   "summary": {
     "planned": 189,
     "captures": 189,
