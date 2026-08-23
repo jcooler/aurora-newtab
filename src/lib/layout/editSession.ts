@@ -351,8 +351,9 @@ export function applyBulkTier(session: EditSession, tier: WidgetTier): EditSessi
       const placement = widgets[id]
       if (placement?.kind === 'free') widgets[id] = { ...placement, tier }
     }
-    const stacks = layout.stacks?.map((stack) => ({ ...stack, tier }))
-    return { ...layout, widgets, ...(stacks ? { stacks } : {}), bulkTier: tier }
+    // The layout-wide tier control is intentionally free-widget-only. A stack
+    // can move only within the exact tier intersection authored by its members.
+    return { ...layout, widgets, bulkTier: tier }
   }))
 }
 

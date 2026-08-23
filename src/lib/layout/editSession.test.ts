@@ -356,7 +356,7 @@ describe('hide, restore, bulk, reset', () => {
 })
 
 describe('stack edit session operations', () => {
-  it('moves, nudges, sizes, layers, and bulk-sizes a selected stack as one object', () => {
+  it('moves, nudges, sizes, and layers a selected stack while bulk sizing remains free-widget-only', () => {
     let session = selectStack(stackFresh(), 'stack-day')
     expect(session.selection).toEqual({ kind: 'stack', id: 'stack-day' })
     session = moveSelected(session, { xPct: 20, yPct: 80 })
@@ -373,7 +373,7 @@ describe('stack edit session operations', () => {
     expect(activeDraftLayout(session).stacks?.[0].layer).toBe(3)
     expect((activeDraftLayout(session).widgets.quote as FreeWidgetPlacement).layer).toBe(2)
     session = applyBulkTier(session, 'compact')
-    expect(activeDraftLayout(session).stacks?.[0].tier).toBe('compact')
+    expect(activeDraftLayout(session).stacks?.[0].tier).toBe('full')
   })
 
   it('creates a stack at drop as the drag gesture single undo entry', () => {
