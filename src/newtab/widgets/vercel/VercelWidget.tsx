@@ -5,6 +5,7 @@ import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, VercelConfig, VercelViews } from '../../../services/connectors/types'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
+import TierFrame from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 const MAX_DEPLOYMENTS = 5
@@ -95,10 +96,12 @@ function VercelInner({
   // every other connector widget. The user's resolved views gate the fetch
   // (fetchVercel skips the request when BOTH sections are off — see its own
   // doc comment) AND this render (below).
-  const { data } = useConnectorSnapshot<VercelData>('vercel', vercel, (prev) =>
+  const { data, state } = useConnectorSnapshot<VercelData>('vercel', vercel, (prev) =>
     fetchVercel(token, views, prev),
   )
   if (!data) return null
+  const tier = canvasSize ?? 'standard'
+  const framed = canvasSize !== undefined
 
   // UNSLICED — the status summary below counts EVERY deployment the
   // endpoint returned, not just the MAX_DEPLOYMENTS rows the list displays
@@ -111,7 +114,11 @@ function VercelInner({
   // order as-is rather than re-sorting, same division of labor as every
   // other connector widget (the service owns ordering, the widget owns
   // display).
-  const deployments = canvasSize === 'compact' ? [] : views.deployments ? allDeployments.slice(0, canvasSize === 'standard' ? 2 : MAX_DEPLOYMENTS) : []
+  const deployments = tier === 'compact'
+    ? []
+    : views.deployments
+      ? allDeployments.slice(0, framed && tier === 'standard' ? 2 : MAX_DEPLOYMENTS)
+      : []
   // The empty-connected copy is gated on the ROWS section being on AND
   // truly empty — same "a disabled section shows neither its rows nor its
   // own empty line" rule github/gitlab/jira apply.
@@ -172,7 +179,13 @@ function VercelInner({
     // token, rounded-2xl/shadow-lg/p-4, w-80 fixed card width. Vercel sits in
     // the LEFT column (not the right rail's Task 55 budget), so its p-4/mb-2
     // chrome stays untouched — see GithubWidget.tsx's own MAX_PRS comment.
-    <section aria-label="Vercel" data-canvas-size={canvasSize} className="w-80 rounded-2xl bg-panel-solid p-4 dense:p-2 text-fg shadow-lg">
+    <TierFrame
+      label="Vercel"
+      tier={tier}
+      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
+      data-canvas-size={tier}
+      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
+    >
       <h2 className="mb-2 dense:mb-1 text-sm font-semibold text-fg">Vercel</h2>
 
       <WorkPulseSummary
@@ -218,7 +231,7 @@ function VercelInner({
           ))}
         </ul>
       )}
-    </section>
+    </TierFrame>
   )
 }
 
@@ -248,7 +261,7 @@ function DeploymentRow({ item, now }: { item: VercelDeployment; now: number }) {
         title={item.project}
         className="group flex cursor-pointer items-center gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span className="min-w-0 flex-1 truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.project}
         </span>
         <span className={`shrink-0 text-xs ${stateClass(item.state)}`}>{item.state}</span>

@@ -13,6 +13,7 @@ import {
 } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
 
 // The status widget — Task 84 (W3-SP2), the eighth connector and the third
 // no-auth one (crypto.ts/ics.ts's own company) to reach the newtab page.
@@ -88,10 +89,12 @@ function StatusInner({
   // yet (first-ever load still in flight, or a total failure) renders
   // nothing rather than an empty shell — same as every other connector
   // widget.
-  const { data } = useConnectorSnapshot<StatusData>('status', config, (prev) =>
+  const { data, state } = useConnectorSnapshot<StatusData>('status', config, (prev) =>
     fetchStatus(services, prev),
   )
   if (!data) return null
+  const tier = canvasSize ?? 'standard'
+  const framed = canvasSize !== undefined
 
   // fetchStatus returns one entry per configured service, INDEX-ALIGNED with
   // `services` (its own doc comment) — rendered as-is, in configured order,
@@ -136,19 +139,26 @@ function StatusInner({
     return <StatusDock rows={rows} tone={tone} label={summaryLabel} />
   }
 
+  const visibleRows = framed && tier === 'compact' ? rows.slice(0, 4) : rows
+
   return (
     // A slim floating STRIP, not a panel — the SAME `w-88 text-center`
     // language as CryptoWidget's own section (see that file's doc comment
     // for why: centering is the bottom band's job via its own `items-center`,
     // not this widget's or the PositionedBlock className's). FIRST child of
     // the bottom band (App.tsx), above crypto.
-    <section
-      aria-label="Service status"
+    <TierFrame
+      label="Service status"
+      tier={tier}
+      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
       data-status-tone={tone}
-      data-canvas-size={canvasSize}
-      className="w-88 text-center"
+      data-canvas-size={tier}
+      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-left`}
     >
-      <h2 className="text-sm font-semibold text-fg">Service status</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-fg">Service status</h2>
+        <StatusDetailsTrigger rows={rows} tone={tone} label="Service status details" />
+      </div>
       {/* The words the visible strip dropped. A landmark's accessible name
           must stay STABLE ("Service status"), so the live summary rides in
           screen-reader-only text rather than in the region's own label. */}
@@ -164,18 +174,18 @@ function StatusInner({
         data-work-pulse-detail
         data-work-pulse-status-dots
         data-testid="status-dots"
-        className="flex flex-wrap justify-center gap-x-3 gap-y-1"
+        className="mt-1 flex flex-wrap gap-x-3 gap-y-1"
       >
-        {rows.map((s, i) => (
-          <span key={i} title={dotTitle(s)} className="flex items-center gap-1.5">
+        {visibleRows.map((s, i) => (
+          <span key={i} title={dotTitle(s)} className="flex min-w-0 items-center gap-1.5">
             <span className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
-            {canvasSize !== 'compact' && (
-              <span className="text-[11px] leading-4 text-fg-muted">{s.name}</span>
+            {(framed || canvasSize !== 'compact') && (
+              <span className="max-w-24 truncate text-[11px] leading-4 text-fg-muted">{s.name}</span>
             )}
           </span>
         ))}
       </div>
-      {canvasSize !== 'compact' && trouble.map((s, i) => (
+      {tier !== 'compact' && trouble.map((s, i) => (
         // FIX ROUND (post-Task 86, controller-approved): the OUTER
         // PositionedBlock (App.tsx) now reveals this whole section at a
         // NEW, LOWER `ampler` floor (>=922h — see index.css's own doc
@@ -193,11 +203,15 @@ function StatusInner({
         // same as every other bottom-band text (crypto's own price/change
         // spans), so it needs the same legibility treatment; it never had
         // it before this fix round.
-        <p key={i} data-work-pulse-rows className="hidden tallest:block mt-1 truncate text-sm text-red-400 text-photo">
+        <p
+          key={i}
+          data-work-pulse-rows
+          className={`${framed ? '' : 'hidden tallest:block text-photo '}mt-1 truncate text-sm text-red-400`}
+        >
           {s.name} — {s.description}
         </p>
       ))}
-    </section>
+    </TierFrame>
   )
 }
 
@@ -216,6 +230,20 @@ function StatusDock({
   rows: readonly ServiceStatus[]
   tone: 'quiet' | 'attention' | 'critical' | 'unknown'
   label: string
+}) {
+  return <StatusDetailsTrigger rows={rows} tone={tone} label={label} docked />
+}
+
+function StatusDetailsTrigger({
+  rows,
+  tone,
+  label,
+  docked = false,
+}: {
+  rows: readonly ServiceStatus[]
+  tone: 'quiet' | 'attention' | 'critical' | 'unknown'
+  label: string
+  docked?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
@@ -248,14 +276,18 @@ function StatusDock({
         type="button"
         aria-label={label}
         aria-expanded={open}
-        data-dock-line=""
+        {...(docked ? { 'data-dock-line': '' } : {})}
         data-status-tone={tone}
         onClick={toggle}
-        className="dock-line cursor-pointer rounded-panel text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        className={docked
+          ? 'dock-line cursor-pointer rounded-panel text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none'
+          : 'rounded-sm text-[11px] font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none'}
       >
-        {rows.map((s, i) => (
-          <span key={i} title={dotTitle(s)} className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
-        ))}
+        {docked
+          ? rows.map((s, i) => (
+            <span key={i} title={dotTitle(s)} className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
+          ))
+          : 'Details'}
       </button>
       {open && position
         ? createPortal(

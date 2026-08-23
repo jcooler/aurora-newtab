@@ -98,6 +98,37 @@ describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
 })
 
 describe('StatusWidget — DOM contract', () => {
+  it.each(['compact', 'standard'] as const)('uses the exact %s frame with named service dots and no card scrollbar', async (tier) => {
+    const storage = await seededStorage(CONNECTED, {
+      services: [
+        { name: 'GitHub', indicator: 'none', description: 'All systems operational' },
+        { name: 'Vercel', indicator: 'minor', description: 'Elevated build latency' },
+      ],
+    })
+    mount(storage, tier)
+    const frame = await screen.findByRole('region', { name: 'Service status' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).toContain(`tier-frame--${tier}`)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.textContent).toContain('GitHub')
+    expect(frame.textContent).toContain('Vercel')
+    if (tier === 'standard') {
+      const issue = screen.getByText('Vercel — Elevated build latency')
+      expect(issue.className).not.toContain('hidden')
+    }
+  })
+
+  it('routes bounded-card overflow through the existing service details panel', async () => {
+    const storage = await seededStorage(CONNECTED, ALL_GREEN)
+    mount(storage, 'standard')
+    const trigger = await screen.findByRole('button', { name: 'Service status details' })
+    await act(async () => { trigger.click() })
+    const panel = screen.getByRole('dialog', { name: 'Service status details' })
+    expect(panel.textContent).toContain('GitHub')
+    expect(panel.textContent).toContain('Cloudflare')
+  })
+
   it('names every service beside its dot so status reads without hovering (batch-2 owner review)', async () => {
     const storage = await seededStorage(CONNECTED, {
       services: [
@@ -142,13 +173,13 @@ describe('StatusWidget — DOM contract', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('shows dots at every board size, with names from Standard up (owner direction 2026-08-21)', async () => {
+  it('shows named dots at every explicit framed size', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     const view = mount(storage, 'compact')
     const compact = await screen.findByRole('region', { name: 'Service status' })
-    // Compact is one tight row of COLOURS — every name still a hover away.
+    // Compact still names each service; the exact frame bounds the row.
     expect(compact.querySelectorAll('span[title]')).toHaveLength(2)
-    expect(compact.textContent).not.toContain('GitHub')
+    expect(compact.textContent).toContain('GitHub')
     expect(compact.querySelector('[title="GitHub: All Systems Operational"]')).toBeTruthy()
 
     view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="standard" /></StorageProvider>)
@@ -162,12 +193,12 @@ describe('StatusWidget — DOM contract', () => {
     expect(full.textContent).toContain('Cloudflare')
   })
 
-  it('renders section[aria-label="Service status"] with the crypto strip language (w-88 text-center)', async () => {
+  it('defaults an unqualified board render to the exact Standard frame', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
     const section = await screen.findByRole('region', { name: 'Service status' })
-    expect(section.className).toContain('w-88')
-    expect(section.className).toContain('text-center')
+    expect(section.getAttribute('data-tier-frame')).toBe('standard')
+    expect(section.className).toContain('tier-frame--standard')
   })
 
   it('renders one dot (span[title]) per service, index-aligned to the snapshot', async () => {

@@ -5,6 +5,7 @@ import type { ConnectorConfig, GithubConfig } from '../../../services/connectors
 import ContributionGraph from '../shared/ContributionGraph'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
+import TierFrame from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
@@ -49,6 +50,7 @@ const MAX_ISSUES = 2
 const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
 const GRAPH_SEP_TALLER = ' taller:mt-3 taller:border-t taller:border-panel-border taller:pt-3'
 const GRAPH_SEP_GRAND = ' grand:mt-3 grand:border-t grand:border-panel-border grand:pt-3'
+const FRAMED_GRAPH_SEP = ' mt-2 border-t border-panel-border pt-2'
 
 /** Narrow `connectors.github` (a ConnectorConfig union member, or undefined)
  *  to a CONNECTED GithubConfig, defensively. schema.ts ties every connector id
@@ -92,7 +94,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
   // a request — see fetchGithub) AND this render (below).
   const token = github.token
   const views = resolveGithubViews(github)
-  const { data } = useConnectorSnapshot<GithubData>('github', github, (prev) =>
+  const { data, state } = useConnectorSnapshot<GithubData>('github', github, (prev) =>
     fetchGithub(token, prev, views),
   )
 
@@ -102,6 +104,8 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
   // No cached data yet (first-ever load in flight, or a total failure) renders
   // nothing rather than an empty shell — same as RssInner.
   if (!data) return null
+  const tier = canvasSize ?? 'standard'
+  const framed = canvasSize !== undefined
 
   // Old snapshots predate the contributions field — read it defensively. An
   // empty day array is treated as absent (a graph needs cells to draw), so the
@@ -155,14 +159,20 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
   // whole card yields), on the inner graph wrapper otherwise (the card stays, the
   // graph alone yields). Exactly one of the two ever carries it, so the reveal is
   // a single whole-card OR single-section boundary — monotonic either way.
-  const innerGraphClass = graphOnly || canvasSize === 'full' ? undefined : graphWrap
+  const innerGraphClass = framed || graphOnly || canvasSize === 'full' ? undefined : graphWrap
 
   // A disabled list is empty regardless of what the snapshot still carries.
   const allPrs = views.pulls ? (data.prs ?? []) : []
   const allIssues = views.issues ? (data.issues ?? []) : []
   const rowCap = canvasSize === 'standard' ? 1 : MAX_PRS
-  const prs = canvasSize !== 'compact' ? allPrs.slice(0, rowCap) : []
-  const issues = canvasSize !== 'compact' ? allIssues.slice(0, canvasSize === 'standard' ? 1 : MAX_ISSUES) : []
+  const prs = framed
+    ? tier === 'compact' ? [] : allPrs.slice(0, 1)
+    : canvasSize !== 'compact' ? allPrs.slice(0, rowCap) : []
+  const issues = framed
+    ? tier === 'full'
+      ? allIssues.slice(0, 1)
+      : tier === 'standard' && prs.length === 0 ? allIssues.slice(0, 1) : []
+    : canvasSize !== 'compact' ? allIssues.slice(0, canvasSize === 'standard' ? 1 : MAX_ISSUES) : []
   const notifications = data.notifications
 
   // The celebratory empty line ("No PRs waiting on you") shows whenever a LIST
@@ -179,7 +189,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
   // before the graph existed. (A strictly graph-only card has no list section, so
   // showEmpty is false there — that whole-card path is untouched.)
   const showEmpty = (views.pulls || views.issues) && allPrs.length === 0 && allIssues.length === 0
-  const emptyLineTier = graph === null ? '' : graphNeedsGrand ? ' grand:hidden' : ' taller:hidden'
+  const emptyLineTier = framed || graph === null ? '' : graphNeedsGrand ? ' grand:hidden' : ' taller:hidden'
 
   // No-husk law (wave 2, generalized — gitlab/jira/vercel apply the same
   // rule): render null when NOTHING inside the card would render — no
@@ -231,7 +241,13 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
     // connectors-github.png and connectors-all.png before shipping.
     // Full earns its footprint (batch-2 owner review): a wider card whose
     // graph renders at larger cells below — never Standard restated.
-    <section aria-label="GitHub" data-canvas-size={canvasSize} className={`${canvasSize === 'full' ? 'w-[25rem]' : 'w-80'} rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg`}>
+    <TierFrame
+      label="GitHub"
+      tier={tier}
+      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
+      data-canvas-size={tier}
+      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
+    >
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
         {/* Unread chip renders ONLY when the notifications view is on AND the
@@ -245,11 +261,13 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
         )}
       </div>
 
-      <WorkPulseSummary
-        label="GitHub"
-        value={summaryValue}
-        tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
-      />
+      <div className={framed && graph ? 'sr-only' : undefined}>
+        <WorkPulseSummary
+          label="GitHub"
+          value={summaryValue}
+          tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+        />
+      </div>
 
       {/* Commit graph on top — the board's composed face. The graph adds 176px
           full-height (168px dense-condensed) to github, so it yields FIRST under
@@ -273,14 +291,15 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
         <div data-work-pulse-detail className={innerGraphClass}>
           <ContributionGraph
             contributions={graph}
-            cell={canvasSize === 'full' ? 18 : 13}
-            gap={canvasSize === 'full' ? 4 : 3}
+            cell={tier === 'compact' ? 8 : tier === 'standard' ? 9 : 18}
+            gap={tier === 'full' ? 4 : 1}
+            showMonthTicks={tier === 'full'}
           />
         </div>
       )}
 
       {prs.length > 0 && (
-        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${graph ? graphSep : ''}`}>
+        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${graph ? framed ? FRAMED_GRAPH_SEP : graphSep : ''}`}>
           {prs.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
@@ -288,7 +307,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
       )}
 
       {issues.length > 0 && (
-        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? graphSep : ''}`}>
+        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? framed ? FRAMED_GRAPH_SEP : graphSep : ''}`}>
           {issues.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
@@ -296,7 +315,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
       )}
 
       {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>No PRs waiting on you 🎉</p>}
-    </section>
+    </TierFrame>
   )
 }
 
@@ -315,7 +334,7 @@ function ItemRow({ item }: { item: GithubItem }) {
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
         {item.repo && <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.repo}</span>}
-        <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="block truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>
       </a>

@@ -69,6 +69,32 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('JiraWidget', () => {
+  it.each([
+    ['compact', 0],
+    ['standard', 2],
+    ['full', 3],
+  ] as const)('uses the exact %s frame and bounds prioritized named rows to %i', async (tier, rowCount) => {
+    const data: JiraData = {
+      ...DATA,
+      issues: [
+        ...DATA.issues,
+        { key: 'AUR-14', summary: 'Review the release checklist', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-14' },
+        { key: 'AUR-15', summary: 'Prepare the launch notes', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-15' },
+      ],
+    }
+    mount(await seededStorage(CONNECTED, data), tier)
+    const frame = await screen.findByRole('region', { name: 'Jira' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).toContain(`tier-frame--${tier}`)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(rowCount)
+    if (rowCount > 0) {
+      expect(screen.getByText('AUR-12')).toBeTruthy()
+      expect(screen.getByText('Fix the flaky auth test on CI').className).not.toContain('dense:text-xs')
+    }
+  })
+
   it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
     const storage = await seededStorage(CONNECTED)
     render(

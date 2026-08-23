@@ -71,6 +71,21 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('VercelWidget', () => {
+  it.each([
+    ['compact', 0],
+    ['standard', 2],
+    ['full', 3],
+  ] as const)('uses the exact %s frame and bounds failed-first named deployments to %i', async (tier, rowCount) => {
+    mount(await seededStorage(CONNECTED, DATA), tier)
+    const frame = await screen.findByRole('region', { name: 'Vercel' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).toContain(`tier-frame--${tier}`)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(rowCount)
+    if (rowCount > 0) expect(screen.getByText('api-broken').className).not.toContain('dense:text-xs')
+  })
+
   it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
     const storage = await seededStorage(CONNECTED)
     render(

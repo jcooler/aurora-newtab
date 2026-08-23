@@ -7,6 +7,7 @@ import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, JiraConfig, JiraViews, GitlabConfig, GithubConfig } from '../../../services/connectors/types'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
+import TierFrame from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
@@ -159,18 +160,28 @@ function JiraInner({
   // rather than an empty shell — same as GithubInner/GitlabInner. The user's
   // resolved views gate the fetch (a section turned off never issues a
   // request — see fetchJira) AND this render (below).
-  const { data } = useConnectorSnapshot<JiraData>('jira', jira, (prev) =>
+  const { data, state } = useConnectorSnapshot<JiraData>('jira', jira, (prev) =>
     fetchJira(site, email, apiToken, views, prev),
   )
   if (!data) return null
+  const tier = canvasSize ?? 'standard'
+  const framed = canvasSize !== undefined
 
   // A disabled list is empty regardless of what the snapshot still carries.
-  const compact = canvasSize === 'compact'
-  const standard = canvasSize === 'standard'
+  const compact = tier === 'compact'
+  const standard = tier === 'standard'
   const allIssues = views.assigned ? (data.issues ?? []) : []
   const allDueSoon = views.dueSoon ? (data.dueSoon ?? []) : []
-  const issues = !compact ? allIssues.slice(0, standard ? 2 : MAX_ISSUES) : []
-  const dueSoon = !compact && (!standard || allIssues.length === 0) ? allDueSoon.slice(0, MAX_DUE_SOON) : []
+  const issues = framed
+    ? compact ? [] : allIssues.slice(0, standard ? 2 : allDueSoon.length > 0 ? 2 : MAX_ISSUES)
+    : canvasSize !== 'compact' ? allIssues.slice(0, canvasSize === 'standard' ? 2 : MAX_ISSUES) : []
+  const dueSoon = framed
+    ? compact || (standard && allIssues.length > 0)
+      ? []
+      : allDueSoon.slice(0, tier === 'full' && issues.length > 0 ? 1 : MAX_DUE_SOON)
+    : canvasSize !== 'compact' && (canvasSize !== 'standard' || allIssues.length === 0)
+      ? allDueSoon.slice(0, MAX_DUE_SOON)
+      : []
   const counts = data.counts ?? {}
   const countEntries = Object.entries(counts)
 
@@ -216,7 +227,7 @@ function JiraInner({
         : gitlabReviewAsksEnabled
           ? 'roomier'
           : 'roomy'
-  const dueSoonTier = dueSoonTierName ? DUE_SOON_TIER_CLASS[dueSoonTierName] : ''
+  const dueSoonTier = !framed && dueSoonTierName ? DUE_SOON_TIER_CLASS[dueSoonTierName] : ''
 
   // The friendly empty line shows when a rows section is enabled and NOTHING
   // from either rows list would actually be VISIBLE. Jira has no GRAPH
@@ -236,11 +247,14 @@ function JiraInner({
   // genuinely empty, or its own tier is '' (unconditional — no gitlab
   // sibling threatens it), the line shows unconditionally, exactly as
   // before.
-  const showEmpty =
-    (views.assigned || views.dueSoon) &&
-    allIssues.length === 0 &&
-    (allDueSoon.length === 0 || dueSoonTierName !== '')
-  const emptyLineTier = allDueSoon.length > 0 && dueSoonTierName ? DUE_SOON_INVERSE_TIER_CLASS[dueSoonTierName] : ''
+  const showEmpty = framed
+    ? (views.assigned || views.dueSoon) && allIssues.length === 0 && allDueSoon.length === 0
+    : (views.assigned || views.dueSoon) &&
+      allIssues.length === 0 &&
+      (allDueSoon.length === 0 || dueSoonTierName !== '')
+  const emptyLineTier = !framed && allDueSoon.length > 0 && dueSoonTierName
+    ? DUE_SOON_INVERSE_TIER_CLASS[dueSoonTierName]
+    : ''
 
   // No-husk law (wave 2, generalized): render null when NOTHING inside the card
   // would render — no rows in either enabled list, no status chip with a value,
@@ -280,7 +294,13 @@ function JiraInner({
     // `p-4`->`p-3` (Task 55 fix round 2 — see GithubWidget.tsx's own
     // MAX_PRS comment): a modest, right-column-only chrome trim, not a
     // shape change.
-    <section aria-label="Jira" data-canvas-size={canvasSize} className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    <TierFrame
+      label="Jira"
+      tier={tier}
+      state={state.operation === 'error' || state.freshness === 'stale' ? 'stale' : 'ready'}
+      data-canvas-size={tier}
+      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
+    >
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">Jira</h2>
         {/* Counts line renders only when the view is on AND there's at least
@@ -324,7 +344,7 @@ function JiraInner({
       )}
 
       {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>Nothing assigned to you.</p>}
-    </section>
+    </TierFrame>
   )
 }
 
@@ -348,7 +368,7 @@ function ItemRow({ item }: { item: JiraIssue }) {
       >
         <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted font-medium">{prefix}</span>
         <span data-work-pulse-detail className="block truncate text-xs text-fg-muted">{item.status}</span>
-        <span className="block truncate text-sm dense:text-xs text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="block truncate text-sm text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.summary}
         </span>
       </a>

@@ -34,10 +34,12 @@ export default function ContributionGraph({
   contributions,
   cell = DEFAULT_CELL,
   gap = DEFAULT_GAP,
+  showMonthTicks = true,
 }: {
   contributions: Contributions
   cell?: number
   gap?: number
+  showMonthTicks?: boolean
 }) {
   const CELL = cell
   const GAP = gap
@@ -77,17 +79,19 @@ export default function ContributionGraph({
       </div>
 
       {/* Quiet mono month ticks, absolutely positioned at each labelled column. */}
-      <div className="relative mt-1.5" style={{ width, height: 12 }} aria-hidden>
-        {monthTicks.map((m) => (
-          <span
-            key={m.col}
-            className="absolute font-mono text-[10px] uppercase tracking-wide text-fg-muted/55"
-            style={{ left: m.col * pitch }}
-          >
-            {m.text}
-          </span>
-        ))}
-      </div>
+      {showMonthTicks && (
+        <div data-contribution-months className="relative mt-1.5" style={{ width, height: 12 }} aria-hidden>
+          {monthTicks.map((m) => (
+            <span
+              key={m.col}
+              className="absolute font-mono text-[11px] uppercase tracking-wide text-fg-muted/55"
+              style={{ left: m.col * pitch }}
+            >
+              {m.text}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Stat line: bright tabular total, accent tabular streak — the card's one
           accent point. "contributions", not the board's "commits". */}

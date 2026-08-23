@@ -149,10 +149,10 @@ git commit -m "feat: frame shared resource shells"
 - Create: `src/newtab/widgets/shared/ContributionGraph.test.tsx` only if the graph change needs isolated coverage
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Add per-widget RED tier tests.** Require exact TierFrame state at every supported tier. GitHub and GitLab must retain a legible contribution graph in every tier that currently promises it, with resized cells rather than removal. Standard and Full must be visibly different. Jira and Vercel keep named prioritized rows. Status keeps named service dots and active-issue context. All five bound rows without a frame scrollbar and route excess information to their existing details/provider action.
-- [ ] **Step 2: Observe RED per file before each production edit.** Run each widget test file separately and record the missing frame or overflow assertion before editing that widget.
-- [ ] **Step 3: Implement authored compositions.** Reuse existing hooks, computed summaries, contribution data, row identity, links, and Docked branches. Prefer smaller graph cells, tighter gaps, bounded row slices, and line clamps. Do not replace a signature graph with generic counts or remove service names.
-- [ ] **Step 4: Run the family GREEN gate and commit.** Run all five test files plus `ContributionGraph.test.tsx`, TypeScript, and diff hygiene, then commit:
+- [x] **Step 1: Add per-widget RED tier tests.** Require exact TierFrame state at every supported tier. GitHub and GitLab must retain a legible contribution graph in every tier that currently promises it, with resized cells rather than removal. Standard and Full must be visibly different. Jira and Vercel keep named prioritized rows. Status keeps named service dots and active-issue context. All five bound rows without a frame scrollbar and route excess information to their existing details/provider action.
+- [x] **Step 2: Observe RED per file before each production edit.** Run each widget test file separately and record the missing frame or overflow assertion before editing that widget.
+- [x] **Step 3: Implement authored compositions.** Reuse existing hooks, computed summaries, contribution data, row identity, links, and Docked branches. Prefer smaller graph cells, tighter gaps, bounded row slices, and line clamps. Do not replace a signature graph with generic counts or remove service names.
+- [x] **Step 4: Run the family GREEN gate and commit.** Run all five test files plus `ContributionGraph.test.tsx`, TypeScript, and diff hygiene, then commit:
 
 ```powershell
 git add src/newtab/widgets/github src/newtab/widgets/gitlab src/newtab/widgets/jira src/newtab/widgets/vercel src/newtab/widgets/status src/newtab/widgets/shared/ContributionGraph.tsx src/newtab/widgets/shared/ContributionGraph.test.tsx src/newtab/index.css

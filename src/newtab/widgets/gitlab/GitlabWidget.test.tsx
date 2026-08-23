@@ -285,6 +285,35 @@ const sectionHasTier = (tier: string) => {
 }
 
 describe('GitlabWidget — composed card (wave 2)', () => {
+  it.each([
+    ['compact', '8px', false],
+    ['standard', '9px', false],
+    ['full', '18px', true],
+  ] as const)('uses the exact %s frame and retains its tier-sized contribution graph', async (tier, cell, showsMonths) => {
+    mount(await seededMulti(ALL_ON, FULL_DATA), tier)
+    const graph = await screen.findByRole('img', { name: /contribution activity/i })
+    const frame = graph.closest('section')!
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).toContain(`tier-frame--${tier}`)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(graph.style.gridAutoColumns).toBe(cell)
+    expect(frame.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
+  })
+
+  it('makes Full visibly richer than Standard while keeping assigned and review rows', async () => {
+    const standardView = mount(await seededMulti(ALL_ON, FULL_DATA), 'standard')
+    const standardFrame = await screen.findByRole('region', { name: 'GitLab' })
+    expect(standardFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(1)
+    standardView.unmount()
+
+    mount(await seededMulti(ALL_ON, FULL_DATA), 'full')
+    const fullFrame = await screen.findByRole('region', { name: 'GitLab' })
+    expect(fullFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(2)
+    expect(screen.getByText('Add rate limiting to the ingest API').className).not.toContain('dense:text-xs')
+    expect(screen.getByText('Review: refactor the auth guard')).toBeTruthy()
+  })
+
   it('renders the activity graph, MR rows, and review-asks rows (with the REVIEW ASKS eyebrow) when every view is on', async () => {
     mount(await seededMulti(ALL_ON, FULL_DATA))
 

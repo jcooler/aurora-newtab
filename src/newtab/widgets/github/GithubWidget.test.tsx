@@ -75,18 +75,35 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('GithubWidget', () => {
-  it('Full uses its space: wider card and larger graph cells than Standard (batch-2 owner review)', async () => {
+  it.each([
+    ['compact', '8px', false],
+    ['standard', '9px', false],
+    ['full', '18px', true],
+  ] as const)('uses the exact %s frame with a bounded, tier-sized contribution graph', async (tier, cell, showsMonths) => {
     const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
-    const { unmount } = mount(await seededStorage(config, DATA_WITH_GRAPH), 'full')
-    const fullGraph = await screen.findByRole('img', { name: /contribution activity/i })
-    expect(fullGraph.style.gridAutoColumns).toBe('18px')
-    expect(fullGraph.closest('section')?.className).toContain('w-[25rem]')
-    unmount()
+    mount(await seededStorage(config, DATA_WITH_GRAPH), tier)
+    const graph = await screen.findByRole('img', { name: /contribution activity/i })
+    const frame = graph.closest('section')!
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).toContain(`tier-frame--${tier}`)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(graph.style.gridAutoColumns).toBe(cell)
+    expect(frame.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
+  })
 
-    mount(await seededStorage(config, DATA_WITH_GRAPH), 'standard')
-    const standardGraph = await screen.findByRole('img', { name: /contribution activity/i })
-    expect(standardGraph.style.gridAutoColumns).toBe('13px')
-    expect(standardGraph.closest('section')?.className).toContain('w-80')
+  it('makes Full visibly richer than Standard without removing either selected row family', async () => {
+    const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
+    const standardView = mount(await seededStorage(config, DATA_WITH_GRAPH), 'standard')
+    const standardFrame = await screen.findByRole('region', { name: 'GitHub' })
+    expect(standardFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(1)
+    standardView.unmount()
+
+    mount(await seededStorage(config, DATA_WITH_GRAPH), 'full')
+    const fullFrame = await screen.findByRole('region', { name: 'GitHub' })
+    expect(fullFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(2)
+    expect(screen.getByText('Fix the flaky login test').className).not.toContain('dense:text-xs')
+    expect(screen.getByText('Crash on cold start')).toBeTruthy()
   })
 
   it('Compact shows the graph with contributions and streak, matching GitLab compact (batch-2 owner review)', async () => {
