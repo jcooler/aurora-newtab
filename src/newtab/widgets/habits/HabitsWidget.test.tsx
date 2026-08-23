@@ -70,6 +70,7 @@ describe('HabitsWidget', () => {
     expect(frame.className).not.toContain('overflow-y')
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
     expect(screen.getByRole('button', { name: /Stretch/ })).toBeTruthy()
+    expect(frame.querySelector('[data-habits-progress]')).toBeTruthy()
   })
 
   it('fits all six Compact habit controls into two rows', async () => {

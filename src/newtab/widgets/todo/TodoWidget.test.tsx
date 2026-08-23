@@ -7,14 +7,17 @@ import { StorageProvider } from '../../../lib/storage/context'
 import { anchorPanel, hugHorizontal } from '../../../lib/layout/anchor'
 import TodoWidget, { TODO_CORNER_HUG_PX, TODO_PANEL_SIZE } from './TodoWidget'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import type { TodoList } from '../../../lib/storage/schema'
 
 async function renderWidget({
   onOpenChange,
   canvasSize = 'compact',
   docked = false,
-}: { onOpenChange?: (open: boolean) => void; canvasSize?: CanvasSize; docked?: boolean } = {}) {
+  todoLists,
+}: { onOpenChange?: (open: boolean) => void; canvasSize?: CanvasSize; docked?: boolean; todoLists?: TodoList[] } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
+  if (todoLists) await storage.set('todoLists', todoLists)
   const view = render(
     <StorageProvider storage={storage}>
       <TodoWidget onOpenChange={onOpenChange} canvasSize={canvasSize} docked={docked} />
@@ -29,7 +32,7 @@ describe('TodoWidget', () => {
     await renderWidget({ canvasSize: 'compact' })
     const frame = screen.getByRole('region', { name: 'Tasks card' })
     expect(frame.getAttribute('data-tier-frame')).toBe('compact')
-    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('empty')
     expect(frame.classList.contains('tier-frame--compact')).toBe(true)
     expect(frame.className).not.toContain('overflow-y')
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
@@ -41,6 +44,29 @@ describe('TodoWidget', () => {
     await renderWidget({ docked: true })
     expect(screen.queryByRole('region', { name: 'Tasks card' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Tasks' }).classList.contains('rounded-panel')).toBe(true)
+  })
+
+  it('shows two actionable tasks in Compact without opening the panel', async () => {
+    const { storage } = await renderWidget({
+      todoLists: [{
+        id: 'today',
+        name: 'Today',
+        items: [
+          { id: 'one', text: 'Review the calendar spacing', done: false },
+          { id: 'two', text: 'Send the release notes', done: false },
+          { id: 'three', text: 'Archive old layouts', done: false },
+        ],
+      }],
+    })
+
+    const actions = screen.getAllByRole('checkbox')
+    expect(actions).toHaveLength(2)
+    expect(screen.queryByText('Archive old layouts')).toBeNull()
+
+    fireEvent.click(actions[0]!)
+    await act(async () => {})
+    expect((await storage.get('todoLists'))[0]?.items[0]?.done).toBe(true)
+    expect(screen.queryByRole('dialog', { name: 'Tasks' })).toBeNull()
   })
 
   it('renders the pill with no fixed-position class of its own (placement now lives on the App-level PositionedBlock wrapper)', async () => {

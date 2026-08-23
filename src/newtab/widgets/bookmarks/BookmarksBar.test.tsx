@@ -41,7 +41,12 @@ const nestedModel: BarModel = {
   loose: [{ id: 'i3', title: 'Docs', url: 'https://docs.example' }],
 }
 
-async function renderBar(model: BarModel, onPopoverOpenChange?: (open: boolean) => void) {
+async function renderBar(
+  model: BarModel,
+  onPopoverOpenChange?: (open: boolean) => void,
+  presentation: 'free' | 'stack' | 'docked' = 'free',
+  canvasSize: 'compact' | 'standard' = 'standard',
+) {
   vi.mocked(hasBookmarksPermission).mockResolvedValue(true)
   vi.mocked(loadBarModel).mockResolvedValue(model)
   const storage = createStorage(memoryDriver())
@@ -52,13 +57,24 @@ async function renderBar(model: BarModel, onPopoverOpenChange?: (open: boolean) 
   })
   const result = render(
     <StorageProvider storage={storage}>
-      <BookmarksBar onPopoverOpenChange={onPopoverOpenChange} />
+      <BookmarksBar onPopoverOpenChange={onPopoverOpenChange} presentation={presentation} canvasSize={canvasSize} />
     </StorageProvider>,
   )
   return result
 }
 
 describe('BookmarksBar', () => {
+  it('keeps the free bar linear and gives stack presentations an exact framed face', async () => {
+    const freeView = await renderBar(nestedModel)
+    expect((await screen.findByRole('navigation', { name: 'Bookmarks bar' })).getAttribute('data-bookmarks-presentation')).toBe('bar')
+
+    freeView.unmount()
+    await renderBar(nestedModel, undefined, 'stack', 'standard')
+    const frame = await screen.findByRole('region', { name: 'Bookmarks' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('standard')
+    expect(frame.querySelector('[data-bookmarks-presentation="stack"]')).toBeTruthy()
+    vi.mocked(loadBarModel).mockClear()
+  })
   it('uses single-letter folder marks per the batch-1 owner review (N for News, D for Docs)', () => {
     expect(folderMonogram('News')).toBe('N')
     expect(folderMonogram('Docs')).toBe('D')

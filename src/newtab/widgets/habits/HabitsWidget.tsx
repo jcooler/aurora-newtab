@@ -6,6 +6,7 @@ import type { Habit } from '../../../lib/storage/schema'
 import DockLine from '../shared/DockLine'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 
 // Display cap — mirrors Widgets.tsx's own MAX_HABITS (the editor's write-side
 // cap). Kept as an independent local constant, same as every other capped
@@ -20,7 +21,8 @@ const MAX_HABIT_CHIPS = 6
 export default function HabitsWidget({
   docked,
   canvasSize = 'compact',
-}: { docked?: boolean; canvasSize?: CanvasSize } = {}) {
+  presentation = 'free',
+}: { docked?: boolean; canvasSize?: CanvasSize; presentation?: WidgetPresentationMode } = {}) {
   // Gate BEFORE the ticking clock exists — same shape as WorldClocks/
   // BookmarksBar/TimerWidget: disabled tabs (the default — settings.widgets
   // .habits starts false) or an enabled-but-empty list never mount
@@ -37,14 +39,15 @@ export default function HabitsWidget({
   const [settings] = useStoredKey('settings')
   const [habits] = useStoredKey('habits')
   if (!settings?.widgets.habits || !Array.isArray(habits) || habits.length === 0) return null
-  return <HabitsInner habits={habits} docked={docked} canvasSize={canvasSize} />
+  return <HabitsInner habits={habits} docked={docked} canvasSize={canvasSize} presentation={presentation} />
 }
 
 function HabitsInner({
   habits,
   docked,
   canvasSize,
-}: { habits: Habit[]; docked?: boolean; canvasSize: CanvasSize }) {
+  presentation,
+}: { habits: Habit[]; docked?: boolean; canvasSize: CanvasSize; presentation: WidgetPresentationMode }) {
   const storage = useStorage()
   // The ONE impure boundary in this widget: the coherent local-day identity.
   // The shared scheduler handles midnight, restoration, and timezone changes
@@ -65,11 +68,23 @@ function HabitsInner({
 
   const visible = habits.slice(0, MAX_HABIT_CHIPS)
   const doneToday = habits.filter((habit) => habit.log.includes(todayKey)).length
+  const completion = Math.round((doneToday / habits.length) * 100)
   return (
     <TierFrame label="Habits" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready" className="gap-2 p-3">
       <header className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Habits</h2>
-        <span className="text-[11px] text-fg-muted">{doneToday}/{habits.length} today</span>
+        <span className="flex items-center gap-2 text-[11px] text-fg-muted">
+          {doneToday}/{habits.length} today
+          <span
+            aria-hidden
+            data-habits-progress={completion}
+            data-habits-presentation={presentation}
+            className="grid size-7 shrink-0 place-items-center rounded-full"
+            style={{ background: `conic-gradient(var(--accent) ${completion}%, color-mix(in srgb, var(--fg-muted) 20%, transparent) 0)` }}
+          >
+            <span className="size-5 rounded-full bg-panel-solid" />
+          </span>
+        </span>
       </header>
       <div data-habits-grid="" className="grid min-h-0 flex-1 grid-cols-3 content-start gap-1.5">
       {visible.map((h) => {

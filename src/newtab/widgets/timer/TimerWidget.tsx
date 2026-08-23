@@ -14,6 +14,7 @@ import { btnPrimary, btnQuiet, control } from '../../../settings/sections/shared
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 
 const DEFAULT_CONFIG: TimerConfig = { workMinutes: 25, breakMinutes: 5 }
 const MIN_MINUTES = 1
@@ -48,11 +49,13 @@ export default function TimerWidget({
   utilityTray,
   canvasSize = 'compact',
   docked = false,
+  presentation = 'free',
 }: {
   onOpenChange?: (open: boolean) => void
   utilityTray?: UtilityTrayBridge
   canvasSize?: CanvasSize
   docked?: boolean
+  presentation?: WidgetPresentationMode
 } = {}) {
   // Gate before the Timer presentation exists: disabled tabs (the default)
   // mount no Timer panel or presentation hooks. The App-level persisted timer
@@ -65,7 +68,7 @@ export default function TimerWidget({
   // onExpandedChange comment for the full writeup of why that matters.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.timer) return null
-  return <TimerInner settings={settings} onOpenChange={onOpenChange} utilityTray={utilityTray} canvasSize={canvasSize} docked={docked} />
+  return <TimerInner settings={settings} onOpenChange={onOpenChange} utilityTray={utilityTray} canvasSize={canvasSize} docked={docked} presentation={presentation} />
 }
 
 function TimerInner({
@@ -74,12 +77,14 @@ function TimerInner({
   utilityTray,
   canvasSize,
   docked,
+  presentation,
 }: {
   settings: Settings
   onOpenChange?: (open: boolean) => void
   utilityTray?: UtilityTrayBridge
   canvasSize: CanvasSize
   docked: boolean
+  presentation: WidgetPresentationMode
 }) {
   const timer = useTimerSession()
   const config = timer.config ?? DEFAULT_CONFIG
@@ -204,7 +209,7 @@ function TimerInner({
       ) : (
         <>
           <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{state.mode} session</span>
-          <span className="font-display text-4xl font-light leading-none">{display}</span>
+          <span data-testid="timer-value" className="font-display text-4xl font-light leading-none">{display}</span>
           <span className="text-sm text-fg-muted">{state.running ? 'Running' : 'Ready'} · Open timer</span>
         </>
       )}
@@ -215,7 +220,7 @@ function TimerInner({
     <>
       {docked ? trigger : (
         <TierFrame label="Focus timer card" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready">
-          {trigger}
+          <div data-timer-presentation={presentation} className="h-full">{trigger}</div>
         </TierFrame>
       )}
 

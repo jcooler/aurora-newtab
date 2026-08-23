@@ -48,9 +48,18 @@ describe('NotesWidget', () => {
   })
 
   it('keeps Docked Notes content-tight instead of mounting the Compact frame', async () => {
-    await renderWidget({ docked: true })
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('notes', {
+      text: 'Keep the month view complete while giving the agenda room to breathe.',
+      updatedAt: Date.now(),
+    })
+    await renderWidget({ docked: true, storage })
     expect(screen.queryByRole('region', { name: 'Notes card' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Notes' }).classList.contains('rounded-panel')).toBe(true)
+    const dock = screen.getByTestId('notes-dock')
+    expect(dock.classList.contains('rounded-panel')).toBe(true)
+    expect(dock.textContent).toContain('Keep the month view complete')
+    expect(screen.queryByRole('textbox')).toBeNull()
   })
 
   it('keeps a disabled Tray note mounted until its registered save guard flushes', async () => {

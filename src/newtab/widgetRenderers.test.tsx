@@ -8,7 +8,7 @@ describe('time and productivity widget renderers', () => {
     expectTypeOf<WidgetRendererProps['presentation']>().toEqualTypeOf<WidgetPresentationMode | undefined>()
   })
 
-  it.each(['clock', 'greeting', 'worldClocks', 'countdown', 'search', 'focus', 'links', 'quote'] as const)(
+  it.each(['clock', 'greeting', 'worldClocks', 'countdown', 'search', 'focus', 'links', 'quote', 'habits', 'bookmarks', 'timer', 'tasks', 'notes'] as const)(
     'threads stack presentation through the %s renderer',
     (id) => {
       const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'stack' }) as ReactElement<{

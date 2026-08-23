@@ -1,11 +1,14 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
+import { useStorage } from '../../../lib/storage/context'
 import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
 import { hugHorizontal } from '../../../lib/layout/anchor'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
+import { todoReducer } from './todoReducer'
 
 const TodoPanel = lazy(() => import('./TodoPanel'))
 
@@ -36,11 +39,13 @@ export default function TodoWidget({
   utilityTray,
   canvasSize = 'compact',
   docked = false,
+  presentation = 'free',
 }: {
   onOpenChange?: (open: boolean) => void
   utilityTray?: UtilityTrayBridge
   canvasSize?: CanvasSize
   docked?: boolean
+  presentation?: WidgetPresentationMode
 } = {}) {
   // Gate BEFORE the panel's open/close state exists, same shape as
   // NotesWidget/TimerWidget: a disabled widget (settings.widgets.todo can be
@@ -60,6 +65,7 @@ export default function TodoWidget({
       utilityTray={utilityTray}
       canvasSize={canvasSize}
       docked={docked}
+      presentation={presentation}
     />
   )
 }
@@ -69,13 +75,16 @@ function TodoInner({
   utilityTray,
   canvasSize,
   docked,
+  presentation,
 }: {
   onOpenChange?: (open: boolean) => void
   utilityTray?: UtilityTrayBridge
   canvasSize: CanvasSize
   docked: boolean
+  presentation: WidgetPresentationMode
 }) {
   const [todoLists] = useStoredKey('todoLists')
+  const storage = useStorage()
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -142,8 +151,12 @@ function TodoInner({
       />
     </Suspense>
   ) : null
-  const openItems = (todoLists ?? []).flatMap((list) => list.items).filter((item) => !item.done)
-  const nextTask = openItems[0]?.text
+  const openItems = (todoLists ?? []).flatMap((list) =>
+    list.items.filter((item) => !item.done).map((item) => ({ listId: list.id, item })),
+  )
+  const toggleItem = (listId: string, itemId: string) => {
+    void storage.update('todoLists', (lists) => todoReducer(lists, { type: 'toggleItem', listId, itemId }))
+  }
   const trigger = (
     <button
       ref={pillRef}
@@ -151,20 +164,19 @@ function TodoInner({
       aria-label="Tasks"
       aria-expanded={panelOpen}
       onClick={togglePanel}
+      data-testid={docked ? 'tasks-dock' : undefined}
       className={docked
-        ? 'rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
-        : 'flex h-full w-full cursor-pointer flex-col items-stretch justify-center gap-2 rounded-[inherit] p-3 text-left focus-visible:outline-2 focus-visible:outline-accent'}
+        ? 'flex max-w-72 items-center gap-2 rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+        : 'flex w-full cursor-pointer items-center justify-between rounded-lg px-1 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-accent'}
     >
-      {docked ? 'Tasks' : (
+      {docked ? (
+        <><strong className="font-semibold text-fg">Tasks</strong><span>{openItems.length} open</span></>
+      ) : (
         <>
-          <span className="flex items-center justify-between">
-            <strong className="text-sm font-semibold text-fg">Tasks</strong>
-            <span className="text-[11px] text-fg-muted">{openItems.length} open</span>
+          <strong className="text-sm font-semibold text-fg">Tasks</strong>
+          <span className="flex items-center gap-2 text-[11px] text-fg-muted">
+            {openItems.length} open <span className="text-fg">Open tasks</span>
           </span>
-          <span title={nextTask} className="line-clamp-2 text-sm leading-5 text-fg-muted">
-            {nextTask ?? 'No open tasks'}
-          </span>
-          <span className="mt-auto text-sm font-medium text-fg">Open tasks</span>
         </>
       )}
     </button>
@@ -173,8 +185,30 @@ function TodoInner({
   return (
     <>
       {docked ? trigger : (
-        <TierFrame label="Tasks card" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready">
-          {trigger}
+        <TierFrame label="Tasks card" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state={openItems.length ? 'ready' : 'empty'} className="gap-2 p-3">
+          <div data-tasks-presentation={presentation} className="flex min-h-0 flex-1 flex-col gap-2">
+            {trigger}
+            <div className="grid min-h-0 flex-1 content-start gap-1.5">
+              {openItems.slice(0, 2).map(({ listId, item }) => (
+                <button
+                  key={`${listId}:${item.id}`}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={false}
+                  aria-label={item.text}
+                  onClick={() => toggleItem(listId, item.id)}
+                  className="flex min-h-9 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-panel-border bg-control-bg px-2.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span aria-hidden className="grid size-4 shrink-0 place-items-center rounded border border-fg-muted/50 text-[10px] text-accent" />
+                  <span title={item.text} className="min-w-0 flex-1 truncate text-sm text-fg">{item.text}</span>
+                </button>
+              ))}
+              {openItems.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-panel-border px-3 py-3 text-sm text-fg-muted">No open tasks. Your queue is clear.</p>
+              ) : null}
+            </div>
+            {openItems.length > 2 ? <p className="text-[11px] text-fg-muted">+{openItems.length - 2} more in Tasks</p> : null}
+          </div>
         </TierFrame>
       )}
       {utilityTray?.host && panel ? createPortal(panel, utilityTray.host) : panel}

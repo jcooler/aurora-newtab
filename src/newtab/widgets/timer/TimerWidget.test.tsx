@@ -44,6 +44,7 @@ describe('TimerWidget', () => {
     expect(frame.className).not.toContain('overflow-y')
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
     expect(screen.getByRole('button', { name: /Focus timer/ })).toBeTruthy()
+    expect(screen.getByTestId('timer-value').textContent).toMatch(/^\d{2}:\d{2}$/)
     expect(screen.getByText(/Open timer/)).toBeTruthy()
   })
 

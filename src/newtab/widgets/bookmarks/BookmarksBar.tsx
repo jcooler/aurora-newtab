@@ -10,6 +10,8 @@ import {
 import { faviconUrl } from '../links/linksLogic'
 import FolderPopover, { FolderIcon } from './FolderPopover'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 
 const MAX_VISIBLE_CHIPS = 8
 const OVERFLOW_ID = '__overflow__'
@@ -253,6 +255,8 @@ function ChipMark({ chip }: { chip: ChipEntry }) {
 export default function BookmarksBar({
   onPopoverOpenChange,
   canvasSize,
+  presentation = 'free',
+  docked = false,
 }: {
   // Bookmarks-stacking bug fix, part 2: notifies App.tsx whenever a
   // popover opens/closes (see the `toggle`/`setOpen` helper below for why
@@ -265,6 +269,8 @@ export default function BookmarksBar({
   // (nothing before this fix did) keeps compiling unchanged.
   onPopoverOpenChange?: (open: boolean) => void
   canvasSize?: CanvasSize
+  presentation?: WidgetPresentationMode
+  docked?: boolean
 } = {}) {
   // Gate BEFORE the model-loading effect exists: disabled tabs (the default —
   // settings.widgets.bookmarks starts false) never call chrome.bookmarks at
@@ -272,17 +278,22 @@ export default function BookmarksBar({
   // satisfied regardless of the toggle.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.bookmarks) return null
-  return <BookmarksBarInner onPopoverOpenChange={onPopoverOpenChange} canvasSize={canvasSize} />
+  return <BookmarksBarInner onPopoverOpenChange={onPopoverOpenChange} canvasSize={canvasSize} presentation={presentation} docked={docked} />
 }
 
 function BookmarksBarInner({
   onPopoverOpenChange,
   canvasSize,
+  presentation,
+  docked,
 }: {
   onPopoverOpenChange?: (open: boolean) => void
   canvasSize?: CanvasSize
+  presentation: WidgetPresentationMode
+  docked: boolean
 }) {
   const [model, setModel] = useState<BarModel | null>(null)
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'permission-required' | 'hard-error'>('loading')
   // One popover open at a time: a folder chip's id, or OVERFLOW_ID, or null.
   const [openId, setOpenId] = useState<string | null>(null)
   const [openAnchor, setOpenAnchor] = useState<HTMLElement | null>(null)
@@ -302,10 +313,21 @@ function BookmarksBarInner({
     // calling loadBarModel(): chrome.bookmarks doesn't exist at all without
     // it, so calling straight into chrome.bookmarks.getTree() would throw.
     void hasBookmarksPermission().then((granted) => {
-      if (!granted || !live) return
+      if (!live) return
+      if (!granted) {
+        setLoadState('permission-required')
+        return
+      }
       void loadBarModel().then((m) => {
-        if (live) setModel(m)
+        if (live) {
+          setModel(m)
+          setLoadState('ready')
+        }
+      }).catch(() => {
+        if (live) setLoadState('hard-error')
       })
+    }).catch(() => {
+      if (live) setLoadState('hard-error')
     })
     return () => {
       live = false
@@ -335,9 +357,26 @@ function BookmarksBarInner({
     return () => onPopoverOpenChangeRef.current?.(false)
   }, [])
 
-  // Empty bookmarks bar (including "still loading") renders nothing — no
-  // empty-state chrome.
-  if (!model || (model.folders.length === 0 && model.loose.length === 0)) return null
+  // Free mode retains the browser-bar behavior: no empty chrome. Stack mode
+  // owns an exact footprint, so loading, permission, error, and empty states
+  // stay visible without inventing a second bookmark owner.
+  if (!model || (model.folders.length === 0 && model.loose.length === 0)) {
+    if (presentation !== 'stack') return null
+    const tier = canvasSize === 'standard' ? 'standard' : 'compact'
+    const state = model && loadState === 'ready' ? 'empty' : loadState
+    const message = state === 'loading'
+      ? 'Loading bookmarks.'
+      : state === 'permission-required'
+        ? 'Allow bookmark access to show this stack.'
+        : state === 'empty'
+          ? 'Your bookmark bar is empty.'
+          : 'Bookmarks are unavailable.'
+    return (
+      <TierFrame label="Bookmarks" tier={tier} state={state} className="grid place-items-center p-4 text-center">
+        <p role={state === 'hard-error' ? 'alert' : 'status'} className="text-sm text-fg-muted">{message}</p>
+      </TierFrame>
+    )
+  }
 
   const allChips: ChipEntry[] = [
     ...model.folders.map((folder): ChipEntry => ({ kind: 'folder', folder })),
@@ -360,9 +399,82 @@ function BookmarksBarInner({
   }
   const toggle = (id: string, anchor: HTMLElement) => setOpen(openId === id ? null : id, anchor)
 
+  const renderPurposeBuiltChip = (chip: ChipEntry, showName: boolean) => {
+    const title = chip.kind === 'folder' ? chip.folder.title : chip.item.title
+    const mark = folderMonogram(title)
+    const content = (
+      <>
+        <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg border border-panel-border bg-control-bg font-display text-sm font-semibold text-fg">{mark}</span>
+        {showName ? <span className="min-w-0 truncate text-sm font-medium text-fg">{title || 'Untitled'}</span> : null}
+      </>
+    )
+    if (chip.kind === 'bookmark') {
+      return (
+        <a key={chip.item.id} href={chip.item.url} title={title} className="flex min-h-10 min-w-0 items-center gap-2 rounded-lg px-1.5 text-left hover:bg-control-bg focus-visible:outline-2 focus-visible:outline-accent">
+          {content}
+        </a>
+      )
+    }
+    return (
+      <div key={chip.folder.id} className="min-w-0">
+        <button
+          type="button"
+          title={title}
+          aria-haspopup="dialog"
+          aria-expanded={openId === chip.folder.id}
+          onClick={(event) => toggle(chip.folder.id, event.currentTarget)}
+          className="flex min-h-10 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-1.5 text-left hover:bg-control-bg focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          {content}
+        </button>
+        {openId === chip.folder.id && openAnchor ? (
+          <FolderPopover
+            title={chip.folder.title}
+            items={chip.folder.items}
+            folders={chip.folder.folders}
+            anchor={openAnchor}
+            onClose={() => setOpen(null)}
+          />
+        ) : null}
+      </div>
+    )
+  }
+
+  if (presentation === 'docked' || docked) {
+    return (
+      <nav data-bookmarks-presentation="docked" aria-label="Bookmarks" className="relative flex h-11 max-w-[34rem] items-center gap-1 overflow-hidden rounded-panel border border-panel-border bg-panel-solid px-2 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]">
+        <strong className="shrink-0 px-1 text-sm font-semibold text-fg">Bookmarks</strong>
+        {allChips.slice(0, 4).map((chip) => renderPurposeBuiltChip(chip, true))}
+        {allChips.length > 4 ? <span className="shrink-0 px-1 text-xs text-fg-muted">+{allChips.length - 4}</span> : null}
+      </nav>
+    )
+  }
+
+  if (presentation === 'stack') {
+    const tier = canvasSize === 'standard' ? 'standard' : 'compact'
+    const cap = 6
+    return (
+      <TierFrame label="Bookmarks" tier={tier} state="ready" className="gap-2 p-3">
+        <header className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-fg">Bookmarks</h2>
+          <span className="text-[11px] text-fg-muted">{allChips.length} saved</span>
+        </header>
+        <nav
+          data-bookmarks-presentation="stack"
+          aria-label="Bookmarks"
+          className={`grid min-h-0 flex-1 content-start gap-1 ${tier === 'standard' ? 'grid-cols-2' : 'grid-cols-3'}`}
+        >
+          {allChips.slice(0, cap).map((chip) => renderPurposeBuiltChip(chip, tier === 'standard'))}
+        </nav>
+        {allChips.length > cap ? <p className="text-[11px] text-fg-muted">+{allChips.length - cap} more in the bookmark bar</p> : null}
+      </TierFrame>
+    )
+  }
+
   return (
     <nav
       data-canvas-size={canvasSize}
+      data-bookmarks-presentation="bar"
       aria-label="Bookmarks bar"
       // `relative` (bookmarks-stacking bug fix): z-index only has any effect
       // on a positioned element (CSS: "on non-positioned elements it will
