@@ -152,7 +152,7 @@ function RecentlyClosedDetail({
   const dense = mode !== 'detail'
 
   return (
-    <div className="space-y-3">
+    <div className={mode === 'full' ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
       {groups.map((group) => group.rows.length > 0 ? (
         <section key={group.title ?? 'recent'} className="space-y-1">
           {group.title ? <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{group.title}</h3> : null}
@@ -186,9 +186,9 @@ function RecentlyClosedDetail({
         </section>
       ) : null)}
       {mode !== 'detail' && hiddenCount > 0 ? (
-        <p className="text-[11px] text-fg-muted">{hiddenCount} more in Chrome Recently Closed</p>
+        <p className={mode === 'full' ? 'col-span-2 text-[11px] text-fg-muted' : 'text-[11px] text-fg-muted'}>{hiddenCount} more in Chrome Recently Closed</p>
       ) : null}
-      {announcement ? <p role="status" className="text-xs text-fg-muted">{announcement}</p> : null}
+      {announcement ? <p role="status" className={mode === 'full' ? 'col-span-2 text-xs text-fg-muted' : 'text-xs text-fg-muted'}>{announcement}</p> : null}
     </div>
   )
 }

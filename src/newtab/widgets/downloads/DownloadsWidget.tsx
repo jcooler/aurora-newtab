@@ -138,7 +138,7 @@ function DownloadDetail({
   }
 
   return (
-    <div className="space-y-2">
+    <div className={mode === 'detail' ? 'space-y-2' : 'space-y-1'}>
       <div className="divide-y divide-hairline">
         {rows.map((item, index) => {
           const busy = busyId !== null

@@ -107,6 +107,14 @@ describe('RecentlyClosedWidget', () => {
     expect(screen.getAllByRole('button', { name: /^Restore / })).toHaveLength(4)
   })
 
+  it('Full uses its width to keep the Tabs and Windows sections inside the fixed height', () => {
+    render(<RecentlyClosedWidget canvasSize="full" />)
+    const tabs = screen.getByRole('heading', { name: 'Tabs' }).parentElement
+    const windows = screen.getByRole('heading', { name: 'Windows' }).parentElement
+    expect(tabs?.parentElement).toBe(windows?.parentElement)
+    expect(tabs?.parentElement?.className).toContain('grid-cols-2')
+  })
+
   it('Docked count and latest sessions-only type open the same restore detail', async () => {
     render(<RecentlyClosedWidget docked />)
     const line = screen.getByRole('button', { name: 'Recently Closed: 6 closed · Tab just now' })

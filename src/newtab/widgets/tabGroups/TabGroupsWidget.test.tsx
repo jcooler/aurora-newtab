@@ -129,6 +129,14 @@ describe('TabGroupsWidget', () => {
     expect(screen.getAllByRole('button', { name: /^Focus / })).toHaveLength(4)
   })
 
+  it('Full uses its width to keep both window sections inside the fixed height', () => {
+    render(<TabGroupsWidget canvasSize="full" />)
+    const firstWindow = screen.getByRole('heading', { name: 'Window 1' }).parentElement
+    const secondWindow = screen.getByRole('heading', { name: 'Window 2' }).parentElement
+    expect(firstWindow?.parentElement).toBe(secondWindow?.parentElement)
+    expect(firstWindow?.parentElement?.className).toContain('grid-cols-2')
+  })
+
   it('Docked opens the same group actions', async () => {
     render(<TabGroupsWidget docked />)
     const line = screen.getByRole('button', { name: 'Tab Groups: 6 groups · Work' })
