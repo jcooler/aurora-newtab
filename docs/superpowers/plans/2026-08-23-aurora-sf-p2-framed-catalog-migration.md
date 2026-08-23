@@ -285,9 +285,9 @@ git commit -m "feat: frame public information widgets"
 
 - [x] **Step 1: Add the RED Node contract.** Import the presentation-authority parser from a shared harness module or extract it from SF-P1 under a focused RED. Require the P2 manifest to derive all Framed ids except the accepted Weather and On This Day reference pair. Fail on a missing declared ready tier, exact dimension, representative state per state-bearing shell family, stack-tier pair, interaction, viewport, fixture, storage audit, or usefulness verdict.
 - [x] **Step 2: Observe RED.** Run `node --test scripts/qa-shared-frame-p2.test.mjs`; expect the module/script to be missing.
-- [ ] **Step 3: Implement bounded scalable evidence.** Build preview fixtures from existing deterministic harness data. Capture every declared ready free tier for the 25 SF-P2 widgets. For each shared family, add representative loading, empty, stale/partial, permission/setup, and hard-error captures. Pair every widget with a compatible reference member at each declared stack tier, measure equal outer geometry, and run previous/next/dot/swipe/plain-click controls once per family. Cover 1366x768, exact 1408x445, 1600x900, 599/600, dark, light, and saturated panels without multiplying every widget across every axis. SF-P4 owns the exhaustive cross-product.
-- [ ] **Step 4: Fail closed on product regressions.** Assert frame dimensions within 0.5px, no clipping or internal scroll, minimum text floors, essential/signature selectors, compatibility copy, selected-text suppression, one mounted owner, unchanged layout bytes except explicit facing writes, no legacy `layout` writes, zero runtime errors, zero failed/unapproved requests, and no capture without a human-reviewed usefulness verdict.
-- [ ] **Step 5: Run preliminary Chromium and inspect every original.** Run:
+- [x] **Step 3: Implement bounded scalable evidence.** Build preview fixtures from existing deterministic harness data. Capture every declared ready free tier for the 25 SF-P2 widgets. For each shared family, add representative loading, empty, stale/partial, permission/setup, and hard-error captures. Pair every widget with a compatible reference member at each declared stack tier, measure equal outer geometry, and run previous/next/dot/swipe/plain-click controls once per family. Cover 1366x768, exact 1408x445, 1600x900, 599/600, dark, light, and saturated panels without multiplying every widget across every axis. SF-P4 owns the exhaustive cross-product.
+- [x] **Step 4: Fail closed on product regressions.** Assert frame dimensions within 0.5px, no clipping or internal scroll, minimum text floors, essential/signature selectors, compatibility copy, selected-text suppression, one mounted owner, unchanged layout bytes except explicit facing writes, no legacy `layout` writes, zero runtime errors, zero failed/unapproved requests, and no capture without a human-reviewed usefulness verdict.
+- [x] **Step 5: Run preliminary Chromium and inspect every original.** Run:
 
 ```powershell
 node --test scripts/qa-shared-frame-p2.test.mjs
@@ -296,7 +296,7 @@ node scripts/qa-shared-frame-p2.mjs
 ```
 
 Record visual defects as focused RED tests before any production correction. Do not use aggregate PASS as a usefulness verdict.
-- [ ] **Step 6: Commit harness and preliminary catalog.** Run Node syntax, Node contracts, and diff hygiene, then commit:
+- [x] **Step 6: Commit harness and preliminary catalog.** Run Node syntax, Node contracts, and diff hygiene, then commit:
 
 ```powershell
 git add .gitignore scripts/qa-shared-frame-p2.mjs scripts/qa-shared-frame-p2.test.mjs scripts/qa-shared-frame-p2-reviewed-verdicts.mjs docs/superpowers/catalog/shared-frames/sf-p2
