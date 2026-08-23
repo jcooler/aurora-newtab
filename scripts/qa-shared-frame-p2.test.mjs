@@ -406,6 +406,11 @@ test('every ready widget and compatibility face has an explicit DOM signature pr
     ['a[href^="https://linear.app/"]'],
   )
   assert.deepEqual(
+    buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === 'todoist' && entry.kind === 'free-tier' && entry.tier === 'standard'))
+      .signatureSelectors,
+    ['li'],
+  )
+  assert.deepEqual(
     buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.kind === 'compatibility')).signatureSelectors,
     ['.stack-compatibility-face'],
   )

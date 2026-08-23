@@ -384,6 +384,8 @@ export function buildSfP2DomProbe(capture) {
       ? '[data-contribution-summary]'
       : capture.tier === 'compact' && COMPACT_SIGNATURE_SELECTORS[capture.widget]
         ? COMPACT_SIGNATURE_SELECTORS[capture.widget]
+        : capture.widget === 'todoist' && capture.tier === 'standard'
+          ? 'li'
         : capture.widget === 'publicHolidays' && capture.tier !== 'full'
           ? 'li'
           : READY_SIGNATURE_SELECTORS[capture.widget]
