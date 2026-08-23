@@ -2,7 +2,7 @@
 
 **Status:** Owner approved in visual and sectioned design review on 2026-08-22. Implementation pending.
 **Date:** 2026-08-22
-**Authority:** Owner correction that docked widgets must move vertically inside the top or bottom dock, not only horizontally.
+**Authority:** Owner correction that docked widgets must move vertically inside the top or bottom dock, not only horizontally. The owner refined the outer safety inset to 5px on every viewport edge on 2026-08-22.
 **Extends:** The owner-refined free-X dock implementation recorded in `STATUS.md` on 2026-08-18 and the named-layout live editor.
 
 ## 1. Purpose and law
@@ -77,9 +77,9 @@ Each non-empty dock owns one fixed-position transparent band:
 height: clamp(96px, 16vh, 128px)
 ```
 
-- The top band keeps the existing 16px top inset.
-- The bottom band keeps the existing 16px bottom inset.
-- Both keep the existing 72px side safety insets unless a separately approved utility-control change alters them.
+- The top band begins 5px from the top edge.
+- The bottom band begins 5px from the bottom edge.
+- Both bands begin 5px from the left and right edges.
 - The band overlays the canvas and does not consume layout space or move canvas objects.
 - Empty areas are pointer-transparent in normal use.
 - Widget interiors remain interactive in normal use.

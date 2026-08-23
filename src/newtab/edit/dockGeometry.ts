@@ -1,8 +1,8 @@
 import type { DockEdge, DockPoint } from '../../lib/layout/namedLayouts'
 import type { CanvasGuide } from '../arrange/canvasSnap'
 
-export const DOCK_SIDE_INSET = 72
-export const DOCK_EDGE_INSET = 16
+export const DOCK_SIDE_INSET = 5
+export const DOCK_EDGE_INSET = 5
 export const DOCK_MAGNETIC_THRESHOLD = 5
 
 const DOCK_MIN_HEIGHT = 96

@@ -12,14 +12,14 @@ const BAND = { left: 72, top: 16, width: 856, height: 100 }
 
 describe('two-axis dock geometry', () => {
   it('derives the responsive transparent band from the approved insets and height clamp', () => {
-    expect(DOCK_SIDE_INSET).toBe(72)
-    expect(DOCK_EDGE_INSET).toBe(16)
+    expect(DOCK_SIDE_INSET).toBe(5)
+    expect(DOCK_EDGE_INSET).toBe(5)
     expect(DOCK_MAGNETIC_THRESHOLD).toBe(5)
     expect(fallbackDockBandRect('top', { width: 1000, height: 900 })).toEqual({
-      left: 72, top: 16, width: 856, height: 128,
+      left: 5, top: 5, width: 990, height: 128,
     })
     expect(fallbackDockBandRect('bottom', { width: 1000, height: 445 })).toEqual({
-      left: 72, top: 333, width: 856, height: 96,
+      left: 5, top: 344, width: 990, height: 96,
     })
   })
 

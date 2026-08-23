@@ -165,7 +165,7 @@ export default function CanvasItem({
         bottom: rect.bottom - surfaceRect.top - applied.dy,
       }
       // Canvas placements retain their 8px viewport safety inset. A dock's
-      // band already owns the approved 72px/16px viewport insets, so its
+      // band already owns the approved 5px viewport inset, so its
       // member only needs to stay inside the band itself.
       const next = edgeClampOffset(
         raw,

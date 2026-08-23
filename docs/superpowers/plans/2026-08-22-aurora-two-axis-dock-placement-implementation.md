@@ -1,5 +1,7 @@
 # Aurora Two-Axis Dock Placement Implementation Plan
 
+> **Post-verification owner refinement (2026-08-22):** The original 16px edge and 72px side safety insets below record the executed DY-P1 baseline. The owner subsequently approved a bounded 5px inset on the top, bottom, left, and right edges. The governing design and production constants now supersede those historical plan values without rewriting the completed task sequence.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give every top- and bottom-dock member independent, safe X/Y placement while preserving exact absent-Y rendering, one-gesture undo, exact recovery, and the user's pre-dock free tier.

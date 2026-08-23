@@ -432,15 +432,15 @@
 .dock-drop-zone {
   position: fixed;
   z-index: 45;
-  right: 72px;
-  left: 72px;
+  right: 5px;
+  left: 5px;
   height: clamp(96px, 16vh, 128px);
   border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
   border-radius: var(--radius-panel);
   pointer-events: none;
 }
-.dock-drop-zone[data-edge="top"] { top: 16px; }
-.dock-drop-zone[data-edge="bottom"] { bottom: 16px; }
+.dock-drop-zone[data-edge="top"] { top: 5px; }
+.dock-drop-zone[data-edge="bottom"] { bottom: 5px; }
 
 /* The floating inspector beside the selection (spec 2.5). */
 .edit-inspector {
@@ -737,16 +737,16 @@
   }
 }
 
-/* Dock strips (A2-D071): transparent two-axis bands. The outer band owns
-   only the 72px side / 16px edge safety geometry; it never paints or catches
+/* Dock strips (A2-D071, owner-refined 2026-08-22): transparent two-axis
+   bands. The outer band owns only the 5px viewport safety geometry; it never paints or catches
    a pointer. Legacy absent-Y members live in their exact old edge grid while
    explicit-Y members use the full band independently. */
 .canvas-bottom-bar,
 .canvas-top-bar {
   position: fixed;
   z-index: 30;
-  right: 72px;
-  left: 72px;
+  right: 5px;
+  left: 5px;
   height: clamp(96px, 16vh, 128px);
   display: flex;
   /* The full-width lane is pointer-TRANSPARENT: only its members catch
@@ -755,8 +755,8 @@
      lane went full-width). */
   pointer-events: none;
 }
-.canvas-bottom-bar { bottom: 16px; }
-.canvas-top-bar { top: 16px; }
+.canvas-bottom-bar { bottom: 5px; }
+.canvas-top-bar { top: 5px; }
 
 .dock-lane {
   position: relative;

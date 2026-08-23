@@ -81,6 +81,23 @@ afterEach(() => {
 })
 
 describe('useCanvasDrag two-axis placement state', () => {
+  it('treats the approved 5px top-corner boundary as dock space', () => {
+    const { surface, top, rendered, onPreviewMove, onZoneChange } = setup()
+    vi.spyOn(top, 'getBoundingClientRect').mockReturnValue(rect(5, 5, 990, 96))
+    act(() => rendered.result.current.startDrag(
+      { kind: 'widget', id: 'clock' },
+      { clientX: 110, clientY: 190, pointerId: 15 },
+    ))
+
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 5, clientY: 5, pointerId: 15 })) })
+    expect(onPreviewMove.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({ kind: 'dock', dock: 'top' }))
+    expect(onZoneChange).toHaveBeenLastCalledWith('top')
+
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 4, clientY: 4, pointerId: 15 })) })
+    expect(onPreviewMove.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({ kind: 'canvas' }))
+    expect(onZoneChange).toHaveBeenLastCalledWith(null)
+  })
+
   it('streams canvas -> top -> canvas -> bottom as one explicit placement sequence', () => {
     const { surface, rendered, onPreviewMove, onDrop, onZoneChange } = setup()
     act(() => rendered.result.current.startDrag(
