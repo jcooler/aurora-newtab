@@ -234,6 +234,7 @@ function HomeAssistantInner({
   // when current states exist, Compact stays a passive summary as specified.
   const actionLimit = stageVariant === 'compact' && chips.length === 0 ? 1 : limits.actions
   const visibleActions = actions.slice(0, actionLimit)
+  const fullLayout = stageVariant === 'expanded'
 
   const selectionSummary = [
     chips.length > 0 ? `${chips.length} states` : null,
@@ -251,18 +252,28 @@ function HomeAssistantInner({
         <h2 className="text-sm font-semibold">Home Assistant</h2>
         <span className="text-[11px] text-fg-muted">{selectionSummary}</span>
       </header>
-      <div className="min-h-0 flex-1 overflow-hidden p-3">
+      <div
+        data-ha-full-layout={fullLayout ? '' : undefined}
+        className={fullLayout
+          ? 'grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] gap-4 overflow-hidden p-3'
+          : 'min-h-0 flex-1 overflow-hidden p-3'}
+      >
         {visibleChips.length > 0 && (
-          <ul className="flex flex-wrap gap-x-3 gap-y-1">
+          <ul className={fullLayout ? 'grid content-start gap-y-2' : 'flex flex-wrap gap-x-3 gap-y-1'}>
             {visibleChips.map((s) => (
-              <li key={s.id} className="text-sm text-fg">
+              <li key={s.id} className={fullLayout ? 'text-base leading-6 text-fg' : 'text-sm text-fg'}>
                 {chipCopy(s)}
               </li>
             ))}
           </ul>
         )}
         {visibleActions.length > 0 && (
-          <div className={`flex flex-wrap gap-2${visibleChips.length > 0 ? ' mt-2' : ''}`}>
+          <div
+            data-ha-full-actions={fullLayout ? '' : undefined}
+            className={fullLayout
+              ? 'grid content-start gap-2'
+              : `flex flex-wrap gap-2${visibleChips.length > 0 ? ' mt-2' : ''}`}
+          >
             {visibleActions.map((a) => (
               <ActionButton
                 key={a.id}

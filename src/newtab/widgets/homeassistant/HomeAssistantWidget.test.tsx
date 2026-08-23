@@ -428,6 +428,10 @@ describe('HomeAssistantWidget — DOM contract', () => {
     view.rerender(<StorageProvider storage={storage}><HomeAssistantWidget stageVariant="expanded" /></StorageProvider>)
     expect(document.querySelectorAll('section[aria-label="Home Assistant"] li')).toHaveLength(6)
     expect(screen.getAllByRole('button', { name: /Run Mode/ })).toHaveLength(3)
+    const fullLayout = document.querySelector<HTMLElement>('[data-ha-full-layout]')
+    expect(fullLayout?.className).toContain('grid-cols-[minmax(0,1fr)_auto]')
+    expect(fullLayout?.querySelector('ul')?.className).toContain('grid')
+    expect(fullLayout?.querySelector('[data-ha-full-actions]')?.className).toContain('grid')
   })
 
   it('keeps one useful action in Compact when no entity state exists', async () => {
