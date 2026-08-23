@@ -326,6 +326,33 @@ describe('GitlabWidget — composed card (wave 2)', () => {
     expect(screen.getByText('Review: refactor the auth guard')).toBeTruthy()
   })
 
+  it('recomposes Full around the large graph with a header summary and side-by-side MR queues', async () => {
+    const browserFixture: GitlabData = {
+      ...FULL_DATA,
+      reviewMrs: [{ ...REVIEW_MRS[0], title: 'Approve calendar colors' }],
+    }
+    mount(await seededMulti(ALL_ON, browserFixture), 'full')
+
+    const frame = await readyFrame()
+    const header = frame.querySelector('header')
+    expect(header).not.toBeNull()
+    if (!header) return
+    expect(header.textContent).toContain('87 contributions')
+    expect(header.textContent).toContain('3 day streak')
+
+    const graph = within(frame).getByRole('img', { name: /contribution activity/i })
+    expect(graph.style.gridAutoColumns).toBe('18px')
+    expect(frame.querySelector('[data-contribution-months]')).toBeTruthy()
+
+    const queues = within(frame).getByRole('group', { name: 'GitLab merge request queues' })
+    expect(queues.className).toContain('grid-cols-2')
+    expect(within(queues).getByText('Assigned')).toBeTruthy()
+    expect(within(queues).getByText('Review asks')).toBeTruthy()
+    expect(within(queues).getByText('Add rate limiting to the ingest API')).toBeTruthy()
+    expect(within(queues).getByText('Approve calendar colors')).toBeTruthy()
+    expect(within(queues).getAllByText('acme/platform')).toHaveLength(2)
+  })
+
   it('renders the activity graph, MR rows, and review-asks rows (with the REVIEW ASKS eyebrow) when every view is on', async () => {
     mount(await seededMulti(ALL_ON, FULL_DATA))
 

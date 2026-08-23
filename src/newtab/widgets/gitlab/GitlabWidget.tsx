@@ -6,6 +6,7 @@ import { DEFAULT_JIRA_VIEWS } from '../../../services/connectors/jira'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig, JiraConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import { buildContributionGrid } from '../shared/contributionGrid'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
@@ -216,6 +217,9 @@ function GitlabInner({
   // very-tall reveal is honest and updates the class + derivation if so.
   const graphWrap = soleForgeCard ? 'hidden taller:block' : 'hidden grand:block'
   const renderGraph = graph !== null && (framed || !githubGraphEnabled)
+  const fullGraphStats = tier === 'full' && graph
+    ? { total: graph.total, streak: buildContributionGrid(graph.days).streak }
+    : null
   // A data-bearing graph WITHHELD for github's — the falsifiable cross-card
   // state the harness probes (`data-yield="github"` on the section).
   const graphYieldedToGithub = graph !== null && !framed && githubGraphEnabled
@@ -387,16 +391,23 @@ function GitlabInner({
       // graph renders at larger cells below — never Standard restated.
       className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
     >
-      <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
+      <header className="mb-1.5 dense:mb-1 flex items-center gap-3">
         <h2 className="text-sm font-semibold text-fg">GitLab</h2>
+        {fullGraphStats && (
+          <p className="min-w-0 flex-1 truncate text-right text-xs text-fg-muted">
+            <span className="font-semibold tabular-nums text-fg">{fullGraphStats.total}</span> contributions
+            <span aria-hidden className="mx-1.5 text-fg-muted/40">·</span>
+            <span className="font-semibold tabular-nums text-accent">{fullGraphStats.streak}</span> day streak
+          </p>
+        )}
         {/* To-dos chip renders only when the view is on AND the count is > 0 —
             todos is a plain number here (no null/"unavailable" case, unlike
             github's notifications), so 0 (all caught up) is the only hidden
             state besides the view being off. "20+" at the per-page cap. */}
         {views.todos && todos > 0 && (
-          <span className="text-xs text-fg-muted">{todos >= TODOS_CAP ? '20+' : todos} to-dos</span>
+          <span className="shrink-0 text-xs text-fg-muted">{todos >= TODOS_CAP ? '20+' : todos} to-dos</span>
         )}
-      </div>
+      </header>
 
       <div className={framed && graph ? 'sr-only' : undefined}>
         <WorkPulseSummary
@@ -413,7 +424,10 @@ function GitlabInner({
           (sectionTier) and this wrapper carries nothing — the whole card yields
           as one, no husk. */}
       {renderGraph && graph && (
-        <div data-work-pulse-detail className={innerGraphClass}>
+        <div
+          data-work-pulse-detail
+          className={[innerGraphClass, tier === 'full' ? '[&_[data-contribution-summary]]:hidden' : ''].filter(Boolean).join(' ') || undefined}
+        >
           <ContributionGraph
             contributions={graph}
             cell={tier === 'compact' ? 8 : tier === 'standard' ? 9 : 18}
@@ -423,7 +437,32 @@ function GitlabInner({
         </div>
       )}
 
-      {mrs.length > 0 && (
+      {tier === 'full' && (mrs.length > 0 || reviewMrs.length > 0) && (
+        <div
+          role="group"
+          aria-label="GitLab merge request queues"
+          className={`${renderGraph ? 'mt-1.5 border-t border-panel-border pt-1.5' : ''} grid ${mrs.length > 0 && reviewMrs.length > 0 ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}
+        >
+          {mrs.length > 0 && (
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Assigned</p>
+              <ul data-work-pulse-rows>
+                {mrs.map((item) => <ItemRow key={item.url} item={item} />)}
+              </ul>
+            </div>
+          )}
+          {reviewMrs.length > 0 && (
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Review asks</p>
+              <ul data-work-pulse-rows>
+                {reviewMrs.map((item) => <ItemRow key={item.url} item={item} />)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tier !== 'full' && mrs.length > 0 && (
         <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${renderGraph ? framed ? FRAMED_GRAPH_SEP : graphSep : ''}`}>
           {mrs.map((item) => (
             <ItemRow key={item.url} item={item} />
@@ -431,7 +470,7 @@ function GitlabInner({
         </ul>
       )}
 
-      {reviewMrs.length > 0 && (
+      {tier !== 'full' && reviewMrs.length > 0 && (
         <div className={(mrs.length > 0 ? ROW_SEP : renderGraph ? framed ? FRAMED_GRAPH_SEP : graphSep : '') + reviewAsksTier}>
           {/* The eyebrow separates review asks from the assigned MRs ONLY when
               both render — a single review list needs no label (its rows carry
