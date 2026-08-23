@@ -3,6 +3,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchGithub, resolveGithubViews, type GithubData, type GithubItem } from '../../../services/connectors/github'
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import { buildContributionGrid } from '../shared/contributionGrid'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
@@ -118,6 +119,9 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
   // gate shape.
   const graph =
     views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
+  const fullGraphStats = tier === 'full' && graph
+    ? { total: graph.total, streak: buildContributionGrid(graph.days).streak }
+    : null
 
   // STRICTLY graph-only composition (commitGraph on, every other section off —
   // Jon's "just my commit graph"). The graph is then the card's ONLY content, so
@@ -250,8 +254,15 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
       data-canvas-size={tier}
       className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
     >
-      <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
+      <div className="mb-1.5 dense:mb-1 flex items-center gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
+        {fullGraphStats ? (
+          <p data-contribution-header-summary className="min-w-0 flex-1 truncate text-right text-xs text-fg-muted">
+            <span className="font-semibold tabular-nums text-fg">{fullGraphStats.total}</span> contributions
+            <span aria-hidden className="mx-1.5 text-fg-muted/40">·</span>
+            <span className="font-semibold tabular-nums text-accent">{fullGraphStats.streak}</span> day streak
+          </p>
+        ) : <span className="flex-1" />}
         {/* Unread chip renders ONLY when the notifications view is on AND the
             count is known AND positive (Controller ruling 2, compounded with the
             view gate): null (endpoint unavailable) hides it; 0 (all caught up)
@@ -293,14 +304,35 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
         <div data-work-pulse-detail className={innerGraphClass}>
           <ContributionGraph
             contributions={graph}
-            cell={tier === 'compact' ? 8 : tier === 'standard' ? 9 : 18}
-            gap={tier === 'full' ? 4 : 1}
+            cell={tier === 'compact' ? 8 : tier === 'standard' ? 9 : 14}
+            gap={tier === 'full' ? 2 : 1}
             showMonthTicks={tier === 'full'}
+            showSummary={tier !== 'full'}
           />
         </div>
       )}
 
-      {prs.length > 0 && (
+      {tier === 'full' && (prs.length > 0 || issues.length > 0) ? (
+        <div
+          data-github-row-families="parallel"
+          className={`${graph ? 'mt-1.5 border-t border-panel-border pt-1.5' : ''} grid ${prs.length > 0 && issues.length > 0 ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}
+        >
+          {prs.length > 0 ? (
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Pull requests</p>
+              <ul data-work-pulse-rows>{prs.map((item) => <ItemRow key={item.url} item={item} />)}</ul>
+            </div>
+          ) : null}
+          {issues.length > 0 ? (
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Issues</p>
+              <ul data-work-pulse-rows>{issues.map((item) => <ItemRow key={item.url} item={item} />)}</ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tier !== 'full' && prs.length > 0 && (
         <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${graph ? framed ? FRAMED_GRAPH_SEP : graphSep : ''}`}>
           {prs.map((item) => (
             <ItemRow key={item.url} item={item} />
@@ -308,7 +340,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
         </ul>
       )}
 
-      {issues.length > 0 && (
+      {tier !== 'full' && issues.length > 0 && (
         <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? framed ? FRAMED_GRAPH_SEP : graphSep : ''}`}>
           {issues.map((item) => (
             <ItemRow key={item.url} item={item} />

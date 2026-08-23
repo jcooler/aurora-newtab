@@ -35,11 +35,13 @@ export default function ContributionGraph({
   cell = DEFAULT_CELL,
   gap = DEFAULT_GAP,
   showMonthTicks = true,
+  showSummary = true,
 }: {
   contributions: Contributions
   cell?: number
   gap?: number
   showMonthTicks?: boolean
+  showSummary?: boolean
 }) {
   const CELL = cell
   const GAP = gap
@@ -95,14 +97,16 @@ export default function ContributionGraph({
 
       {/* Stat line: bright tabular total, accent tabular streak — the card's one
           accent point. "contributions", not the board's "commits". */}
-      <p data-contribution-summary className="mt-2 text-xs text-fg-muted">
-        <span className="font-semibold tabular-nums text-fg">{contributions.total}</span> contributions
-        <span aria-hidden className="mx-1.5 text-fg-muted/40">
-          ·
-        </span>
-        <span className="font-semibold tabular-nums text-accent">{streak}</span>
-        <span> day streak</span>
-      </p>
+      {showSummary ? (
+        <p data-contribution-summary className="mt-2 text-xs text-fg-muted">
+          <span className="font-semibold tabular-nums text-fg">{contributions.total}</span> contributions
+          <span aria-hidden className="mx-1.5 text-fg-muted/40">
+            ·
+          </span>
+          <span className="font-semibold tabular-nums text-accent">{streak}</span>
+          <span> day streak</span>
+        </p>
+      ) : null}
     </div>
   )
 }

@@ -38,4 +38,13 @@ describe('ContributionGraph tier composition', () => {
     expect(months?.textContent).toContain('Jan')
     expect(months?.querySelector('span')?.className).toContain('text-[11px]')
   })
+
+  it('can move the summary into a parent composition without duplicating it', () => {
+    const { container } = render(
+      <ContributionGraph contributions={CONTRIBUTIONS} showSummary={false} />,
+    )
+
+    expect(screen.getByRole('img', { name: /contribution activity/i })).toBeTruthy()
+    expect(container.querySelector('[data-contribution-summary]')).toBeNull()
+  })
 })

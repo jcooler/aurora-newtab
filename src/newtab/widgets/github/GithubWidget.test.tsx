@@ -90,7 +90,7 @@ describe('GithubWidget', () => {
   it.each([
     ['compact', '8px', false],
     ['standard', '9px', false],
-    ['full', '18px', true],
+    ['full', '14px', true],
   ] as const)('uses the exact %s frame with a bounded, tier-sized contribution graph', async (tier, cell, showsMonths) => {
     const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
     mount(await seededStorage(config, DATA_WITH_GRAPH), tier)
@@ -114,6 +114,13 @@ describe('GithubWidget', () => {
     mount(await seededStorage(config, DATA_WITH_GRAPH), 'full')
     const fullFrame = await readyFrame()
     expect(fullFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(2)
+    const graphSummary = fullFrame.querySelector<HTMLElement>('[data-contribution-header-summary]')
+    expect(graphSummary?.textContent).toContain('contributions')
+    expect(graphSummary?.textContent).toContain('day streak')
+    expect(fullFrame.querySelector('[data-contribution-summary]')).toBeNull()
+    const rowGroup = fullFrame.querySelector<HTMLElement>('[data-github-row-families="parallel"]')
+    expect(rowGroup?.className).toContain('grid-cols-2')
+    expect(rowGroup?.querySelectorAll('ul')).toHaveLength(2)
     expect(screen.getByText('Fix the flaky login test').className).not.toContain('dense:text-xs')
     expect(screen.getByText('Crash on cold start')).toBeTruthy()
   })
