@@ -2843,7 +2843,7 @@ select > option {
   white-space: nowrap;
 }
 
-.core-greeting-frame { justify-content: center; gap: 10px; padding: 18px 22px; }
+.core-greeting-frame { width: var(--tier-frame-width); max-width: calc(100vw - 24px); justify-content: center; gap: 10px; padding: 18px 22px; }
 .core-greeting-frame--free { color: var(--canvas-fg); text-shadow: 0 2px 14px rgb(0 0 0 / 0.45); }
 .core-greeting-frame--stack { align-items: flex-start; color: var(--fg); text-shadow: none; }
 .core-greeting-frame--stack > p,

@@ -6,6 +6,7 @@ import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
 import { defaults } from '../../lib/storage/schema'
 import Greeting from './Greeting'
+import indexCss from '../index.css?raw'
 
 describe('Greeting restoration sampling', () => {
   it('changes daypart immediately when a sleeping tab regains focus', async () => {
@@ -26,6 +27,10 @@ describe('Greeting restoration sampling', () => {
 })
 
 describe('Greeting presentation surface', () => {
+  it('keeps the legacy full-width Greeting rule from overriding exact tier geometry', () => {
+    expect(indexCss).toMatch(/\.core-greeting-frame\s*\{[^}]*width:\s*var\(--tier-frame-width\)\s*;/)
+  })
+
   it('keeps the free Greeting frameless and the stack Greeting framed', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
