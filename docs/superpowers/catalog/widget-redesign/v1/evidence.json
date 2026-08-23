@@ -1,17 +1,17 @@
 {
   "version": 1,
-  "sourceCommit": "5fb9bb16e30c6545842d66dfdb912ab018adfacd",
-  "dirtyStatus": "",
+  "sourceCommit": "2f667d2a9be3bdab823baed9d4a4c43dae930965",
+  "dirtyStatus": " M docs/superpowers/catalog/widget-redesign/v1/CATALOG.md\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-empty-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-error-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-loading-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-partial-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-ready-light.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-ready-pink.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-setup-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-stack-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/calendar-standard-stale-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/comparison-calendar-standard-agenda-month.png\n M docs/superpowers/catalog/widget-redesign/v1/evidence.json\n M docs/superpowers/catalog/widget-redesign/v1/greeting-compact-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/greeting-compact-stack-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/greeting-standard-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/greeting-standard-ready-light.png\n M docs/superpowers/catalog/widget-redesign/v1/greeting-standard-ready-pink.png\n M docs/superpowers/catalog/widget-redesign/v1/greeting-standard-stack-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/links-compact-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/links-compact-stack-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/links-standard-ready-dark.png\n M docs/superpowers/catalog/widget-redesign/v1/links-standard-ready-light.png\n M docs/superpowers/catalog/widget-redesign/v1/links-standard-ready-pink.png\n M docs/superpowers/catalog/widget-redesign/v1/links-standard-stack-ready-dark.png\n M docs/superpowers/reports/WIDGET-REDESIGN-MOCKUP-QA.md",
   "sourceDirtyLines": [],
   "exact": true,
-  "generatedAt": "2026-08-23T18:29:18.113Z",
+  "generatedAt": "2026-08-23T20:42:19.593Z",
   "sourceHashes": {
     "mockups/widget-redesign/catalog-model.mjs": "b83f808f3d601ef20a2ba029ecf0d01d31c2edeecd40d056e3668a97e751a7bf",
-    "mockups/widget-redesign/catalog-captures.mjs": "0529078f5facda8e5c7131034cc779aa2bf22cfa3f8a96eb9ba3b2840fa73a28",
+    "mockups/widget-redesign/catalog-captures.mjs": "1ca7ddc7d016d6660945132a4791a6da9ae1ba8fae46198f74ebdc25066fbc64",
     "mockups/widget-redesign/fixtures.mjs": "55c8bef99e26fcc337058a7c4670d58c888d76c04b7009688271d6f3a7048c35",
-    "mockups/widget-redesign/styles.css": "2205906c75294bcb0aaf37db4461acb05d860b6cb7b1d9731f92a125b5512296",
-    "mockups/widget-redesign/renderers/shared.mjs": "f007850a243bd6dc17b4e9e1e6e3e9813bdddbdd49bfa6009d60627c17a16d6e",
-    "mockups/widget-redesign/renderers/core.mjs": "790276f9341cb3e0789baa8dc8eeab5a614c41a8efb23feed3afa803f6525a0b",
+    "mockups/widget-redesign/styles.css": "ca8eb9f81bd202ecce374febc20bcc6fc306820ee3b8390622b54a2d78ffdd68",
+    "mockups/widget-redesign/renderers/shared.mjs": "e4ab268e40f017a4a02868882fff44ae6666ce939f7e4f8ba406458703394c42",
+    "mockups/widget-redesign/renderers/core.mjs": "3728e76ee93d2a06cd35bdd70682e80890503536cf09f1407befc36e1b2258e6",
     "mockups/widget-redesign/renderers/calendar-sky.mjs": "9d4ce5d385948c1f99ae01abb0593e842973e93ac558bb5217c1df3125591710",
     "mockups/widget-redesign/renderers/work.mjs": "29d258b56bb02bddb612423d65b5eb6c9f4b96ff306b9feef3f9ec54fc8c63e5",
     "mockups/widget-redesign/renderers/resources.mjs": "e85b4eb27bcb6c01eb73fd4483552207008d0e9e35636c6fb67cefccd0f8c1cf"
@@ -356,7 +356,7 @@
           "height": 132
         }
       ],
-      "textFloor": 11,
+      "textFloor": 30,
       "routineFloor": null,
       "overflowOwners": [],
       "essentialVisible": 1,
@@ -388,7 +388,7 @@
           "height": 200
         }
       ],
-      "textFloor": 11,
+      "textFloor": 13,
       "routineFloor": null,
       "overflowOwners": [],
       "essentialVisible": 1,
@@ -420,7 +420,7 @@
           "height": 200
         }
       ],
-      "textFloor": 11,
+      "textFloor": 13,
       "routineFloor": null,
       "overflowOwners": [],
       "essentialVisible": 1,
@@ -452,7 +452,7 @@
           "height": 200
         }
       ],
-      "textFloor": 11,
+      "textFloor": 13,
       "routineFloor": null,
       "overflowOwners": [],
       "essentialVisible": 1,

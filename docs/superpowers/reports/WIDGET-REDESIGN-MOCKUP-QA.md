@@ -1,6 +1,6 @@
 # Widget Redesign Mockup QA
 
-Source commit: `5fb9bb16e30c6545842d66dfdb912ab018adfacd`
+Source commit: `2f667d2a9be3bdab823baed9d4a4c43dae930965`
 Mode: exact
 
 ## Automated evidence
