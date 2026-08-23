@@ -8,6 +8,7 @@ import { MIXED_STACKS, TARGET_WIDGETS } from '../mockups/widget-redesign/catalog
 import { startCatalogServer } from './widget-redesign-catalog-server.mjs'
 import {
   captureViewport,
+  createCaptureSession,
   expectedFrame,
   exactSourceDirtyLines,
   markdownCell,
@@ -40,6 +41,29 @@ test('exact-mode cleanliness ignores only generated catalog evidence', () => {
   assert.deepEqual(exactSourceDirtyLines(status), [
     ' M mockups/widget-redesign/styles.css',
     '?? docs/superpowers/catalog/widget-redesign/v2/unreviewed.png',
+  ])
+})
+
+test('creates one reusable browser session for the stateless capture catalog', async () => {
+  const calls = []
+  const page = { id: 'catalog-page' }
+  const context = {
+    newPage: async () => {
+      calls.push('page')
+      return page
+    },
+  }
+  const browser = {
+    newContext: async (options) => {
+      calls.push({ context: options })
+      return context
+    },
+  }
+
+  assert.deepEqual(await createCaptureSession(browser), { context, page })
+  assert.deepEqual(calls, [
+    { context: { viewport: { width: 1200, height: 760 }, deviceScaleFactor: 1 } },
+    'page',
   ])
 })
 

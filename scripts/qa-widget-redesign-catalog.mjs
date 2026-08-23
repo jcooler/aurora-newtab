@@ -36,6 +36,12 @@ export function resolveOutput(outputRoot, child) {
 export const markdownCell = (value) => String(value).replaceAll('|', '\\|').replace(/\r?\n/g, ' ')
 export const captureViewport = (capture) => capture.kind === 'comparison' || capture.kind === 'migration' ? { width: 1440, height: 900 } : { width: 1200, height: 760 }
 
+export async function createCaptureSession(browser) {
+  const context = await browser.newContext({ viewport: { width: 1200, height: 760 }, deviceScaleFactor: 1 })
+  const page = await context.newPage()
+  return { context, page }
+}
+
 const hashFile = async (path) => createHash('sha256').update(await readFile(path)).digest('hex')
 const pngSize = (buffer) => ({ width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) })
 export const trimGitOutput = (output) => String(output).trimEnd()
@@ -128,18 +134,22 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
   const sourceHashes = Object.fromEntries(await Promise.all(SOURCE_FILES.map(async (file) => [file, await hashFile(resolve(root, file))])))
   const server = await startCatalogServer({ repoRoot: root })
   const browser = await chromium.launch({ headless: true })
+  const { context, page } = await createCaptureSession(browser)
   const results = []
   const failures = []
   try {
     for (const capture of captures) {
       const viewport = captureViewport(capture)
-      const context = await browser.newContext({ viewport, deviceScaleFactor: 1 })
-      const page = await context.newPage()
+      await page.setViewportSize(viewport)
       const runtime = { console: [], page: [], failedRequests: [], nonLocalRequests: [] }
-      page.on('console', (message) => { if (message.type() === 'error') runtime.console.push(message.text()) })
-      page.on('pageerror', (error) => runtime.page.push(error.message))
-      page.on('requestfailed', (request) => runtime.failedRequests.push(request.url()))
-      page.on('request', (request) => { if (!request.url().startsWith(server.origin)) runtime.nonLocalRequests.push(request.url()) })
+      const onConsole = (message) => { if (message.type() === 'error') runtime.console.push(message.text()) }
+      const onPageError = (error) => runtime.page.push(error.message)
+      const onRequestFailed = (request) => runtime.failedRequests.push(request.url())
+      const onRequest = (request) => { if (!request.url().startsWith(server.origin)) runtime.nonLocalRequests.push(request.url()) }
+      page.on('console', onConsole)
+      page.on('pageerror', onPageError)
+      page.on('requestfailed', onRequestFailed)
+      page.on('request', onRequest)
       const response = await page.goto(`${server.origin}/mockups/widget-redesign/capture/${encodeURIComponent(capture.key)}`, { waitUntil: 'domcontentloaded' })
       const locator = page.locator(`[data-capture-key="${capture.key}"]`)
       await locator.waitFor()
@@ -181,9 +191,13 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
       if (Object.values(runtime).some((items) => items.length)) captureFailures.push('runtime or request')
       if (captureFailures.length) failures.push(`${capture.key}: ${captureFailures.join(', ')}`)
       results.push({ key: capture.key, kind: capture.kind, filename, viewport, geometry: measures.frames, textFloor: measures.textFloor, routineFloor: measures.routineFloor, overflowOwners: measures.overflowOwners, essentialVisible: measures.essentialVisible, stack: measures.stack, runtime, png: pngSize(png), failures: captureFailures })
-      await context.close()
+      page.off('console', onConsole)
+      page.off('pageerror', onPageError)
+      page.off('requestfailed', onRequestFailed)
+      page.off('request', onRequest)
     }
   } finally {
+    await context.close()
     await browser.close()
     await server.close()
   }
