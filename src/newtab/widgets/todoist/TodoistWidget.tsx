@@ -121,10 +121,11 @@ function TodoistInner({ config, canvasSize, docked }: { config: TodoistConfig; c
     }
   }
 
-  const rows = (items: readonly TodoistTask[]) => (
+  const rows = (items: readonly TodoistTask[], twoLine = false) => (
     <TaskList
       tasks={items}
       projects={projectNames}
+      twoLine={twoLine}
       onComplete={(task, button) => {
         restoreFocusRef.current = button
         setCompleteError(null)
@@ -176,7 +177,7 @@ function TodoistInner({ config, canvasSize, docked }: { config: TodoistConfig; c
                 }}
               />
             ) : (
-              <div className="mt-3">{rows(visible)}</div>
+              <div className="mt-3">{rows(visible, true)}</div>
             )
           ) : null}
         </>
@@ -230,10 +231,12 @@ function TaskGroups({
 function TaskList({
   tasks,
   projects,
+  twoLine = false,
   onComplete,
 }: {
   tasks: readonly TodoistTask[]
   projects: ReadonlyMap<string, string>
+  twoLine?: boolean
   onComplete(task: TodoistTask, button: HTMLButtonElement): void
 }) {
   return (
@@ -249,12 +252,23 @@ function TaskList({
             <span className="block truncate text-sm font-medium text-fg group-hover:text-accent group-focus-within:text-accent">
               {task.content}
             </span>
-            <span className={`block truncate text-xs ${workRowClass}`}>
-              {projects.get(task.projectId) ?? 'Unknown project'} · {bucketLabel(task.bucket)}
-            </span>
-            <span className={`block truncate text-xs ${workRowClass}`}>
-              {taskFacts(task).join(' · ')}
-            </span>
+            {twoLine ? (
+              <span
+                title={standardTaskMetadata(task, projects)}
+                className={`block truncate text-xs ${workRowClass}`}
+              >
+                {standardTaskMetadata(task, projects)}
+              </span>
+            ) : (
+              <>
+                <span className={`block truncate text-xs ${workRowClass}`}>
+                  {projects.get(task.projectId) ?? 'Unknown project'} · {bucketLabel(task.bucket)}
+                </span>
+                <span className={`block truncate text-xs ${workRowClass}`}>
+                  {taskFacts(task).join(' · ')}
+                </span>
+              </>
+            )}
           </a>
           <button
             type="button"
@@ -268,6 +282,15 @@ function TaskList({
       ))}
     </ul>
   )
+}
+
+function standardTaskMetadata(task: TodoistTask, projects: ReadonlyMap<string, string>): string {
+  const bucket = bucketLabel(task.bucket)
+  const facts = taskFacts(task)
+  const nonRepeatingFacts = facts[0]?.toLocaleLowerCase() === bucket.toLocaleLowerCase()
+    ? facts.slice(1)
+    : facts
+  return [projects.get(task.projectId) ?? 'Unknown project', bucket, ...nonRepeatingFacts].join(' · ')
 }
 
 function taskFacts(task: TodoistTask): string[] {

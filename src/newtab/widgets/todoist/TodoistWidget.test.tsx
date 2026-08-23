@@ -99,7 +99,11 @@ describe('TodoistWidget', () => {
     expect(title.closest('li')?.textContent).toContain('30 min')
     const second = screen.getByText('Ship Aurora 1').closest('li')
     expect(second?.textContent).toContain('Personal · Today')
-    expect(second?.textContent).toContain('today · Priority 2')
+    expect(second?.textContent).toContain('Today · Priority 2')
+    const standardCopy = screen.getByText('Ship Aurora 1').parentElement
+    expect(standardCopy?.children).toHaveLength(2)
+    expect(standardCopy?.lastElementChild?.textContent).toBe('Personal · Today · Priority 2')
+    expect(standardCopy?.lastElementChild?.getAttribute('title')).toBe('Personal · Today · Priority 2')
     expect(screen.getByRole('button', { name: 'Complete Ship Aurora 1' })).toBeTruthy()
     const link = title.closest('a') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('https://app.todoist.com/app/task/task-0')
