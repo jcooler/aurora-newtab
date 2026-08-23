@@ -102,3 +102,7 @@ output/
 
 # Superpowers visual-companion sessions are local design scratch.
 .superpowers/
+
+# Complete widget-redesign catalog and shell scratch evidence.
+.qa-widget-redesign-catalog/
+.qa-widget-redesign-shell/
