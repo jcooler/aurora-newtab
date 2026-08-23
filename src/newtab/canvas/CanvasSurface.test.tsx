@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NamedLayout } from '../../lib/layout/namedLayouts'
 import { WIDGET_REGISTRY } from '../widgetRegistry'
+import TierFrame from '../widgets/shared/TierFrame'
 import CanvasSurface from './CanvasSurface'
 import indexCss from '../index.css?raw'
 
@@ -300,9 +301,9 @@ describe('CanvasSurface (anchored named layout)', () => {
 
   it('never paints a container focus ring: no focus-within rule declares an outline', () => {
     expect(indexCss).not.toMatch(/board-item[^{]*:focus-within/)
-    // The hover-chrome reveal keys on :focus-within (opacity only, spec 2.5
-    // grips/gears); a RING would be an outline declaration in such a rule.
-    expect(indexCss).not.toMatch(/:focus-within[^{]*\{[^}]*outline/)
+    // Tier frames deliberately own their own keyboard focus ring. The Canvas
+    // container and its hover chrome must not add a competing outer ring.
+    expect(indexCss).not.toMatch(/\.canvas-item:focus-within\s*\{[^}]*outline/)
   })
 })
 
@@ -325,6 +326,81 @@ describe('CanvasSurface widget stacks', () => {
       layer: 4,
     }],
   }
+
+  it('keeps the stored Standard Weather and On This Day reference stack mounted once, framed, inert when hidden, and storage-neutral', () => {
+    const referenceEntries = WIDGET_REGISTRY.filter(({ id }) => ['weather', 'onThisDay'].includes(id))
+    const referenceLayout: NamedLayout = {
+      id: 'reference-stack-layout',
+      name: 'Reference stack',
+      widgets: {},
+      stacks: [{
+        id: 'stack-reference',
+        members: ['weather', 'onThisDay'],
+        facing: 'weather',
+        anchor: 'top-right',
+        offsetX: -8,
+        offsetY: 13,
+        tier: 'standard',
+        layer: 4,
+      }],
+    }
+    const rendered: string[] = []
+    const onStepStack = vi.fn()
+    const onFaceStack = vi.fn()
+    const storageWrite = vi.fn()
+    const { rerender } = render(
+      <CanvasSurface
+        activeLayout={referenceLayout}
+        entries={referenceEntries}
+        viewport={{ width: 1408, height: 445 }}
+        onStepStack={onStepStack}
+        onFaceStack={onFaceStack}
+        renderWidget={(entry, size) => {
+          rendered.push(`${entry.id}:${size}`)
+          return (
+            <TierFrame label={entry.label} tier={size} state="ready">
+              <button type="button" onClick={storageWrite}>Open {entry.label}</button>
+            </TierFrame>
+          )
+        }}
+      />,
+    )
+
+    const item = screen.getByTestId('canvas-item-stack:stack-reference')
+    const card = within(item).getByRole('group')
+    expect(rendered).toEqual(['weather:standard', 'onThisDay:standard'])
+    expect(item.querySelectorAll('[data-stack-member]')).toHaveLength(2)
+    expect(item.querySelectorAll('[data-tier-frame="standard"]')).toHaveLength(2)
+    expect(item.querySelector('[data-tier-frame="compact"], [data-tier-frame="full"]')).toBeNull()
+    expect(item.querySelector('[data-stack-member="weather"]')?.hasAttribute('inert')).toBe(false)
+    expect(item.querySelector('[data-stack-member="onThisDay"]')?.hasAttribute('inert')).toBe(true)
+    expect(within(card).getByRole('button', { name: 'Open Weather' })).toBeTruthy()
+    expect(onStepStack).not.toHaveBeenCalled()
+    expect(onFaceStack).not.toHaveBeenCalled()
+    expect(storageWrite).not.toHaveBeenCalled()
+
+    rerender(
+      <CanvasSurface
+        activeLayout={{ ...referenceLayout, stacks: [{ ...referenceLayout.stacks![0], facing: 'onThisDay' }] }}
+        entries={referenceEntries}
+        viewport={{ width: 1408, height: 445 }}
+        onStepStack={onStepStack}
+        onFaceStack={onFaceStack}
+        renderWidget={(entry, size) => (
+          <TierFrame label={entry.label} tier={size} state="ready">
+            <button type="button" onClick={storageWrite}>Open {entry.label}</button>
+          </TierFrame>
+        )}
+      />,
+    )
+
+    expect(screen.getByTestId('canvas-item-stack:stack-reference')).toBe(item)
+    expect(item.querySelector('[data-stack-member="weather"]')?.hasAttribute('inert')).toBe(true)
+    expect(item.querySelector('[data-stack-member="onThisDay"]')?.hasAttribute('inert')).toBe(false)
+    expect(onStepStack).not.toHaveBeenCalled()
+    expect(onFaceStack).not.toHaveBeenCalled()
+    expect(storageWrite).not.toHaveBeenCalled()
+  })
 
   it('mounts every member renderer once at its nearest supported stack tier in one stable object', () => {
     const rendered: string[] = []

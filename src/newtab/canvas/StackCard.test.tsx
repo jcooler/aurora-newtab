@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import TierFrame from '../widgets/shared/TierFrame'
 import StackCard, { type StackCardMember } from './StackCard'
 import indexCss from '../index.css?raw'
 
@@ -157,6 +158,59 @@ describe('StackCard', () => {
     expect(onStep).not.toHaveBeenCalled()
     fireEvent.click(within(card).getByRole('button', { name: 'Show Notes' }))
     expect(onFace).toHaveBeenCalledWith('notes')
+  })
+
+  it('keeps a shared Standard reference pair as two exact frames without a stack-owned panel or scroll surface', () => {
+    const openWeather = vi.fn()
+    const onStep = vi.fn()
+    const onFace = vi.fn()
+    const referenceMembers: readonly StackCardMember[] = [
+      {
+        id: 'weather',
+        label: 'Weather',
+        content: (
+          <TierFrame label="Weather" tier="standard" state="ready">
+            <button type="button" onClick={openWeather}>Open weather</button>
+          </TierFrame>
+        ),
+      },
+      {
+        id: 'onThisDay',
+        label: 'On This Day',
+        content: (
+          <TierFrame label="On This Day" tier="standard" state="ready">
+            <a href="https://en.wikipedia.org/wiki/August_22">Open On This Day</a>
+          </TierFrame>
+        ),
+      },
+    ]
+
+    render(
+      <StackCard
+        id="stack-reference"
+        members={referenceMembers}
+        facing="weather"
+        editing={false}
+        onStep={onStep}
+        onFace={onFace}
+      />,
+    )
+
+    const card = screen.getByRole('group')
+    expect(card.querySelectorAll('[data-tier-frame="standard"]')).toHaveLength(2)
+    expect(card.querySelector('[data-tier-frame="compact"], [data-tier-frame="full"]')).toBeNull()
+    expect(card.className).toBe('stack-card')
+    expect(card.querySelector('.rounded-panel')).toBeNull()
+    expect(card.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
+    expect(card.querySelector('[data-stack-member="weather"]')?.hasAttribute('inert')).toBe(false)
+    expect(card.querySelector('[data-stack-member="onThisDay"]')?.hasAttribute('inert')).toBe(true)
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Open weather' }))
+    expect(openWeather).toHaveBeenCalledOnce()
+    fireEvent.click(within(card).getByRole('button', { name: 'Next widget' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Show On This Day' }))
+    expect(onStep).toHaveBeenCalledWith(1)
+    expect(onFace).toHaveBeenCalledWith('onThisDay')
   })
 
   it('pins the constant-footprint grid and quiet overlay controls without an outer panel', () => {
