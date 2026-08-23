@@ -222,7 +222,7 @@ git commit -m "feat: redesign core widget presentations"
 - Consumes: Existing reducers, persistence hooks, panels, dock lines, and Task 1 presentation context.
 - Produces: Approved dense faces without changing task, note, timer, habit, or bookmark ownership.
 
-- [ ] **Step 1: Write failing information-budget tests**
+- [x] **Step 1: Write failing information-budget tests**
 
 ```tsx
 it('shows two actionable tasks in Compact without opening the panel', () => {
@@ -245,21 +245,21 @@ it('keeps the free Bookmark bar linear and its stack face framed', () => {
 })
 ```
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
 Run: `npx vitest run src/newtab/widgets/todo/TodoWidget.test.tsx src/newtab/widgets/notes/NotesWidget.test.tsx src/newtab/widgets/timer/TimerWidget.test.tsx src/newtab/widgets/habits/HabitsWidget.test.tsx src/newtab/widgets/bookmarks/BookmarksBar.test.tsx`
 
-- [ ] **Step 3: Implement the approved compositions**
+- [x] **Step 3: Implement the approved compositions**
 
 Tasks Compact shows two bounded actions and progress; Notes shows readable content and edited age; Timer makes the remaining time dominant; Habits uses completion plus useful per-habit state; Bookmarks keeps the free bar and uses purpose-built framed mark/name faces in stacks. Docked forms remain one line and match the shared 44px visual weight.
 
-- [ ] **Step 4: Run ownership and interaction regressions**
+- [x] **Step 4: Run ownership and interaction regressions**
 
 Run: `npx vitest run src/newtab/widgets/todo src/newtab/widgets/notes src/newtab/widgets/timer src/newtab/widgets/habits src/newtab/widgets/bookmarks src/newtab/canvas/CanvasSurface.test.tsx`
 
 Expected: one persistence owner, exact panels, keyboard actions, dock behavior, and stack mounting remain green.
 
-- [ ] **Step 5: Build, inspect Tasks + Notes mixed stack, then commit**
+- [x] **Step 5: Build, inspect Tasks + Notes mixed stack, then commit**
 
 ```powershell
 npm run build
