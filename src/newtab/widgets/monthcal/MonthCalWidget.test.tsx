@@ -65,12 +65,18 @@ describe('MonthCalWidget', () => {
   it('renders the complete month in the exact Standard TierFrame with no internal scroller', async () => {
     const { container } = await renderWithMonthCal({ canvasSize: 'standard' })
     const frame = screen.getByRole('region', { name: 'Month' })
+    const dateCells = Array.from(container.querySelectorAll<HTMLElement>('[data-cell-key]'))
     expect(frame.getAttribute('data-tier-frame')).toBe('standard')
     expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
     expect(frame.classList.contains('tier-frame--standard')).toBe(true)
     expect(frame.className).not.toContain('overflow-y')
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
-    expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(42)
+    expect(dateCells).toHaveLength(42)
+    // Six rows of py-0.5 spend 24px on repeated cell padding, which is the
+    // complete measured overflow of the exact 200px frame. Preserve all
+    // date content and reclaim only that non-informational row spacing.
+    expect(dateCells.every((dateCell) => dateCell.classList.contains('py-0'))).toBe(true)
+    expect(dateCells.some((dateCell) => dateCell.classList.contains('py-0.5'))).toBe(false)
   })
 
   it('renders nothing while settings.widgets.monthCal is off', async () => {

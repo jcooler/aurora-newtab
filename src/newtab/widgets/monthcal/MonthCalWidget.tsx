@@ -211,7 +211,7 @@ function MonthCalCell({
     // never collides the way querying by visible day-number text would
     // (day 15 appears at most once per grid, but day 1 can appear twice —
     // once in-month, once trailing into next month's first week).
-    <td data-cell-key={cell.key} className="py-0.5">
+    <td data-cell-key={cell.key} className="py-0">
       <div className="flex flex-col items-center gap-0.5">
         <span
           className={`flex size-5 items-center justify-center rounded-full text-sm ${
