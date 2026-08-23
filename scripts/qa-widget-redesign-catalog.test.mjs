@@ -9,6 +9,7 @@ import { startCatalogServer } from './widget-redesign-catalog-server.mjs'
 import {
   captureViewport,
   expectedFrame,
+  exactSourceDirtyLines,
   markdownCell,
   resolveOutput,
 } from './qa-widget-redesign-catalog.mjs'
@@ -23,6 +24,21 @@ test('enforces pure harness geometry, output, viewport, and Markdown contracts',
   assert.equal(markdownCell('A | B\nC'), 'A \\| B C')
   assert.deepEqual(captureViewport({ kind: 'comparison' }), { width: 1440, height: 900 })
   assert.deepEqual(captureViewport({ kind: 'free' }), { width: 1200, height: 760 })
+})
+
+test('exact-mode cleanliness ignores only generated catalog evidence', () => {
+  const status = [
+    ' M docs/superpowers/catalog/widget-redesign/v1/CATALOG.md',
+    '?? docs/superpowers/catalog/widget-redesign/v1/clock-standard-ready-dark.png',
+    ' M docs/superpowers/reports/WIDGET-REDESIGN-MOCKUP-QA.md',
+    ' M mockups/widget-redesign/styles.css',
+    '?? docs/superpowers/catalog/widget-redesign/v2/unreviewed.png',
+  ].join('\n')
+
+  assert.deepEqual(exactSourceDirtyLines(status), [
+    ' M mockups/widget-redesign/styles.css',
+    '?? docs/superpowers/catalog/widget-redesign/v2/unreviewed.png',
+  ])
 })
 
 test('serves the standalone 36-to-34 catalog with exact calibration frames', async () => {

@@ -39,6 +39,15 @@ export const captureViewport = (capture) => capture.kind === 'comparison' || cap
 const hashFile = async (path) => createHash('sha256').update(await readFile(path)).digest('hex')
 const pngSize = (buffer) => ({ width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) })
 const git = (repoRoot, args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trim()
+const GENERATED_EXACT_CATALOG = 'docs/superpowers/catalog/widget-redesign/v1/'
+const GENERATED_EXACT_REPORT = 'docs/superpowers/reports/WIDGET-REDESIGN-MOCKUP-QA.md'
+
+export function exactSourceDirtyLines(status) {
+  return String(status).split(/\r?\n/).filter(Boolean).filter((line) => {
+    const path = line.slice(3).replaceAll('\\', '/')
+    return !path.startsWith(GENERATED_EXACT_CATALOG) && path !== GENERATED_EXACT_REPORT
+  })
+}
 
 const catalogMarkdown = ({ sourceCommit, captures }) => `# Aurora Widget Redesign Catalog V1
 
@@ -113,7 +122,8 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
 
   const sourceCommit = git(root, ['log', '-1', '--format=%H', '--', 'mockups/widget-redesign'])
   const dirtyStatus = git(root, ['status', '--porcelain'])
-  if (exact && dirtyStatus) throw new Error(`Exact catalog requires a clean worktree before generation:\n${dirtyStatus}`)
+  const sourceDirtyLines = exactSourceDirtyLines(dirtyStatus)
+  if (exact && sourceDirtyLines.length) throw new Error(`Exact catalog requires clean source and harness files before generation:\n${sourceDirtyLines.join('\n')}`)
   const sourceHashes = Object.fromEntries(await Promise.all(SOURCE_FILES.map(async (file) => [file, await hashFile(resolve(root, file))])))
   const server = await startCatalogServer({ repoRoot: root })
   const browser = await chromium.launch({ headless: true })
@@ -143,7 +153,7 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
           return scrollableX || scrollableY
         }).map((node) => node.className || node.tagName).slice(0, 20)
         const text = [...rootNode.querySelectorAll('*')].filter((node) => visible(node) && node.children.length === 0 && node.textContent.trim()).map((node) => ({ tag: node.tagName, size: Number.parseFloat(getComputedStyle(node).fontSize) }))
-        const routine = [...rootNode.querySelectorAll('.agenda-row strong, .history-face article p, .work-rows strong, .deployment-face article strong, .sentry-face article strong, .todoist-face article strong, .resource-face article strong, .home-face article strong, .rss-face article strong, blockquote, .tasks-face li span, .quick-link span, .bookmark span, .notes-face p, .calendar-consolidation p')].filter(visible).map((node) => Number.parseFloat(getComputedStyle(node).fontSize))
+        const routine = [...rootNode.querySelectorAll('.agenda-row strong, .history-face article p, .work-rows strong, .deployment-face article strong, .sentry-face article strong, .todoist-face article strong, .resource-face article strong, .resource-dock__primary, .home-face article strong, .rss-face article strong, blockquote, .tasks-face li span, .quick-link span, .bookmark span, .notes-face p, .calendar-consolidation p')].filter(visible).map((node) => Number.parseFloat(getComputedStyle(node).fontSize))
         const stack = rootNode.querySelector('[data-stack]')
         return {
           frames,
@@ -177,7 +187,7 @@ export async function runWidgetRedesignCatalog({ repoRoot, outputDir, captureKey
     await server.close()
   }
 
-  const evidence = { version: 1, sourceCommit, dirtyStatus, exact, generatedAt: new Date().toISOString(), sourceHashes, captures: results, failures }
+  const evidence = { version: 1, sourceCommit, dirtyStatus, sourceDirtyLines, exact, generatedAt: new Date().toISOString(), sourceHashes, captures: results, failures }
   await writeFile(resolveOutput(out, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
   await writeFile(resolveOutput(out, 'CATALOG.md'), catalogMarkdown({ sourceCommit, captures: results }), 'utf8')
   const reportPath = exact
