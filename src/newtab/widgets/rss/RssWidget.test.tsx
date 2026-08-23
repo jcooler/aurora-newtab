@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -138,7 +138,9 @@ describe('RssWidget', () => {
 
     expect(screen.queryByText(headlineA.title)).toBeNull()
     expect(screen.queryByText(headlineB.title)).toBeNull()
-    expect(fetchHeadlines).toHaveBeenCalledWith(configForB.feeds, configForB.shownCount)
+    await waitFor(() => {
+      expect(fetchHeadlines).toHaveBeenCalledWith(configForB.feeds, configForB.shownCount)
+    })
 
     await act(async () => {
       resolveB([headlineB])
