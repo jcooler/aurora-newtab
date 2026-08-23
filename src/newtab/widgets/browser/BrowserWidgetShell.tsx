@@ -10,7 +10,7 @@ import type { WidgetPresentationState } from '../../widgetSizeContracts'
 function browserFrameState<T>(state: BrowserResourceState<T>, empty: boolean): WidgetPresentationState {
   if (state.status === 'checking') return 'loading'
   if (state.status === 'permission-required') return 'permission-required'
-  if (state.status === 'error') return state.data === null ? 'hard-error' : 'stale'
+  if (state.status === 'error') return state.data === null ? 'hard-error' : 'partial'
   if (empty) return 'empty'
   return state.refreshing ? 'stale' : 'ready'
 }

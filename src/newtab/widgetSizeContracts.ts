@@ -42,6 +42,7 @@ export interface SelectedCanvasContent {
 
 const READY_STATES = ['ready'] as const
 const RESOURCE_STATES = ['loading', 'ready', 'empty', 'stale', 'hard-error'] as const
+const NON_REJECTING_RESOURCE_STATES = ['loading', 'ready', 'empty', 'stale'] as const
 const PARTIAL_RESOURCE_STATES = ['loading', 'ready', 'empty', 'stale', 'partial', 'hard-error'] as const
 const WEATHER_STATES = ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'] as const
 
@@ -134,7 +135,7 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
       overflow: { kind: 'details', label: 'Weather details' },
     },
   }),
-  ics: framedContract(['compact', 'standard'], ['compact', 'standard'], RESOURCE_STATES, 'Next event', 'Selected calendar view', undefined, 'Next event', {
+  ics: framedContract(['compact', 'standard'], ['compact', 'standard'], NON_REJECTING_RESOURCE_STATES, 'Next event', 'Selected calendar view', undefined, 'Next event', {
     compact: tier('Next calendar event', ['event title', 'event time'], ['next event'], ['calendar name'], ['tighten spacing', 'clamp event title'], { kind: 'details', label: 'Calendar details' }),
     standard: tier('Selected calendar view', ['event title', 'event time'], ['event agenda'], ['calendar name', 'additional events'], ['tighten spacing', 'bound event rows'], { kind: 'details', label: 'Calendar details' }),
   }),
@@ -162,7 +163,7 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
     compact: tier('Complete today habits', ['habit names', 'completion action'], ['daily completion state'], ['completed count'], ['tighten spacing', 'bound habit rows'], { kind: 'details', label: 'Habits details' }),
   }),
   bookmarks: contract('bar', ['compact', 'standard'], READY_STATES, 'Bookmark marks', 'Named bookmark bar', undefined, 'Full readable bookmark bar'),
-  status: framedContract(['compact', 'standard'], ['compact', 'standard'], PARTIAL_RESOURCE_STATES, 'Service health', 'Service dots and active issues', undefined, 'Service health', {
+  status: framedContract(['compact', 'standard'], ['compact', 'standard'], NON_REJECTING_RESOURCE_STATES, 'Service health', 'Service dots and active issues', undefined, 'Service health', {
     compact: tier('Service health at a glance', ['service names', 'service states'], ['named status dots'], [], ['tighten spacing', 'bound service names'], { kind: 'details', label: 'Service status details' }),
     standard: tier('Service health and active issues', ['service names', 'service states'], ['named status dots'], ['active issue context'], ['tighten spacing', 'bound issue rows'], { kind: 'details', label: 'Service status details' }),
   }),

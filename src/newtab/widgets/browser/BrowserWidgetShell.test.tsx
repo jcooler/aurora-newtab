@@ -39,6 +39,7 @@ describe('BrowserWidgetShell', () => {
       </BrowserWidgetShell>,
     )
     expect(screen.getByText('kept row')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Reading List' }).dataset.tierFrameState).toBe('partial')
     expect(screen.getByRole('status').textContent).toContain('Offline')
     screen.getByRole('button', { name: 'Refresh Reading List' }).click()
     expect(refresh).toHaveBeenCalledTimes(1)

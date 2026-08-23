@@ -170,6 +170,11 @@ describe('shared frame presentation contracts', () => {
     }
   })
 
+  it('does not promise rejection states for connector fetchers that always return truthful data', () => {
+    expect(WIDGET_PRESENTATION_CONTRACTS.status.states).toEqual(['loading', 'ready', 'empty', 'stale'])
+    expect(WIDGET_PRESENTATION_CONTRACTS.ics.states).toEqual(['loading', 'ready', 'empty', 'stale'])
+  })
+
   it('freezes the single authoritative contract map and its identity rows', () => {
     expect(WIDGET_SIZE_CONTRACTS).toBe(WIDGET_PRESENTATION_CONTRACTS)
     expect(Object.isFrozen(WIDGET_PRESENTATION_CONTRACTS)).toBe(true)
