@@ -510,7 +510,7 @@ function snapshotScope(id, config, runtimeScope) {
   return `${id}:v1:${createHash('sha256').update(identity).digest('hex')}`
 }
 
-function weatherUrls() {
+function weatherUrls(location = LOCATION) {
   const forecast = new URL('https://api.open-meteo.com/v1/forecast')
   forecast.searchParams.set('temperature_unit', 'celsius')
   forecast.searchParams.set('wind_speed_unit', 'kmh')
@@ -521,13 +521,13 @@ function weatherUrls() {
   forecast.searchParams.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,is_day')
   forecast.searchParams.set('hourly', 'temperature_2m,precipitation_probability,weather_code,is_day')
   forecast.searchParams.set('daily', 'sunrise,sunset')
-  forecast.searchParams.set('latitude', String(LOCATION.lat))
-  forecast.searchParams.set('longitude', String(LOCATION.lon))
+  forecast.searchParams.set('latitude', String(location.lat))
+  forecast.searchParams.set('longitude', String(location.lon))
   const environment = new URL('https://air-quality-api.open-meteo.com/v1/air-quality')
   environment.searchParams.set('timezone', 'auto')
   environment.searchParams.set('current', 'us_aqi,uv_index,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen')
-  environment.searchParams.set('latitude', String(LOCATION.lat))
-  environment.searchParams.set('longitude', String(LOCATION.lon))
+  environment.searchParams.set('latitude', String(location.lat))
+  environment.searchParams.set('longitude', String(location.lon))
   return { forecast: forecast.href, environment: environment.href }
 }
 
@@ -1196,6 +1196,7 @@ async function run() {
   const providerModes = { forecast: 'ready', environment: 'ready', wikipedia: 'ready', nws: 'ready' }
   const pendingRoutes = []
   const expectedWeatherUrls = weatherUrls()
+  const expectedDallasWeatherUrls = weatherUrls({ lat: 32.78, lon: -96.8 })
   let context = null
   let page = null
   let caughtError = null
@@ -1265,7 +1266,7 @@ async function run() {
           row.outcome = row.mode === 'invalid' ? 'fulfilled-invalid-200' : 'fulfilled-ready-200'
           return fulfillJson(route, row.mode === 'invalid' ? {} : wikipediaPayload())
         }
-        if (url === expectedWeatherUrls.forecast) {
+        if ([expectedWeatherUrls.forecast, expectedDallasWeatherUrls.forecast].includes(url)) {
           row.operation = 'forecast'
           row.mode = providerModes.forecast
           evidence.requests.push(row)
@@ -1273,7 +1274,7 @@ async function run() {
           row.outcome = row.mode === 'invalid' ? 'fulfilled-invalid-200' : 'fulfilled-ready-200'
           return fulfillJson(route, row.mode === 'invalid' ? {} : forecastPayload())
         }
-        if (url === expectedWeatherUrls.environment) {
+        if ([expectedWeatherUrls.environment, expectedDallasWeatherUrls.environment].includes(url)) {
           row.operation = 'environment'
           row.mode = providerModes.environment
           evidence.requests.push(row)
@@ -1303,7 +1304,7 @@ async function run() {
           parsed.origin === 'https://api.weather.gov'
           && parsed.pathname === '/alerts/active'
           && parsed.searchParams.size === 1
-          && parsed.searchParams.get('point') === '40.71,-74.01'
+          && ['40.71,-74.01', '32.78,-96.8'].includes(parsed.searchParams.get('point'))
         ) {
           row.operation = 'nws'
           row.mode = providerModes.nws
