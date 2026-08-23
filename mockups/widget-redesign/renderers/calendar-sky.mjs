@@ -30,7 +30,7 @@ const monthGrid = (fixture, { showHoliday = true } = {}) => `
     <div class="month-view__days">
       ${monthDays(fixture).map((cell) => {
         const marker = !cell.outside && fixture.markers.find(({ day }) => day === cell.day)
-        return `<span data-month-day class="${cell.outside ? 'is-outside' : ''} ${cell.day === fixture.today && !cell.outside ? 'is-today' : ''}">${cell.day}${marker ? `<i data-${marker.kind}-marker></i>` : ''}</span>`
+        return `<span data-month-day class="${cell.outside ? 'is-outside' : ''} ${cell.day === fixture.today && !cell.outside ? 'is-today' : ''}"><b data-day-number>${cell.day}</b>${marker ? `<i data-${marker.kind}-marker></i>` : ''}</span>`
       }).join('')}
     </div>
     ${showHoliday ? `<div class="month-view__holiday" data-holiday-marker><b>${safe(fixture.nearestHoliday.date)}</b><span>${safe(fixture.nearestHoliday.title)}</span></div>` : ''}

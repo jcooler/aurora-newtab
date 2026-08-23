@@ -143,6 +143,40 @@ test('exposes the Calendar view comparison, consolidation choice, and all sky id
   }
 })
 
+test('gives month markers a visible gap beneath every marked date number', async () => {
+  const server = await startCatalogServer({ repoRoot })
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 760 } })
+    await page.goto(`${server.origin}/mockups/widget-redesign/capture/comparison-calendar-standard-agenda-month`)
+
+    const markedDays = await page.locator('[data-calendar-view="month"] [data-month-day]:has(i)').evaluateAll((cells) => cells.map((cell) => {
+      const number = cell.querySelector('[data-day-number]')
+      const marker = cell.querySelector('i')
+      if (!number || !marker) return null
+      const cellBox = cell.getBoundingClientRect()
+      const numberBox = number.getBoundingClientRect()
+      const markerBox = marker.getBoundingClientRect()
+      return {
+        topSpace: numberBox.top - cellBox.top,
+        markerGap: markerBox.top - numberBox.bottom,
+        bottomSpace: cellBox.bottom - markerBox.bottom,
+      }
+    }))
+
+    assert.ok(markedDays.length > 0)
+    assert.ok(markedDays.every(Boolean))
+    for (const day of markedDays) {
+      assert.ok(day.topSpace >= 0, `date number escaped its cell: ${JSON.stringify(day)}`)
+      assert.ok(day.markerGap >= 1, `date marker gap is crowded: ${JSON.stringify(day)}`)
+      assert.ok(day.bottomSpace >= 0, `date marker escaped its cell: ${JSON.stringify(day)}`)
+    }
+  } finally {
+    await browser.close()
+    await server.close()
+  }
+})
+
 test('exposes every work identity and declared tier on the owner gallery', async () => {
   const server = await startCatalogServer({ repoRoot })
   const browser = await chromium.launch({ headless: true })
