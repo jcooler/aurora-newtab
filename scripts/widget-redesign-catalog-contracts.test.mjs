@@ -256,3 +256,20 @@ test('renders every work identity with tier-specific structure and richer Full c
   assert.match(renderFace('sentry', 'full'), /data-issue-fingerprint/)
   assert.match(renderFace('todoist', 'standard'), /data-due-lane/)
 })
+
+test('renders every resource identity with bounded native structures and useful states', () => {
+  const targets = TARGET_WIDGETS.filter(({ family }) => family === 'resources')
+  assert.equal(targets.length, 7)
+  for (const target of targets) {
+    for (const tier of target.tiers) assert.match(renderFace(target.id, tier), new RegExp(`data-resource-signature="${target.id}"`))
+  }
+  assert.ok(count(renderFace('readingList', 'full'), 'data-reading-row') >= 5)
+  assert.match(renderFace('recentlyClosed', 'full'), /data-restore-type="window"/)
+  assert.match(renderFace('downloads', 'standard'), /data-download-progress/)
+  assert.match(renderFace('tabGroups', 'full'), /data-browser-window/)
+  assert.match(renderFace('homeassistant', 'standard'), /data-entity-state/)
+  assert.match(renderFace('rss', 'full'), /data-headline-lead/)
+  assert.equal(count(renderFace('crypto', 'standard', { coins: 4 }), 'data-coin-row'), 4)
+  assert.equal(count(renderFace('crypto', 'standard', { coins: 1 }), 'data-coin-row'), 1)
+  assert.match(renderFace('tabGroups', 'standard', { state: 'permission' }), /Allow tab access/)
+})

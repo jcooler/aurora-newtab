@@ -136,6 +136,17 @@ const workGallery = () => {
   </section>`
 }
 
+const resourceGallery = () => {
+  const targets = TARGET_WIDGETS.filter(({ family }) => family === 'resources')
+  return `<section class="family-gallery family-gallery--resources" aria-labelledby="resources-title" data-family-section="resources">
+    <div class="section-heading"><div><span class="eyebrow">Resources & browser · 7 identities</span><h2 id="resources-title">Resume, read, restore, control.</h2></div><p>Browser-native structures remain recognizable, while home, feed, and market faces preserve the identity needed to act confidently.</p></div>
+    <div class="showcase-list">${targets.map((target, index) => `<article class="widget-showcase" data-resource-showcase="${target.id}" data-family="resources" data-search="${target.label.toLowerCase()}">
+      <header class="widget-showcase__heading"><span>${String(index + 1).padStart(2, '0')}</span><div><h3>${target.label}</h3><p>${target.budgets[target.primaryTier].purpose}</p></div><small>${target.presentation}</small></header>
+      <div class="capture-run" aria-label="${target.label} tier comparison">${target.tiers.map((tier) => `<div class="capture-stage capture-stage--${tier}"><span>${tier}</span>${renderWidgetFace({ id: target.id, tier, state: 'ready', theme: 'dark' }, fixtureFor(target.id, 'dense'))}</div>`).join('')}</div>
+    </article>`).join('')}</div>
+  </section>`
+}
+
 const shell = `
   <div class="catalog" data-catalog-app>
     <header class="catalog-hero">
@@ -170,7 +181,7 @@ const shell = `
         </select>
       </label>
     </nav>
-    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${calendarSkyGallery()}${workGallery()}${inventory()}`}
+    ${view === 'inventory' ? inventory() : `${runway()}${coreGallery()}${calendarSkyGallery()}${workGallery()}${resourceGallery()}${inventory()}`}
     <footer class="catalog-footer">
       <span>Design-only HTML/CSS</span>
       <span>${SOURCE_WIDGET_IDS.length} sources checked</span>

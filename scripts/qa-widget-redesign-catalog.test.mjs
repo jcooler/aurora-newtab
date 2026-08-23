@@ -125,3 +125,21 @@ test('exposes every work identity and declared tier on the owner gallery', async
     await server.close()
   }
 })
+
+test('exposes every resource identity and declared tier on the owner gallery', async () => {
+  const server = await startCatalogServer({ repoRoot })
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+    await page.goto(`${server.origin}/mockups/widget-redesign/?view=gallery`)
+    const targets = TARGET_WIDGETS.filter(({ family }) => family === 'resources')
+    assert.equal(await page.locator('[data-resource-showcase]').count(), targets.length)
+    for (const target of targets) {
+      const board = page.locator(`[data-resource-showcase="${target.id}"]`)
+      for (const tier of target.tiers) assert.equal(await board.locator(`[data-widget-id="${target.id}"][data-tier-frame="${tier}"]`).count(), 1)
+    }
+  } finally {
+    await browser.close()
+    await server.close()
+  }
+})

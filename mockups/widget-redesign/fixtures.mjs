@@ -186,6 +186,48 @@ const FIXTURES = Object.freeze({
       Object.freeze({ title: 'Prepare owner walkthrough', lane: 'Upcoming', project: 'Aurora', priority: 'P2' }),
     ]),
   }),
+  readingList: Object.freeze({ unread: 8, items: Object.freeze([
+    Object.freeze({ title: 'Designing data-dense interfaces', domain: 'linear.app', age: '12m', state: 'Unread' }),
+    Object.freeze({ title: 'A calendar is a decision surface', domain: 'maggieappleton.com', age: '1h', state: 'Unread' }),
+    Object.freeze({ title: 'Weather visualization without clutter', domain: 'observablehq.com', age: '3h', state: 'Unread' }),
+    Object.freeze({ title: 'Accessible drag and drop patterns', domain: 'w3.org', age: '1d', state: 'Unread' }),
+    Object.freeze({ title: 'Responsive dashboards in practice', domain: 'web.dev', age: '2d', state: 'Read' }),
+    Object.freeze({ title: 'Browser extension UI systems', domain: 'developer.chrome.com', age: '3d', state: 'Read' }),
+  ]) }),
+  recentlyClosed: Object.freeze({ items: Object.freeze([
+    Object.freeze({ title: 'Aurora widget review', type: 'window', age: '4m', count: 12 }),
+    Object.freeze({ title: 'Calendar research', type: 'group', age: '18m', count: 6 }),
+    Object.freeze({ title: 'Weather API notes', type: 'tab', age: '31m', count: 1 }),
+    Object.freeze({ title: 'Design references', type: 'window', age: '2h', count: 9 }),
+  ]) }),
+  downloads: Object.freeze({ items: Object.freeze([
+    Object.freeze({ name: 'aurora-evidence.zip', state: 'Downloading', progress: 68, size: '42 MB' }),
+    Object.freeze({ name: 'calendar-notes.pdf', state: 'Complete', progress: 100, size: '2.4 MB' }),
+    Object.freeze({ name: 'weather-fixtures.json', state: 'Complete', progress: 100, size: '84 KB' }),
+    Object.freeze({ name: 'widget-reference.png', state: 'Failed', progress: 34, size: '1.1 MB' }),
+  ]) }),
+  tabGroups: Object.freeze({ windows: Object.freeze([
+    Object.freeze({ name: 'Aurora', groups: Object.freeze([Object.freeze({ name: 'Build', tabs: 8, color: 'blue' }), Object.freeze({ name: 'Review', tabs: 5, color: 'pink' })]) }),
+    Object.freeze({ name: 'Research', groups: Object.freeze([Object.freeze({ name: 'Calendar', tabs: 6, color: 'green' }), Object.freeze({ name: 'Weather', tabs: 4, color: 'yellow' })]) }),
+  ]) }),
+  homeassistant: Object.freeze({ entities: Object.freeze([
+    Object.freeze({ name: 'Living room', state: '72°F', detail: 'Climate' }),
+    Object.freeze({ name: 'Front door', state: 'Locked', detail: 'Lock' }),
+    Object.freeze({ name: 'Desk lamp', state: 'On · 42%', detail: 'Light' }),
+    Object.freeze({ name: 'Office air', state: 'Good · 412 ppm', detail: 'Sensor' }),
+  ]) }),
+  rss: Object.freeze({ stories: Object.freeze([
+    Object.freeze({ title: 'The browser becomes a calmer workspace', source: 'Interface Weekly', age: '14m' }),
+    Object.freeze({ title: 'Designing useful calendar density', source: 'Product Notes', age: '42m' }),
+    Object.freeze({ title: 'Forecast interfaces move beyond icons', source: 'Data Vis Dispatch', age: '2h' }),
+    Object.freeze({ title: 'A practical guide to accessible widgets', source: 'Web Platform', age: '4h' }),
+  ]) }),
+  crypto: Object.freeze({ coins: Object.freeze([
+    Object.freeze({ symbol: 'BTC', price: '$64,218', change: '+2.4%', direction: 'up' }),
+    Object.freeze({ symbol: 'ETH', price: '$3,482', change: '+1.8%', direction: 'up' }),
+    Object.freeze({ symbol: 'SOL', price: '$148.62', change: '-0.7%', direction: 'down' }),
+    Object.freeze({ symbol: 'LINK', price: '$16.84', change: '+3.1%', direction: 'up' }),
+  ]) }),
 })
 
 const SCENARIOS = Object.freeze({
@@ -233,9 +275,11 @@ export function fixtureFor(id, scenario = 'dense', overrides = {}) {
   const fixtureOverrides = Object.fromEntries(
     Object.entries(overrides).filter(([key]) => !ignored.has(key)),
   )
-  return {
+  const result = {
     ...clone(base),
     ...clone(scenarioData[id] ?? {}),
     ...fixtureOverrides,
   }
+  if (id === 'crypto' && Number.isInteger(overrides.coins)) result.coins = clone(base.coins.slice(0, overrides.coins))
+  return result
 }
