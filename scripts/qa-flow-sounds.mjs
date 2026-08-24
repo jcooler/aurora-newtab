@@ -224,11 +224,13 @@ async function run() {
     assert.equal(stored.settings.flowAmbience, 'forest', 'Flow sound selection did not persist')
     assert.equal(stored.settings.flowVolume, 5, 'Flow volume did not persist')
     assert.equal(stored.timerSession.flow, false, 'End flow did not leave Flow mode')
+    assert.deepEqual(unexpectedRequests, [], `Aurora made external request(s): ${JSON.stringify(unexpectedRequests)}`)
 
     await page.getByRole('button', { name: 'Open Chrome tab' }).click()
     await page.waitForURL('chrome://new-tab-page/')
     evidence.chromeTab = { url: page.url(), auroraCanvas: await page.locator('[data-canvas-surface]').count() }
     assert.equal(evidence.chromeTab.auroraCanvas, 0, 'Chrome-tab shortcut reopened Aurora instead of the native page')
+    unexpectedRequests.splice(0)
 
     touch = await launch(true)
     const touchPage = touch.pages()[0] ?? await touch.newPage()
@@ -243,7 +245,7 @@ async function run() {
     await touchPage.getByRole('slider', { name: 'Flow volume' }).tap()
     await touchPage.screenshot({ path: resolve(output, 'flow-touch-375x812.png'), animations: 'disabled' })
 
-    assert.deepEqual(unexpectedRequests, [], `Flow made external request(s): ${JSON.stringify(unexpectedRequests)}`)
+    assert.deepEqual(unexpectedRequests, [], `Aurora made external request(s): ${JSON.stringify(unexpectedRequests)}`)
     assert.deepEqual(errors, [], `runtime errors: ${JSON.stringify(errors)}`)
     writeFileSync(resolve(output, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
     process.stdout.write(`PASS Flow sounds exact QA: 4 decoded local sounds, pause/resume/end, 1280x800, 375x812 touch, static Status, native Chrome tab\n${output}\n`)
