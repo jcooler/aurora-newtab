@@ -162,12 +162,10 @@ export async function runUiRecoveryQa() {
     assert.equal(await page.getByRole('dialog').count(), 0, 'legacy date cards opened a blocking dialog')
     assert.equal(await page.getByText('Bring your date widgets together').count(), 0, 'removed modal copy returned')
     assert.equal(await page.locator('[data-aurora-canvas] > .contents').getAttribute('inert'), null, 'Canvas is inert')
-    for (const id of ['clock', 'greeting', 'quote']) {
-      assert.equal(
-        await page.locator(`[data-testid="canvas-item-${id}"] [data-tier-frame]`).count(),
-        0,
-        `${id} was forced into a card`,
-      )
+    for (const id of ['clock', 'focus', 'greeting', 'quote', 'status']) {
+      const item = page.locator(`[data-testid="canvas-item-${id}"]`)
+      if (await item.count() === 0) continue
+      assert.equal(await item.locator('[data-tier-frame]').count(), 0, `${id} was forced into a card`)
     }
     const wide = await assertCanvasFits(page, '1600x900')
     await page.screenshot({ path: resolve(output, 'canvas-1600x900.png') })

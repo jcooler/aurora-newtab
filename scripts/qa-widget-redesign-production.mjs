@@ -17,7 +17,7 @@ export const APPROVED_TARGET_IDS = Object.freeze(TARGET_WIDGETS.map(({ id }) => 
 export const OWNER_VISIBLE_CANVAS_CASE = Object.freeze({
   key: 'owner-visible-canvas',
   kind: 'owner-visible-canvas',
-  intrinsic: Object.freeze(['bookmarks', 'clock', 'greeting', 'quote']),
+  intrinsic: Object.freeze(['bookmarks', 'clock', 'focus', 'greeting', 'quote', 'status']),
   members: Object.freeze([
     'bookmarks', 'clock', 'greeting', 'worldClocks', 'countdown', 'search',
     'focus', 'links', 'quote', 'weather', 'ics', 'status', 'timer', 'tasks',
@@ -184,11 +184,9 @@ async function inspectOwnerVisibleCanvas(page, output) {
     worldClocks: 'standard',
     countdown: 'standard',
     search: 'standard',
-    focus: 'standard',
     links: 'standard',
     weather: 'standard',
     ics: 'standard',
-    status: 'standard',
     tasks: 'compact',
     notes: 'compact',
     timer: 'compact',
@@ -240,7 +238,9 @@ async function inspectOwnerVisibleCanvas(page, output) {
   const intrinsicEvidence = {}
   for (const [id, selector] of Object.entries({
     clock: '[data-clock-face]',
+    focus: '[data-focus-footprint]',
     quote: 'figure',
+    status: '[data-service-status-surface="intrinsic"]',
   })) {
     const item = page.getByTestId(`canvas-item-${id}`)
     await item.locator(selector).waitFor()
