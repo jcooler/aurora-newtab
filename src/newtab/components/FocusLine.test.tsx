@@ -231,4 +231,13 @@ describe('FocusLine editor ownership', () => {
     expect(screen.getByRole('checkbox')).toBeTruthy()
     expect(screen.getByText('Ship the redesign')).toBeTruthy()
   })
+
+  it('keeps free Focus content-tight and cardless while stack Focus retains its exact face', async () => {
+    const free = setup(null)
+    expect((await screen.findByText(/main focus today/i)).closest('[data-tier-frame]')).toBeNull()
+    free.view.unmount()
+
+    setupStack({ text: 'Ship the redesign', date: '2026-07-26', done: false })
+    expect(await screen.findByRole('region', { name: 'Focus' })).toHaveProperty('dataset.tierFrame', 'standard')
+  })
 })

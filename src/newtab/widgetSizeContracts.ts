@@ -166,10 +166,10 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
     compact: tier('Complete today habits', ['habit names', 'completion action'], ['daily completion state'], ['completed count'], ['tighten spacing', 'bound habit rows'], { kind: 'details', label: 'Habits details' }),
   }),
   bookmarks: contract('bar', ['compact', 'standard'], READY_STATES, 'Bookmark marks', 'Named bookmark bar', undefined, 'Full readable bookmark bar'),
-  status: framedContract(['compact', 'standard'], ['compact', 'standard'], NON_REJECTING_RESOURCE_STATES, 'Service health', 'Service dots and active issues', undefined, 'Service health', {
+  status: contract('intrinsic', ['compact', 'standard'], NON_REJECTING_RESOURCE_STATES, 'Service health', 'Service dots and active issues', undefined, 'Service health', {
     compact: tier('Service health at a glance', ['service names', 'service states'], ['named status dots'], [], ['tighten spacing', 'bound service names'], { kind: 'details', label: 'Service status details' }),
     standard: tier('Service health and active issues', ['service names', 'service states'], ['named status dots'], ['active issue context'], ['tighten spacing', 'bound issue rows'], { kind: 'details', label: 'Service status details' }),
-  }),
+  }, ['compact', 'standard']),
   github: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PARTIAL_RESOURCE_STATES, 'Selected primary count or graph', 'Selected graph or rows', 'Graph, stats, and all selected row families', 'Selected activity counts', {
     compact: tier('Contribution activity at a glance', ['identity', 'contribution count', 'streak'], ['contribution graph'], [], ['shrink graph cells', 'tighten spacing'], { kind: 'provider', label: 'Open GitHub' }),
     standard: tier('Contribution activity and selected work', ['identity', 'selected counts'], ['contribution graph'], ['pull requests', 'issues', 'notifications'], ['shrink graph cells', 'bound selected rows'], { kind: 'provider', label: 'Open GitHub' }),

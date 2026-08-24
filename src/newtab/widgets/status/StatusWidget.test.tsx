@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -8,6 +8,8 @@ import type { StatusData } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
 import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 import StatusWidget from './StatusWidget'
 
 // The snapshot hook's in-flight dedupe map is module-level and survives
@@ -51,10 +53,14 @@ async function seededStorage(
   return storage
 }
 
-function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
+function mount(
+  storage: AuroraStorage,
+  canvasSize: CanvasSize = 'standard',
+  presentation: WidgetPresentationMode = 'stack',
+) {
   return render(
     <StorageProvider storage={storage}>
-      <StatusWidget canvasSize={canvasSize} />
+      <StatusWidget canvasSize={canvasSize} presentation={presentation} />
     </StorageProvider>,
   )
 }
@@ -103,6 +109,37 @@ describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
 })
 
 describe('StatusWidget — DOM contract', () => {
+  it('renders free Service status as intrinsic text without a tier card', async () => {
+    mount(await seededStorage(CONNECTED, ALL_GREEN), 'standard', 'free')
+    await screen.findByText('GitHub')
+    const status = await screen.findByRole('region', { name: 'Service status' })
+    expect(status.getAttribute('data-service-status-surface')).toBe('intrinsic')
+    expect(status.closest('[data-tier-frame]')).toBeNull()
+    expect(within(status).getByText('GitHub')).toBeTruthy()
+    expect(within(status).getByText('Cloudflare')).toBeTruthy()
+    expect(within(status).getByRole('button', { name: 'Service status details' })).toBeTruthy()
+  })
+
+  it('keeps Service status in an exact frame when it is a stack member', async () => {
+    mount(await seededStorage(CONNECTED, ALL_GREEN), 'standard', 'stack')
+    const status = await screen.findByRole('region', { name: 'Service status' })
+    expect(status.getAttribute('data-tier-frame')).toBe('standard')
+    expect(status.getAttribute('data-tier-surface')).toBe('card')
+  })
+
+  it('keeps free loading and empty states cardless', async () => {
+    const loadingView = mount(await seededStorage(CONNECTED, null), 'standard', 'free')
+    const loading = await screen.findByRole('region', { name: 'Service status' })
+    expect(loading.getAttribute('data-service-status-surface')).toBe('intrinsic')
+    expect(loading.closest('[data-tier-frame]')).toBeNull()
+    loadingView.unmount()
+
+    mount(await seededStorage(CONNECTED, { services: [] }), 'standard', 'free')
+    const empty = await screen.findByRole('region', { name: 'Service status' })
+    expect(empty.getAttribute('data-service-status-surface')).toBe('intrinsic')
+    expect(empty.closest('[data-tier-frame]')).toBeNull()
+  })
+
   it('preserves the exact frame while the first snapshot is loading', async () => {
     mount(await seededStorage(CONNECTED, null), 'compact')
     const frame = await screen.findByRole('region', { name: 'Service status' })
@@ -139,6 +176,11 @@ describe('StatusWidget — DOM contract', () => {
     const panel = screen.getByRole('dialog', { name: 'Service status details' })
     expect(panel.textContent).toContain('GitHub')
     expect(panel.textContent).toContain('Cloudflare')
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(screen.queryByRole('dialog', { name: 'Service status details' })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
   })
 
   it('names every service beside its dot so status reads without hovering (batch-2 owner review)', async () => {
@@ -194,12 +236,12 @@ describe('StatusWidget — DOM contract', () => {
     expect(compact.textContent).toContain('GitHub')
     expect(compact.querySelector('[title="GitHub: All Systems Operational"]')).toBeTruthy()
 
-    view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="standard" /></StorageProvider>)
+    view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="standard" presentation="stack" /></StorageProvider>)
     const standard = await readyFrame()
     expect(standard.querySelectorAll('span[title]')).toHaveLength(2)
     expect(standard.textContent).toContain('GitHub')
 
-    view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="full" /></StorageProvider>)
+    view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="full" presentation="stack" /></StorageProvider>)
     const full = await readyFrame()
     expect(full.querySelectorAll('span[title]')).toHaveLength(2)
     expect(full.textContent).toContain('Cloudflare')
@@ -312,18 +354,7 @@ describe('StatusWidget — trouble lines', () => {
     expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-status-tone')).toBe('unknown')
   })
 
-  // FIX ROUND (post-Task 86, controller-approved): the trouble line now
-  // ALSO carries `text-photo` (the house photo-floating-text shadow,
-  // index.css's own `@utility text-photo` — this text sits directly on the
-  // background photo, same as every other bottom-band text) and its own
-  // `hidden tallest:block` CSS-visibility gate (the strip's outer
-  // PositionedBlock reveals at the much-lower `ampler` floor now; the text
-  // itself still needs `tallest`'s taller floor to have room — see
-  // App.tsx/index.css). jsdom never evaluates the height media query behind
-  // `tallest:block` (no real layout), so this only pins the CLASS NAMES
-  // being present — scripts/preview.mjs's own real-browser fenceposts are
-  // what prove the actual reveal-at-height behavior.
-  it('exact trouble text "{name} — {description}" in the danger tone (text-red-400), with the photo shadow and its own tallest-gated visibility class', async () => {
+  it('keeps free trouble text visible at the owner witness size with photo shadow and danger tone', async () => {
     const data: StatusData = {
       services: [{ name: 'Bravo', indicator: 'critical', description: 'Major Outage' }],
     }
@@ -331,13 +362,13 @@ describe('StatusWidget — trouble lines', () => {
       { enabled: true, services: [{ name: 'Bravo', url: 'https://example.com/b.json' }] },
       data,
     )
-    mount(storage)
+    mount(storage, 'standard', 'free')
     const line = await screen.findByText('Bravo — Major Outage')
     expect(line.tagName).toBe('P')
     expect(line.className).toContain('text-red-400')
     expect(line.className).toContain('text-photo')
-    expect(line.className).toContain('hidden')
-    expect(line.className).toContain('tallest:block')
+    expect(line.className).not.toContain('hidden')
+    expect(line.className).not.toContain('tallest:block')
   })
 
   it('worst-first ordering: critical > major > minor, regardless of configured order', async () => {

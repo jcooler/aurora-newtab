@@ -21,7 +21,7 @@ describe('time and productivity widget renderers', () => {
     },
   )
 
-  it.each(['worldClocks', 'countdown', 'search', 'focus', 'links'] as const)(
+  it.each(['worldClocks', 'countdown', 'search', 'links'] as const)(
     'uses the approved redesigned %s face on the standalone canvas',
     (id) => {
       const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'free' }) as ReactElement<{
@@ -44,6 +44,20 @@ describe('time and productivity widget renderers', () => {
       expect(element.props.presentation).toBe('free')
     },
   )
+
+  it.each(['focus', 'status'] as const)('passes the real free presentation to %s', (id) => {
+    const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'free' }) as ReactElement<{
+      presentation?: WidgetPresentationMode
+    }>
+    expect(element.props.presentation).toBe('free')
+  })
+
+  it.each(['focus', 'status'] as const)('passes stack presentation to %s', (id) => {
+    const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'stack' }) as ReactElement<{
+      presentation?: WidgetPresentationMode
+    }>
+    expect(element.props.presentation).toBe('stack')
+  })
 
   it('keeps Greeting and Bookmarks on their established intrinsic renderers', () => {
     const greeting = WIDGET_RENDERERS.greeting({ canvasSize: 'compact', presentation: 'stack' }) as ReactElement<{

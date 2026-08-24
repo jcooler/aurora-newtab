@@ -13,6 +13,7 @@ import {
 } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 
 // The status widget — Task 84 (W3-SP2), the eighth connector and the third
@@ -35,7 +36,15 @@ const SEVERITY_RANK: Record<'critical' | 'major' | 'minor', number> = {
   minor: 2,
 }
 
-export default function StatusWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
+export default function StatusWidget({
+  canvasSize,
+  presentation = 'free',
+  docked,
+}: {
+  canvasSize?: CanvasSize
+  presentation?: WidgetPresentationMode
+  docked?: boolean
+} = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (CryptoWidget.tsx's own doc comment, the Task 84 brief's named
   // template): the one useStoredKey read runs every render (Rules of Hooks
@@ -66,6 +75,7 @@ export default function StatusWidget({ canvasSize, docked }: { canvasSize?: Canv
       config={status}
       services={services}
       canvasSize={canvasSize}
+      presentation={presentation}
       docked={docked}
     />
   )
@@ -75,11 +85,13 @@ function StatusInner({
   config,
   services,
   canvasSize,
+  presentation,
   docked,
 }: {
   config: StatusConfig
   services: { name: string; url: string }[]
   canvasSize?: CanvasSize
+  presentation: WidgetPresentationMode
   docked?: boolean
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
@@ -96,9 +108,16 @@ function StatusInner({
   if (!data) {
     if (docked) return null
     const frameState = resourceFrameState(state)
-    return <ResourceFrameStatus label="Service status" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+    if (presentation === 'stack') {
+      return <ResourceFrameStatus label="Service status" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+    }
+    return (
+      <StatusIntrinsicState
+        state={frameState === 'hard-error' ? 'hard-error' : 'loading'}
+        copy={frameState === 'hard-error' ? 'Service status unavailable.' : 'Checking service status...'}
+      />
+    )
   }
-  const framed = canvasSize !== undefined
 
   // fetchStatus returns one entry per configured service, INDEX-ALIGNED with
   // `services` (its own doc comment) — rendered as-is, in configured order,
@@ -106,7 +125,10 @@ function StatusInner({
   const rows = data.services
   if (rows.length === 0) {
     if (docked) return null
-    return <ResourceFrameStatus label="Service status" tier={tier} state="empty" message="No service results right now." />
+    if (presentation === 'stack') {
+      return <ResourceFrameStatus label="Service status" tier={tier} state="empty" message="No service results right now." />
+    }
+    return <StatusIntrinsicState state="empty" copy="No service results right now." />
   }
 
   // Trouble = minor/major/critical — unknown is explicitly NOT trouble (a
@@ -147,79 +169,59 @@ function StatusInner({
     return <StatusDock rows={rows} tone={tone} label={summaryLabel} />
   }
 
+  const framed = presentation === 'stack'
   const visibleRows = framed && tier === 'compact' ? rows.slice(0, 4) : rows
-
-  return (
-    // A slim floating STRIP, not a panel — the SAME `w-88 text-center`
-    // language as CryptoWidget's own section (see that file's doc comment
-    // for why: centering is the bottom band's job via its own `items-center`,
-    // not this widget's or the PositionedBlock className's). FIRST child of
-    // the bottom band (App.tsx), above crypto.
-    <TierFrame
-      label="Service status"
-      tier={tier}
-      state={resourceFrameState(state)}
-      data-status-tone={tone}
-      data-canvas-size={tier}
-      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-left`}
-    >
+  const body = (
+    <>
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-fg">Service status</h2>
+        <h2 className="text-sm font-semibold">Service status</h2>
         <StatusDetailsTrigger rows={rows} tone={tone} label="Service status details" />
       </div>
-      {/* The words the visible strip dropped. A landmark's accessible name
-          must stay STABLE ("Service status"), so the live summary rides in
-          screen-reader-only text rather than in the region's own label. */}
       <span data-status-summary className="sr-only">{summaryValue}, {rows.length} services</span>
-      {/* The dots ARE the glance (owner-reported 2026-08-21). The
-          "All operational / N services" summary line that used to sit here
-          restated what the colours already say and cost a whole row of
-          height; it survives as this section's accessible name. Names ride
-          beside each dot from Standard up (the batch-2 review: an anonymous
-          dot answers neither "what service" nor "which one"); Compact is
-          one tight row of colours, with every name a hover away. */}
-      <div
-        data-work-pulse-detail
-        data-work-pulse-status-dots
-        data-testid="status-dots"
-        className="mt-1 flex flex-wrap gap-x-3 gap-y-1"
-      >
-        {visibleRows.map((s, i) => (
-          <span key={i} title={dotTitle(s)} className="flex min-w-0 items-center gap-1.5">
-            <span className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
-            {(framed || canvasSize !== 'compact') && (
-              <span className="max-w-24 truncate text-[11px] leading-4 text-fg-muted">{s.name}</span>
-            )}
+      <div data-work-pulse-detail data-work-pulse-status-dots data-testid="status-dots" className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+        {visibleRows.map((service, index) => (
+          <span key={index} title={dotTitle(service)} className="flex min-w-0 items-center gap-1.5">
+            <span className={`size-2 rounded-full ${dotClass(service.indicator)}`} aria-hidden />
+            <span className={`max-w-24 truncate text-[11px] leading-4 ${presentation === 'free' ? 'text-canvas-fg-muted' : 'text-fg-muted'}`}>
+              {service.name}
+            </span>
           </span>
         ))}
       </div>
-      {tier !== 'compact' && trouble.map((s, i) => (
-        // FIX ROUND (post-Task 86, controller-approved): the OUTER
-        // PositionedBlock (App.tsx) now reveals this whole section at a
-        // NEW, LOWER `ampler` floor (>=922h — see index.css's own doc
-        // comment) sized for the dot row alone, so the glance-value dots
-        // survive Jon's canonical 1600x900. The trouble TEXT still needs the
-        // taller `tallest` floor (>=1042h) — Task 86's own measured number,
-        // UNCHANGED, just re-scoped from "the whole strip's floor" to "this
-        // text's own floor" (see App.tsx's bottom-zone comment and
-        // index.css's `tallest` doc comment for the arithmetic: a
-        // service with trouble text showing is a taller status block than
-        // dots alone, and it's THIS number that proves the taller block
-        // still clears the links row). `text-photo` is the house
-        // photo-floating-text shadow (index.css's own `@utility
-        // text-photo`) — this line sits directly on the background photo,
-        // same as every other bottom-band text (crypto's own price/change
-        // spans), so it needs the same legibility treatment; it never had
-        // it before this fix round.
-        <p
-          key={i}
-          data-work-pulse-rows
-          className={`${framed ? '' : 'hidden tallest:block text-photo '}mt-1 truncate text-sm text-red-400`}
-        >
-          {s.name} — {s.description}
+      {tier !== 'compact' ? trouble.map((service, index) => (
+        <p key={index} data-work-pulse-rows className="text-photo mt-1 truncate text-sm text-red-400">
+          {service.name} — {service.description}
         </p>
-      ))}
-    </TierFrame>
+      )) : null}
+    </>
+  )
+
+  if (presentation === 'stack') {
+    return (
+      <TierFrame label="Service status" tier={tier} state={resourceFrameState(state)} data-status-tone={tone} className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-left`}>
+        {body}
+      </TierFrame>
+    )
+  }
+
+  return (
+    <section aria-label="Service status" data-service-status-surface="intrinsic" data-status-tone={tone} className="text-photo grid w-fit max-w-[320px] gap-1 text-left text-canvas-fg">
+      {body}
+    </section>
+  )
+}
+
+function StatusIntrinsicState({
+  state,
+  copy,
+}: {
+  state: 'loading' | 'empty' | 'hard-error'
+  copy: string
+}) {
+  return (
+    <section aria-label="Service status" data-service-status-surface="intrinsic" className="text-photo w-fit text-sm text-canvas-fg-muted">
+      <p role={state === 'hard-error' ? 'alert' : 'status'}>{copy}</p>
+    </section>
   )
 }
 

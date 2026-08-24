@@ -140,18 +140,23 @@ describe('shared frame presentation contracts', () => {
   it('classifies every known identity and only allows declared stack sizes', () => {
     expect(WIDGET_PRESENTATION_CONTRACTS.bookmarks.presentationClass).toBe('bar')
     expect(WIDGET_PRESENTATION_CONTRACTS.clock.presentationClass).toBe('intrinsic')
+    expect(WIDGET_PRESENTATION_CONTRACTS.greeting.presentationClass).toBe('intrinsic')
+    expect(WIDGET_PRESENTATION_CONTRACTS.quote.presentationClass).toBe('intrinsic')
+    expect(WIDGET_PRESENTATION_CONTRACTS.focus.presentationClass).toBe('intrinsic')
+    expect(WIDGET_PRESENTATION_CONTRACTS.status.presentationClass).toBe('intrinsic')
+    expect(WIDGET_PRESENTATION_CONTRACTS.bookmarks.presentationClass).toBe('bar')
     for (const id of BLOCK_IDS) {
       const contract = WIDGET_PRESENTATION_CONTRACTS[id]
       expect(contract.stackSizes.every((tier) => contract.sizes.includes(tier)), id).toBe(true)
     }
     expect(idsFor('bar')).toEqual(['bookmarks'])
     expect(idsFor('intrinsic')).toEqual([
-      'clock', 'countdown', 'focus', 'greeting', 'links', 'quote', 'search', 'worldClocks',
+      'clock', 'countdown', 'focus', 'greeting', 'links', 'quote', 'search', 'status', 'worldClocks',
     ])
     expect(idsFor('framed')).toEqual([
       'auroraKp', 'crypto', 'downloads', 'github', 'gitlab', 'habits', 'homeassistant',
       'ics', 'jira', 'linear', 'monthCal', 'moon', 'notes', 'onThisDay', 'publicHolidays',
-      'readingList', 'recentlyClosed', 'rss', 'sentry', 'status', 'sun', 'tabGroups',
+      'readingList', 'recentlyClosed', 'rss', 'sentry', 'sun', 'tabGroups',
       'tasks', 'timer', 'todoist', 'vercel', 'weather',
     ])
   })
@@ -160,7 +165,7 @@ describe('shared frame presentation contracts', () => {
     const framed = Object.entries(WIDGET_PRESENTATION_CONTRACTS)
       .filter(([, contract]) => contract.presentationClass === 'framed')
 
-    expect(framed).toHaveLength(27)
+    expect(framed).toHaveLength(26)
     for (const [id, contract] of framed) {
       expect(contract.stackSizes.every((tier) => contract.sizes.includes(tier)), `${id}/stack subset`).toBe(true)
       expect(contract.stackSizes).not.toBe(contract.sizes)
