@@ -140,6 +140,29 @@ describe('App Canvas composition', () => {
     }
   })
 
+  it('never blocks or inerts the Canvas to consolidate legacy Calendar placements', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'legacy-dates',
+      layouts: [{
+        id: 'legacy-dates',
+        name: 'Legacy dates',
+        widgets: {
+          ics: { kind: 'free', anchor: 'left', offsetX: 1, offsetY: 2, tier: 'standard', layer: 1 },
+          monthCal: { kind: 'free', anchor: 'right', offsetX: 3, offsetY: 4, tier: 'standard', layer: 2 },
+        },
+      }],
+    })
+
+    await renderApp(storage)
+
+    expect(screen.queryByRole('dialog', { name: /date widgets|Calendar consolidation/i })).toBeNull()
+    const dashboard = screen.getByRole('button', { name: 'Open settings' }).closest('.contents')
+    expect(dashboard?.hasAttribute('inert')).toBe(false)
+  })
+
   it('renders Flow as a mutually exclusive surface and restores the untouched dashboard on exit', async () => {
     const storage = createStorage(memoryDriver({
       ...defaults(),

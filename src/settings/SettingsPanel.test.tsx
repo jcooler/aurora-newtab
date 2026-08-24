@@ -10,6 +10,7 @@ import { CURRENT_VERSION, defaults, type AuroraData } from '../lib/storage/schem
 import { emptyLayoutV2, layoutV2FromLegacy } from '../lib/layout/v2'
 import { saveCanvasProfile } from '../lib/layout/canvasAdapter'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, StatusConfig, VercelConfig } from '../services/connectors/types'
+import type { LayoutsDocument } from '../lib/layout/namedLayouts'
 import { CURATED_STATUS } from '../services/connectors/status'
 import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../services/connectors/homeassistant'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
@@ -266,6 +267,27 @@ async function renderPanel(
  *  changed. */
 function openTab(name: 'General' | 'Widgets' | 'Connectors' | 'Data') {
   fireEvent.click(screen.getByRole('tab', { name }))
+}
+
+async function renderPanelWithLayouts(layoutsDocument: LayoutsDocument) {
+  const driver = memoryDriver()
+  const storage = createStorage(driver)
+  await storage.init()
+  await storage.set('layouts', layoutsDocument)
+  const write = vi.spyOn(driver, 'write')
+  write.mockClear()
+  render(
+    <StorageProvider storage={storage}>
+      <SettingsPanel
+        layoutsDocument={layoutsDocument}
+        calendarConsolidationLayout={layoutsDocument.layouts.find(
+          (layout) => layout.id === layoutsDocument.activeLayoutId,
+        ) ?? null}
+      />
+    </StorageProvider>,
+  )
+  await screen.findByLabelText('Your name')
+  return { storage, write }
 }
 
 async function openWidgetsTabAndWaitForLayout(storage: AuroraStorage) {
@@ -2495,6 +2517,112 @@ describe('SettingsPanel Habits section', () => {
 // Bookmarks toggle's own non-permission assertions, without the permission
 // side-effect.
 describe('SettingsPanel Widgets section (Month calendar toggle)', () => {
+  const qualifyingLayouts: LayoutsDocument = {
+    version: 1,
+    activeLayoutId: 'work',
+    layouts: [{
+      id: 'work',
+      name: 'Work',
+      widgets: {
+        ics: { kind: 'free', anchor: 'left', offsetX: 1, offsetY: 2, tier: 'compact', layer: 1 },
+        monthCal: { kind: 'free', anchor: 'right', offsetX: 3, offsetY: 4, tier: 'standard', layer: 2 },
+        publicHolidays: { kind: 'docked', dock: 'bottom', order: 0 },
+      },
+    }],
+  }
+
+  it('offers a plain Settings action only for an active layout with legacy date cards', async () => {
+    const { storage } = await renderPanelWithLayouts(qualifyingLayouts)
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+
+    const region = screen.getByRole('region', { name: 'Calendar' })
+    expect(within(region).getByRole('button', { name: 'Combine into Calendar' })).toBeTruthy()
+    const locations = within(region).getByRole('group', { name: 'Card location to keep' })
+    expect(within(locations).getAllByRole('radio')).toHaveLength(3)
+    for (const label of ['Calendar', 'Month', 'Public Holidays']) {
+      expect(within(locations).getByRole('radio', { name: label })).toBeTruthy()
+    }
+    expect(region.textContent).not.toMatch(/\blayer\b|stack position|storage id|anchor|offset/i)
+    expect(region.textContent).not.toContain('Bring your date widgets together')
+  })
+
+  it('combines through one atomic layouts and preference write from Settings', async () => {
+    const { storage, write } = await renderPanelWithLayouts(qualifyingLayouts)
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    const region = screen.getByRole('region', { name: 'Calendar' })
+    const locations = within(region).getByRole('group', { name: 'Card location to keep' })
+    fireEvent.click(within(locations).getByRole('radio', { name: 'Month' }))
+    fireEvent.click(within(region).getByRole('checkbox', { name: 'Include public holidays' }))
+    fireEvent.click(within(region).getByRole('button', { name: 'Combine into Calendar' }))
+
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
+    expect(Object.keys(write.mock.calls[0]?.[0] ?? {}).sort()).toEqual(['calendarPreferences', 'layouts'])
+    const saved = await storage.get('layouts')
+    expect(saved?.layouts[0]?.widgets.ics).toMatchObject(qualifyingLayouts.layouts[0]!.widgets.monthCal!)
+    expect(saved?.layouts[0]?.widgets.monthCal).toEqual({ kind: 'hidden' })
+    expect(saved?.layouts[0]?.widgets.publicHolidays).toEqual({ kind: 'hidden' })
+    expect((await storage.get('calendarPreferences')).work).toEqual({
+      defaultView: 'month',
+      includePublicHolidays: false,
+    })
+  })
+
+  it('withholds the combine action when the active layout has only one date card', async () => {
+    const { storage } = await renderPanelWithLayouts({
+      ...qualifyingLayouts,
+      layouts: [{ ...qualifyingLayouts.layouts[0]!, widgets: { ics: qualifyingLayouts.layouts[0]!.widgets.ics! } }],
+    })
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    expect(screen.queryByRole('button', { name: 'Combine into Calendar' })).toBeNull()
+  })
+
+  it('withholds consolidation for a resolved layout that has no persisted layouts authority', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel layoutsDocument={qualifyingLayouts} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    expect(screen.queryByRole('button', { name: 'Combine into Calendar' })).toBeNull()
+  })
+
+  it('shows stale-layout rejection without writing from Settings', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    await storage.set('layouts', {
+      ...qualifyingLayouts,
+      layouts: [{ ...qualifyingLayouts.layouts[0]!, name: 'Changed elsewhere' }],
+    })
+    const write = vi.spyOn(driver, 'write')
+    write.mockClear()
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel
+          layoutsDocument={qualifyingLayouts}
+          calendarConsolidationLayout={qualifyingLayouts.layouts[0] ?? null}
+        />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    const region = screen.getByRole('region', { name: 'Calendar' })
+    const locations = within(region).getByRole('group', { name: 'Card location to keep' })
+    fireEvent.click(within(locations).getByRole('radio', { name: 'Calendar' }))
+    fireEvent.click(within(region).getByRole('button', { name: 'Combine into Calendar' }))
+
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringMatching(/changed in another tab/i))
+    expect(write).not.toHaveBeenCalled()
+  })
+
   it('persists the global Calendar week-start convention separately from widget toggles', async () => {
     const storage = await renderPanel()
     openTab('Widgets')

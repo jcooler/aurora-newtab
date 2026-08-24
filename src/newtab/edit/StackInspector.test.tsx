@@ -53,6 +53,8 @@ describe('StackInspector', () => {
     const { dialog, onTier, onLayer, onHide } = setup()
     expect(within(dialog).getByText('Weather +2')).toBeTruthy()
     expect(within(dialog).getByText('Widget stack')).toBeTruthy()
+    expect(within(dialog).getByText('Overlap order')).toBeTruthy()
+    expect(within(dialog).queryByText('Layer')).toBeNull()
     expect(within(dialog).getAllByRole('radio').map((radio) => radio.textContent))
       .toEqual(['Compact'])
     expect(within(dialog).getByRole('radio', { name: 'Compact' }).getAttribute('aria-checked')).toBe('false')

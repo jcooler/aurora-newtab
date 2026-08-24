@@ -2518,7 +2518,8 @@ select > option {
 
 /* Connector cards retain their header, compact status, and first actionable
    row from each enabled section. Metadata prefixes yield before the linked
-   title; contribution graphs keep the totals/streak but omit the heatmap. */
+   title. GitHub keeps its coherent compact heatmap; GitLab retains its older
+   summary-only compact treatment until it is reviewed independently. */
 .canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
@@ -2543,6 +2544,11 @@ select > option {
   min-width: 0;
   font-size: 11px;
   line-height: 14px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="github"] > section > div:first-child > span.text-xs {
+  /* The notification fact is short and essential; do not turn "4 unread"
+     into an unexplained "4 u…" while the compact graph uses the lower row. */
+  max-width: none;
 }
 .canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
@@ -2587,8 +2593,8 @@ select > option {
   margin-top: 4px;
   padding-top: 4px;
 }
-.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"],
-.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"] + div {
+.canvas-item[data-canvas-size="compact"][data-block-id="gitlab"] [role="img"],
+.canvas-item[data-canvas-size="compact"][data-block-id="gitlab"] [role="img"] + div {
   display: none;
 }
 .canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section > div.hidden:has([role="img"]) {

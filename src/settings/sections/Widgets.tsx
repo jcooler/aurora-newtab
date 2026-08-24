@@ -18,6 +18,8 @@ import Weather from './Weather'
 import WorldClocks from './WorldClocks'
 import { row, label, control, submitBtn } from './shared'
 import type { CalendarWeekStart } from '../../lib/layout/namedLayouts'
+import type { NamedLayout } from '../../lib/layout/namedLayouts'
+import CalendarConsolidationSettings from './CalendarConsolidationSettings'
 
 interface WidgetGroup {
   title: string
@@ -102,6 +104,7 @@ export default function Widgets({
   location,
   calendarWeekStart,
   saveCalendarWeekStart,
+  calendarConsolidationLayout,
 }: {
   settings: Settings
   patch: (p: Partial<Settings>) => void
@@ -112,6 +115,7 @@ export default function Widgets({
   location: StoredLocation | null | undefined
   calendarWeekStart: CalendarWeekStart
   saveCalendarWeekStart: (value: CalendarWeekStart) => void
+  calendarConsolidationLayout: NamedLayout | null
 }) {
   const [bookmarksPermissionDenied, setBookmarksPermissionDenied] = useState(false)
   const [browserPermissionDenied, setBrowserPermissionDenied] = useState<BrowserWidgetKey | null>(null)
@@ -249,6 +253,13 @@ export default function Widgets({
               <option value="monday">Monday</option>
             </select>
           </div>
+          {calendarConsolidationLayout ? (
+            <CalendarConsolidationSettings
+              key={calendarConsolidationLayout.id}
+              layout={calendarConsolidationLayout}
+              storage={storage}
+            />
+          ) : null}
           <p className="mt-1 text-xs leading-relaxed text-fg-muted">Calendar feeds and public-holiday country remain under Connectors. Layout-specific view options live in the Calendar inspector.</p>
         </DisclosureSection>
 

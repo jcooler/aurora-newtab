@@ -96,7 +96,7 @@ export default function StackInspector({
       {compatibilityMessage ? <p className="edit-inspector__note">{compatibilityMessage}</p> : null}
 
       <div className="edit-inspector__row">
-        <span className="edit-inspector__label">Layer</span>
+        <span className="edit-inspector__label">Overlap order</span>
         <div className="edit-inspector__actions">
           <button type="button" className="edit-inspector__button" onClick={() => onLayer('backward')}>
             Send backward

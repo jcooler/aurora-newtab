@@ -3,7 +3,7 @@ import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { useStorage } from '../lib/storage/context'
 import { useUploads } from '../lib/hooks/useUploads'
 import type { Settings } from '../lib/storage/schema'
-import type { LayoutsDocument } from '../lib/layout/namedLayouts'
+import type { LayoutsDocument, NamedLayout } from '../lib/layout/namedLayouts'
 import General from './sections/General'
 import Background from './sections/Background'
 import Widgets from './sections/Widgets'
@@ -41,6 +41,7 @@ export default function SettingsPanel({
   open = true,
   focusAnchor = null,
   layoutsDocument = null,
+  calendarConsolidationLayout = null,
 }: {
   open?: boolean
   /** Deep link from a widget's gear (named-layouts spec 2.5): on nonce
@@ -50,6 +51,9 @@ export default function SettingsPanel({
   /** The resolved named-layouts document (App owns resolution); the Layout
    *  section's management list operates on it (spec 2.1). */
   layoutsDocument?: LayoutsDocument | null
+  /** The persisted active layout, supplied only when storage owns a named
+   *  layouts document that the Calendar consolidation may safely rewrite. */
+  calendarConsolidationLayout?: NamedLayout | null
 }) {
   const storage = useStorage()
   // Which tab's sections are mounted. Deliberately NOT persisted anywhere: a
@@ -133,7 +137,6 @@ export default function SettingsPanel({
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
   const premium = isPremium()
   const TABS = tabsFor(premium)
-
   // Only the ACTIVE tab's sections are rendered — inactive ones are
   // unmounted, not hidden, so their hooks and effects don't run off screen
   // (Data's pending-import state, Layout's confirm dialog, Background's
@@ -175,6 +178,7 @@ export default function SettingsPanel({
             location={location}
             calendarWeekStart={calendarWeekStart ?? 'locale'}
             saveCalendarWeekStart={saveCalendarWeekStart}
+            calendarConsolidationLayout={calendarConsolidationLayout}
           />
 
           <Layout storage={storage} open={open} layoutsDocument={layoutsDocument} />

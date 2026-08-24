@@ -17,6 +17,7 @@ export const APPROVED_TARGET_IDS = Object.freeze(TARGET_WIDGETS.map(({ id }) => 
 export const OWNER_VISIBLE_CANVAS_CASE = Object.freeze({
   key: 'owner-visible-canvas',
   kind: 'owner-visible-canvas',
+  intrinsic: Object.freeze(['bookmarks', 'clock', 'greeting', 'quote']),
   members: Object.freeze([
     'bookmarks', 'clock', 'greeting', 'worldClocks', 'countdown', 'search',
     'focus', 'links', 'quote', 'weather', 'ics', 'status', 'timer', 'tasks',
@@ -180,13 +181,11 @@ async function inspectFrame(page, stack, activeMember) {
 
 async function inspectOwnerVisibleCanvas(page, output) {
   const framed = Object.freeze({
-    clock: 'standard',
     worldClocks: 'standard',
     countdown: 'standard',
     search: 'standard',
     focus: 'standard',
     links: 'standard',
-    quote: 'standard',
     weather: 'standard',
     ics: 'standard',
     status: 'standard',
@@ -238,6 +237,21 @@ async function inspectOwnerVisibleCanvas(page, output) {
   assert.equal(greetingEvidence.title, greetingEvidence.text, 'Greeting full-text fallback drifted')
   assert(greetingEvidence.scrollWidth <= greetingEvidence.clientWidth + 1, 'Greeting text clips on the real canvas')
 
+  const intrinsicEvidence = {}
+  for (const [id, selector] of Object.entries({
+    clock: '[data-clock-face]',
+    quote: 'figure',
+  })) {
+    const item = page.getByTestId(`canvas-item-${id}`)
+    await item.locator(selector).waitFor()
+    intrinsicEvidence[id] = await item.evaluate((node) => ({
+      tierFrames: node.querySelectorAll('[data-tier-frame]').length,
+      text: (node.textContent ?? '').trim().replace(/\s+/g, ' '),
+    }))
+    assert.equal(intrinsicEvidence[id].tierFrames, 0, `${id} regressed to a tier card`)
+    assert(intrinsicEvidence[id].text.length > 0, `${id} lost its intrinsic content`)
+  }
+
   const visibleBounds = {}
   for (const id of OWNER_VISIBLE_CANVAS_CASE.members.map(sourceId)) {
     const bounds = await page.getByTestId(`canvas-item-${id}`).boundingBox()
@@ -262,9 +276,24 @@ async function inspectOwnerVisibleCanvas(page, output) {
 
   await page.getByRole('button', { name: 'Layout: Owner-visible redesign' }).click()
   await page.getByRole('menuitem', { name: 'Edit layout' }).click()
-  await greeting.click()
-  await page.getByRole('dialog', { name: 'Greeting inspector' }).waitFor()
-  const editFilename = 'owner-visible-canvas-greeting-edit.png'
+  const clock = page.getByTestId('canvas-item-clock')
+  await clock.click()
+  const inspector = page.getByRole('dialog', { name: 'Clock inspector' })
+  await inspector.waitFor()
+  assert.equal(await inspector.getByText('Overlap order').count(), 1, 'Clock inspector lost user-facing overlap copy')
+  assert.equal(await inspector.getByText('Layer', { exact: true }).count(), 0, 'Clock inspector exposes internal Layer copy')
+  const selectionBounds = await clock.evaluate((node) => {
+    const item = node.getBoundingClientRect()
+    const content = node.querySelector('[data-clock-face]')?.getBoundingClientRect()
+    return content ? {
+      item: { width: item.width, height: item.height },
+      content: { width: content.width, height: content.height },
+    } : null
+  })
+  assert(selectionBounds, 'Clock intrinsic content is missing in edit mode')
+  assert(Math.abs(selectionBounds.item.width - selectionBounds.content.width) <= 1, 'Clock selection width is not content-tight')
+  assert(Math.abs(selectionBounds.item.height - selectionBounds.content.height) <= 1, 'Clock selection height is not content-tight')
+  const editFilename = 'owner-visible-canvas-clock-edit.png'
   await page.screenshot({ path: resolve(output, editFilename) })
   await page.getByRole('toolbar', { name: 'Edit layout' }).getByRole('button', { name: 'Cancel' }).click()
 
@@ -273,7 +302,15 @@ async function inspectOwnerVisibleCanvas(page, output) {
     assert.equal(metadata.width, 1600, `${filename} width drifted`)
     assert.equal(metadata.height, 900, `${filename} height drifted`)
   }
-  return { key: OWNER_VISIBLE_CANVAS_CASE.key, filenames: [normalFilename, editFilename], greeting: greetingEvidence, measurements, visibleBounds }
+  return {
+    key: OWNER_VISIBLE_CANVAS_CASE.key,
+    filenames: [normalFilename, editFilename],
+    greeting: greetingEvidence,
+    intrinsic: intrinsicEvidence,
+    selectionBounds,
+    measurements,
+    visibleBounds,
+  }
 }
 
 function initEvidenceBoundary() {

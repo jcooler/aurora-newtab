@@ -25,6 +25,7 @@ test('pins every approved target and required mixed stack', () => {
 })
 
 test('builds one real free-canvas layout with the reviewed exceptions and redesigned faces together', () => {
+  assert.deepEqual(OWNER_VISIBLE_CANVAS_CASE.intrinsic, ['bookmarks', 'clock', 'greeting', 'quote'])
   const document = buildOwnerVisibleLayout(OWNER_VISIBLE_CANVAS_CASE.members)
   const layout = document.layouts[0]
   assert.equal(document.activeLayoutId, layout.id)

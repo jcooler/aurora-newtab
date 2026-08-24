@@ -70,8 +70,7 @@ import { useCanvasViewport } from './useCanvasViewport'
 import { projectTextScale } from './canvas/canvasTextScale'
 import { TimerSessionProvider, useTimerFlowState } from './widgets/timer/TimerSessionProvider'
 import FlowScreen from './flow/FlowScreen'
-import { calendarPreferenceFor, detectLegacyCalendarPlacements, updateCalendarLayoutPreference } from '../lib/layout/calendarConsolidation'
-import CalendarConsolidationPrompt from './widgets/calendar/CalendarConsolidationPrompt'
+import { calendarPreferenceFor, updateCalendarLayoutPreference } from '../lib/layout/calendarConsolidation'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
@@ -105,7 +104,6 @@ function AuroraApp() {
   const [activeUtilityTool, setActiveUtilityTool] = useState<UtilityToolId | null>(null)
   const [utilityTrayHost, setUtilityTrayHost] = useState<HTMLDivElement | null>(null)
   const [bookmarksPopoverOpen, setBookmarksPopoverOpen] = useState(false)
-  const [calendarPromptDismissed, setCalendarPromptDismissed] = useState<ReadonlySet<string>>(() => new Set())
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const utilityTrayInvokerRef = useRef<HTMLButtonElement>(null)
   const utilityCloseGuardRef = useRef<{ tool: UtilityToolId; guard: UtilityCloseGuard } | null>(null)
@@ -601,12 +599,6 @@ function AuroraApp() {
         return band.top + band.height + 8
       })()
     : undefined
-  const calendarPlacements = detectLegacyCalendarPlacements(activeLayout)
-  const showCalendarPrompt = layouts !== null
-    && !session
-    && calendarPlacements.length > 1
-    && !calendarPromptDismissed.has(activeLayout.id)
-
   return (
     <main
       data-aurora-canvas=""
@@ -614,7 +606,7 @@ function AuroraApp() {
       data-editing={session ? 'true' : undefined}
       className="aurora-canvas text-fg"
     >
-      <div className="contents" inert={showCalendarPrompt || (utilityTrayOpen && narrowModality)}>
+      <div className="contents" inert={utilityTrayOpen && narrowModality}>
         <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} utilityTray={utilityTray} />
         <CanvasSurface
           activeLayout={renderedLayout}
@@ -833,22 +825,20 @@ function AuroraApp() {
         </button>
         <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
           <DrawerBoundary open={settingsOpen}>
-            <SettingsPanel open={settingsOpen} focusAnchor={settingsFocusAnchor} layoutsDocument={layoutsDocument} />
+            <SettingsPanel
+              open={settingsOpen}
+              focusAnchor={settingsFocusAnchor}
+              layoutsDocument={layoutsDocument}
+              calendarConsolidationLayout={layouts?.layouts.find(
+                (candidate) => candidate.id === layouts.activeLayoutId,
+              ) ?? null}
+            />
           </DrawerBoundary>
         </Drawer>
         <WidgetBoundary name="palette">
           <PaletteHost onOpenSettings={requestSettingsOpen} />
         </WidgetBoundary>
       </div>
-
-      {showCalendarPrompt ? (
-        <CalendarConsolidationPrompt
-          layout={activeLayout}
-          storage={storage}
-          onLater={() => setCalendarPromptDismissed((current) => new Set(current).add(activeLayout.id))}
-          onSaved={() => setCalendarPromptDismissed((current) => new Set(current).add(activeLayout.id))}
-        />
-      ) : null}
 
       <UtilityTray
         open={utilityTrayOpen}

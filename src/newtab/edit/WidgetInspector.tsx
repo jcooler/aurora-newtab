@@ -143,7 +143,7 @@ export default function WidgetInspector({
       ) : null}
       {free ? (
         <div className="edit-inspector__row">
-          <span className="edit-inspector__label">Layer</span>
+          <span className="edit-inspector__label">Overlap order</span>
           <div className="edit-inspector__actions">
             <button type="button" className="edit-inspector__button" onClick={() => onLayer('backward')}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

@@ -70,11 +70,9 @@ function effectiveVariant({ stageVariant, canvasSize }: WidgetRendererProps): Wi
   return canvasSize
 }
 
-/** The redesign catalog's ordinary Compact/Standard/Full captures are the
- * approved standalone canvas faces. These components originally exposed the
- * same authored face only through their stack branch, so translate the
- * canvas context at the renderer boundary without changing stored layout or
- * data ownership. Greeting and Bookmarks deliberately do not use this path. */
+/** Some authored standalone faces deliberately share the framed composition
+ * used in stacks. Intrinsic Clock and Quote are excluded at their call sites:
+ * their free presentation belongs directly on the photograph. */
 function approvedCanvasFace(presentation?: WidgetPresentationMode): WidgetPresentationMode | undefined {
   return presentation === 'free' ? 'stack' : presentation
 }
@@ -87,8 +85,8 @@ export const WIDGET_RENDERERS = {
   monthCal: (props) => <MonthCalWidget canvasSize={props.canvasSize} stageVariant={props.stageVariant} />,
   sun: (props) => <SunWidget canvasSize={props.canvasSize} docked={props.docked} />,
   moon: (props) => <MoonWidget canvasSize={props.canvasSize} docked={props.docked} />,
-  quote: (props) => <QuoteWidget canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} />,
-  clock: (props) => <Clock canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} docked={props.docked} />,
+  quote: (props) => <QuoteWidget canvasSize={props.canvasSize} presentation={props.presentation} />,
+  clock: (props) => <Clock canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} />,
   greeting: (_props: WidgetRendererProps) => <Greeting />,
   worldClocks: (props) => <WorldClocks canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} docked={props.docked} />,
   countdown: (props) => <CountdownLine canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} docked={props.docked} />,

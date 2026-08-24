@@ -35,6 +35,8 @@ describe('WidgetInspector', () => {
     )
 
     const dialog = screen.getByRole('dialog', { name: 'Weather inspector' })
+    expect(within(dialog).getByText('Overlap order')).toBeTruthy()
+    expect(within(dialog).queryByText('Layer')).toBeNull()
     const radios = within(dialog).getAllByRole('radio')
     expect(radios.map((radio) => radio.textContent)).toEqual(['Compact', 'Standard', 'Full'])
     expect(within(dialog).getByRole('radio', { name: 'Standard' }).getAttribute('aria-checked')).toBe('true')
