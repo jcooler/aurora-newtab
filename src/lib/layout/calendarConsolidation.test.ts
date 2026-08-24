@@ -78,6 +78,26 @@ describe('consolidateCalendarLayout', () => {
     })
   })
 
+  it('keeps Calendar at the collapsed stack location when the stack contains only date cards', () => {
+    const source = layout()
+    source.stacks = [{
+      id: 'dates-only',
+      members: ['ics', 'monthCal', 'publicHolidays'],
+      facing: 'monthCal',
+      anchor: 'center', offsetX: 7, offsetY: -6, tier: 'full', layer: 12,
+    }]
+    const next = consolidateCalendarLayout(source, {
+      expectedRevision: layoutRevision(source),
+      keep: 'monthCal',
+    })
+    expect(next.stacks).toEqual([])
+    expect(next.widgets.ics).toEqual({
+      kind: 'free', anchor: 'center', offsetX: 7, offsetY: -6, tier: 'full', layer: 12,
+    })
+    expect(next.widgets.monthCal).toEqual({ kind: 'hidden' })
+    expect(next.widgets.publicHolidays).toEqual({ kind: 'hidden' })
+  })
+
   it('rejects a stale preview and leaves the source unchanged', () => {
     const source = layout()
     const copy = structuredClone(source)
@@ -102,6 +122,7 @@ describe('Calendar consolidation storage boundary', () => {
     await saveCalendarConsolidation(storage, {
       layoutId: source.id,
       expectedRevision: layoutRevision(source),
+      expectedPreference: { defaultView: 'agenda', includePublicHolidays: true },
       keep: 'monthCal',
       defaultView: 'month',
       includePublicHolidays: true,
@@ -124,9 +145,33 @@ describe('Calendar consolidation storage boundary', () => {
     await expect(saveCalendarConsolidation(storage, {
       layoutId: source.id,
       expectedRevision: 'stale',
+      expectedPreference: { defaultView: 'agenda', includePublicHolidays: true },
       keep: 'ics',
       defaultView: 'agenda',
       includePublicHolidays: false,
+    })).rejects.toThrow(/changed in another tab/i)
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('performs zero writes when the reviewed Calendar preference changed elsewhere', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    const source = layout()
+    await storage.setMany({
+      layouts: { version: 1, activeLayoutId: source.id, layouts: [source] },
+      calendarPreferences: { work: { defaultView: 'month', includePublicHolidays: false } },
+    })
+    const write = vi.spyOn(driver, 'write')
+    write.mockClear()
+
+    await expect(saveCalendarConsolidation(storage, {
+      layoutId: source.id,
+      expectedRevision: layoutRevision(source),
+      expectedPreference: { defaultView: 'agenda', includePublicHolidays: true },
+      keep: 'ics',
+      defaultView: 'agenda',
+      includePublicHolidays: true,
     })).rejects.toThrow(/changed in another tab/i)
     expect(write).not.toHaveBeenCalled()
   })

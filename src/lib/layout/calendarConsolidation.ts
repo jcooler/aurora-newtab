@@ -103,7 +103,7 @@ export function consolidateCalendarLayout(
   }
 
   if (selected.kind === 'standalone') widgets.ics = { ...selected.placement }
-  else delete widgets.ics
+  else if (nextStacks.some((stack) => stack.id === selected.stackId)) delete widgets.ics
   widgets.monthCal = { kind: 'hidden' }
   widgets.publicHolidays = { kind: 'hidden' }
 
@@ -149,6 +149,7 @@ export async function saveCalendarConsolidation(
   options: {
     layoutId: string
     expectedRevision: string
+    expectedPreference: CalendarLayoutPreference
     keep: LegacyCalendarId
     defaultView: CalendarLayoutPreference['defaultView']
     includePublicHolidays: boolean
@@ -159,6 +160,11 @@ export async function saveCalendarConsolidation(
     const index = current.layouts.layouts.findIndex((layout) => layout.id === options.layoutId)
     if (index < 0) throw new Error('This layout changed in another tab. Review it again before saving Calendar.')
     const source = current.layouts.layouts[index]!
+    const currentPreference = calendarPreferenceFor(current.calendarPreferences, options.layoutId)
+    if (currentPreference.defaultView !== options.expectedPreference.defaultView
+      || currentPreference.includePublicHolidays !== options.expectedPreference.includePublicHolidays) {
+      throw new Error('This Calendar preference changed in another tab. Review it again before saving Calendar.')
+    }
     const nextLayout = consolidateCalendarLayout(source, options)
     const layouts = current.layouts.layouts.map((layout, candidateIndex) => (
       candidateIndex === index ? nextLayout : layout

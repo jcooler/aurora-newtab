@@ -21,7 +21,7 @@ function recoveryLayout(authorityIds) {
   const widgets = Object.fromEntries(authorityIds.map((id) => [id, { kind: 'hidden' }]))
   Object.assign(widgets, {
     clock: placement(50, 13, 'standard', 1),
-    greeting: placement(72, 13, 'compact', 2),
+    greeting: placement(78, 13, 'compact', 2),
     quote: placement(72, 80, 'standard', 3),
     github: placement(17, 57, 'standard', 4),
     ics: placement(48, 57, 'standard', 5),
@@ -84,6 +84,18 @@ async function assertCanvasFits(page, label) {
     assert(item.right <= result.viewport.width + 1, `${label} ${item.id} ends off screen horizontally`)
     assert(item.bottom <= result.viewport.height + 1, `${label} ${item.id} ends off screen vertically`)
   }
+  for (let leftIndex = 0; leftIndex < result.items.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < result.items.length; rightIndex += 1) {
+      const left = result.items[leftIndex]
+      const right = result.items[rightIndex]
+      const overlapWidth = Math.min(left.right, right.right) - Math.max(left.left, right.left)
+      const overlapHeight = Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top)
+      assert(
+        overlapWidth <= 1 || overlapHeight <= 1,
+        `${label} ${left.id} overlaps ${right.id}: ${JSON.stringify({ left, right, overlapWidth, overlapHeight })}`,
+      )
+    }
+  }
   for (const frame of result.frames) {
     assert(frame.scrollWidth <= frame.width + 1, `${label} ${frame.id} clips horizontally`)
     assert(frame.scrollHeight <= frame.height + 1, `${label} ${frame.id} clips vertically`)
@@ -96,13 +108,11 @@ export async function runUiRecoveryQa() {
   const repoRoot = resolve(process.cwd())
   const dist = resolve(repoRoot, 'dist')
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
-  if (process.argv.includes('--exact')) {
-    assert.equal(
-      parseBuildCommit(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8')),
-      commit,
-      'dist provenance does not match HEAD',
-    )
-  }
+  assert.equal(
+    parseBuildCommit(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8')),
+    commit,
+    'dist provenance does not match HEAD',
+  )
   const authorityIds = Object.keys(parsePresentationAuthority(
     readFileSync(resolve(repoRoot, 'src/newtab/widgetSizeContracts.ts'), 'utf8'),
   ))
@@ -120,7 +130,10 @@ export async function runUiRecoveryQa() {
     const page = context.pages()[0] ?? await context.newPage()
     page.setDefaultTimeout(20_000)
     page.on('console', (message) => {
-      if (message.type() === 'error') consoleErrors.push(message.text())
+      const value = message.text()
+      if (message.type() === 'error' && !value.startsWith('Failed to load resource: net::ERR_BLOCKED_BY_CLIENT')) {
+        consoleErrors.push(value)
+      }
     })
     page.on('pageerror', (error) => pageErrors.push(error.message))
     await context.route(/^https?:\/\//, (route) => route.abort('blockedbyclient'))

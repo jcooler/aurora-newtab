@@ -17,8 +17,7 @@ import Countdowns from './Countdowns'
 import Weather from './Weather'
 import WorldClocks from './WorldClocks'
 import { row, label, control, submitBtn } from './shared'
-import type { CalendarWeekStart } from '../../lib/layout/namedLayouts'
-import type { NamedLayout } from '../../lib/layout/namedLayouts'
+import type { CalendarLayoutPreference, CalendarWeekStart, NamedLayout } from '../../lib/layout/namedLayouts'
 import CalendarConsolidationSettings from './CalendarConsolidationSettings'
 
 interface WidgetGroup {
@@ -105,6 +104,7 @@ export default function Widgets({
   calendarWeekStart,
   saveCalendarWeekStart,
   calendarConsolidationLayout,
+  calendarConsolidationPreference,
 }: {
   settings: Settings
   patch: (p: Partial<Settings>) => void
@@ -116,6 +116,7 @@ export default function Widgets({
   calendarWeekStart: CalendarWeekStart
   saveCalendarWeekStart: (value: CalendarWeekStart) => void
   calendarConsolidationLayout: NamedLayout | null
+  calendarConsolidationPreference: CalendarLayoutPreference
 }) {
   const [bookmarksPermissionDenied, setBookmarksPermissionDenied] = useState(false)
   const [browserPermissionDenied, setBrowserPermissionDenied] = useState<BrowserWidgetKey | null>(null)
@@ -257,6 +258,7 @@ export default function Widgets({
             <CalendarConsolidationSettings
               key={calendarConsolidationLayout.id}
               layout={calendarConsolidationLayout}
+              preference={calendarConsolidationPreference}
               storage={storage}
             />
           ) : null}

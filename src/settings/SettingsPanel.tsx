@@ -15,6 +15,7 @@ import Tabs from './Tabs'
 import { isPremium } from '../lib/premium'
 import PermissionCleanupAlert from './PermissionCleanupAlert'
 import { usePermissionCleanup } from './usePermissionCleanup'
+import { calendarPreferenceFor } from '../lib/layout/calendarConsolidation'
 
 type TabId = 'general' | 'widgets' | 'connectors' | 'data'
 
@@ -100,6 +101,7 @@ export default function SettingsPanel({
   const [habits] = useStoredKey('habits')
   const [connectors] = useStoredKey('connectors')
   const [calendarWeekStart, saveCalendarWeekStart] = useStoredKey('calendarWeekStart')
+  const [calendarPreferences] = useStoredKey('calendarPreferences')
   const cleanup = usePermissionCleanup(storage)
   const [galleryError, setGalleryError] = useState<string | null>(null)
   // Reload the gallery whenever mode enters 'upload' or the uploadedAt nonce
@@ -179,6 +181,10 @@ export default function SettingsPanel({
             calendarWeekStart={calendarWeekStart ?? 'locale'}
             saveCalendarWeekStart={saveCalendarWeekStart}
             calendarConsolidationLayout={calendarConsolidationLayout}
+            calendarConsolidationPreference={calendarPreferenceFor(
+              calendarPreferences,
+              calendarConsolidationLayout?.id,
+            )}
           />
 
           <Layout storage={storage} open={open} layoutsDocument={layoutsDocument} />

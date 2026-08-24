@@ -31,10 +31,8 @@ export async function runGithubTierQa() {
   const repoRoot = resolve(process.cwd())
   const dist = resolve(repoRoot, 'dist')
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
-  if (process.argv.includes('--exact')) {
-    const provenance = parseBuildCommit(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8'))
-    assert.equal(provenance, commit, 'dist provenance does not match HEAD')
-  }
+  const provenance = parseBuildCommit(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8'))
+  assert.equal(provenance, commit, 'dist provenance does not match HEAD')
   const authority = parsePresentationAuthority(
     readFileSync(resolve(repoRoot, 'src/newtab/widgetSizeContracts.ts'), 'utf8'),
   )
@@ -108,6 +106,11 @@ export async function runGithubTierQa() {
             && !entry.hasAttribute('title')
             && !entry.hasAttribute('aria-label')
           )).map((entry) => (entry.textContent ?? '').trim()),
+          rowCount: node.querySelectorAll('[data-work-pulse-rows] li').length,
+          hasMonthTicks: node.querySelector('[data-contribution-months]') !== null,
+          hasParallelRows: node.querySelector('[data-github-row-families="parallel"]') !== null,
+          contributionSummary: node.querySelector('[data-contribution-summary]')?.textContent?.trim() ?? '',
+          headerSummary: node.querySelector('[data-contribution-header-summary]')?.textContent?.trim() ?? '',
         }
       })
       const [expectedWidth, expectedHeight] = EXPECTED[tier]
@@ -122,6 +125,20 @@ export async function runGithubTierQa() {
       await frame.screenshot({ path: resolve(output, filename) })
       evidence.push({ tier, filename, ...measurement })
     }
+    const compact = evidence.find(({ tier }) => tier === 'compact')
+    const standard = evidence.find(({ tier }) => tier === 'standard')
+    const full = evidence.find(({ tier }) => tier === 'full')
+    assert(compact && standard && full, 'GitHub tier evidence is incomplete')
+    assert.equal(compact.rowCount, 0, 'Compact should prioritize the graph instead of list rows')
+    assert.match(compact.contributionSummary, /contributions.*day streak/i, 'Compact lost contribution and streak facts')
+    assert.equal(standard.rowCount, 1, 'Standard should add one actionable row')
+    assert.match(standard.contributionSummary, /contributions.*day streak/i, 'Standard lost contribution and streak facts')
+    assert.equal(full.rowCount, 2, 'Full should show both selected row families')
+    assert.equal(full.hasParallelRows, true, 'Full should distinguish row families in parallel')
+    assert.equal(full.hasMonthTicks, true, 'Full should add month context to the graph')
+    assert.match(full.headerSummary, /contributions.*day streak/i, 'Full lost its header graph facts')
+    assert(compact.graph.width < standard.graph.width, 'Standard graph should grow beyond Compact')
+    assert(standard.graph.width < full.graph.width, 'Full graph should grow beyond Standard')
     writeFileSync(resolve(output, 'evidence.json'), `${JSON.stringify({ commit, evidence }, null, 2)}\n`, 'utf8')
     process.stdout.write(`PASS GitHub tier QA: ${evidence.length}/${TIERS.length} close card captures\n`)
   } finally {

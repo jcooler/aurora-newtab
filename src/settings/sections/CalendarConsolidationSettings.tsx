@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   detectLegacyCalendarPlacements,
   layoutRevision,
   saveCalendarConsolidation,
   type LegacyCalendarId,
 } from '../../lib/layout/calendarConsolidation'
-import type { NamedLayout } from '../../lib/layout/namedLayouts'
+import type { CalendarLayoutPreference, NamedLayout } from '../../lib/layout/namedLayouts'
 import type { AuroraStorage } from '../../lib/storage/index'
 import { control, submitBtn } from './shared'
 
@@ -17,35 +17,49 @@ const LABELS: Readonly<Record<LegacyCalendarId, string>> = {
 
 export default function CalendarConsolidationSettings({
   layout,
+  preference,
   storage,
 }: {
   layout: NamedLayout
+  preference: CalendarLayoutPreference
   storage: AuroraStorage
 }) {
   const placements = detectLegacyCalendarPlacements(layout)
-  const [keep, setKeep] = useState<LegacyCalendarId | null>(null)
-  const [defaultView, setDefaultView] = useState<'agenda' | 'month'>('agenda')
-  const [includePublicHolidays, setIncludePublicHolidays] = useState(true)
+  const revision = layoutRevision(layout)
+  const [selection, setSelection] = useState<{
+    keep: LegacyCalendarId
+    expectedRevision: string
+    expectedPreference: CalendarLayoutPreference
+  } | null>(null)
+  const [defaultView, setDefaultView] = useState<'agenda' | 'month'>(preference.defaultView)
+  const [includePublicHolidays, setIncludePublicHolidays] = useState(preference.includePublicHolidays)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
+
+  useEffect(() => {
+    setSelection(null)
+    setDefaultView(preference.defaultView)
+    setIncludePublicHolidays(preference.includePublicHolidays)
+    setMessage(null)
+  }, [preference.defaultView, preference.includePublicHolidays, revision])
 
   if (placements.length < 2) return null
 
   const choose = (id: LegacyCalendarId) => {
-    setKeep(id)
-    setDefaultView(id === 'monthCal' ? 'month' : 'agenda')
+    setSelection({ keep: id, expectedRevision: revision, expectedPreference: { ...preference } })
     setMessage(null)
   }
 
   const combine = async () => {
-    if (!keep || saving) return
+    if (!selection || saving) return
     setSaving(true)
     setMessage(null)
     try {
       await saveCalendarConsolidation(storage, {
         layoutId: layout.id,
-        expectedRevision: layoutRevision(layout),
-        keep,
+        expectedRevision: selection.expectedRevision,
+        expectedPreference: selection.expectedPreference,
+        keep: selection.keep,
         defaultView,
         includePublicHolidays,
       })
@@ -73,7 +87,7 @@ export default function CalendarConsolidationSettings({
             <input
               type="radio"
               name={`calendar-location-${layout.id}`}
-              checked={keep === placement.id}
+              checked={selection?.keep === placement.id}
               onChange={() => choose(placement.id)}
               className="size-4 accent-[var(--accent)]"
             />
@@ -110,7 +124,7 @@ export default function CalendarConsolidationSettings({
       ) : null}
       <button
         type="button"
-        disabled={!keep || saving}
+        disabled={!selection || saving}
         onClick={() => void combine()}
         className={`${submitBtn} mt-3 disabled:cursor-not-allowed disabled:opacity-40`}
       >

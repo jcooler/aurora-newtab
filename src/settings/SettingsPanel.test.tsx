@@ -2554,6 +2554,7 @@ describe('SettingsPanel Widgets section (Month calendar toggle)', () => {
     const region = screen.getByRole('region', { name: 'Calendar' })
     const locations = within(region).getByRole('group', { name: 'Card location to keep' })
     fireEvent.click(within(locations).getByRole('radio', { name: 'Month' }))
+    fireEvent.change(within(region).getByLabelText('Default view'), { target: { value: 'month' } })
     fireEvent.click(within(region).getByRole('checkbox', { name: 'Include public holidays' }))
     fireEvent.click(within(region).getByRole('button', { name: 'Combine into Calendar' }))
 
