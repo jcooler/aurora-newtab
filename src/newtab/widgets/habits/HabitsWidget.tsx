@@ -84,7 +84,7 @@ function HabitsInner({
             className="grid size-11 place-content-center rounded-full bg-panel-solid text-center"
           >
             <strong className="font-mono text-xs font-semibold leading-none text-fg">{doneToday}/{habits.length}</strong>
-            <span className="mt-0.5 text-[9px] uppercase tracking-[0.08em] text-fg-muted">today</span>
+            <span className="mt-0.5 text-[11px] uppercase tracking-[0.08em] text-fg-muted">today</span>
           </span>
         </span>
         <div className="grid min-w-0 content-center gap-1">
@@ -97,7 +97,7 @@ function HabitsInner({
                   type="button"
                   aria-pressed={todayDone}
                   onClick={() => toggleToday(h.id)}
-                  className="flex min-h-4 min-w-0 cursor-pointer items-center gap-1 rounded-sm text-left text-[11px] focus-visible:outline-2 focus-visible:outline-accent"
+                  className="flex min-h-[22px] min-w-0 cursor-pointer items-center gap-1 rounded-sm text-left text-[11px] focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   <span
                     aria-hidden="true"
