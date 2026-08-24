@@ -219,7 +219,10 @@ function UnifiedCalendarWidget({
   if (canvasSize === 'full') {
     return (
       <TierFrame label="Calendar" tier="full" state={items.length > 0 ? 'ready' : 'empty'} className="p-4">
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-5">
+        <div
+          data-calendar-full-composition
+          className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] items-center gap-5"
+        >
           <div data-testid="calendar-full-month" className="min-w-0">
             <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} roomy />
           </div>
@@ -234,18 +237,20 @@ function UnifiedCalendarWidget({
 
   const viewTabs = <CalendarViewTabs active={preference.defaultView} onChange={setView} />
   return (
-    <TierFrame label="Calendar" tier="standard" state={items.length > 0 ? 'ready' : 'empty'} className="gap-1.5 px-3 pb-2.5 pt-2">
-      {preference.defaultView === 'month' ? (
-        <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} viewControl={viewTabs} />
-      ) : (
-        <>
-          <div className="flex min-h-7 items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-muted">Calendar</span>
-            {viewTabs}
-          </div>
-          <CalendarAgenda items={items} limit={4} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
-        </>
-      )}
+    <TierFrame label="Calendar" tier="standard" state={items.length > 0 ? 'ready' : 'empty'} className="justify-center gap-1.5 px-3 py-2.5">
+      <div data-calendar-standard-composition className="min-h-0 w-full">
+        {preference.defaultView === 'month' ? (
+          <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} viewControl={viewTabs} />
+        ) : (
+          <>
+            <div className="flex min-h-7 items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-muted">Calendar</span>
+              {viewTabs}
+            </div>
+            <CalendarAgenda items={items} limit={4} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+          </>
+        )}
+      </div>
     </TierFrame>
   )
 }

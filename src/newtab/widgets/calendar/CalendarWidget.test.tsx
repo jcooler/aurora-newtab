@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -217,6 +217,35 @@ describe('CalendarWidget', () => {
     const monthHeader = screen.getByText('August 2026').parentElement?.parentElement
     expect(monthHeader?.contains(screen.getByRole('tablist', { name: 'Calendar view' }))).toBe(true)
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+  })
+
+  it('centers the Standard selected view inside the exact frame', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
+    await storage.set('calendarPreferences', {
+      work: { defaultView: 'month', includePublicHolidays: false },
+    })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+    const frame = screen.getByRole('region', { name: 'Calendar' })
+    const composition = frame.querySelector('[data-calendar-standard-composition]')!
+    expect(frame.className).toContain('justify-center')
+    expect(composition).toBeTruthy()
+    expect(within(frame).getByRole('table').querySelectorAll('[data-calendar-cell]')).toHaveLength(42)
+  })
+
+  it('vertically balances the Full month and agenda regions', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
+    await storage.set('calendarPreferences', {
+      work: { defaultView: 'agenda', includePublicHolidays: false },
+    })
+    mountUnified(storage, 'full')
+    await act(async () => {})
+    const frame = screen.getByRole('region', { name: 'Calendar' })
+    const composition = frame.querySelector('[data-calendar-full-composition]')!
+    expect(composition.className).toContain('items-center')
+    expect(within(frame).getByTestId('calendar-full-month')).toBeTruthy()
+    expect(within(frame).getByTestId('calendar-full-agenda')).toBeTruthy()
+    expect(within(frame).getByRole('table').querySelectorAll('[data-calendar-cell]')).toHaveLength(42)
   })
 
   it('Compact stays agenda-led while Full renders Month and Agenda together', async () => {
