@@ -179,6 +179,34 @@ async function inspectFrame(page, stack, activeMember) {
   return { selector, measurement }
 }
 
+export function measureOwnerVisibleFrame(node, getStyle = globalThis.getComputedStyle) {
+  const rect = node.getBoundingClientRect()
+  const visible = [node, ...node.querySelectorAll('*')].filter((entry) => {
+    const style = getStyle(entry)
+    const box = entry.getBoundingClientRect()
+    return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0
+  })
+  return {
+    width: rect.width,
+    height: rect.height,
+    scrollWidth: node.scrollWidth,
+    scrollHeight: node.scrollHeight,
+    internalScrollOwners: visible.filter((entry) => {
+      const style = getStyle(entry)
+      return /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`)
+    }).length,
+  }
+}
+
+export function assertOwnerVisibleFrameMeasurement(id, tier, measurement) {
+  const [expectedWidth, expectedHeight] = EXPECTED_DIMENSIONS[tier]
+  assert(Math.abs(measurement.width - expectedWidth) <= 1, `${id} standalone width drifted`)
+  assert(Math.abs(measurement.height - expectedHeight) <= 1, `${id} standalone height drifted`)
+  assert(measurement.scrollWidth <= measurement.width + 1, `${id} standalone clips horizontally`)
+  assert(measurement.scrollHeight <= measurement.height + 1, `${id} standalone clips vertically`)
+  assert.equal(measurement.internalScrollOwners, 0, `${id} standalone added an internal scroll owner`)
+}
+
 async function inspectOwnerVisibleCanvas(page, output) {
   const framed = Object.freeze({
     worldClocks: 'standard',
@@ -196,20 +224,8 @@ async function inspectOwnerVisibleCanvas(page, output) {
   for (const [id, tier] of Object.entries(framed)) {
     const frame = page.locator(`[data-testid="canvas-item-${id}"] [data-tier-frame="${tier}"]`)
     await frame.waitFor()
-    measurements[id] = await frame.evaluate((node) => {
-      const rect = node.getBoundingClientRect()
-      return {
-        width: rect.width,
-        height: rect.height,
-        scrollWidth: node.scrollWidth,
-        scrollHeight: node.scrollHeight,
-      }
-    })
-    const [expectedWidth, expectedHeight] = EXPECTED_DIMENSIONS[tier]
-    assert(Math.abs(measurements[id].width - expectedWidth) <= 1, `${id} standalone width drifted`)
-    assert(Math.abs(measurements[id].height - expectedHeight) <= 1, `${id} standalone height drifted`)
-    assert(measurements[id].scrollWidth <= measurements[id].width + 1, `${id} standalone clips horizontally`)
-    assert(measurements[id].scrollHeight <= measurements[id].height + 1, `${id} standalone clips vertically`)
+    measurements[id] = await frame.evaluate(measureOwnerVisibleFrame)
+    assertOwnerVisibleFrameMeasurement(id, tier, measurements[id])
   }
 
   const bookmarks = page.getByTestId('canvas-item-bookmarks')

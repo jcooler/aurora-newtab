@@ -10,6 +10,7 @@ import {
   buildOwnerVisibleLayout,
   parseBuildCommit,
 } from './qa-widget-redesign-production.mjs'
+import * as productionQa from './qa-widget-redesign-production.mjs'
 
 test('pins every approved target and required mixed stack', () => {
   assert.deepEqual(APPROVED_TARGET_IDS, TARGET_WIDGETS.map(({ id }) => id))
@@ -56,4 +57,30 @@ test('reads exact reviewed dist provenance', () => {
   assert.equal(parseBuildCommit('{"commit":"abc123"}'), 'abc123')
   assert.throws(() => parseBuildCommit('{}'), /commit/i)
   assert.throws(() => parseBuildCommit('not json'), /provenance/i)
+})
+
+test('rejects a fitting owner-visible frame with a visible internal scroll owner', () => {
+  assert.equal(typeof productionQa.measureOwnerVisibleFrame, 'function', 'owner-visible frame measurement is missing')
+  assert.equal(typeof productionQa.assertOwnerVisibleFrameMeasurement, 'function', 'owner-visible frame guard is missing')
+
+  const scrollingChild = {
+    getBoundingClientRect: () => ({ width: 120, height: 40 }),
+  }
+  const frame = {
+    scrollWidth: 318,
+    scrollHeight: 198,
+    getBoundingClientRect: () => ({ width: 320, height: 200 }),
+    querySelectorAll: () => [scrollingChild],
+  }
+  const measurement = productionQa.measureOwnerVisibleFrame(frame, (node) => (
+    node === scrollingChild
+      ? { display: 'block', visibility: 'visible', overflowX: 'auto', overflowY: 'hidden' }
+      : { display: 'flex', visibility: 'visible', overflowX: 'hidden', overflowY: 'hidden' }
+  ))
+
+  assert.equal(measurement.internalScrollOwners, 1)
+  assert.throws(
+    () => productionQa.assertOwnerVisibleFrameMeasurement('search', 'standard', measurement),
+    /internal scroll owner/i,
+  )
 })
