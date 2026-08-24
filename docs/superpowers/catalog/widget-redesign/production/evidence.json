@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "commit": "0c00b98b67a18b9c8c8db83743f0c79bdb1b7b52",
+  "commit": "6f05299a095f57ea1e5e8d740edf686aa5b635e9",
   "buildMode": "preview evidence; production adapters remain compiled out",
   "approvedTargets": [
     "clock",
@@ -488,61 +488,71 @@
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
-          "scrollHeight": 198
+          "scrollHeight": 198,
+          "internalScrollOwners": 0
         },
         "countdown": {
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
-          "scrollHeight": 198
+          "scrollHeight": 198,
+          "internalScrollOwners": 0
         },
         "search": {
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
-          "scrollHeight": 198
+          "scrollHeight": 198,
+          "internalScrollOwners": 0
         },
         "links": {
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
-          "scrollHeight": 198
+          "scrollHeight": 198,
+          "internalScrollOwners": 0
         },
         "weather": {
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
-          "scrollHeight": 198
+          "scrollHeight": 198,
+          "internalScrollOwners": 0
         },
         "ics": {
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
-          "scrollHeight": 198
+          "scrollHeight": 198,
+          "internalScrollOwners": 0
         },
         "tasks": {
           "width": 216,
           "height": 132,
           "scrollWidth": 214,
-          "scrollHeight": 130
+          "scrollHeight": 130,
+          "internalScrollOwners": 0
         },
         "notes": {
           "width": 216,
           "height": 132,
           "scrollWidth": 214,
-          "scrollHeight": 130
+          "scrollHeight": 130,
+          "internalScrollOwners": 0
         },
         "timer": {
           "width": 216,
           "height": 132,
           "scrollWidth": 214,
-          "scrollHeight": 130
+          "scrollHeight": 130,
+          "internalScrollOwners": 0
         },
         "habits": {
           "width": 216,
           "height": 132,
           "scrollWidth": 214,
-          "scrollHeight": 130
+          "scrollHeight": 130,
+          "internalScrollOwners": 0
         }
       },
       "visibleBounds": {
@@ -650,9 +660,6 @@
       "key": "weather-on-this-day",
       "theme": "dark",
       "writes": [
-        [
-          "weatherAlertCache"
-        ],
         [
           "layouts"
         ]
