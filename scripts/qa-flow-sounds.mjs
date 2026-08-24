@@ -44,6 +44,18 @@ async function initialize(page, authorityIds) {
   await page.goto(seedUrl, { waitUntil: 'domcontentloaded' })
   await page.evaluate(async ({ layouts }) => {
     const current = await chrome.storage.local.get(null)
+    const status = {
+      enabled: true,
+      services: [{ name: 'Aurora', url: 'https://status.example.test/api/v2/status.json' }],
+    }
+    const canonical = (input) => {
+      if (input === null) return 'null'
+      if (typeof input === 'string' || typeof input === 'boolean' || typeof input === 'number') return JSON.stringify(input)
+      if (Array.isArray(input)) return `[${input.map(canonical).join(',')}]`
+      return `{${Object.keys(input).filter((key) => input[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonical(input[key])}`).join(',')}}`
+    }
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`status\n${canonical(status)}`))
+    const scope = `status:v1:${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`
     await chrome.storage.local.set({
       settings: {
         ...current.settings,
@@ -58,6 +70,15 @@ async function initialize(page, authorityIds) {
         remainingMs: 25 * 60_000,
         cycles: 0,
         flow: true,
+      },
+      connectors: { ...current.connectors, status },
+      connectorSnapshots: {
+        ...current.connectorSnapshots,
+        status: {
+          scope,
+          fetchedAt: Date.now(),
+          data: { services: [{ name: 'Aurora', indicator: 'none', description: 'All systems operational' }] },
+        },
       },
       photoPrefs: { ...current.photoPrefs, mode: 'gradient' },
       layouts,
