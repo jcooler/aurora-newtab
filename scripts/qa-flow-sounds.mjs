@@ -92,6 +92,8 @@ async function assertFlowFits(page, label) {
     const viewport = { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight }
     const rect = screen.getBoundingClientRect()
     const controls = screen.querySelector('[data-flow-sound-controls]')?.getBoundingClientRect()
+    const soundSelect = screen.querySelector('#flow-sound')?.getBoundingClientRect()
+    const soundCaret = screen.querySelector('[data-flow-sound-caret]')?.getBoundingClientRect()
     const visibleControls = [...screen.querySelectorAll('button, select, input')]
       .filter((node) => getComputedStyle(node).display !== 'none')
       .map((node) => {
@@ -102,12 +104,15 @@ async function assertFlowFits(page, label) {
       viewport,
       screen: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
       controls: controls ? { left: controls.left, top: controls.top, right: controls.right, bottom: controls.bottom } : null,
+      caretInset: soundSelect && soundCaret ? soundSelect.right - soundCaret.right : null,
       visibleControls,
       documentWidth: document.documentElement.scrollWidth,
       documentHeight: document.documentElement.scrollHeight,
     }
   })
   assert(result.controls, `${label}: Flow sound controls are missing`)
+  assert(result.caretInset !== null, `${label}: Flow sound caret is missing`)
+  assert(result.caretInset >= 11 && result.caretInset <= 13, `${label}: Flow sound caret edge inset drifted to ${result.caretInset}px`)
   assert(result.documentWidth <= result.viewport.width + 1, `${label}: horizontal page overflow`)
   assert(result.documentHeight <= result.viewport.height + 1, `${label}: vertical page overflow`)
   for (const control of result.visibleControls) {

@@ -175,6 +175,15 @@ describe('FlowScreen', () => {
     await waitFor(() => expect(document.querySelector('audio')?.getAttribute('src')).toBe('/sounds/ocean.ogg'))
   })
 
+  it('owns an aria-hidden Flow sound caret so its edge inset is not browser-dependent', async () => {
+    await renderFlow()
+
+    const select = screen.getByRole('combobox', { name: 'Flow sound' })
+    const caret = select.parentElement?.querySelector('[data-flow-sound-caret]')
+    expect(caret).toBeTruthy()
+    expect(caret?.getAttribute('aria-hidden')).toBe('true')
+  })
+
   it('stops and removes playback when the Flow sound is switched off', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})

@@ -132,22 +132,32 @@ export default function FlowScreen() {
           </div>
           <div data-flow-sound-controls="" className="text-photo flex min-h-9 flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-canvas-fg-muted">
             <label htmlFor="flow-sound" className="sr-only">Flow sound</label>
-            <select
-              id="flow-sound"
-              aria-label="Flow sound"
-              value={settings.flowAmbience}
-              onChange={(event) => {
-                const flowAmbience = event.currentTarget.value as FlowAmbienceChoice
-                void storage.update('settings', (current) => ({ ...current, flowAmbience }))
-              }}
-              className="min-h-9 rounded-full border border-canvas-fg-muted/45 bg-black/20 px-3 text-canvas-fg outline-none backdrop-blur-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              <option value="off">Off</option>
-              <option value="creek">Creek</option>
-              <option value="rain">Rain</option>
-              <option value="ocean">Ocean</option>
-              <option value="forest">Forest</option>
-            </select>
+            <span className="relative inline-flex">
+              <select
+                id="flow-sound"
+                aria-label="Flow sound"
+                value={settings.flowAmbience}
+                onChange={(event) => {
+                  const flowAmbience = event.currentTarget.value as FlowAmbienceChoice
+                  void storage.update('settings', (current) => ({ ...current, flowAmbience }))
+                }}
+                className="min-h-9 appearance-none rounded-full border border-canvas-fg-muted/45 bg-black/20 py-0 pl-3 pr-9 text-canvas-fg outline-none backdrop-blur-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <option value="off">Off</option>
+                <option value="creek">Creek</option>
+                <option value="rain">Rain</option>
+                <option value="ocean">Ocean</option>
+                <option value="forest">Forest</option>
+              </select>
+              <svg
+                data-flow-sound-caret=""
+                aria-hidden="true"
+                viewBox="0 0 12 12"
+                className="pointer-events-none absolute right-3 top-1/2 size-3 -translate-y-1/2 text-canvas-fg-muted"
+              >
+                <path d="m2.5 4.25 3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
             <label htmlFor="flow-volume" className="font-medium text-canvas-fg">Volume</label>
             <input
               id="flow-volume"
