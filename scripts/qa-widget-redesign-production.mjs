@@ -258,6 +258,8 @@ async function inspectOwnerVisibleCanvas(page, output) {
     assert(bounds, `${id} is missing from the owner-visible canvas`)
     visibleBounds[id] = bounds
   }
+  const normalFilename = 'owner-visible-canvas.png'
+  await page.screenshot({ path: resolve(output, normalFilename) })
   const ids = Object.keys(visibleBounds)
   for (let leftIndex = 0; leftIndex < ids.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < ids.length; rightIndex += 1) {
@@ -267,12 +269,12 @@ async function inspectOwnerVisibleCanvas(page, output) {
       const right = visibleBounds[rightId]
       const overlapWidth = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x)
       const overlapHeight = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y)
-      assert(overlapWidth <= 1 || overlapHeight <= 1, `${leftId} overlaps ${rightId} on the owner-visible canvas`)
+      assert(
+        overlapWidth <= 1 || overlapHeight <= 1,
+        `${leftId} overlaps ${rightId} on the owner-visible canvas: ${JSON.stringify({ left, right, overlapWidth, overlapHeight })}`,
+      )
     }
   }
-
-  const normalFilename = 'owner-visible-canvas.png'
-  await page.screenshot({ path: resolve(output, normalFilename) })
 
   await page.getByRole('button', { name: 'Layout: Owner-visible redesign' }).click()
   await page.getByRole('menuitem', { name: 'Edit layout' }).click()
