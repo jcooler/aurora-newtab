@@ -648,8 +648,10 @@ describe('App Canvas composition', () => {
       expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
       expect(canvasItem(entry.id).dataset.canvasMode).toBe('anchored')
       fireEvent.keyDown(document, { key: 'Escape' })
-      await act(async () => {})
-      expect(screen.queryByRole('dialog', { name: entry.dialog })).toBeNull()
+      // Notes may flush its registered save guard before unmounting. Under a
+      // loaded full suite that can take more than one microtask, so observe
+      // the user-visible close instead of assuming a scheduler turn count.
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: entry.dialog })).toBeNull())
       expect(document.activeElement).toBe(launcher)
     }
 
