@@ -2593,14 +2593,10 @@ select > option {
   margin-top: 4px;
   padding-top: 4px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="gitlab"] [role="img"],
-.canvas-item[data-canvas-size="compact"][data-block-id="gitlab"] [role="img"] + div {
-  display: none;
-}
 .canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section > div.hidden:has([role="img"]) {
   /* Rows-bearing and quiet compositions place the same legacy height tier on
-     the inner graph wrapper. Compact still needs the stat summary inside it;
-     the heatmap itself remains omitted by the rule above. */
+     the inner graph wrapper. Compact keeps the heatmap and its stat summary
+     inside that visible wrapper. */
   display: block;
 }
 .canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"] ~ p {

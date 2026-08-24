@@ -111,6 +111,11 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
     expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:is\(\[data-block-id="github"\], \[data-block-id="gitlab"\]\) \[role="img"\] ~ p\s*\{[\s\S]*?font-size:\s*11px\s*;/)
   })
 
+  it('keeps the Compact GitLab contribution graph paintable', () => {
+    const graphHideRules = indexCss.match(/\.canvas-item\[data-canvas-size="compact"\]\[data-block-id="gitlab"\] \[role="img"\][^{]*\{[^}]*\}/g) ?? []
+    expect(graphHideRules.some((rule) => /display:\s*none\s*;/.test(rule))).toBe(false)
+  })
+
   it('keeps compact Canvas Weather condition, location, and disclosure visible', () => {
     const summary = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span')
     expect(summary).toMatch(/flex-wrap:\s*wrap\s*;/)
