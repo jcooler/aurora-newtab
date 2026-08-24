@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "commit": "9b0a8f7ff69055e6059d4f5ffc47b2e1ed7af0d6",
+  "commit": "c95254a7ca04a79b0a4b564f5635ae809f49f826",
   "buildMode": "preview evidence; production adapters remain compiled out",
   "approvedTargets": [
     "clock",
@@ -445,7 +445,7 @@
       "key": "owner-visible-canvas",
       "filenames": [
         "owner-visible-canvas.png",
-        "owner-visible-canvas-greeting-edit.png"
+        "owner-visible-canvas-clock-edit.png"
       ],
       "greeting": {
         "rootTag": "DIV",
@@ -455,13 +455,27 @@
         "clientWidth": 408,
         "scrollWidth": 408
       },
-      "measurements": {
+      "intrinsic": {
         "clock": {
-          "width": 320,
-          "height": 200,
-          "scrollWidth": 318,
-          "scrollHeight": 198
+          "tierFrames": 0,
+          "text": "12:00Sunday, August 23"
         },
+        "quote": {
+          "tierFrames": 0,
+          "text": "“Trust in the Lord with all your heart and lean not on your own understanding.”— Proverbs 3:5"
+        }
+      },
+      "selectionBounds": {
+        "item": {
+          "width": 424.96875,
+          "height": 172.9375
+        },
+        "content": {
+          "width": 424.96875,
+          "height": 172.9375
+        }
+      },
+      "measurements": {
         "worldClocks": {
           "width": 320,
           "height": 200,
@@ -487,12 +501,6 @@
           "scrollHeight": 198
         },
         "links": {
-          "width": 320,
-          "height": 200,
-          "scrollWidth": 318,
-          "scrollHeight": 198
-        },
-        "quote": {
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
@@ -549,10 +557,10 @@
           "height": 30
         },
         "clock": {
-          "x": 432,
-          "y": 134,
-          "width": 320,
-          "height": 200
+          "x": 379.515625,
+          "y": 147.53125,
+          "width": 424.96875,
+          "height": 172.9375
         },
         "greeting": {
           "x": 996.0234375,
@@ -585,16 +593,16 @@
           "height": 200
         },
         "links": {
-          "x": 832,
+          "x": 768,
           "y": 683,
           "width": 320,
           "height": 200
         },
         "quote": {
-          "x": 1264,
-          "y": 683,
-          "width": 320,
-          "height": 200
+          "x": 508.984375,
+          "y": 626.3125,
+          "width": 582.03125,
+          "height": 43.375
         },
         "weather": {
           "x": 32,

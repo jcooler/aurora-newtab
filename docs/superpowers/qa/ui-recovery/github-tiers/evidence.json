@@ -1,0 +1,65 @@
+{
+  "commit": "c95254a7ca04a79b0a4b564f5635ae809f49f826",
+  "evidence": [
+    {
+      "tier": "compact",
+      "filename": "github-compact.png",
+      "width": 216,
+      "height": 132,
+      "scrollWidth": 214,
+      "scrollHeight": 130,
+      "graph": {
+        "width": 125,
+        "height": 62,
+        "ratio": 0.27181537598204264
+      },
+      "internalScrollOwners": 0,
+      "unexplainedTextClips": [],
+      "rowCount": 0,
+      "hasMonthTicks": false,
+      "hasParallelRows": false,
+      "contributionSummary": "52 contributions·4 day streak",
+      "headerSummary": ""
+    },
+    {
+      "tier": "standard",
+      "filename": "github-standard.png",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "graph": {
+        "width": 139,
+        "height": 69,
+        "ratio": 0.149859375
+      },
+      "internalScrollOwners": 0,
+      "unexplainedTextClips": [],
+      "rowCount": 1,
+      "hasMonthTicks": false,
+      "hasParallelRows": false,
+      "contributionSummary": "52 contributions·4 day streak",
+      "headerSummary": ""
+    },
+    {
+      "tier": "full",
+      "filename": "github-full.png",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "graph": {
+        "width": 222,
+        "height": 110,
+        "ratio": 0.18692590324556033
+      },
+      "internalScrollOwners": 0,
+      "unexplainedTextClips": [],
+      "rowCount": 2,
+      "hasMonthTicks": true,
+      "hasParallelRows": true,
+      "contributionSummary": "",
+      "headerSummary": "52 contributions·4 day streak"
+    }
+  ]
+}

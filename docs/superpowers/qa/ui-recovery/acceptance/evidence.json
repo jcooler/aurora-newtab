@@ -1,0 +1,150 @@
+{
+  "commit": "c95254a7ca04a79b0a4b564f5635ae809f49f826",
+  "wide": {
+    "viewport": {
+      "width": 1600,
+      "height": 900
+    },
+    "items": [
+      {
+        "id": "canvas-item-clock",
+        "left": 635.515625,
+        "top": 30.53125,
+        "right": 964.484375,
+        "bottom": 203.46875
+      },
+      {
+        "id": "canvas-item-greeting",
+        "left": 1033.765625,
+        "top": 91.40625,
+        "right": 1462.234375,
+        "bottom": 142.59375
+      },
+      {
+        "id": "canvas-item-quote",
+        "left": 791.8671875,
+        "top": 698.3125,
+        "right": 1512.1328125,
+        "bottom": 741.6875
+      },
+      {
+        "id": "canvas-item-github",
+        "left": 112,
+        "top": 413,
+        "right": 432,
+        "bottom": 613
+      },
+      {
+        "id": "canvas-item-ics",
+        "left": 608,
+        "top": 413,
+        "right": 928,
+        "bottom": 613
+      },
+      {
+        "id": "canvas-item-monthCal",
+        "left": 1104,
+        "top": 413,
+        "right": 1424,
+        "bottom": 613
+      }
+    ],
+    "frames": [
+      {
+        "id": "canvas-item-github",
+        "width": 320,
+        "height": 200,
+        "scrollWidth": 318,
+        "scrollHeight": 198,
+        "scrollOwners": 0
+      },
+      {
+        "id": "canvas-item-ics",
+        "width": 320,
+        "height": 200,
+        "scrollWidth": 318,
+        "scrollHeight": 198,
+        "scrollOwners": 0
+      },
+      {
+        "id": "canvas-item-monthCal",
+        "width": 320,
+        "height": 200,
+        "scrollWidth": 318,
+        "scrollHeight": 198,
+        "scrollOwners": 0
+      }
+    ],
+    "documentWidth": 1600
+  },
+  "short": {
+    "viewport": {
+      "width": 1408,
+      "height": 445
+    },
+    "items": [
+      {
+        "id": "canvas-item-clock",
+        "left": 612.5078125,
+        "top": 8,
+        "right": 795.4921875,
+        "bottom": 113.46875
+      },
+      {
+        "id": "canvas-item-greeting",
+        "left": 926.84375,
+        "top": 48.4765625,
+        "right": 1269.625,
+        "bottom": 85.0234375
+      },
+      {
+        "id": "canvas-item-quote",
+        "left": 366.1171875,
+        "top": 370.625,
+        "right": 1041.8828125,
+        "bottom": 412.5625
+      },
+      {
+        "id": "canvas-item-github",
+        "left": 1046.546875,
+        "top": 201,
+        "right": 1262.546875,
+        "bottom": 333
+      },
+      {
+        "id": "canvas-item-ics",
+        "left": 93.4375,
+        "top": 167,
+        "right": 413.4375,
+        "bottom": 367
+      }
+    ],
+    "frames": [
+      {
+        "id": "canvas-item-github",
+        "width": 216,
+        "height": 132,
+        "scrollWidth": 214,
+        "scrollHeight": 130,
+        "scrollOwners": 0
+      },
+      {
+        "id": "canvas-item-ics",
+        "width": 320,
+        "height": 200,
+        "scrollWidth": 318,
+        "scrollHeight": 198,
+        "scrollOwners": 0
+      }
+    ],
+    "documentWidth": 1408
+  },
+  "atomicWriteKeys": [
+    "calendarPreferences",
+    "layouts"
+  ],
+  "calendarPreference": {
+    "defaultView": "month",
+    "includePublicHolidays": true
+  }
+}
