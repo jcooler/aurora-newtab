@@ -101,7 +101,7 @@ const READY_SIGNATURE_SELECTORS = Object.freeze({
   vercel: '[data-work-pulse-rows]',
   homeassistant: '[data-ha-content-variant]',
   rss: '[data-rss-content-variant]',
-  crypto: '[data-crypto-cell]',
+  crypto: '[data-crypto-row]',
   readingList: 'article',
   recentlyClosed: 'article',
   downloads: 'article',

@@ -429,6 +429,7 @@ test('ready probes follow each authored tier instead of demanding larger-tier ro
   assert.deepEqual(compact('sun'), ['[aria-label="Sun times"]'])
   assert.deepEqual(compact('moon'), ['strong'])
   assert.deepEqual(compact('auroraKp'), ['p.text-xl'])
+  assert.deepEqual(compact('crypto'), ['[data-crypto-row]'])
 })
 
 test('runtime probes include the frame root, click the stack member, and map Tasks to its settings key', () => {

@@ -8,15 +8,10 @@ import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import TierFrame from '../shared/TierFrame'
 import type { WidgetPresentationMode } from '../../widgetRenderers'
 
-// Display cap — mirrors Widgets.tsx's own MAX_HABITS (the editor's write-side
-// cap). Kept as an independent local constant, same as every other capped
-// widget in this app (WorldClocks' MAX_WORLD_CLOCKS, GithubWidget's
-// MAX_PRS/MAX_ISSUES): this is what makes the widget's OWN rendering capped
-// "by construction" rather than merely by whatever the settings editor
-// happens to enforce — a hand-edited backup can legally restore more than 6
-// habits (src/lib/storage/schema.ts's own Habit doc comment says as much),
-// and this slice is what keeps that case from ever rendering a 7th chip.
-const MAX_HABIT_CHIPS = 6
+// The approved Compact frame shows four readable controls in a 2x2 list.
+// Completion and streak calculations still include every stored habit, so an
+// imported over-cap list cannot make the frame overflow or lose its true total.
+const MAX_VISIBLE_HABITS = 4
 
 export default function HabitsWidget({
   docked,
@@ -66,65 +61,59 @@ function HabitsInner({
     return <DockLine label="Habits" facts={[`${doneToday}/${habits.length} today`]} />
   }
 
-  const visible = habits.slice(0, MAX_HABIT_CHIPS)
+  const visible = habits.slice(0, MAX_VISIBLE_HABITS)
   const doneToday = habits.filter((habit) => habit.log.includes(todayKey)).length
   const completion = Math.round((doneToday / habits.length) * 100)
+  const longestStreak = Math.max(0, ...habits.map((habit) => streak(habit.log, todayKey)))
   return (
-    <TierFrame label="Habits" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready" className="gap-2 p-3">
-      <header className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Habits</h2>
-        <span className="flex items-center gap-2 text-[11px] text-fg-muted">
-          {doneToday}/{habits.length} today
+    <TierFrame label="Habits" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready" className="gap-1.5 p-3">
+      <header className="flex min-h-4 items-center justify-between">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em]">Habits</h2>
+      </header>
+      <div className="grid min-h-0 flex-1 grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2.5">
+        <span
+          role="img"
+          aria-label={`${doneToday} of ${habits.length} habits complete today`}
+          data-habits-progress={completion}
+          data-habits-presentation={presentation}
+          className="grid size-14 shrink-0 place-items-center rounded-full p-1.5"
+          style={{ background: `conic-gradient(var(--accent) ${completion}%, color-mix(in srgb, var(--fg-muted) 28%, transparent) 0)` }}
+        >
           <span
-            aria-hidden
-            data-habits-progress={completion}
-            data-habits-presentation={presentation}
-            className="grid size-7 shrink-0 place-items-center rounded-full"
-            style={{ background: `conic-gradient(var(--accent) ${completion}%, color-mix(in srgb, var(--fg-muted) 20%, transparent) 0)` }}
+            aria-hidden="true"
+            className="grid size-11 place-content-center rounded-full bg-panel-solid text-center"
           >
-            <span className="size-5 rounded-full bg-panel-solid" />
+            <strong className="font-mono text-xs font-semibold leading-none text-fg">{doneToday}/{habits.length}</strong>
+            <span className="mt-0.5 text-[9px] uppercase tracking-[0.08em] text-fg-muted">today</span>
           </span>
         </span>
-      </header>
-      <div data-habits-grid="" className="grid min-h-0 flex-1 grid-cols-3 content-start gap-1.5">
-      {visible.map((h) => {
-        const todayDone = h.log.includes(todayKey)
-        const count = streak(h.log, todayKey)
-        return (
-          // The WHOLE chip is the check control (per the brief) — one tap
-          // marks today, a second tap unmarks it via toggleDay, and the
-          // streak recomputes live off the very same log this write just
-          // produced (no separate "recompute" step: `count` above is
-          // derived fresh every render from `habits`, which useStoredKey
-          // re-delivers the instant this storage.update's echo lands).
-          <button
-            key={h.id}
-            type="button"
-            aria-pressed={todayDone}
-            onClick={() => toggleToday(h.id)}
-            className="flex min-h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border border-panel-border bg-control-bg px-2 text-left focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            <span
-              aria-hidden
-              className={`shrink-0 text-sm leading-none ${todayDone ? 'text-accent' : 'text-fg-muted/40'}`}
-            >
-              {todayDone ? '✓' : '○'}
-            </span>
-            {/* min-w-0 is load-bearing: a flex item's automatic minimum size
-                is its content width unless overridden, and `truncate` sets
-                `white-space: nowrap` (whose min-content IS the full string)
-                — without it a long name refuses to shrink and pushes the
-                chip wider than its column instead of truncating (same
-                min-w-0 rationale BookmarksBar's own CHIP class documents). */}
-            <span title={h.name} className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
-              {h.name}
-            </span>
-            {count > 0 && (
-              <span data-stage-text-tier="metadata" className="shrink-0 text-[11px] text-fg-muted">🔥 {count}</span>
-            )}
-          </button>
-        )
-      })}
+        <div className="grid min-w-0 content-center gap-1">
+          <div data-habits-grid="" className="grid min-w-0 grid-cols-2 gap-x-2 gap-y-1">
+            {visible.map((h) => {
+              const todayDone = h.log.includes(todayKey)
+              return (
+                <button
+                  key={h.id}
+                  type="button"
+                  aria-pressed={todayDone}
+                  onClick={() => toggleToday(h.id)}
+                  className="flex min-h-4 min-w-0 cursor-pointer items-center gap-1 rounded-sm text-left text-[11px] focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`size-2 shrink-0 rounded-full border ${todayDone ? 'border-accent bg-accent' : 'border-fg-muted'}`}
+                  />
+                  <span title={h.name} className="min-w-0 flex-1 truncate font-medium text-fg">
+                    {h.name}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <span data-stage-text-tier="metadata" className="font-mono text-[11px] text-fg-muted">
+            {longestStreak} day streak
+          </span>
+        </div>
       </div>
     </TierFrame>
   )

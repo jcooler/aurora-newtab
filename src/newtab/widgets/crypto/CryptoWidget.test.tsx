@@ -81,15 +81,28 @@ describe('CryptoWidget', () => {
   it.each([
     ['compact', 1],
     ['standard', 3],
-  ] as const)('uses the exact %s authored frame with selected coin cells', async (canvasSize, expectedCells) => {
+  ] as const)('uses the exact %s authored frame with complete market rows', async (canvasSize, expectedRows) => {
     mount(await seededStorage(CONNECTED), { canvasSize })
     await screen.findByText('doge')
     const frame = screen.getByRole('region', { name: 'Crypto' })
     expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
     expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
-    expect(frame.querySelectorAll('[data-crypto-cell]')).toHaveLength(expectedCells)
+    expect(screen.getByRole('list', { name: 'Selected cryptocurrency prices' })).toBeTruthy()
+    expect(screen.getAllByRole('listitem')).toHaveLength(expectedRows)
     expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
     expect(frame.querySelector('[class*="overflow-y-auto"], [class*="overflow-y-scroll"]')).toBeNull()
+  })
+
+  it('renders each Standard coin as one structured row with a truthful direction mark', async () => {
+    mount(await seededStorage(CONNECTED), { canvasSize: 'standard' })
+    await screen.findByText('doge')
+
+    const rows = screen.getAllByRole('listitem')
+    expect(rows.map((row) => row.getAttribute('data-crypto-direction'))).toEqual(['up', 'up', 'down'])
+    expect(rows.every((row) => row.querySelector('[data-crypto-trend]'))).toBe(true)
+    expect(rows[0]!.textContent).toContain('doge')
+    expect(rows[0]!.textContent).toContain('$0.1234')
+    expect(rows[0]!.textContent).toContain('+5.6%')
   })
 
   it('renders one cell per seeded coin (symbol, price, change) in the CONFIGURED order, not market-cap order', async () => {
@@ -100,8 +113,8 @@ describe('CryptoWidget', () => {
     // — `uppercase` (asserted separately below) is a CSS text-transform,
     // which never changes the underlying text node, only its painted glyphs.
     await screen.findByText('doge')
-    const cells = [...document.querySelectorAll('section[aria-label="Crypto"] [data-crypto-cell]')]
-    expect(cells.map((c) => c.querySelector('span:first-child')?.textContent)).toEqual(['doge', 'btc', 'eth'])
+    const rows = screen.getAllByRole('listitem')
+    expect(rows.map((row) => row.querySelector('strong')?.textContent)).toEqual(['doge', 'btc', 'eth'])
     expect(screen.getByText('$67,412')).toBeTruthy()
     expect(screen.getByText('$0.1234')).toBeTruthy()
     expect(screen.getByText('$3,245')).toBeTruthy()
@@ -152,9 +165,9 @@ describe('CryptoWidget', () => {
     expect(screen.getByText('3 selected')).toBeTruthy()
   })
 
-  it('caps rendered cells at 5', async () => {
+  it('keeps Standard to four complete rows while reporting all five selected coins', async () => {
     const many: CryptoData = {
-      coins: Array.from({ length: 8 }, (_, i) => ({
+      coins: Array.from({ length: 5 }, (_, i) => ({
         id: `coin-${i}`,
         symbol: `c${i}`,
         name: `Coin ${i}`,
@@ -166,9 +179,11 @@ describe('CryptoWidget', () => {
       { enabled: true, coins: many.coins.map((c) => c.id) },
       many,
     )
-    mount(storage)
+    mount(storage, { canvasSize: 'standard' })
     await screen.findByText('c0')
-    expect(screen.queryByText('c5')).toBeNull()
+    expect(screen.getAllByRole('listitem')).toHaveLength(4)
+    expect(screen.queryByText('c4')).toBeNull()
+    expect(screen.getByText('5 selected')).toBeTruthy()
   })
 
   it('uses Compact for one useful primary coin instead of shrinking every selected price into the same strip', async () => {

@@ -134,15 +134,8 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
   it.each([
     '.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div > span',
     '.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] button[aria-label^="Run "]',
-    '.canvas-item[data-canvas-size="compact"][data-block-id="crypto"] > section > div > span',
   ])('keeps ordinary glance text at the 14px floor for %s', (selector) => {
     expect(declarationBlock(selector)).toMatch(/font-size:\s*14px\s*;/)
-  })
-
-  it('keeps routine controls on the resolved density target for compact Habits', () => {
-    const declarations = declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div > button')
-    expect(declarations).toMatch(/min-width:\s*36px\s*;/)
-    expect(declarations).toMatch(/min-height:\s*36px\s*;/)
   })
 
   it('the compact Month tier is fully removed (batch-2 owner review)', () => {
@@ -156,18 +149,6 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
   // wrappers and no size container they could never match and are deleted
   // (the orphaned-container-token check above pins that). The NL-P5 tier
   // catalog owns any designed tiny-tier Month composition.
-
-  it('the stacked/condensed board Crypto is fully retired: one quote-like line at every size (owner 2026-08-18)', () => {
-    // "Should show all [coins]... a string of text like the quote, not
-    // stacked on top of each other." No cell-hiding, no column stacking, no
-    // per-cell grid may survive; the one shared rule keeps the 20px line
-    // box that contains Chromium's 19px glyph ink.
-    expect(indexCss).not.toMatch(/data-block-id="crypto"\][^{]*span:nth-child\(n \+ \d\)/)
-    expect(indexCss).not.toMatch(/data-block-id="crypto"\][^{]*\{[^}]*flex-direction:\s*column/)
-    expect(indexCss).not.toMatch(/data-block-id="crypto"\][^{]*> span\s*\{[^}]*display:\s*grid/)
-    expect(declarationBlock('.canvas-item[data-block-id="crypto"] > section > div > span'))
-      .toMatch(/line-height:\s*20px\s*;/)
-  })
 
   it('caps only the compact finite Board Clock by the short viewport block size', () => {
     const clock = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time')

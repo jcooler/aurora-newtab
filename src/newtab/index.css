@@ -2502,20 +2502,6 @@ select > option {
   max-width: 100%;
 }
 
-/* Three toggles are a useful habit glance and fit the 1x1 compact allocation;
-   the standard variant continues to show the full six-chip display cap. */
-.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div {
-  gap: 4px;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div > button:nth-child(n + 4) {
-  display: none;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div > button {
-  padding-block: 4px;
-  min-width: 36px;
-  min-height: 36px;
-}
-
 /* Connector cards retain their header, compact status, and first actionable
    row from each enabled section. Metadata prefixes yield before the linked
    title. GitHub keeps its coherent compact heatmap; GitLab retains its older
@@ -2672,20 +2658,6 @@ select > option {
   white-space: nowrap;
   font-size: 14px;
 }
-/* Numeric cells are never truncated. Compact = the first configured coin
-   (the JS slice is the single owner of that; the old belt-and-braces CSS
-   cell-hiding is retired — owner direction 2026-08-18: every selected coin
-   shows on one line at standard). */
-.canvas-item[data-canvas-size="compact"][data-block-id="crypto"] > section > div {
-  justify-content: center;
-  gap: 0;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="crypto"] > section > div > span {
-  gap: 1px;
-  font-size: 14px;
-  line-height: 18px;
-}
-
 /* A sparse short Ultrawide board resolves Balanced and therefore uses the
    registry's 2x1 standard footprints. Honor those finite tracks locally for
    intrinsic faces, while a redesigned TierFrame keeps its own exact width:
@@ -2727,29 +2699,6 @@ select > option {
   width: 16px;
   height: 16px;
 }
-.canvas-item[data-canvas-size="standard"][data-block-id="crypto"] > section > div {
-  justify-content: center;
-  gap: 4px;
-}
-.canvas-item[data-canvas-size="standard"][data-block-id="crypto"] > section > div > span {
-  gap: 1px;
-  font-size: 14px;
-  line-height: 18px;
-}
-
-/* The column-stacked board Crypto (the legacy narrow-track era: value cells
-   stacked vertically, symbol/price/change gridded per cell) is RETIRED —
-   owner direction 2026-08-18: "a string of text like the quote, not stacked
-   on top of each other". The content-tight strip renders every selected
-   coin on ONE baseline row at every free size; only the line-height guard
-   below survives, and it applies to the dock and board rows alike. */
-.canvas-item[data-block-id="crypto"] > section > div > span {
-  /* The five untruncated Dock cells stay on one row. Chromium's 14px glyph
-     ink is 19px tall, so the former 18px line box let its top pixel escape
-     the owned BoardItem even though the element boxes were contained. */
-  line-height: 20px;
-}
-
 /* Focus's form is the finite BoardItem child, but its input owns the legacy
    w-72 width. Cap that nested control to the semantic allocation; the Dock's
    intrinsic column still expands to its natural width. */

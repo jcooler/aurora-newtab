@@ -6,11 +6,10 @@ import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import DockLine from '../shared/DockLine'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 
-// CryptoConfig caps at 5 coins (types.ts's own comment) and the service's
-// own PER_PAGE mirrors it — this is a defensive re-slice at the display
-// boundary, same belt-and-braces idiom as VercelWidget's MAX_DEPLOYMENTS
-// re-slice of a service result that's already capped.
-const MAX_COINS = 5
+// CryptoConfig can contain five selected coins, while the approved Standard
+// frame has room for four complete market rows. The header still reports the
+// configured total; the display never wraps or scrolls a partial fifth row.
+const MAX_STANDARD_ROWS = 4
 
 export default function CryptoWidget({ canvasSize = 'standard', docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget: the
@@ -49,7 +48,7 @@ function CryptoInner({ crypto, canvasSize, docked }: { crypto: CryptoConfig; can
   // crypto.ts's own doc comment) — this widget renders that order as-is
   // rather than re-sorting, same division of labor as every other connector
   // widget (the service owns ordering, the widget owns display).
-  const rows = (data.coins ?? []).slice(0, canvasSize === 'compact' ? 1 : MAX_COINS)
+  const rows = (data.coins ?? []).slice(0, canvasSize === 'compact' ? 1 : MAX_STANDARD_ROWS)
   const empty = rows.length === 0
 
   // Docked tier (NL-P5 batch 2): the first configured coin's own cell strings
@@ -68,19 +67,23 @@ function CryptoInner({ crypto, canvasSize, docked }: { crypto: CryptoConfig; can
       tier={canvasSize}
       state={resourceFrameState(state, empty)}
       data-canvas-size={canvasSize}
-      className="flex min-h-0 flex-col text-center"
+      className="flex min-h-0 flex-col text-left"
     >
       <header className="flex min-h-8 items-center justify-between gap-3 border-b border-hairline px-3 py-1">
-        <h2 className="text-sm font-semibold">Crypto</h2>
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em]">Crypto</h2>
         <span className="text-[11px] text-fg-muted">{coins.length} selected</span>
       </header>
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3">
+      <div className="min-h-0 flex-1 overflow-hidden px-3 pb-2">
         {empty ? (
-          <p className="text-sm text-fg-muted">No prices right now.</p>
+          <p className="grid h-full place-items-center text-sm text-fg-muted">No prices right now.</p>
         ) : (
-          <div className="flex flex-wrap items-baseline justify-center gap-x-4 gap-y-3">
+          <div
+            role="list"
+            aria-label="Selected cryptocurrency prices"
+            className="grid h-full min-h-0 content-center"
+          >
             {rows.map((coin) => (
-              <CoinCell key={coin.id} coin={coin} />
+              <CoinMarketRow key={coin.id} coin={coin} />
             ))}
           </div>
         )}
@@ -89,16 +92,33 @@ function CryptoInner({ crypto, canvasSize, docked }: { crypto: CryptoConfig; can
   )
 }
 
-/** `{SYMBOL} {price} {±x.x%}` is one unbroken quote cell. Numeric data is
- * never truncated mid-digit. The shared frame owns a panel-adaptive text
- * chain, while only the movement value carries state color. */
-function CoinCell({ coin }: { coin: CoinRow }) {
+/** One structured market row: symbol, price, 24h movement, and a truthful
+ * directional mark. Numeric values stay on one line and only the movement
+ * value/mark carry state color. */
+function CoinMarketRow({ coin }: { coin: CoinRow }) {
+  const direction = coin.change24h > 0 ? 'up' : coin.change24h < 0 ? 'down' : 'flat'
+  const trendClass = direction === 'up'
+    ? 'border-emerald-300 text-emerald-300'
+    : direction === 'down'
+      ? 'border-red-400 text-red-400'
+      : 'border-fg-muted/50 text-fg-muted'
   return (
-    <span data-crypto-cell="" className="flex items-baseline gap-1 text-sm font-medium text-fg">
-      <span className="uppercase">{coin.symbol}</span>
-      <span>{formatPrice(coin.price)}</span>
-      <span className={`text-xs ${tintClass(coin.change24h)}`}>{formatChange(coin.change24h)}</span>
-    </span>
+    <div
+      role="listitem"
+      data-crypto-row=""
+      data-crypto-direction={direction}
+      className="grid min-h-8 min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_3rem_2rem] items-center gap-1.5 border-t border-hairline text-[11px] text-fg"
+    >
+      <strong className="truncate font-mono font-semibold uppercase" title={coin.name}>{coin.symbol}</strong>
+      <span className="min-w-0 text-right font-mono font-semibold tabular-nums">{formatPrice(coin.price)}</span>
+      <span className={`text-right font-mono tabular-nums ${tintClass(coin.change24h)}`}>{formatChange(coin.change24h)}</span>
+      <span
+        aria-hidden="true"
+        data-crypto-trend=""
+        className={`h-3 w-7 justify-self-end border-r border-t ${trendClass}`}
+        style={{ transform: direction === 'up' ? 'skewX(-28deg)' : direction === 'down' ? 'skewX(28deg)' : 'none' }}
+      />
+    </div>
   )
 }
 

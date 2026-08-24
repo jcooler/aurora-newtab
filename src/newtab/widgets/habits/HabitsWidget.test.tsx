@@ -73,14 +73,24 @@ describe('HabitsWidget', () => {
     expect(frame.querySelector('[data-habits-progress]')).toBeTruthy()
   })
 
-  it('fits all six Compact habit controls into two rows', async () => {
-    await renderWithHabits(Array.from({ length: 6 }, (_, i) => habit(`h${i}`, `Habit ${i + 1}`)))
+  it('uses the approved completion ring with four readable Compact habit controls', async () => {
+    await renderWithHabits([
+      habit('walk', 'Walk'),
+      habit('read', 'Read'),
+      habit('stretch', 'Stretch'),
+      habit('journal', 'Journal'),
+      habit('water', 'Water'),
+      habit('sleep', 'Sleep'),
+    ])
 
     const frame = screen.getByRole('region', { name: 'Habits' })
     const grid = frame.querySelector<HTMLElement>('[data-habits-grid]')
     expect(grid).toBeTruthy()
-    expect(grid!.className).toContain('grid-cols-3')
-    expect(frame.querySelectorAll('button')).toHaveLength(6)
+    expect(screen.getByLabelText('0 of 6 habits complete today')).toBeTruthy()
+    expect(frame.querySelectorAll('button')).toHaveLength(4)
+    expect(screen.getByRole('button', { name: 'Walk' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Journal' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Water' })).toBeNull()
   })
 
   it('Docked renders one dense done-today tally and no chips (NL-P5 batch 2)', async () => {
@@ -140,10 +150,11 @@ describe('HabitsWidget', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders one chip per habit, capped at 6 by construction — 7 in storage renders only 6 (falsifying)', async () => {
+  it('keeps the Compact list to four controls even when imported storage exceeds the editor cap', async () => {
     const habits = Array.from({ length: 7 }, (_, i) => habit(`h${i}`, `Habit ${i}`))
     await renderWithHabits(habits)
-    expect(screen.getAllByRole('button')).toHaveLength(6)
+    expect(screen.getAllByRole('button')).toHaveLength(4)
+    expect(screen.getByLabelText('0 of 7 habits complete today')).toBeTruthy()
   })
 
   it('a today-marked chip has aria-pressed=true', async () => {
@@ -185,12 +196,13 @@ describe('HabitsWidget', () => {
   it('streak text matches a seeded log with a known streak (12 days ending today)', async () => {
     const todayKey = localDateKey(new Date())
     await renderWithHabits([habit('h1', 'Read', runEndingAt(todayKey, 12))])
-    expect(screen.getByText('🔥 12')).toBeTruthy()
+    expect(screen.getByText('12 day streak')).toBeTruthy()
   })
 
-  it('streak 0 (empty log) hides the flame and shows an unpressed check, no crash', async () => {
+  it('streak 0 (empty log) stays truthful and shows an unpressed check, no crash', async () => {
     await renderWithHabits([habit('h1', 'New habit', [])])
     expect(screen.queryByText(/🔥/)).toBeNull()
+    expect(screen.getByText('0 day streak')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'New habit' }).getAttribute('aria-pressed')).toBe('false')
   })
 
