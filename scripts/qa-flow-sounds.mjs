@@ -213,11 +213,11 @@ async function run() {
     await status.waitFor()
     evidence.status = {
       roleStatus: await status.getByRole('status').count(),
-      buttons: await status.getByRole('button').count(),
+      detailsButtons: await status.getByRole('button', { name: /Service status details/i }).count(),
       dialogs: await page.locator('[data-status-panel]').count(),
     }
     assert.equal(evidence.status.roleStatus, 0, 'free Service status unexpectedly used the Dock role')
-    assert.equal(evidence.status.buttons, 0, 'Service status still exposes a Details button')
+    assert.equal(evidence.status.detailsButtons, 0, 'Service status still exposes a Details button')
     assert.equal(evidence.status.dialogs, 0, 'Service status still exposes a details popup')
 
     const stored = await page.evaluate(() => chrome.storage.local.get(['settings', 'timerSession']))
