@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "commit": "c95254a7ca04a79b0a4b564f5635ae809f49f826",
+  "commit": "0c00b98b67a18b9c8c8db83743f0c79bdb1b7b52",
   "buildMode": "preview evidence; production adapters remain compiled out",
   "approvedTargets": [
     "clock",
@@ -460,9 +460,17 @@
           "tierFrames": 0,
           "text": "12:00Sunday, August 23"
         },
+        "focus": {
+          "tierFrames": 0,
+          "text": "Make the next tab usefulEdit"
+        },
         "quote": {
           "tierFrames": 0,
           "text": "“Trust in the Lord with all your heart and lean not on your own understanding.”— Proverbs 3:5"
+        },
+        "status": {
+          "tierFrames": 0,
+          "text": "Service statusDetails1 service issue, 2 servicesGitHubVercelVercel — Elevated build latency"
         }
       },
       "selectionBounds": {
@@ -494,12 +502,6 @@
           "scrollWidth": 318,
           "scrollHeight": 198
         },
-        "focus": {
-          "width": 320,
-          "height": 200,
-          "scrollWidth": 318,
-          "scrollHeight": 198
-        },
         "links": {
           "width": 320,
           "height": 200,
@@ -513,12 +515,6 @@
           "scrollHeight": 198
         },
         "ics": {
-          "width": 320,
-          "height": 200,
-          "scrollWidth": 318,
-          "scrollHeight": 198
-        },
-        "status": {
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
@@ -587,10 +583,10 @@
           "height": 200
         },
         "focus": {
-          "x": 432,
-          "y": 683,
-          "width": 320,
-          "height": 200
+          "x": 452.4375,
+          "y": 765,
+          "width": 279.125,
+          "height": 36
         },
         "links": {
           "x": 768,
@@ -617,10 +613,10 @@
           "height": 200
         },
         "status": {
-          "x": 32,
-          "y": 683,
-          "width": 320,
-          "height": 200
+          "x": 95.3046875,
+          "y": 747,
+          "width": 193.390625,
+          "height": 72
         },
         "timer": {
           "x": 1316,
@@ -654,6 +650,9 @@
       "key": "weather-on-this-day",
       "theme": "dark",
       "writes": [
+        [
+          "weatherAlertCache"
+        ],
         [
           "layouts"
         ]
@@ -787,11 +786,12 @@
     }
   ],
   "approvedRequests": [
+    "GET https://api.weather.gov/alerts/active?point=33.749,-84.388",
     "GET https://api.weather.gov/alerts/active?point=33.749,-84.388"
   ],
   "summary": {
     "captures": 31,
-    "approvedRequests": 1,
+    "approvedRequests": 2,
     "runtimeErrors": 0,
     "failedRequests": 0,
     "unexpectedRequests": 0

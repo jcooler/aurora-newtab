@@ -1,5 +1,5 @@
 {
-  "commit": "c95254a7ca04a79b0a4b564f5635ae809f49f826",
+  "commit": "0c00b98b67a18b9c8c8db83743f0c79bdb1b7b52",
   "wide": {
     "viewport": {
       "width": 1600,
@@ -8,9 +8,9 @@
     "items": [
       {
         "id": "canvas-item-clock",
-        "left": 635.515625,
+        "left": 587.515625,
         "top": 30.53125,
-        "right": 964.484375,
+        "right": 1012.484375,
         "bottom": 203.46875
       },
       {
@@ -85,9 +85,9 @@
     "items": [
       {
         "id": "canvas-item-clock",
-        "left": 612.5078125,
+        "left": 585.8046875,
         "top": 8,
-        "right": 795.4921875,
+        "right": 822.1953125,
         "bottom": 113.46875
       },
       {

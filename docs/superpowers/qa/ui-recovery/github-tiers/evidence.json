@@ -1,57 +1,66 @@
 {
-  "commit": "c95254a7ca04a79b0a4b564f5635ae809f49f826",
+  "commit": "0c00b98b67a18b9c8c8db83743f0c79bdb1b7b52",
   "evidence": [
     {
-      "tier": "compact",
       "filename": "github-compact.png",
+      "connector": "github",
+      "tier": "compact",
       "width": 216,
       "height": 132,
       "scrollWidth": 214,
       "scrollHeight": 130,
       "graph": {
-        "width": 125,
-        "height": 62,
-        "ratio": 0.27181537598204264
+        "width": 186,
+        "height": 55,
+        "widthCoverage": 0.8611111111111112,
+        "areaCoverage": 0.3587962962962963,
+        "centerDelta": 0
       },
       "internalScrollOwners": 0,
       "unexplainedTextClips": [],
       "rowCount": 0,
       "hasMonthTicks": false,
       "hasParallelRows": false,
-      "contributionSummary": "52 contributions·4 day streak",
+      "contributionSummary": "52 contributions·1 day streak",
       "headerSummary": ""
     },
     {
-      "tier": "standard",
       "filename": "github-standard.png",
+      "connector": "github",
+      "tier": "standard",
       "width": 320,
       "height": 200,
       "scrollWidth": 318,
       "scrollHeight": 198,
       "graph": {
-        "width": 139,
-        "height": 69,
-        "ratio": 0.149859375
+        "width": 288,
+        "height": 76,
+        "widthCoverage": 0.9,
+        "areaCoverage": 0.342,
+        "centerDelta": 0
       },
       "internalScrollOwners": 0,
       "unexplainedTextClips": [],
       "rowCount": 1,
       "hasMonthTicks": false,
       "hasParallelRows": false,
-      "contributionSummary": "52 contributions·4 day streak",
+      "contributionSummary": "52 contributions·1 day streak",
       "headerSummary": ""
     },
     {
-      "tier": "full",
       "filename": "github-full.png",
+      "connector": "github",
+      "tier": "full",
       "width": 460,
       "height": 284,
       "scrollWidth": 458,
       "scrollHeight": 282,
       "graph": {
-        "width": 222,
-        "height": 110,
-        "ratio": 0.18692590324556033
+        "width": 423,
+        "height": 131,
+        "widthCoverage": 0.9195652173913044,
+        "areaCoverage": 0.42416564605021434,
+        "centerDelta": 0
       },
       "internalScrollOwners": 0,
       "unexplainedTextClips": [],
@@ -59,7 +68,76 @@
       "hasMonthTicks": true,
       "hasParallelRows": true,
       "contributionSummary": "",
-      "headerSummary": "52 contributions·4 day streak"
+      "headerSummary": "52 contributions·1 day streak"
+    },
+    {
+      "filename": "gitlab-compact.png",
+      "connector": "gitlab",
+      "tier": "compact",
+      "width": 216,
+      "height": 132,
+      "scrollWidth": 214,
+      "scrollHeight": 130,
+      "graph": {
+        "width": 186,
+        "height": 55,
+        "widthCoverage": 0.8611111111111112,
+        "areaCoverage": 0.3587962962962963,
+        "centerDelta": 0
+      },
+      "internalScrollOwners": 0,
+      "unexplainedTextClips": [],
+      "rowCount": 0,
+      "hasMonthTicks": false,
+      "hasParallelRows": false,
+      "contributionSummary": "21 contributions·3 day streak",
+      "headerSummary": ""
+    },
+    {
+      "filename": "gitlab-standard.png",
+      "connector": "gitlab",
+      "tier": "standard",
+      "width": 320,
+      "height": 200,
+      "scrollWidth": 318,
+      "scrollHeight": 198,
+      "graph": {
+        "width": 288,
+        "height": 76,
+        "widthCoverage": 0.9,
+        "areaCoverage": 0.342,
+        "centerDelta": 0
+      },
+      "internalScrollOwners": 0,
+      "unexplainedTextClips": [],
+      "rowCount": 1,
+      "hasMonthTicks": false,
+      "hasParallelRows": false,
+      "contributionSummary": "21 contributions·3 day streak",
+      "headerSummary": ""
+    },
+    {
+      "filename": "gitlab-full.png",
+      "connector": "gitlab",
+      "tier": "full",
+      "width": 460,
+      "height": 284,
+      "scrollWidth": 458,
+      "scrollHeight": 282,
+      "graph": {
+        "width": 423,
+        "height": 131,
+        "widthCoverage": 0.9195652173913044,
+        "areaCoverage": 0.42416564605021434,
+        "centerDelta": 0
+      },
+      "internalScrollOwners": 0,
+      "unexplainedTextClips": [],
+      "rowCount": 2,
+      "hasMonthTicks": true,
+      "hasParallelRows": true,
+      "contributionSummary": "",
+      "headerSummary": "21 contributions·3 day streak"
     }
   ]
 }
