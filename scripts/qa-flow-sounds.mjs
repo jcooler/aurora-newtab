@@ -145,6 +145,7 @@ async function run() {
     return chromium.launchPersistentContext(profile, {
       ...options,
       viewport: touch ? { width: 375, height: 812 } : { width: 1280, height: 800 },
+      args: [...options.args, '--autoplay-policy=no-user-gesture-required'],
       ...(touch ? { hasTouch: true } : {}),
     })
   }
