@@ -120,7 +120,7 @@ const OWNER_VISIBLE_POINTS = Object.freeze({
   status: Object.freeze({ x: 12, y: 87, tier: 'standard' }),
   focus: Object.freeze({ x: 37, y: 87, tier: 'standard' }),
   links: Object.freeze({ x: 58, y: 87, tier: 'standard' }),
-  quote: Object.freeze({ x: 89, y: 87, tier: 'standard' }),
+  quote: Object.freeze({ x: 50, y: 72, tier: 'standard' }),
   timer: Object.freeze({ x: 89, y: 51.7, tier: 'compact' }),
   habits: Object.freeze({ x: 89, y: 67.7, tier: 'compact' }),
 })
