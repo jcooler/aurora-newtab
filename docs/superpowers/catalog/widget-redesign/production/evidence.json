@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "commit": "6f05299a095f57ea1e5e8d740edf686aa5b635e9",
+  "commit": "a64f916648c03b44c736302dd1d401faed3d07bb",
   "buildMode": "preview evidence; production adapters remain compiled out",
   "approvedTargets": [
     "clock",
@@ -660,6 +660,9 @@
       "key": "weather-on-this-day",
       "theme": "dark",
       "writes": [
+        [
+          "weatherAlertCache"
+        ],
         [
           "layouts"
         ]
