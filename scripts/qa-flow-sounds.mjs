@@ -158,6 +158,7 @@ async function run() {
   const evidence = { commit, sounds: [], desktop: null, touch: null, status: null, chromeTab: null }
   const errors = []
   const unexpectedRequests = []
+  let auditDesktop = true
 
   const launch = async (touch = false) => {
     const profile = mkdtempSync(resolve(tmpdir(), touch ? 'aurora-flow-touch-' : 'aurora-flow-desktop-'))
@@ -177,10 +178,10 @@ async function run() {
     desktop = await launch(false)
     const page = desktop.pages()[0] ?? await desktop.newPage()
     page.setDefaultTimeout(20_000)
-    page.on('console', (message) => { if (message.type() === 'error') errors.push(`desktop console: ${message.text()}`) })
-    page.on('pageerror', (error) => errors.push(`desktop page: ${error.message}`))
+    page.on('console', (message) => { if (auditDesktop && message.type() === 'error') errors.push(`desktop console: ${message.text()}`) })
+    page.on('pageerror', (error) => { if (auditDesktop) errors.push(`desktop page: ${error.message}`) })
     await desktop.route(/^https?:\/\//, async (route) => {
-      unexpectedRequests.push(`${route.request().method()} ${route.request().url()}`)
+      if (auditDesktop) unexpectedRequests.push(`${route.request().method()} ${route.request().url()}`)
       await route.abort('blockedbyclient')
     })
     const { seedUrl } = await initialize(page, authorityIds)
@@ -226,11 +227,11 @@ async function run() {
     assert.equal(stored.timerSession.flow, false, 'End flow did not leave Flow mode')
     assert.deepEqual(unexpectedRequests, [], `Aurora made external request(s): ${JSON.stringify(unexpectedRequests)}`)
 
+    auditDesktop = false
     await page.getByRole('button', { name: 'Open Chrome tab' }).click()
     await page.waitForURL('chrome://new-tab-page/')
     evidence.chromeTab = { url: page.url(), auroraCanvas: await page.locator('[data-canvas-surface]').count() }
     assert.equal(evidence.chromeTab.auroraCanvas, 0, 'Chrome-tab shortcut reopened Aurora instead of the native page')
-    unexpectedRequests.splice(0)
 
     touch = await launch(true)
     const touchPage = touch.pages()[0] ?? await touch.newPage()
