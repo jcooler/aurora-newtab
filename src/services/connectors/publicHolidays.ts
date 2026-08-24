@@ -68,6 +68,14 @@ function text(value: unknown): string | null {
   return normalized || null
 }
 
+/** Nager's `name` is its generic English label, while `localName` is the
+ * label for the selected country (for example US "Labor Day" versus the
+ * generic "Labour Day"). Prefer the country-local label everywhere Aurora
+ * presents a holiday and tolerate older snapshots without one. */
+export function publicHolidayDisplayName(holiday: PublicHoliday): string {
+  return text(holiday.localName) ?? text(holiday.name) ?? ''
+}
+
 export async function fetchHolidayCountries(fetchFn: typeof fetch = fetch): Promise<HolidayCountry[]> {
   try {
     const result = await getJson<unknown>(`${NAGER_BASE}/AvailableCountries`, {}, fetchFn)

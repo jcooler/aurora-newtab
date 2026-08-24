@@ -1,7 +1,7 @@
 import { zonedDateKey } from '../../../lib/dates'
 import type { MonthCell } from '../../../lib/monthGrid'
 import type { IcsEvent } from '../../../services/connectors/ics'
-import type { PublicHoliday } from '../../../services/connectors/publicHolidays'
+import { publicHolidayDisplayName, type PublicHoliday } from '../../../services/connectors/publicHolidays'
 import type { CalendarWeekStart } from '../../../lib/layout/namedLayouts'
 
 export type { CalendarWeekStart } from '../../../lib/layout/namedLayouts'
@@ -47,6 +47,7 @@ function normalizedTitle(value: string): string {
     .replace(/[\p{P}\p{S}]+/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+    .replace(/\blabour\b/g, 'labor')
 }
 
 function displayTitle(value: string): string {
@@ -82,20 +83,27 @@ export function composeCalendarItems({
       ...(event.meetUrl ? { meetUrl: event.meetUrl } : {}),
     }]
   })
-  const occupied = new Set(eventItems.map((item) => `${item.dateKey}\n${normalizedTitle(item.title)}`))
-  const holidayItems: CalendarAgendaItem[] = includeHolidays
+  const holidayCandidates: CalendarAgendaItem[] = includeHolidays
     ? holidays.flatMap((holiday) => {
-        const title = displayTitle(holiday.name || holiday.localName || '')
+        const title = displayTitle(publicHolidayDisplayName(holiday))
         if (!title || !validDateKey(holiday.date) || holiday.date < todayKey) return []
-        const identity = `${holiday.date}\n${normalizedTitle(title)}`
-        if (occupied.has(identity)) return []
-        occupied.add(identity)
         const start = dateOrdinal(holiday.date)
         return [{ kind: 'holiday' as const, title, dateKey: holiday.date, start, end: start + 86_400_000, allDay: true as const }]
       })
     : []
+  const holidayIdentities = new Set(holidayCandidates.map((item) => `${item.dateKey}\n${normalizedTitle(item.title)}`))
+  const deduplicatedEvents = includeHolidays
+    ? eventItems.filter((item) => !item.allDay || !holidayIdentities.has(`${item.dateKey}\n${normalizedTitle(item.title)}`))
+    : eventItems
+  const occupied = new Set(deduplicatedEvents.map((item) => `${item.dateKey}\n${normalizedTitle(item.title)}`))
+  const holidayItems = holidayCandidates.filter((item) => {
+    const identity = `${item.dateKey}\n${normalizedTitle(item.title)}`
+    if (occupied.has(identity)) return false
+    occupied.add(identity)
+    return true
+  })
 
-  return [...eventItems, ...holidayItems].sort((left, right) => {
+  return [...deduplicatedEvents, ...holidayItems].sort((left, right) => {
     const dateOrder = left.dateKey.localeCompare(right.dateKey)
     if (dateOrder !== 0) return dateOrder
     const rank = (item: CalendarAgendaItem) => item.kind === 'event' && !item.allDay ? 0 : item.kind === 'event' ? 1 : 2

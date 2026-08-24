@@ -211,7 +211,7 @@ function UnifiedCalendarWidget({
   if (canvasSize === 'compact') {
     return (
       <TierFrame label="Calendar" tier="compact" state={items.length > 0 ? 'ready' : 'empty'} className="justify-center gap-2 px-3 py-2.5">
-        <CalendarAgenda items={items} limit={2} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+        <CalendarAgenda items={items} calendars={calendars} limit={2} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
       </TierFrame>
     )
   }
@@ -228,7 +228,7 @@ function UnifiedCalendarWidget({
           </div>
           <section data-testid="calendar-full-agenda" aria-label="Agenda" className="min-w-0 border-l border-panel-border pl-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted">Agenda</p>
-            <CalendarAgenda items={items} limit={8} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+            <CalendarAgenda items={items} calendars={calendars} limit={8} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
           </section>
         </div>
       </TierFrame>
@@ -247,7 +247,7 @@ function UnifiedCalendarWidget({
               <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-muted">Calendar</span>
               {viewTabs}
             </div>
-            <CalendarAgenda items={items} limit={4} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+            <CalendarAgenda items={items} calendars={calendars} limit={4} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
           </>
         )}
       </div>
@@ -269,11 +269,13 @@ function CalendarViewTabs({ active, onChange }: { active: 'agenda' | 'month'; on
 
 function CalendarAgenda({
   items,
+  calendars,
   limit,
   timeZone,
   emptyLabel,
 }: {
   items: readonly CalendarAgendaItem[]
+  calendars: readonly IcsCalendar[]
   limit: number
   timeZone: string
   emptyLabel: string
@@ -282,13 +284,18 @@ function CalendarAgenda({
   if (visible.length === 0) return <p className="text-sm text-fg-muted">{emptyLabel}</p>
   return (
     <ul className="grid min-h-0 gap-1.5">
-      {visible.map((item) => (
-        <li key={`${item.kind}-${item.dateKey}-${item.title}-${item.start}`} className="flex min-w-0 items-baseline gap-2 text-sm">
-          <span className={`size-1.5 shrink-0 rounded-full ${item.kind === 'holiday' ? 'bg-accent' : 'bg-fg-muted'}`} aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-fg">{item.title}</span>
-          <time className="shrink-0 text-xs text-fg-muted">{agendaWhen(item, timeZone)}</time>
-        </li>
-      ))}
+      {visible.map((item) => {
+        const color = item.kind === 'holiday'
+          ? 'accent'
+          : calendarColorOf(calendars[item.cal]?.color, item.cal)
+        return (
+          <li key={`${item.kind}-${item.dateKey}-${item.title}-${item.start}`} className="flex min-w-0 items-baseline gap-2 text-sm">
+            <span data-calendar-color={color} className={`size-1.5 shrink-0 rounded-full ${calendarColorClass(color)}`} aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-fg">{item.title}</span>
+            <time className="shrink-0 text-xs text-fg-muted">{agendaWhen(item, timeZone)}</time>
+          </li>
+        )
+      })}
     </ul>
   )
 }

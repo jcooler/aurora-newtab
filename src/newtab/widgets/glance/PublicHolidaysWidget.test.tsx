@@ -37,6 +37,14 @@ const MANY_HOLIDAYS: PublicHolidaysData = {
   ],
 }
 
+const US_LABOR_DATA: PublicHolidaysData = {
+  countryCode: 'US',
+  year: 2026,
+  holidays: [
+    { date: '2027-09-06', name: 'Labour Day', localName: 'Labor Day' },
+  ],
+}
+
 vi.mock('../../../lib/hooks/useLocalDay', () => ({
   useLocalDay: () => ({ key: '2026-12-20', timeZone: 'America/New_York', now: new Date(NOW) }),
 }))
@@ -105,7 +113,16 @@ describe('PublicHolidaysWidget', () => {
     expect(screen.queryByText('Future Day')).toBeNull()
   })
 
-  it('authors a bounded Full signature across current and next year with a provider path', async () => {
+  it('shows the country-local holiday name once without provider metadata', async () => {
+    mount(await seededStorage(US_LABOR_DATA), { canvasSize: 'standard' })
+
+    expect(await screen.findByText('Labor Day')).toBeTruthy()
+    expect(screen.queryByText('Labour Day')).toBeNull()
+    expect(screen.queryByText('Country: US')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Open Nager.Date' })).toBeNull()
+  })
+
+  it('authors a bounded Full signature across current and next year without provider chrome', async () => {
     mount(await seededStorage(MANY_HOLIDAYS), { canvasSize: 'full' })
     await screen.findByText('Next Two')
 
@@ -119,7 +136,8 @@ describe('PublicHolidaysWidget', () => {
     expect(within(full).getByText('Next One')).toBeTruthy()
     expect(within(full).getByText('Next Two')).toBeTruthy()
     expect(within(full).queryByText('Next Three')).toBeNull()
-    expect(within(full).getByRole('link', { name: 'Open Nager.Date' }).getAttribute('href')).toBe('https://date.nager.at')
+    expect(within(full).queryByText('Country: US')).toBeNull()
+    expect(within(full).queryByRole('link', { name: 'Open Nager.Date' })).toBeNull()
   })
 
   it('opens the same holiday context from Docked', async () => {
@@ -128,7 +146,8 @@ describe('PublicHolidaysWidget', () => {
     await act(async () => { trigger.click() })
     expect(screen.getByRole('dialog', { name: 'Public Holidays details' })).toBeTruthy()
     expect(screen.getByText("New Year's Day")).toBeTruthy()
-    expect(screen.getByText('Country: US')).toBeTruthy()
+    expect(screen.queryByText('Country: US')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Open Nager.Date' })).toBeNull()
   })
 })
 
@@ -162,8 +181,8 @@ describe('PublicHolidaysWidget tier frame states', () => {
     expect(holidayRows.every((row) => row.getAttribute('data-holiday-row-layout') === 'dense')).toBe(true)
     expect(within(standard).getByText(/Dec 25/)).toBeTruthy()
     expect(within(standard).getByText('Local Civic Day')).toBeTruthy()
-    const provider = within(standard).getByRole('link', { name: 'Open Nager.Date' })
-    expect(provider.parentElement?.getAttribute('data-holiday-context-layout')).toBe('dense')
+    expect(within(standard).queryByText('Country: US')).toBeNull()
+    expect(within(standard).queryByRole('link', { name: 'Open Nager.Date' })).toBeNull()
     expect(within(standard).getByRole('status').textContent).toBe('Showing saved data while Public Holidays refreshes.')
     expectBoundedFrame(standard)
 

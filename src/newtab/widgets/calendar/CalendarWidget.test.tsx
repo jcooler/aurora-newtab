@@ -191,6 +191,28 @@ describe('CalendarWidget', () => {
     expect(Object.keys(write.mock.calls[0]?.[0] ?? {})).toEqual(['calendarPreferences'])
   })
 
+  it('uses each configured calendar color for its unified Agenda rows', async () => {
+    const colored: IcsConfig = {
+      enabled: true,
+      calendars: [
+        { name: 'Home', url: 'https://calendar.example.com/home.ics', color: 'sky' },
+        { name: 'Personal', url: 'https://calendar.example.com/personal.ics', color: 'fuchsia' },
+      ],
+    }
+    const storage = await seededStorage(colored, {
+      events: [
+        ev('Dentist Appointment', new Date(2026, 7, 7, 11).getTime(), new Date(2026, 7, 7, 11, 30).getTime(), 0),
+        ev('Eye Exam', new Date(2026, 7, 7, 13).getTime(), new Date(2026, 7, 7, 13, 30).getTime(), 1),
+      ],
+    })
+    await storage.set('calendarPreferences', { work: { defaultView: 'agenda', includePublicHolidays: false } })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+
+    expect(screen.getByText('Dentist Appointment').closest('li')?.querySelector('[data-calendar-color="sky"]')).toBeTruthy()
+    expect(screen.getByText('Eye Exam').closest('li')?.querySelector('[data-calendar-color="fuchsia"]')).toBeTruthy()
+  })
+
   it('Standard Month renders one complete 42-cell semantic month without an internal scroller', async () => {
     const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
     const holidayConfig = { enabled: true, countryCode: 'US' } as const

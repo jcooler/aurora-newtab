@@ -6,7 +6,7 @@ import { calendarMonthCells, composeCalendarItems } from './calendarComposition'
 const now = Date.parse('2026-09-07T12:00:00.000Z')
 const events: IcsEvent[] = [
   {
-    summary: 'Labor Day',
+    summary: 'Labour Day',
     start: Date.parse('2026-09-07T00:00:00.000Z'),
     end: Date.parse('2026-09-08T00:00:00.000Z'),
     allDay: true,
@@ -20,20 +20,22 @@ const events: IcsEvent[] = [
     cal: 0,
   },
 ]
-const holidays: PublicHoliday[] = [{ date: '2026-09-07', name: 'Labor Day' }]
+const holidays: PublicHoliday[] = [{ date: '2026-09-07', name: 'Labour Day', localName: 'Labor Day' }]
 
 describe('composeCalendarItems', () => {
   it('keeps a timed appointment primary while including a same-day holiday', () => {
     const items = composeCalendarItems({ events, holidays, includeHolidays: true, now, timeZone: 'UTC' })
     expect(items[0]).toMatchObject({ kind: 'event', title: 'Design sync' })
-    expect(items).toContainEqual(expect.objectContaining({ kind: 'event', title: 'Labor Day', allDay: true }))
+    expect(items).toContainEqual(expect.objectContaining({ kind: 'holiday', title: 'Labor Day', allDay: true }))
   })
 
   it('deduplicates an ICS holiday and public holiday without mutating either source', () => {
     const eventCopy = structuredClone(events)
     const holidayCopy = structuredClone(holidays)
-    expect(composeCalendarItems({ events, holidays, includeHolidays: true, now, timeZone: 'UTC' })
-      .filter((item) => item.title === 'Labor Day')).toHaveLength(1)
+    const items = composeCalendarItems({ events, holidays, includeHolidays: true, now, timeZone: 'UTC' })
+    expect(items.filter((item) => /labou?r day/i.test(item.title))).toEqual([
+      expect.objectContaining({ kind: 'holiday', title: 'Labor Day' }),
+    ])
     expect(events).toEqual(eventCopy)
     expect(holidays).toEqual(holidayCopy)
   })

@@ -8,6 +8,7 @@ import {
   fetchPublicHolidays,
   isPublicHolidaysData,
   normalizeHolidayCountryCode,
+  publicHolidayDisplayName,
   type PublicHoliday,
   type PublicHolidaysData,
 } from '../../../services/connectors/publicHolidays'
@@ -98,7 +99,7 @@ function PublicHolidaysInner({
           : presentation === 'loading'
             ? ['Loading Public Holidays']
             : first
-              ? [first.name, shortDate(first.date)]
+              ? [publicHolidayDisplayName(first), shortDate(first.date)]
               : ['No upcoming holidays']}
         presentation={presentation}
         emptyLabel={`No upcoming national holidays returned for ${config.countryCode}.`}
@@ -106,7 +107,6 @@ function PublicHolidaysInner({
         onRefresh={retry}
       >
         <HolidayList holidays={upcoming.slice(0, 3)} now={localDay.now} />
-        <Context countryCode={config.countryCode} />
       </GlanceDockDetail>
     )
   }
@@ -130,7 +130,6 @@ function PublicHolidaysInner({
       {canvasSize === 'full'
         ? <HolidayGroups holidays={visible} now={localDay.now} />
         : <HolidayList holidays={visible} now={localDay.now} dense={denseStandard} />}
-      {data ? <Context countryCode={config.countryCode} dense={denseStandard} /> : null}
     </GlanceWidgetShell>
   )
 }
@@ -196,21 +195,18 @@ function HolidayList({
       {holidays.map((holiday) => {
         const days = daysUntilHoliday(holiday.date, now)
         const relative = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days away`
-        const hasLocalName = holiday.localName && holiday.localName !== holiday.name
+        const displayName = publicHolidayDisplayName(holiday)
         return (
           <li
-            key={`${holiday.date}-${holiday.name}`}
+            key={`${holiday.date}-${displayName}`}
             data-holiday-row-layout={dense ? 'dense' : undefined}
             className={`group flex min-w-0 justify-between gap-3 ${dense ? 'items-center' : 'items-start'}`}
           >
             <span
-              title={hasLocalName ? `${holiday.name} · ${holiday.localName}` : holiday.name}
+              title={displayName}
               className={dense ? 'flex min-w-0 items-baseline gap-1 overflow-hidden' : 'min-w-0'}
             >
-              <span className={`${dense ? 'truncate' : 'block'} text-sm font-medium text-fg`}>{holiday.name}</span>
-              {hasLocalName ? (
-                <span className={`${dense ? 'truncate' : 'block'} text-xs ${glanceRowClass}`}>{holiday.localName}</span>
-              ) : null}
+              <span className={`${dense ? 'truncate' : 'block'} text-sm font-medium text-fg`}>{displayName}</span>
             </span>
             <span className={`shrink-0 text-right text-xs ${glanceRowClass}`}>
               {dense ? (
@@ -226,19 +222,5 @@ function HolidayList({
         )
       })}
     </ul>
-  )
-}
-
-function Context({ countryCode, dense = false }: { countryCode: string; dense?: boolean }) {
-  return (
-    <div
-      data-holiday-context-layout={dense ? 'dense' : undefined}
-      className={`${dense ? 'mt-2' : 'mt-3'} flex items-center justify-between gap-3 text-xs text-fg-muted`}
-    >
-      <span>Country: {countryCode}</span>
-      <a href="https://date.nager.at" target="_blank" rel="noopener noreferrer" className="hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">
-        Open Nager.Date
-      </a>
-    </div>
   )
 }
