@@ -304,8 +304,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
         <div data-work-pulse-detail className={innerGraphClass}>
           <ContributionGraph
             contributions={graph}
-            cell={tier === 'compact' ? 8 : tier === 'standard' ? 9 : 14}
-            gap={tier === 'full' ? 2 : 1}
+            tier={tier}
             showMonthTicks={tier === 'full'}
             showSummary={tier !== 'full'}
           />

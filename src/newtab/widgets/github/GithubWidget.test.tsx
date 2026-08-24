@@ -88,20 +88,20 @@ describe('GithubWidget', () => {
   })
 
   it.each([
-    ['compact', '8px', false],
-    ['standard', '9px', false],
-    ['full', '14px', true],
-  ] as const)('uses the exact %s frame with a bounded, tier-sized contribution graph', async (tier, cell, showsMonths) => {
-    const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
+    ['compact', '10px', '7px', false],
+    ['standard', '16px', '10px', false],
+    ['full', '23px', '17px', true],
+  ] as const)('uses the centered %s contribution geometry', async (tier, width, height, showsMonths) => {
+    const config = {
+      ...CONNECTED,
+      views: { commitGraph: true, pulls: true, issues: true, notifications: true },
+    }
     mount(await seededStorage(config, DATA_WITH_GRAPH), tier)
     const graph = await screen.findByRole('img', { name: /contribution activity/i })
-    const frame = graph.closest('section')!
-    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
-    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
-    expect(frame.className).toContain(`tier-frame--${tier}`)
-    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
-    expect(graph.style.gridAutoColumns).toBe(cell)
-    expect(frame.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
+    expect(graph.style.gridAutoColumns).toBe(width)
+    expect(graph.style.gridTemplateRows).toBe(`repeat(7, ${height})`)
+    expect(graph.closest('[data-contribution-composition]')?.className).toContain('mx-auto')
+    expect(document.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
   })
 
   it('makes Full visibly richer than Standard without removing either selected row family', async () => {

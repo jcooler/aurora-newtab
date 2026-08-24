@@ -7,6 +7,7 @@
 // widgets/shared (Task 73) — github was the first connector to use it, but the
 // component itself is connector-agnostic (any Contributions-shaped slice).
 import type { Contributions } from '../../../services/connectors/types'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import { buildContributionGrid } from './contributionGrid'
 
 // Level → cell background. Pinned by the board: an rgba ramp over Aurora's
@@ -23,44 +24,44 @@ const LEVEL_BG = [
   `rgba(${ACCENT},1)`,
 ]
 
-// A-face geometry: 13px cells, 3px gaps. At the board's 17-column crop that is
-// 17×13 + 16×3 = 269px, inside the card's 296px (w-80 − p-3) content box.
-// The Full tier passes larger geometry (batch-2 owner review: "make the graph
-// larger for the bigger one" — Full must use its space, not restate Standard).
-const DEFAULT_CELL = 13
-const DEFAULT_GAP = 3
+export const CONTRIBUTION_GRAPH_GEOMETRY = Object.freeze({
+  compact: Object.freeze({ columnWidth: 10, rowHeight: 7, gap: 1 }),
+  standard: Object.freeze({ columnWidth: 16, rowHeight: 10, gap: 1 }),
+  full: Object.freeze({ columnWidth: 23, rowHeight: 17, gap: 2 }),
+}) satisfies Readonly<Record<CanvasSize, Readonly<{
+  columnWidth: number
+  rowHeight: number
+  gap: number
+}>>>
 
 export default function ContributionGraph({
   contributions,
-  cell = DEFAULT_CELL,
-  gap = DEFAULT_GAP,
+  tier,
   showMonthTicks = true,
   showSummary = true,
 }: {
   contributions: Contributions
-  cell?: number
-  gap?: number
+  tier: CanvasSize
   showMonthTicks?: boolean
   showSummary?: boolean
 }) {
-  const CELL = cell
-  const GAP = gap
+  const { columnWidth, rowHeight, gap } = CONTRIBUTION_GRAPH_GEOMETRY[tier]
   const { cells, columns, monthTicks, streak } = buildContributionGrid(contributions.days)
-  const width = columns * CELL + (columns - 1) * GAP
-  const pitch = CELL + GAP
+  const width = columns * columnWidth + (columns - 1) * gap
+  const pitch = columnWidth + gap
   const dayCount = cells.filter(Boolean).length
 
   return (
-    <div>
+    <div data-contribution-composition data-contribution-tier={tier} className="mx-auto w-fit max-w-full">
       <div
         role="img"
         aria-label={`Contribution activity over the last ${dayCount} days`}
         className="grid grid-flow-col"
         style={{
           width,
-          gridTemplateRows: `repeat(7, ${CELL}px)`,
-          gridAutoColumns: `${CELL}px`,
-          gap: `${GAP}px`,
+          gridTemplateRows: `repeat(7, ${rowHeight}px)`,
+          gridAutoColumns: `${columnWidth}px`,
+          gap: `${gap}px`,
         }}
       >
         {cells.map((c, i) => (
@@ -69,8 +70,8 @@ export default function ContributionGraph({
             title={c ? `${c.count} contribution${c.count === 1 ? '' : 's'} · ${c.date}` : undefined}
             className="rounded-[3px]"
             style={{
-              width: CELL,
-              height: CELL,
+              width: columnWidth,
+              height: rowHeight,
               background: c ? LEVEL_BG[c.level] : 'transparent',
               // Inset hairline on filled cells — the board's quiet edge that keeps
               // the darkest levels legible against the panel.

@@ -430,9 +430,9 @@ function GitlabInner({
         >
           <ContributionGraph
             contributions={graph}
-            cell={tier === 'compact' ? 8 : tier === 'standard' ? 9 : 18}
-            gap={tier === 'full' ? 4 : 1}
+            tier={tier}
             showMonthTicks={tier === 'full'}
+            showSummary={tier !== 'full'}
           />
         </div>
       )}
