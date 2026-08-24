@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 
+import { assertExactBuildTrackedStatus } from './build-contracts.mjs'
 import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
 import {
   parsePresentationAuthority,
@@ -30,6 +31,11 @@ function contributionLayout(authorityIds, connector, tier) {
 export async function runGithubTierQa() {
   const repoRoot = resolve(process.cwd())
   const dist = resolve(repoRoot, 'dist')
+  assertExactBuildTrackedStatus(execFileSync(
+    'git',
+    ['status', '--porcelain', '--untracked-files=no'],
+    { cwd: repoRoot, encoding: 'utf8' },
+  ))
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
   const provenance = parseBuildCommit(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8'))
   assert.equal(provenance, commit, 'dist provenance does not match HEAD')

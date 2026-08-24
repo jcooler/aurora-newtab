@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { chromium } from 'playwright'
 
+import { assertExactBuildTrackedStatus } from './build-contracts.mjs'
 import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
 import {
   parsePresentationAuthority,
@@ -107,6 +108,11 @@ async function assertCanvasFits(page, label) {
 export async function runUiRecoveryQa() {
   const repoRoot = resolve(process.cwd())
   const dist = resolve(repoRoot, 'dist')
+  assertExactBuildTrackedStatus(execFileSync(
+    'git',
+    ['status', '--porcelain', '--untracked-files=no'],
+    { cwd: repoRoot, encoding: 'utf8' },
+  ))
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
   assert.equal(
     parseBuildCommit(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8')),
