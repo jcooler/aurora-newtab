@@ -3,7 +3,7 @@ import type { CalendarLayoutPreferences, CalendarWeekStart, LayoutsDocument } fr
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 16
+export const CURRENT_VERSION = 17
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -83,6 +83,8 @@ export interface Settings {
   photoQuoteColor: string | null
   units: 'metric' | 'imperial'
   muted: boolean
+  /** Ambient audio used only while the persisted Flow timer is running. */
+  flowAmbience: 'off' | 'creek'
   /** Independent Adaptive Stage preference. Auto Fit resolves the roomiest
    *  density that keeps automatic items on the board; manual choices persist
    *  unchanged across placement resets. */
@@ -358,6 +360,7 @@ export function defaults(): AuroraData {
       photoQuoteColor: null,
       units: 'metric',
       muted: false,
+      flowAmbience: 'off',
       layoutDensity: 'auto',
       widgets: {
         search: true,

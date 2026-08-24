@@ -359,7 +359,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(screen.getByLabelText('Units')).toBeTruthy()
     expect(screen.getByLabelText('Text size')).toBeTruthy()
     expect(screen.getByLabelText('Timer completion sound')).toBeTruthy()
-    expect(screen.getByLabelText('Daily summary')).toBeTruthy()
+    expect(screen.getByLabelText('Greeting helper')).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Background' })).toBeTruthy()
 
     // The other tabs' sections are UNMOUNTED, not hidden — the whole reason
@@ -2793,7 +2793,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(within(size).getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Automatic', 'Standard', 'Large',
     ])
-    expect(screen.getByText('Uses your next calendar event, unfinished tasks, and rain forecast. Nothing is shown when there is no useful update.')).toBeTruthy()
+    expect(screen.getByText('Shows a useful next event, unfinished task, or rain update beneath your greeting.')).toBeTruthy()
     expect(screen.queryByLabelText('Mute sounds')).toBeNull()
     expect(screen.queryByLabelText('Show briefing')).toBeNull()
     expect(screen.queryByLabelText('Layout density')).toBeNull()
@@ -2810,7 +2810,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     })
     expect((await storage.get('settings')).muted).toBe(true)
 
-    const summary = screen.getByRole('switch', { name: 'Daily summary' })
+    const summary = screen.getByRole('switch', { name: 'Greeting helper' })
     await act(async () => {
       fireEvent.click(summary)
     })
@@ -2838,7 +2838,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(await storage.get('settings')).toEqual(settings)
   })
 
-  it('treats an absent Daily summary preference as off and writes it only after the user changes it', async () => {
+  it('treats an absent Greeting helper preference as off and writes it only after the user changes it', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     const set = vi.spyOn(storage, 'set')
@@ -2850,7 +2850,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     )
     await screen.findByLabelText('Your name')
 
-    const briefing = screen.getByRole('switch', { name: 'Daily summary' })
+    const briefing = screen.getByRole('switch', { name: 'Greeting helper' })
     expect(briefing.getAttribute('aria-checked')).toBe('false')
     expect((await storage.get('settings')).briefingEnabled).toBeUndefined()
     expect(set).not.toHaveBeenCalled()
@@ -2860,6 +2860,23 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     })
     expect((await storage.get('settings')).briefingEnabled).toBe(true)
     expect(set).toHaveBeenCalledOnce()
+  })
+
+  it('keeps Flow ambience separate from the timer chime and persists the creek choice', async () => {
+    const storage = await renderPanel()
+    const completion = screen.getByRole('switch', { name: 'Timer completion sound' })
+    const ambience = screen.getByRole('switch', { name: 'Flow ambience' })
+
+    expect(completion.getAttribute('aria-checked')).toBe('true')
+    expect(ambience.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByText('Loops a local creek recording while the Flow timer is running.')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(ambience)
+    })
+    const settings = await storage.get('settings') as ReturnType<typeof defaults>['settings'] & { flowAmbience?: string }
+    expect(settings.flowAmbience).toBe('creek')
+    expect(settings.muted).toBe(false)
   })
 
   it('manages named layouts with single validated writes of only the layouts key (NL-P3, spec 2.1)', async () => {

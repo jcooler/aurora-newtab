@@ -495,9 +495,11 @@ describe('createStorage', () => {
   it('upgrades v15 through the full migration path so nested browser toggles exist', async () => {
     const widgets = { ...defaults().settings.widgets } as Record<string, boolean>
     for (const key of ['readingList', 'recentlyClosed', 'downloads', 'tabGroups']) delete widgets[key]
+    const settings = { ...defaults().settings, name: 'Exact v15', widgets } as Record<string, unknown>
+    delete settings.flowAmbience
     const seed = {
       ...defaults(),
-      settings: { ...defaults().settings, name: 'Exact v15', widgets },
+      settings,
       'aurora:version': 15,
       unknown: { sentinel: 'keep' },
     }
@@ -506,13 +508,14 @@ describe('createStorage', () => {
     await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
 
     expect(controlled.writes).toHaveLength(1)
-    expect(controlled.writes[0]['aurora:version']).toBe(16)
+    expect(controlled.writes[0]['aurora:version']).toBe(17)
     expect((controlled.writes[0].settings as ReturnType<typeof defaults>['settings']).widgets).toMatchObject({
       readingList: false,
       recentlyClosed: false,
       downloads: false,
       tabGroups: false,
     })
+    expect((controlled.writes[0].settings as ReturnType<typeof defaults>['settings']).flowAmbience).toBe('off')
     expect(controlled.base.dump().unknown).toEqual({ sentinel: 'keep' })
   })
 
@@ -556,7 +559,7 @@ describe('createStorage', () => {
     expect(controlled.writes[0].layout).toEqual(before.layout)
     expect(controlled.writes[0].layouts).toEqual(before.layouts)
     expect(controlled.writes[0].settings).toEqual(before.settings)
-    expect(controlled.writes[0]['aurora:version']).toBe(16)
+    expect(controlled.writes[0]['aurora:version']).toBe(17)
     expect(controlled.base.dump().unknown).toEqual(before.unknown)
   })
 

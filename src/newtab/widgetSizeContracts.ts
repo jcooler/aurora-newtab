@@ -231,7 +231,7 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
     compact: tier('Today tasks and direct action', ['task state', 'open action'], ['next task'], ['remaining count'], ['tighten spacing', 'clamp task title'], { kind: 'details', label: 'Tasks details' }),
   }),
   notes: framedContract(['compact'], ['compact'], READY_STATES, 'Notes action', undefined, undefined, 'Notes action', {
-    compact: tier('Current note and direct action', ['note state', 'open action'], ['note preview'], ['updated state'], ['tighten spacing', 'clamp note preview'], { kind: 'details', label: 'Notes details' }),
+    compact: tier('Notes action', ['note state', 'open action'], [], ['updated state'], ['tighten spacing'], { kind: 'details', label: 'Notes details' }),
   }),
   linear: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], PERMISSION_RESOURCE_STATES, 'Assigned and due counts', 'Prioritized assigned work', 'All assigned work that fits', 'Assigned and due counts', {
     compact: tier('Assigned and due Linear work', ['assigned count', 'due count'], ['priority signal'], [], ['tighten spacing', 'shorten team name'], { kind: 'provider', label: 'Open Linear' }),

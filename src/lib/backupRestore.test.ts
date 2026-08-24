@@ -331,6 +331,7 @@ describe('backup restore coordinator', () => {
         photoQuoteColor: null,
         units: 'imperial',
         muted: true,
+        flowAmbience: 'creek',
         layoutDensity: 'auto',
         widgets: {
           search: false,

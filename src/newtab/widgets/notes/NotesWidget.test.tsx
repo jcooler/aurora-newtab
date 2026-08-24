@@ -32,8 +32,14 @@ async function renderWidget({
 }
 
 describe('NotesWidget', () => {
-  it('renders the note preview action in the exact Compact ready TierFrame', async () => {
-    await renderWidget({ canvasSize: 'compact' })
+  it('keeps saved note text private on the Compact launcher', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('notes', {
+      text: 'Private launch notes must stay inside the editor.',
+      updatedAt: Date.now(),
+    })
+    await renderWidget({ canvasSize: 'compact', storage })
     const frame = screen.getByRole('region', { name: 'Notes card' })
     expect(frame.getAttribute('data-tier-frame')).toBe('compact')
     expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
@@ -41,9 +47,8 @@ describe('NotesWidget', () => {
     expect(frame.className).not.toContain('overflow-y')
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
     expect(screen.getByRole('button', { name: 'Notes' })).toBeTruthy()
-    const preview = screen.getByText('Capture an idea, reminder, or detail.')
-    expect(preview.className).toContain('line-clamp-2')
-    expect(preview.className).not.toContain('line-clamp-3')
+    expect(screen.queryByText(/Private launch notes/)).toBeNull()
+    expect(screen.getByText('Edited recently')).toBeTruthy()
     expect(screen.getByText('Open notes')).toBeTruthy()
   })
 
@@ -58,7 +63,8 @@ describe('NotesWidget', () => {
     expect(screen.queryByRole('region', { name: 'Notes card' })).toBeNull()
     const dock = screen.getByTestId('notes-dock')
     expect(dock.classList.contains('rounded-panel')).toBe(true)
-    expect(dock.textContent).toContain('Keep the month view complete')
+    expect(dock.textContent?.trim()).toBe('Notes')
+    expect(dock.textContent).not.toContain('Keep the month view complete')
     expect(screen.queryByRole('textbox')).toBeNull()
   })
 

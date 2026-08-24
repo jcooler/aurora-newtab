@@ -154,7 +154,7 @@ export default function General({
         </p>
       </Section>
 
-      <Section title="Clock and units">
+      <Section title="Clock, Flow, and units">
         <div className={row}>
           <label htmlFor="set-24h" className={label}>
             24-hour clock
@@ -190,8 +190,22 @@ export default function General({
           />
         </div>
         <div className={row}>
+          <label htmlFor="set-flow-ambience" className={label}>
+            Flow ambience
+          </label>
+          <Switch
+            id="set-flow-ambience"
+            checked={settings.flowAmbience === 'creek'}
+            onChange={(checked) => patch({ flowAmbience: checked ? 'creek' : 'off' })}
+            describedBy="set-flow-ambience-description"
+          />
+        </div>
+        <p id="set-flow-ambience-description" className="pb-2 text-xs text-fg-muted">
+          Loops a local creek recording while the Flow timer is running.
+        </p>
+        <div className={row}>
           <label htmlFor="set-daily-summary" className={label}>
-            Daily summary
+            Greeting helper
           </label>
           <Switch
             id="set-daily-summary"
@@ -201,7 +215,7 @@ export default function General({
           />
         </div>
         <p id="set-daily-summary-description" className="pb-2 text-xs text-fg-muted">
-          Uses your next calendar event, unfinished tasks, and rain forecast. Nothing is shown when there is no useful update.
+          Shows a useful next event, unfinished task, or rain update beneath your greeting.
         </p>
       </Section>
     </>

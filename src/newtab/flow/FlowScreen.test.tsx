@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StorageProvider } from '../../lib/storage/context'
 import { memoryDriver } from '../../lib/storage/driver'
@@ -38,13 +38,20 @@ async function renderFlow({
     ],
   }],
   timerSession = timer(),
+  flowAmbience = 'off',
 }: {
   focus?: Focus | null
   todoLists?: TodoList[]
   timerSession?: TimerSession
+  flowAmbience?: 'off' | 'creek'
 } = {}): Promise<AuroraStorage> {
+  const settings = {
+    ...defaults().settings,
+    flowAmbience,
+  } as unknown as ReturnType<typeof defaults>['settings']
   const storage = createStorage(memoryDriver({
     ...defaults(),
+    settings,
     focus,
     todoLists,
     timerSession,
@@ -64,6 +71,7 @@ async function renderFlow({
 
 describe('FlowScreen', () => {
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
@@ -116,6 +124,46 @@ describe('FlowScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'End flow' }))
     await waitFor(async () => expect((await storage.get('timerSession'))?.flow).toBe(false))
     expect((await storage.get('timerSession'))?.remainingMs).toBe(pausedRemaining)
+  })
+
+  it('loops the bundled creek only while an enabled Flow timer is running', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    await renderFlow({
+      flowAmbience: 'creek',
+      timerSession: timer({ running: true, endsAt: Date.now() + 9 * MIN }),
+    })
+
+    const audio = document.querySelector('audio') as HTMLAudioElement | null
+    expect(audio).toBeTruthy()
+    expect(audio?.loop).toBe(true)
+    expect(audio?.getAttribute('src')).toBe('/sounds/creek.ogg')
+    await waitFor(() => expect(play).toHaveBeenCalledOnce())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause timer' }))
+    await waitFor(() => expect(pause).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume timer' }))
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(2))
+
+    fireEvent.click(screen.getByRole('button', { name: 'End flow' }))
+    await waitFor(() => expect(pause).toHaveBeenCalledTimes(2))
+  })
+
+  it('stops and removes creek playback when ambience is switched off mid-Flow', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    const storage = await renderFlow({
+      flowAmbience: 'creek',
+      timerSession: timer({ running: true, endsAt: Date.now() + 9 * MIN }),
+    })
+
+    await act(async () => {
+      await storage.update('settings', (settings) => ({ ...settings, flowAmbience: 'off' }))
+    })
+
+    await waitFor(() => expect(pause).toHaveBeenCalledOnce())
+    expect(document.querySelector('audio')).toBeNull()
   })
 
   it('routes Escape through the shared close stack and omits an empty task husk', async () => {

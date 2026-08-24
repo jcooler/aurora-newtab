@@ -268,6 +268,7 @@ function isSettings(v: unknown): boolean {
     (v.photoQuoteColor === null || isPanelColor(v.photoQuoteColor)) &&
     isString(v.units) &&
     isBoolean(v.muted) &&
+    (v.flowAmbience === 'off' || v.flowAmbience === 'creek') &&
     isOptional(v.briefingEnabled, isBoolean) &&
     LAYOUT_DENSITY_SET.has(v.layoutDensity) &&
     isWidgetToggles(v.widgets)

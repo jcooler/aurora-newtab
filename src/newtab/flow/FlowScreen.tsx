@@ -6,6 +6,7 @@ import { useStorage } from '../../lib/storage/context'
 import { currentFocus, setFocusText } from '../components/focusLogic'
 import { useTimerSession } from '../widgets/timer/TimerSessionProvider'
 import { todoReducer } from '../widgets/todo/todoReducer'
+import FlowAmbience from './FlowAmbience'
 
 function formatRemaining(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000))
@@ -23,6 +24,7 @@ export default function FlowScreen() {
   const timer = useTimerSession()
   const [storedFocus] = useStoredKey('focus')
   const [todoLists] = useStoredKey('todoLists')
+  const [settings] = useStoredKey('settings')
   const { key: today } = useLocalDay()
   const [focusDraft, setFocusDraft] = useState('')
 
@@ -36,7 +38,7 @@ export default function FlowScreen() {
     void timer.exitFlow()
   }, timer.session.flow)
 
-  if (!timer.hydrated || storedFocus === undefined || todoLists === undefined) return null
+  if (!timer.hydrated || storedFocus === undefined || todoLists === undefined || settings === undefined) return null
 
   const commitFocus = () => {
     const next = setFocusText(focusDraft, today)
@@ -51,6 +53,10 @@ export default function FlowScreen() {
       aria-label="Flow"
       className="relative z-10 flex min-h-[100dvh] w-full items-center justify-center overflow-hidden px-5 py-[clamp(1.25rem,5vh,3.5rem)] text-canvas-fg"
     >
+      <FlowAmbience
+        enabled={settings.flowAmbience === 'creek'}
+        running={timer.session.flow && timer.session.running}
+      />
       <div className="flex w-full max-w-5xl flex-col items-center gap-[clamp(0.75rem,2.8vh,2rem)] text-center">
         <div data-flow-focus="" className="w-full max-w-4xl">
           {focus ? (

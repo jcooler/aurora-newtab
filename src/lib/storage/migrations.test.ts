@@ -97,14 +97,19 @@ describe('migrate', () => {
         calls.push(14)
         return data
       },
-      // registry[15] upgrades v15 -> v16 (CURRENT_VERSION)
+      // registry[15] upgrades v15 -> v16
       15: (data) => {
         calls.push(15)
         return data
       },
+      // registry[16] upgrades v16 -> v17 (CURRENT_VERSION)
+      16: (data) => {
+        calls.push(16)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -620,7 +625,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(16)
+    expect(CURRENT_VERSION).toBe(17)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -629,6 +634,7 @@ describe('v10 -> v11', () => {
       photoClockColor: null,
       photoGreetingColor: null,
       photoQuoteColor: null,
+      flowAmbience: 'off',
     })
   })
 
@@ -712,9 +718,10 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(16)
+    expect(CURRENT_VERSION).toBe(17)
     expect(out.layout).toEqual(layout)
-    // The v13->v14 ink backfill is the ONLY settings delta on the way up.
+    // The v13->v14 ink backfill and v16->v17 Flow preference are the only
+    // Settings deltas on the way up.
     expect(out.settings).toEqual({
       ...snapshot.settings,
       widgetTextColor: null,
@@ -722,6 +729,7 @@ describe('v11 -> v12', () => {
       photoClockColor: null,
       photoGreetingColor: null,
       photoQuoteColor: null,
+      flowAmbience: 'off',
     })
     expect(out.unknownStore).toEqual(snapshot.unknownStore)
     expect(snapshot).toEqual(before)
@@ -757,16 +765,15 @@ describe('v12 -> v13', () => {
     expect(migrated.layouts).toBeNull()
   })
 
-  // Guard for index.ts's METADATA_ONLY_FLOOR (16, mirrored here by value):
+  // Guard for index.ts's METADATA_ONLY_FLOOR (17, mirrored here by value):
   // live init stamps only `aurora:version` for any stored version >= that
   // floor, which is safe ONLY while every migration step in the range is the
   // identity. A future packet that adds a NON-identity step without raising
   // the floor would silently stamp stores whose data was never migrated —
   // this test makes that mistake fail loudly instead (review fix I1). The
-  // floor moved 11 -> 14 with the v14 ink backfill; the probe's settings
-  // deliberately OMIT an ink field so a wrongly-low floor is caught (a
-  // defaults()-shaped probe would let migrations[13] masquerade as the
-  // identity).
+  // floor moved 11 -> 14 with the v14 ink backfill, then 14 -> 16 for the
+  // browser-widget migration, and now 16 -> 17 for Flow ambience. The probe
+  // deliberately omits nested fields so a wrongly-low floor is caught.
   it('every migration step from the metadata-only floor on is the identity', () => {
     const settings = { ...defaults().settings, name: 'Floor probe' } as Record<string, unknown>
     delete settings.widgetTextColor
@@ -786,7 +793,10 @@ describe('v12 -> v13', () => {
     const preBrowser = structuredClone(probe)
     delete (preBrowser.settings.widgets as Record<string, unknown>).readingList
     expect(migrations[15](structuredClone(preBrowser))).not.toEqual(preBrowser)
-    for (let v = 16; v < CURRENT_VERSION; v++) {
+    const preAmbience = structuredClone(probe)
+    delete preAmbience.settings.flowAmbience
+    expect(migrations[16](structuredClone(preAmbience))).not.toEqual(preAmbience)
+    for (let v = 17; v < CURRENT_VERSION; v++) {
       const before = structuredClone(probe)
       const out = migrations[v](structuredClone(probe))
       expect(out, `migrations[${v}] must be the identity`).toEqual(before)
@@ -841,6 +851,26 @@ describe('v15 -> v16', () => {
   it('strictly rejects a malformed nested widget map instead of stamping v16', () => {
     const snapshot = { ...defaults(), settings: { ...defaults().settings, widgets: 'oops' } }
     expect(() => migrate(snapshot as unknown as Record<string, unknown>, 15)).toThrow(/settings\.widgets/i)
+  })
+})
+
+describe('v16 -> v17', () => {
+  it('backfills Flow ambience off while preserving every Settings sibling', () => {
+    const settings = { ...defaults().settings, name: 'Keep me' } as Record<string, unknown>
+    delete settings.flowAmbience
+    const snapshot = {
+      ...defaults(),
+      settings,
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const migrated = migrate(snapshot, 16) as AuroraData & { unknownStore: { future: string[] } }
+
+    expect(migrated.settings.flowAmbience).toBe('off')
+    expect(migrated.settings.name).toBe('Keep me')
+    expect(migrated.unknownStore).toEqual(before.unknownStore)
+    expect(snapshot).toEqual(before)
   })
 })
 

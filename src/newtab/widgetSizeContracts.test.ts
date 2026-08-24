@@ -86,6 +86,16 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
     expect(WIDGET_SIZE_CONTRACTS.monthCal.compact).toBeUndefined()
   })
 
+  it('keeps note contents out of launcher presentation contracts', () => {
+    expect(WIDGET_SIZE_CONTRACTS.notes.tiers.compact).toMatchObject({
+      purpose: 'Notes action',
+      essential: ['note state', 'open action'],
+      signature: [],
+      supporting: ['updated state'],
+      narrowSafety: ['tighten spacing'],
+    })
+  })
+
   it('makes canonical Calendar the complete docked-through-Full date composition', () => {
     expect(WIDGET_SIZE_CONTRACTS.ics).toMatchObject({
       sizes: ['compact', 'standard', 'full'],

@@ -76,6 +76,25 @@ describe('timerSession backup contract (Flow)', () => {
   })
 })
 
+describe('Flow ambience backup contract', () => {
+  it.each(['off', 'creek'] as const)('round-trips the supported %s choice', (flowAmbience) => {
+    const data = { ...defaults(), settings: { ...defaults().settings, flowAmbience } }
+    const prepared = prepareBackup(serializeBackup(data))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.settings.flowAmbience).toBe(flowAmbience)
+  })
+
+  it.each([undefined, null, true, 'ocean'])('rejects invalid current-schema choice %s', (flowAmbience) => {
+    const settings = { ...defaults().settings } as Record<string, unknown>
+    if (flowAmbience === undefined) delete settings.flowAmbience
+    else settings.flowAmbience = flowAmbience
+    expect(validateBackupShape({ ...defaults(), settings } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "settings" data is invalid.',
+    })
+  })
+})
+
 describe('secret-safe redaction and prepared import (W1-P4)', () => {
   it('removes every RSS capability URL without mutating the stored config', () => {
     const feeds = [
@@ -552,8 +571,8 @@ describe('apodCache export / import exclusion (Task 95)', () => {
 })
 
 describe('weatherAlertCache export / import exclusion', () => {
-  it('keeps the current schema at v16 and defaults the additive cache to null', () => {
-    expect(CURRENT_VERSION).toBe(16)
+  it('keeps the current schema version pinned and defaults the additive cache to null', () => {
+    expect(CURRENT_VERSION).toBe(17)
     expect(defaults().weatherAlertCache).toBeNull()
     expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
   })
@@ -1381,7 +1400,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
       const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
       expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
       expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
-      expect(CURRENT_VERSION).toBe(16)
+      expect(CURRENT_VERSION).toBe(17)
     }
   })
 

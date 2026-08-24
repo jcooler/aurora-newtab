@@ -233,6 +233,22 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v16 -> v17: Flow ambience is a new nested Settings preference. Preserve
+  // any explicit value verbatim so backup validation can reject malformed
+  // current-schema data instead of normalizing it silently.
+  16: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        flowAmbience: Object.prototype.hasOwnProperty.call(settings, 'flowAmbience')
+          ? settings.flowAmbience
+          : 'off',
+      },
+    }
+  },
 }
 
 export function migrate(

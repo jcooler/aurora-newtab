@@ -52,7 +52,7 @@ export default function NotesWidget({
       utilityTray={utilityTray}
       canvasSize={canvasSize}
       docked={docked}
-      noteText={notes?.text ?? ''}
+      hasSavedNote={Boolean(notes?.text.trim())}
       noteUpdatedAt={notes?.updatedAt ?? 0}
       presentation={presentation}
     />
@@ -65,7 +65,7 @@ function NotesInner({
   utilityTray,
   canvasSize,
   docked,
-  noteText,
+  hasSavedNote,
   noteUpdatedAt,
   presentation,
 }: {
@@ -74,7 +74,7 @@ function NotesInner({
   utilityTray?: UtilityTrayBridge
   canvasSize: CanvasSize
   docked: boolean
-  noteText: string
+  hasSavedNote: boolean
   noteUpdatedAt: number
   presentation: WidgetPresentationMode
 }) {
@@ -164,7 +164,6 @@ function NotesInner({
       />
     </Suspense>
   ) : null
-  const preview = noteText.trim()
   const trigger = enabled ? (
     <button
       ref={pillRef}
@@ -178,15 +177,15 @@ function NotesInner({
         : 'flex h-full w-full cursor-pointer flex-col items-stretch justify-center gap-2 rounded-[inherit] p-3 text-left focus-visible:outline-2 focus-visible:outline-accent'}
     >
       {docked ? (
-        <><strong className="shrink-0 font-semibold text-fg">Notes</strong><span className="truncate">{preview || 'Scratchpad ready'}</span></>
+        <strong className="shrink-0 font-semibold text-fg">Notes</strong>
       ) : (
         <>
           <span className="flex items-center justify-between">
             <strong className="text-sm font-semibold text-fg">Notes</strong>
-            <span className="text-[11px] text-fg-muted">{preview ? (noteUpdatedAt ? 'Edited recently' : 'Saved note') : 'Scratchpad'}</span>
+            <span className="text-[11px] text-fg-muted">{hasSavedNote ? (noteUpdatedAt ? 'Edited recently' : 'Saved note') : 'Scratchpad'}</span>
           </span>
-          <span title={preview || undefined} className="line-clamp-2 text-sm leading-5 text-fg-muted">
-            {preview || 'Capture an idea, reminder, or detail.'}
+          <span className="text-sm leading-5 text-fg-muted">
+            Your note stays private until you open it.
           </span>
           <span className="mt-auto text-sm font-medium text-fg">Open notes</span>
         </>
