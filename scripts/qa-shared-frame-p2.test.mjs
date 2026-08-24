@@ -40,7 +40,7 @@ function evidence() {
 
 test('derives every remaining framed widget from the presentation authority', () => {
   const result = plan()
-  assert.equal(result.widgets.length, 25)
+  assert.equal(result.widgets.length, 24)
   assert.equal(result.widgets.some(({ id }) => id === 'weather'), false)
   assert.equal(result.widgets.some(({ id }) => id === 'onThisDay'), false)
   for (const id of ['github', 'linear', 'readingList', 'ics', 'publicHolidays']) {
@@ -396,11 +396,6 @@ test('every ready widget and compatibility face has an explicit DOM signature pr
     )
   }
   assert.deepEqual(
-    buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === 'status' && entry.kind === 'free-tier'))
-      .signatureSelectors,
-    ['[data-work-pulse-status-dots]'],
-  )
-  assert.deepEqual(
     buildSfP2DomProbe(capturePlan.captures.find((entry) => entry.widget === 'linear' && entry.kind === 'free-tier' && entry.tier === 'standard'))
       .signatureSelectors,
     ['a[href^="https://linear.app/"]'],
@@ -441,10 +436,10 @@ test('runtime probes include the frame root, click the stack member, and map Tas
 
 test('state-family captures contain only states their selected identity can actually render', () => {
   const result = plan()
-  expectFamily('developer-service', ['loading', 'ready', 'empty', 'stale'])
+  expectFamily('developer-service', ['loading', 'ready', 'empty', 'stale', 'partial', 'hard-error'])
   expectFamily('connected', ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'])
   expectFamily('browser-native', ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'])
-  expectFamily('calendar-local', ['loading', 'ready', 'empty', 'stale'])
+  expectFamily('calendar-local', ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'])
   expectFamily('public', ['loading', 'ready', 'empty', 'stale', 'permission-required', 'hard-error'])
 
   function expectFamily(id, expected) {
@@ -453,13 +448,13 @@ test('state-family captures contain only states their selected identity can actu
   }
 })
 
-test('plain-click evidence uses a real action per family and swipe selection is measured before cleanup', () => {
+test('interaction evidence uses a real action per framed family and measures swipe selection before cleanup', () => {
   const result = plan()
   const clickWidgets = Object.fromEntries(result.captures
     .filter((capture) => capture.interaction === 'stack-plain-click')
     .map((capture) => [capture.family, capture.widget]))
   assert.deepEqual(clickWidgets, {
-    'developer-service': 'status',
+    'developer-service': 'github',
     connected: 'linear',
     'browser-native': 'readingList',
     'calendar-local': 'tasks',
@@ -476,7 +471,8 @@ test('plain-click evidence uses a real action per family and swipe selection is 
 
   const interactionBody = source.slice(source.indexOf('const runInteraction'), source.indexOf('const screenshotCapture'))
   assert.doesNotMatch(interactionBody, /position:\s*\{\s*x:\s*6,\s*y:\s*6\s*\}/)
-  assert.match(interactionBody, /Service status details/)
+  assert.doesNotMatch(interactionBody, /Service status details/)
+  assert.match(interactionBody, /https:\/\/github\.com\//)
   assert.match(interactionBody, /readingList\.updateEntry/)
   assert.match(interactionBody, /getByRole\('button', \{ name: 'Tasks' \}\)/)
   assert.match(interactionBody, /date\.nager\.at/)
@@ -501,11 +497,11 @@ test('layout seeding preserves exact free tiers and builds manual Weather stack 
   })
   assert.equal(free.layouts[0].stacks, undefined)
 
-  const pair = buildSfP2Layouts(ids, { key: 'status-pair', kind: 'stack-pair', widget: 'status', tier: 'standard' })
+  const pair = buildSfP2Layouts(ids, { key: 'github-pair', kind: 'stack-pair', widget: 'github', tier: 'standard' })
   assert.deepEqual(pair.layouts[0].stacks, [{
-    id: 'stack-sf-p2-status',
-    members: ['weather', 'status'],
-    facing: 'status',
+    id: 'stack-sf-p2-github',
+    members: ['weather', 'github'],
+    facing: 'github',
     anchor: 'center',
     offsetX: 0,
     offsetY: 0,
@@ -513,7 +509,7 @@ test('layout seeding preserves exact free tiers and builds manual Weather stack 
     layer: 7,
   }])
   assert.equal(pair.layouts[0].widgets.weather, undefined)
-  assert.equal(pair.layouts[0].widgets.status, undefined)
+  assert.equal(pair.layouts[0].widgets.github, undefined)
 
   const compatibility = buildSfP2Layouts(ids, { key: 'moon-compat', kind: 'compatibility', widget: 'moon', tier: 'full' })
   assert.equal(compatibility.layouts[0].stacks[0].facing, 'moon')

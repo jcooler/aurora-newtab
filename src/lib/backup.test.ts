@@ -77,17 +77,30 @@ describe('timerSession backup contract (Flow)', () => {
 })
 
 describe('Flow ambience backup contract', () => {
-  it.each(['off', 'creek'] as const)('round-trips the supported %s choice', (flowAmbience) => {
-    const data = { ...defaults(), settings: { ...defaults().settings, flowAmbience } }
+  it.each(['off', 'creek', 'rain', 'ocean', 'forest'] as const)('round-trips the supported %s choice', (flowAmbience) => {
+    const data = { ...defaults(), settings: { ...defaults().settings, flowAmbience, flowVolume: 15 } }
     const prepared = prepareBackup(serializeBackup(data))
     expect(prepared.ok).toBe(true)
-    if (prepared.ok) expect(prepared.data.settings.flowAmbience).toBe(flowAmbience)
+    if (prepared.ok) {
+      expect(prepared.data.settings.flowAmbience).toBe(flowAmbience)
+      expect(prepared.data.settings.flowVolume).toBe(15)
+    }
   })
 
-  it.each([undefined, null, true, 'ocean'])('rejects invalid current-schema choice %s', (flowAmbience) => {
+  it.each([undefined, null, true, 'fireplace'])('rejects invalid current-schema choice %s', (flowAmbience) => {
     const settings = { ...defaults().settings } as Record<string, unknown>
     if (flowAmbience === undefined) delete settings.flowAmbience
     else settings.flowAmbience = flowAmbience
+    expect(validateBackupShape({ ...defaults(), settings } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "settings" data is invalid.',
+    })
+  })
+
+  it.each([undefined, null, Number.NaN, -1, 101, 12.5, '15'])('rejects invalid Flow volume %s', (flowVolume) => {
+    const settings = { ...defaults().settings } as Record<string, unknown>
+    if (flowVolume === undefined) delete settings.flowVolume
+    else settings.flowVolume = flowVolume
     expect(validateBackupShape({ ...defaults(), settings } as never)).toEqual({
       ok: false,
       reason: 'That backup\'s "settings" data is invalid.',
@@ -572,7 +585,7 @@ describe('apodCache export / import exclusion (Task 95)', () => {
 
 describe('weatherAlertCache export / import exclusion', () => {
   it('keeps the current schema version pinned and defaults the additive cache to null', () => {
-    expect(CURRENT_VERSION).toBe(17)
+    expect(CURRENT_VERSION).toBe(18)
     expect(defaults().weatherAlertCache).toBeNull()
     expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
   })
@@ -1400,7 +1413,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
       const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
       expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
       expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
-      expect(CURRENT_VERSION).toBe(17)
+      expect(CURRENT_VERSION).toBe(18)
     }
   })
 

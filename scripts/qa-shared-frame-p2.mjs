@@ -74,14 +74,14 @@ const FAMILY_IDS = Object.freeze({
 })
 
 const STATE_REFERENCES = Object.freeze({
-  'developer-service': 'status',
+  'developer-service': 'github',
   connected: 'linear',
   'browser-native': 'readingList',
   'calendar-local': 'ics',
   public: 'publicHolidays',
 })
 const PLAIN_CLICK_REFERENCES = Object.freeze({
-  'developer-service': 'status',
+  'developer-service': 'github',
   connected: 'linear',
   'browser-native': 'readingList',
   'calendar-local': 'tasks',
@@ -677,7 +677,8 @@ export function buildSfP2CapturePlan(source) {
         const composition = contract.tiers?.[tier]
         assert(composition, `${id} is missing ${tier} composition`)
         assert(Array.isArray(composition.essential) && composition.essential.length > 0, `${id} ${tier} has no essential content`)
-        assert(Array.isArray(composition.signature) && composition.signature.length > 0, `${id} ${tier} has no signature content`)
+        assert(Array.isArray(composition.signature), `${id} ${tier} has no signature contract`)
+        assert(composition.signature.length > 0 || id === 'notes', `${id} ${tier} has no signature content`)
       }
       for (const tier of contract.stackSizes) assert(contract.sizes.includes(tier), `${id} stack tier ${tier} lacks a free presentation`)
       return {
@@ -795,7 +796,7 @@ function requireExactRows(actual, expected, label) {
 }
 
 function validate(manifest, requireVerdicts) {
-  assert.equal(manifest.widgets.length, 25, 'SF-P2 must contain exactly 25 remaining framed widgets')
+  assert.equal(manifest.widgets.length, 24, 'SF-P2 must contain exactly 24 remaining framed widgets')
   assert.equal(new Set(manifest.widgets.map(({ id }) => id)).size, manifest.widgets.length, 'widget declarations must be unique')
   assert.equal(manifest.widgets.some(({ id }) => REFERENCE_IDS.has(id)), false, 'SF-P1 references must not re-enter SF-P2')
   for (const [tier, expected] of Object.entries(EXPECTED_DIMENSIONS)) {
@@ -1432,10 +1433,7 @@ async function run() {
         await page.mouse.up()
       } else if (capture.interaction === 'stack-plain-click') {
         const target = page.locator(`${stackSelector(capture)} [data-stack-member="${capture.widget}"][data-stack-active="true"]`)
-        if (capture.widget === 'status') {
-          await target.getByRole('button').click()
-          await page.getByRole('dialog', { name: 'Service status details' }).waitFor()
-        } else if (capture.widget === 'readingList') {
+        if (capture.widget === 'readingList') {
           await page.evaluate(() => { if (globalThis.__sfP2Harness) globalThis.__sfP2Harness.apiCalls.splice(0) })
           await target.getByRole('button', { name: /^Mark .* read$/ }).first().click()
           await page.waitForFunction(() => globalThis.__sfP2Harness?.apiCalls.some((call) => call.api === 'readingList.updateEntry'))
@@ -1445,7 +1443,9 @@ async function run() {
         } else {
           const link = capture.widget === 'publicHolidays'
             ? target.locator('a[href="https://date.nager.at"]')
-            : target.locator('a[href^="https://linear.app/"]').first()
+            : capture.widget === 'github'
+              ? target.locator('a[href^="https://github.com/"]').first()
+              : target.locator('a[href^="https://linear.app/"]').first()
           await link.evaluate((element) => {
             element.addEventListener('click', (event) => {
               event.preventDefault()

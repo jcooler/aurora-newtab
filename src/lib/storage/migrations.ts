@@ -249,6 +249,21 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v17 -> v18: make Flow volume explicit so existing users receive the new
+  // quieter baseline without resetting their selected sound.
+  17: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        flowVolume: Object.prototype.hasOwnProperty.call(settings, 'flowVolume')
+          ? settings.flowVolume
+          : 15,
+      },
+    }
+  },
 }
 
 export function migrate(

@@ -2862,20 +2862,21 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(set).toHaveBeenCalledOnce()
   })
 
-  it('keeps Flow ambience separate from the timer chime and persists the creek choice', async () => {
+  it('keeps Flow ambience separate from the timer chime and persists the selected sound', async () => {
     const storage = await renderPanel()
     const completion = screen.getByRole('switch', { name: 'Timer completion sound' })
-    const ambience = screen.getByRole('switch', { name: 'Flow ambience' })
+    const ambience = screen.getByRole('combobox', { name: 'Flow sound' }) as HTMLSelectElement
 
     expect(completion.getAttribute('aria-checked')).toBe('true')
-    expect(ambience.getAttribute('aria-checked')).toBe('false')
-    expect(screen.getByText('Loops a local creek recording while the Flow timer is running.')).toBeTruthy()
+    expect(ambience.value).toBe('off')
+    expect([...ambience.options].map((option) => option.textContent)).toEqual(['Off', 'Creek', 'Rain', 'Ocean', 'Forest'])
+    expect(screen.getByText('Plays your selected local sound only while the Flow timer is running.')).toBeTruthy()
 
     await act(async () => {
-      fireEvent.click(ambience)
+      fireEvent.change(ambience, { target: { value: 'rain' } })
     })
     const settings = await storage.get('settings') as ReturnType<typeof defaults>['settings'] & { flowAmbience?: string }
-    expect(settings.flowAmbience).toBe('creek')
+    expect(settings.flowAmbience).toBe('rain')
     expect(settings.muted).toBe(false)
   })
 

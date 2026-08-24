@@ -239,22 +239,14 @@ try {
   }
 
   await page.setViewportSize({ width: 800, height: 600 })
-  const statusButton = page.getByRole('button', { name: 'Open Service status details' })
-  await statusButton.click()
-  await page.waitForSelector('[data-block-id="status"] [data-signal-dock-open="true"]')
-  evidence.operation.open = await page.evaluate(() => {
-    const content = document.querySelector('[data-block-id="status"] [data-signal-dock-content]')
+  evidence.operation.statusStatic = await page.evaluate(() => {
+    const content = document.querySelector('[data-block-id="status"] [role="status"]')
     return {
-      inert: content?.hasAttribute('inert'),
-      position: content instanceof HTMLElement ? getComputedStyle(content).position : null,
-      text: content?.textContent?.trim() ?? '',
+      present: content instanceof HTMLElement,
+      label: content?.getAttribute('aria-label') ?? '',
+      buttons: document.querySelectorAll('[data-block-id="status"] button').length,
+      dialogs: document.querySelectorAll('[data-status-panel]').length,
     }
-  })
-  await page.keyboard.press('Escape')
-  await page.waitForSelector('[data-block-id="status"] [data-signal-dock-open="false"]')
-  evidence.operation.escape = await page.evaluate(() => {
-    const button = document.querySelector('[data-block-id="status"] button[aria-expanded]')
-    return { expanded: button?.getAttribute('aria-expanded'), focusRestored: document.activeElement === button }
   })
   evidence.operation.keyboardReveal = await page.evaluate(() => {
     const dock = document.querySelector('[data-stage-zone-container="dock"]')
@@ -267,8 +259,8 @@ try {
     const b = last.getBoundingClientRect()
     return b.left >= d.left - 1 && b.right <= d.right + 1
   })
-  assert(evidence.operation.open.inert === false && evidence.operation.open.position === 'fixed' && /service issue/i.test(evidence.operation.open.text), 'Status details did not open from the Dock')
-  assert(evidence.operation.escape.expanded === 'false' && evidence.operation.escape.focusRestored, 'Escape did not close and restore focus')
+  assert(evidence.operation.statusStatic.present && /service status/i.test(evidence.operation.statusStatic.label), 'Status static readout is missing from the Dock')
+  assert(evidence.operation.statusStatic.buttons === 0 && evidence.operation.statusStatic.dialogs === 0, 'Status exposed the removed details interaction')
   assert(evidence.operation.keyboardReveal, 'keyboard focus did not reveal the far Dock entry')
   assert(externalRequests.length === 0, `Signal Dock caused external request(s): ${externalRequests.join(', ')}`)
   assert(runtimeErrors.length === 0, `runtime errors: ${runtimeErrors.join('; ')}`)

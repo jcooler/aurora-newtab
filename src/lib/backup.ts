@@ -4,7 +4,7 @@
 // knows how to walk old snapshots forward) stays the caller's job, not this
 // module's. That's why the success shape is `{ data, version }` rather than
 // an already-migrated `AuroraData`.
-import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
+import { CURRENT_VERSION, FLOW_AMBIENCE_VALUES, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { isPlainObject } from './object'
 import { isPanelColor } from './color'
 import { LAYOUT_DENSITY_PREFERENCES } from './layout/types'
@@ -268,7 +268,11 @@ function isSettings(v: unknown): boolean {
     (v.photoQuoteColor === null || isPanelColor(v.photoQuoteColor)) &&
     isString(v.units) &&
     isBoolean(v.muted) &&
-    (v.flowAmbience === 'off' || v.flowAmbience === 'creek') &&
+    FLOW_AMBIENCE_VALUES.some((choice) => choice === v.flowAmbience) &&
+    isNumber(v.flowVolume) &&
+    Number.isInteger(v.flowVolume) &&
+    v.flowVolume >= 0 &&
+    v.flowVolume <= 100 &&
     isOptional(v.briefingEnabled, isBoolean) &&
     LAYOUT_DENSITY_SET.has(v.layoutDensity) &&
     isWidgetToggles(v.widgets)

@@ -15,6 +15,7 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
     units: 'metric',
     muted: false,
     flowAmbience: 'off',
+    flowVolume: 15,
     layoutDensity: 'auto',
     widgets: {
       search: true,

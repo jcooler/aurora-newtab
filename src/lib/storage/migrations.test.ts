@@ -102,14 +102,19 @@ describe('migrate', () => {
         calls.push(15)
         return data
       },
-      // registry[16] upgrades v16 -> v17 (CURRENT_VERSION)
+      // registry[16] upgrades v16 -> v17
       16: (data) => {
         calls.push(16)
         return data
       },
+      // registry[17] upgrades v17 -> v18 (CURRENT_VERSION)
+      17: (data) => {
+        calls.push(17)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -625,7 +630,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(17)
+    expect(CURRENT_VERSION).toBe(18)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -718,7 +723,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(17)
+    expect(CURRENT_VERSION).toBe(18)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill and v16->v17 Flow preference are the only
     // Settings deltas on the way up.
@@ -765,14 +770,15 @@ describe('v12 -> v13', () => {
     expect(migrated.layouts).toBeNull()
   })
 
-  // Guard for index.ts's METADATA_ONLY_FLOOR (17, mirrored here by value):
+  // Guard for index.ts's METADATA_ONLY_FLOOR (18, mirrored here by value):
   // live init stamps only `aurora:version` for any stored version >= that
   // floor, which is safe ONLY while every migration step in the range is the
   // identity. A future packet that adds a NON-identity step without raising
   // the floor would silently stamp stores whose data was never migrated —
   // this test makes that mistake fail loudly instead (review fix I1). The
   // floor moved 11 -> 14 with the v14 ink backfill, then 14 -> 16 for the
-  // browser-widget migration, and now 16 -> 17 for Flow ambience. The probe
+  // browser-widget migration, 16 -> 17 for Flow ambience, and 17 -> 18 for
+  // persisted Flow volume. The probe
   // deliberately omits nested fields so a wrongly-low floor is caught.
   it('every migration step from the metadata-only floor on is the identity', () => {
     const settings = { ...defaults().settings, name: 'Floor probe' } as Record<string, unknown>
@@ -796,7 +802,10 @@ describe('v12 -> v13', () => {
     const preAmbience = structuredClone(probe)
     delete preAmbience.settings.flowAmbience
     expect(migrations[16](structuredClone(preAmbience))).not.toEqual(preAmbience)
-    for (let v = 17; v < CURRENT_VERSION; v++) {
+    const preVolume = structuredClone(probe)
+    delete preVolume.settings.flowVolume
+    expect(migrations[17](structuredClone(preVolume))).not.toEqual(preVolume)
+    for (let v = 18; v < CURRENT_VERSION; v++) {
       const before = structuredClone(probe)
       const out = migrations[v](structuredClone(probe))
       expect(out, `migrations[${v}] must be the identity`).toEqual(before)
@@ -868,6 +877,27 @@ describe('v16 -> v17', () => {
     const migrated = migrate(snapshot, 16) as AuroraData & { unknownStore: { future: string[] } }
 
     expect(migrated.settings.flowAmbience).toBe('off')
+    expect(migrated.settings.name).toBe('Keep me')
+    expect(migrated.unknownStore).toEqual(before.unknownStore)
+    expect(snapshot).toEqual(before)
+  })
+})
+
+describe('v17 -> v18', () => {
+  it('backfills a quiet Flow volume while preserving the chosen ambience and every sibling', () => {
+    const settings = { ...defaults().settings, name: 'Keep me', flowAmbience: 'creek' } as Record<string, unknown>
+    delete settings.flowVolume
+    const snapshot = {
+      ...defaults(),
+      settings,
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const migrated = migrate(snapshot, 17) as AuroraData & { unknownStore: { future: string[] } }
+
+    expect(migrated.settings.flowVolume).toBe(15)
+    expect(migrated.settings.flowAmbience).toBe('creek')
     expect(migrated.settings.name).toBe('Keep me')
     expect(migrated.unknownStore).toEqual(before.unknownStore)
     expect(snapshot).toEqual(before)

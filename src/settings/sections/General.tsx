@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import type { Settings } from '../../lib/storage/schema'
+import type { FlowAmbience, Settings } from '../../lib/storage/schema'
 import { contrastRatio, derivedFg, relativeLuminance } from '../../lib/color'
 import Section from '../Section'
 import ColorPickerRow from '../ColorPickerRow'
@@ -191,17 +191,24 @@ export default function General({
         </div>
         <div className={row}>
           <label htmlFor="set-flow-ambience" className={label}>
-            Flow ambience
+            Flow sound
           </label>
-          <Switch
+          <select
             id="set-flow-ambience"
-            checked={settings.flowAmbience === 'creek'}
-            onChange={(checked) => patch({ flowAmbience: checked ? 'creek' : 'off' })}
-            describedBy="set-flow-ambience-description"
-          />
+            aria-describedby="set-flow-ambience-description"
+            value={settings.flowAmbience}
+            onChange={(event) => patch({ flowAmbience: event.currentTarget.value as FlowAmbience })}
+            className={select}
+          >
+            <option value="off">Off</option>
+            <option value="creek">Creek</option>
+            <option value="rain">Rain</option>
+            <option value="ocean">Ocean</option>
+            <option value="forest">Forest</option>
+          </select>
         </div>
         <p id="set-flow-ambience-description" className="pb-2 text-xs text-fg-muted">
-          Loops a local creek recording while the Flow timer is running.
+          Plays your selected local sound only while the Flow timer is running.
         </p>
         <div className={row}>
           <label htmlFor="set-daily-summary" className={label}>

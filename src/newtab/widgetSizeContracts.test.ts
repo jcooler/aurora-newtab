@@ -205,6 +205,8 @@ describe('shared frame presentation contracts', () => {
 
   it('keeps simple connector states narrow while Calendar models independent source failures', () => {
     expect(WIDGET_PRESENTATION_CONTRACTS.status.states).toEqual(['loading', 'ready', 'empty', 'stale'])
+    expect(WIDGET_PRESENTATION_CONTRACTS.status.tiers.compact?.overflow).toEqual({ kind: 'none' })
+    expect(WIDGET_PRESENTATION_CONTRACTS.status.tiers.standard?.overflow).toEqual({ kind: 'none' })
     expect(WIDGET_PRESENTATION_CONTRACTS.ics.states).toEqual([
       'loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error',
     ])

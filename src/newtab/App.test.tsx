@@ -128,7 +128,10 @@ describe('App Canvas composition', () => {
     })
   })
 
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
 
   it('owns one anchored Canvas and retires the rejected semantic presentation regions', async () => {
     await renderApp()
@@ -227,6 +230,17 @@ describe('App Canvas composition', () => {
     // ...and the layout badge hugs the gear instead of clearing a trigger
     // that isn't there (owner-reported 2026-08-19: the dead gap).
     expect(document.querySelector('.layout-badge-host')?.hasAttribute('data-clears-tray')).toBe(false)
+  })
+
+  it('opens Chrome\'s standard New Tab page from the persistent utility shortcut', async () => {
+    const update = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('chrome', { tabs: { update } })
+    await renderApp()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Chrome tab' }))
+
+    expect(update).toHaveBeenCalledOnce()
+    expect(update).toHaveBeenCalledWith({ url: 'chrome://new-tab-page/' })
   })
 
   it('the layout badge slides left only while the tray trigger actually renders', async () => {

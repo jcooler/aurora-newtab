@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { FlowAmbience as FlowAmbienceChoice } from '../../lib/storage/schema'
 import { useDialogEscape } from '../../lib/dialogStack'
 import { useLocalDay } from '../../lib/hooks/useLocalDay'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
@@ -54,7 +55,8 @@ export default function FlowScreen() {
       className="relative z-10 flex min-h-[100dvh] w-full items-center justify-center overflow-hidden px-5 py-[clamp(1.25rem,5vh,3.5rem)] text-canvas-fg"
     >
       <FlowAmbience
-        enabled={settings.flowAmbience === 'creek'}
+        sound={settings.flowAmbience}
+        volume={settings.flowVolume}
         running={timer.session.flow && timer.session.running}
       />
       <div className="flex w-full max-w-5xl flex-col items-center gap-[clamp(0.75rem,2.8vh,2rem)] text-center">
@@ -127,6 +129,44 @@ export default function FlowScreen() {
             >
               End flow
             </button>
+          </div>
+          <div data-flow-sound-controls="" className="text-photo flex min-h-9 flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-canvas-fg-muted">
+            <label htmlFor="flow-sound" className="sr-only">Flow sound</label>
+            <select
+              id="flow-sound"
+              aria-label="Flow sound"
+              value={settings.flowAmbience}
+              onChange={(event) => {
+                const flowAmbience = event.currentTarget.value as FlowAmbienceChoice
+                void storage.update('settings', (current) => ({ ...current, flowAmbience }))
+              }}
+              className="min-h-9 rounded-full border border-canvas-fg-muted/45 bg-black/20 px-3 text-canvas-fg outline-none backdrop-blur-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <option value="off">Off</option>
+              <option value="creek">Creek</option>
+              <option value="rain">Rain</option>
+              <option value="ocean">Ocean</option>
+              <option value="forest">Forest</option>
+            </select>
+            <label htmlFor="flow-volume" className="font-medium text-canvas-fg">Volume</label>
+            <input
+              id="flow-volume"
+              type="range"
+              aria-label="Flow volume"
+              min={0}
+              max={100}
+              step={5}
+              value={settings.flowVolume}
+              disabled={settings.flowAmbience === 'off'}
+              onChange={(event) => {
+                const flowVolume = Number(event.currentTarget.value)
+                void storage.update('settings', (current) => ({ ...current, flowVolume }))
+              }}
+              className="h-9 w-28 cursor-pointer accent-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
+            />
+            <output htmlFor="flow-volume" aria-live="polite" className="w-8 text-right tabular-nums">
+              {settings.flowVolume}%
+            </output>
           </div>
         </div>
 

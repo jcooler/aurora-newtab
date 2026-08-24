@@ -117,7 +117,7 @@ export default function WeatherWidget({
     const panel = panelRef.current
     if (!trigger || !panel) return
     const panelRect = panel.getBoundingClientRect()
-    const utilityRects = [...document.querySelectorAll<HTMLElement>('.utility-tray-trigger, .settings-gear')]
+    const utilityRects = [...document.querySelectorAll<HTMLElement>('.utility-tray-trigger, .chrome-tab-trigger, .settings-gear')]
       .map((element) => element.getBoundingClientRect())
       .filter((rect) => rect.width > 0 && rect.height > 0)
     const utilityExclusion = utilityRects.length > 0

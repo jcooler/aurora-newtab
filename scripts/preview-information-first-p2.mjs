@@ -168,7 +168,7 @@ const collectComposition = async () => page.evaluate(() => {
   const weather = document.querySelector('[data-block-id="weather"]')
   const summary = weather?.querySelector('[data-weather-summary]')
   const search = document.querySelector('[data-block-id="search"] input[type="search"]')
-  const utility = [...document.querySelectorAll('.utility-tray-trigger, .settings-gear')]
+  const utility = [...document.querySelectorAll('.utility-tray-trigger, .chrome-tab-trigger, .settings-gear')]
   if (!(weather instanceof HTMLElement) || !(summary instanceof HTMLElement)) throw new Error('Weather composition is missing')
   if (!(search instanceof HTMLInputElement)) throw new Error('Search composition is missing')
   const weatherRect = rect(weather)

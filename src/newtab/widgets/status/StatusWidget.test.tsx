@@ -117,7 +117,7 @@ describe('StatusWidget — DOM contract', () => {
     expect(status.closest('[data-tier-frame]')).toBeNull()
     expect(within(status).getByText('GitHub')).toBeTruthy()
     expect(within(status).getByText('Cloudflare')).toBeTruthy()
-    expect(within(status).getByRole('button', { name: 'Service status details' })).toBeTruthy()
+    expect(within(status).queryByRole('button', { name: 'Service status details' })).toBeNull()
   })
 
   it('keeps Service status in an exact frame when it is a stack member', async () => {
@@ -168,19 +168,12 @@ describe('StatusWidget — DOM contract', () => {
     }
   })
 
-  it('routes bounded-card overflow through the existing service details panel', async () => {
+  it('renders Service status as a static readout without a Details control or popup', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     mount(storage, 'standard')
-    const trigger = await screen.findByRole('button', { name: 'Service status details' })
-    await act(async () => { trigger.click() })
-    const panel = screen.getByRole('dialog', { name: 'Service status details' })
-    expect(panel.textContent).toContain('GitHub')
-    expect(panel.textContent).toContain('Cloudflare')
-    await act(async () => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    })
+    await screen.findByText('GitHub')
+    expect(screen.queryByRole('button', { name: 'Service status details' })).toBeNull()
     expect(screen.queryByRole('dialog', { name: 'Service status details' })).toBeNull()
-    expect(document.activeElement).toBe(trigger)
   })
 
   it('names every service beside its dot so status reads without hovering (batch-2 owner review)', async () => {
@@ -198,33 +191,20 @@ describe('StatusWidget — DOM contract', () => {
     expect(dots.querySelector('[title*="Elevated build latency"]')).toBeTruthy()
   })
 
-  it('Docked renders clickable dots that open a per-service panel (owner direction 2026-08-21)', async () => {
+  it('Docked renders static, accessibly named dots without a details interaction', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     render(
       <StorageProvider storage={storage}>
         <StatusWidget docked />
       </StorageProvider>,
     )
-    // The dots ARE the readout: no summary text on the line itself, but the
-    // button still NAMES the state for a screen reader.
-    const line = await screen.findByRole('button', { name: 'Service status: All operational, 2 services' })
+    const line = await screen.findByRole('status', { name: 'Service status: All operational, 2 services' })
     expect(line.getAttribute('data-dock-line')).toBe('')
     expect(line.textContent).toBe('')
     expect(line.querySelectorAll('span[title]')).toHaveLength(2)
-    // The dense line replaces the strip entirely — no heading, no section.
     expect(screen.queryByText('Service status')).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
-
-    // ...and the detail a dense line cannot carry is one click away.
-    await act(async () => { line.click() })
-    const panel = screen.getByRole('dialog', { name: 'Service status details' })
-    expect(panel.textContent).toContain('GitHub')
-    expect(panel.textContent).toContain('Cloudflare')
-    expect(panel.textContent).toContain('All Systems Operational')
-    expect(line.getAttribute('aria-expanded')).toBe('true')
-
-    await act(async () => { line.click() })
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('shows named dots at every explicit framed size', async () => {

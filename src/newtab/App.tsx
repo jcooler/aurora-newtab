@@ -804,13 +804,28 @@ function AuroraApp() {
             setActiveUtilityTool(selectedUtilityTool)
             setUtilityTrayOpen(true)
           }}
-          className="utility-tray-trigger fixed bottom-4 right-16 flex min-h-9 min-w-9 items-center justify-center rounded-full bg-panel-solid text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          className="utility-tray-trigger fixed bottom-4 right-28 flex min-h-9 min-w-9 items-center justify-center rounded-full bg-panel-solid text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M4 7h16v12H4z" />
             <path d="M9 7V5h6v2M4 11h16M10 11v2h4v-2" />
           </svg>
         </button> : null}
+        <button
+          type="button"
+          aria-label="Open Chrome tab"
+          title="Open Chrome tab"
+          onClick={() => {
+            void chrome.tabs.update({ url: 'chrome://new-tab-page/' })
+          }}
+          className="chrome-tab-trigger fixed bottom-4 right-16 flex min-h-9 min-w-9 items-center justify-center rounded-full bg-panel-solid text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 5h16v14H4z" />
+            <path d="M4 9h16M8 5v4" />
+            <path d="M12 12v4M10 14h4" />
+          </svg>
+        </button>
         <button
           ref={settingsButtonRef}
           type="button"

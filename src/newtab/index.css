@@ -730,14 +730,14 @@
 .layout-badge-host {
   position: fixed;
   z-index: 30;
-  /* Hugs the settings gear (16px + 36px + 8px gap); slides to 108px only
-     while the utility-tray trigger actually renders between them
+  /* Hugs the always-visible Chrome-tab shortcut; slides farther left only
+     while the utility-tray trigger actually renders before it
      (owner-reported 2026-08-19: the fixed offset left a dead gap). */
-  right: 60px;
+  right: 108px;
   bottom: 16px;
 }
 .layout-badge-host[data-clears-tray] {
-  right: 108px;
+  right: 156px;
 }
 .layout-badge {
   display: flex;

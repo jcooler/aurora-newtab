@@ -1,9 +1,5 @@
-import { useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
-import { useDialogEscape } from '../../../lib/dialogStack'
-import { anchorPanel } from '../../../lib/layout/anchor'
 import {
   fetchStatus,
   statusServicesOf,
@@ -161,10 +157,8 @@ function StatusInner({
   // the summary, so removing the text cost nothing in meaning.
   const summaryLabel = `Service status: ${summaryValue}, ${rows.length} services`
 
-  // Docked tier: the dots ARE the readout, and the line OPENS (owner
-  // direction 2026-08-21, overruling the batch-2 note that docked
-  // connectors are non-interactive readouts — status is the one whose
-  // detail cannot fit on a dense line, so it earns a panel).
+  // Docked tier: the dots are the complete static readout. The former detail
+  // panel repeated the same provider descriptions without adding an action.
   if (docked) {
     return <StatusDock rows={rows} tone={tone} label={summaryLabel} />
   }
@@ -175,7 +169,6 @@ function StatusInner({
     <>
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Service status</h2>
-        <StatusDetailsTrigger rows={rows} tone={tone} label="Service status details" />
       </div>
       <span data-status-summary className="sr-only">{summaryValue}, {rows.length} services</span>
       <div data-work-pulse-detail data-work-pulse-status-dots data-testid="status-dots" className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -225,13 +218,8 @@ function StatusIntrinsicState({
   )
 }
 
-const PANEL_SIZE = { w: 260, h: 240 }
-
-/** The docked readout: coloured dots that OPEN. A dense dock line cannot
- *  carry per-service detail, so the detail lives one click away in a panel
- *  anchored to the line itself — the same anchorPanel rules the inspector
- *  and the weather details use, so it opens toward space and clamps to the
- *  viewport. */
+/** Static dock readout: provider dots retain titles and one complete
+ *  accessible summary without introducing a dead details interaction. */
 function StatusDock({
   rows,
   tone,
@@ -241,90 +229,18 @@ function StatusDock({
   tone: 'quiet' | 'attention' | 'critical' | 'unknown'
   label: string
 }) {
-  return <StatusDetailsTrigger rows={rows} tone={tone} label={label} docked />
-}
-
-function StatusDetailsTrigger({
-  rows,
-  tone,
-  label,
-  docked = false,
-}: {
-  rows: readonly ServiceStatus[]
-  tone: 'quiet' | 'attention' | 'critical' | 'unknown'
-  label: string
-  docked?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  useDialogEscape(() => {
-    setOpen(false)
-    triggerRef.current?.focus()
-  }, open)
-
-  const toggle = () => {
-    if (open) {
-      setOpen(false)
-      return
-    }
-    if (triggerRef.current) setAnchorRect(triggerRef.current.getBoundingClientRect())
-    setOpen(true)
-  }
-
-  const position = anchorRect
-    ? anchorPanel(anchorRect, PANEL_SIZE, {
-      w: typeof window === 'undefined' ? 1 : window.innerWidth,
-      h: typeof window === 'undefined' ? 1 : window.innerHeight,
-    })
-    : null
-
   return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label={label}
-        aria-expanded={open}
-        {...(docked ? { 'data-dock-line': '' } : {})}
-        data-status-tone={tone}
-        onClick={toggle}
-        className={docked
-          ? 'dock-line cursor-pointer rounded-panel text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none'
-          : 'rounded-sm text-[11px] font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none'}
-      >
-        {docked
-          ? rows.map((s, i) => (
-            <span key={i} title={dotTitle(s)} className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
-          ))
-          : 'Details'}
-      </button>
-      {open && position
-        ? createPortal(
-          <div
-            role="dialog"
-            aria-label="Service status details"
-            data-status-panel=""
-            className="fixed z-50 flex w-[260px] flex-col gap-2 rounded-panel border border-panel-border bg-panel-solid p-3 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
-            style={{
-              left: position.left,
-              ...('top' in position ? { top: position.top } : { bottom: position.bottom }),
-            }}
-          >
-            {rows.map((s, i) => (
-              <div key={i} className="flex items-start gap-2 text-left">
-                <span className={`mt-1.5 size-2 shrink-0 rounded-full ${dotClass(s.indicator)}`} />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-fg">{s.name}</span>
-                  <span className="block text-xs text-fg-muted">{s.description}</span>
-                </span>
-              </div>
-            ))}
-          </div>,
-          document.body,
-        )
-        : null}
-    </>
+    <div
+      role="status"
+      aria-label={label}
+      data-dock-line=""
+      data-status-tone={tone}
+      className="dock-line text-left"
+    >
+      {rows.map((service, index) => (
+        <span key={index} title={dotTitle(service)} className={`size-2 rounded-full ${dotClass(service.indicator)}`} />
+      ))}
+    </div>
   )
 }
 

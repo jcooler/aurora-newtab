@@ -39,15 +39,18 @@ async function renderFlow({
   }],
   timerSession = timer(),
   flowAmbience = 'off',
+  flowVolume = 15,
 }: {
   focus?: Focus | null
   todoLists?: TodoList[]
   timerSession?: TimerSession
-  flowAmbience?: 'off' | 'creek'
+  flowAmbience?: 'off' | 'creek' | 'rain' | 'ocean' | 'forest'
+  flowVolume?: number
 } = {}): Promise<AuroraStorage> {
   const settings = {
     ...defaults().settings,
     flowAmbience,
+    flowVolume,
   } as unknown as ReturnType<typeof defaults>['settings']
   const storage = createStorage(memoryDriver({
     ...defaults(),
@@ -126,18 +129,22 @@ describe('FlowScreen', () => {
     expect((await storage.get('timerSession'))?.remainingMs).toBe(pausedRemaining)
   })
 
-  it('loops the bundled creek only while an enabled Flow timer is running', async () => {
+  it('loops the selected local sound at the persisted quiet volume only while the timer runs', async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
     await renderFlow({
-      flowAmbience: 'creek',
+      flowAmbience: 'rain',
+      flowVolume: 15,
       timerSession: timer({ running: true, endsAt: Date.now() + 9 * MIN }),
     })
 
     const audio = document.querySelector('audio') as HTMLAudioElement | null
     expect(audio).toBeTruthy()
     expect(audio?.loop).toBe(true)
-    expect(audio?.getAttribute('src')).toBe('/sounds/creek.ogg')
+    expect(audio?.getAttribute('src')).toBe('/sounds/rain.ogg')
+    expect(audio?.volume).toBe(0.15)
+    expect((screen.getByRole('combobox', { name: 'Flow sound' }) as HTMLSelectElement).value).toBe('rain')
+    expect((screen.getByRole('slider', { name: 'Flow volume' }) as HTMLInputElement).value).toBe('15')
     await waitFor(() => expect(play).toHaveBeenCalledOnce())
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause timer' }))
@@ -150,7 +157,25 @@ describe('FlowScreen', () => {
     await waitFor(() => expect(pause).toHaveBeenCalledTimes(2))
   })
 
-  it('stops and removes creek playback when ambience is switched off mid-Flow', async () => {
+  it('switches sounds and volume live and persists both Flow controls', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    const storage = await renderFlow({
+      flowAmbience: 'creek',
+      flowVolume: 15,
+      timerSession: timer({ running: true, endsAt: Date.now() + 9 * MIN }),
+    })
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Flow volume' }), { target: { value: '5' } })
+    await waitFor(async () => expect((await storage.get('settings')).flowVolume).toBe(5))
+    await waitFor(() => expect((document.querySelector('audio') as HTMLAudioElement).volume).toBe(0.05))
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Flow sound' }), { target: { value: 'ocean' } })
+    await waitFor(async () => expect((await storage.get('settings')).flowAmbience).toBe('ocean'))
+    await waitFor(() => expect(document.querySelector('audio')?.getAttribute('src')).toBe('/sounds/ocean.ogg'))
+  })
+
+  it('stops and removes playback when the Flow sound is switched off', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
     const storage = await renderFlow({
@@ -158,12 +183,11 @@ describe('FlowScreen', () => {
       timerSession: timer({ running: true, endsAt: Date.now() + 9 * MIN }),
     })
 
-    await act(async () => {
-      await storage.update('settings', (settings) => ({ ...settings, flowAmbience: 'off' }))
-    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Flow sound' }), { target: { value: 'off' } })
 
     await waitFor(() => expect(pause).toHaveBeenCalledOnce())
     expect(document.querySelector('audio')).toBeNull()
+    expect((await storage.get('settings')).flowAmbience).toBe('off')
   })
 
   it('routes Escape through the shared close stack and omits an empty task husk', async () => {

@@ -61,7 +61,7 @@ export default function SearchBar({
     const form = formRef.current
     if (!form) return
     const parent = form.parentElement
-    const controls = [...document.querySelectorAll<HTMLElement>('.utility-tray-trigger, .settings-gear')]
+    const controls = [...document.querySelectorAll<HTMLElement>('.utility-tray-trigger, .chrome-tab-trigger, .settings-gear')]
     const update = () => {
       const parentRect = parent?.getBoundingClientRect()
       const requestedWidth = Math.min(canvasSize === 'compact' ? 280 : 320, parentRect?.width || Number.POSITIVE_INFINITY)
