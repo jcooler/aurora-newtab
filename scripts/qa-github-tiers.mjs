@@ -51,7 +51,7 @@ export async function runGithubTierQa() {
     await context.route(/^https?:\/\//, (route) => route.abort('blockedbyclient'))
     await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
     await page.locator('[data-canvas-surface]').waitFor()
-    await seedInformationFirstFixtures(page, { contributionDayCount: 90 })
+    await seedInformationFirstFixtures(page, { contributionDayCount: 112 })
     const extensionId = new URL(page.url()).host
     const seedUrl = `chrome-extension://${extensionId}/manifest.json`
 
@@ -132,8 +132,14 @@ export async function runGithubTierQa() {
         assert.equal(measurement.internalScrollOwners, 0, `${connector} ${tier} added an internal scrollbar`)
         assert.deepEqual(measurement.unexplainedTextClips, [], `${connector} ${tier} clips text without a full-value fallback`)
         assert(measurement.graph, `${connector} ${tier} contribution graph is missing`)
-        assert(measurement.graph.widthCoverage >= MIN_GRAPH_WIDTH[tier], `${connector} ${tier} graph width is not visually dominant`)
-        assert(measurement.graph.areaCoverage >= MIN_GRAPH_AREA[tier], `${connector} ${tier} graph area is not visually dominant`)
+        assert(
+          measurement.graph.widthCoverage >= MIN_GRAPH_WIDTH[tier],
+          `${connector} ${tier} graph width is not visually dominant: ${JSON.stringify(measurement.graph)}`,
+        )
+        assert(
+          measurement.graph.areaCoverage >= MIN_GRAPH_AREA[tier],
+          `${connector} ${tier} graph area is not visually dominant: ${JSON.stringify(measurement.graph)}`,
+        )
         assert(measurement.graph.centerDelta <= 2, `${connector} ${tier} graph is not centered in its frame`)
         const filename = `${connector}-${tier}.png`
         await frame.screenshot({ path: resolve(output, filename) })
