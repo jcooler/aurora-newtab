@@ -72,7 +72,61 @@ export async function runGithubTierQa() {
         await frame.waitFor()
         const graph = frame.locator('[role="img"][aria-label*="Contribution activity"]')
         await graph.waitFor({ state: 'attached' })
-        assert.equal(await graph.isVisible(), true, `${connector} ${tier} hides the contribution graph`)
+        const graphDiagnostic = await graph.evaluate((node, { connector, tier }) => {
+          const snapshot = (element) => {
+            const rect = element.getBoundingClientRect()
+            const style = getComputedStyle(element)
+            return {
+              tag: element.tagName,
+              className: element.getAttribute('class') ?? '',
+              rect: {
+                x: rect.x,
+                y: rect.y,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+              },
+              computed: {
+                display: style.display,
+                visibility: style.visibility,
+                opacity: style.opacity,
+                position: style.position,
+                overflowX: style.overflowX,
+                overflowY: style.overflowY,
+              },
+              attributes: Object.fromEntries(
+                [...element.attributes]
+                  .filter(({ name }) => name.startsWith('data-') || ['aria-hidden', 'aria-label', 'role', 'style'].includes(name))
+                  .map(({ name, value }) => [name, value]),
+              ),
+            }
+          }
+          const ancestors = []
+          let current = node
+          while (current) {
+            ancestors.push(snapshot(current))
+            if (current.hasAttribute('data-tier-frame')) break
+            current = current.parentElement
+          }
+          const frameNode = node.closest('[data-tier-frame]')
+          const item = node.closest('[data-testid^="canvas-item-"]')
+          return {
+            connector,
+            tier,
+            graph: snapshot(node),
+            ancestors,
+            frame: frameNode ? snapshot(frameNode) : null,
+            presentationInputs: item ? snapshot(item) : null,
+          }
+        }, { connector, tier })
+        assert.equal(
+          await graph.isVisible(),
+          true,
+          `${connector} ${tier} hides the contribution graph: ${JSON.stringify(graphDiagnostic)}`,
+        )
         const measurement = await frame.evaluate((node, { connector, tier }) => {
           const frameRect = node.getBoundingClientRect()
           const graphNode = node.querySelector('[role="img"][aria-label*="Contribution activity"]')

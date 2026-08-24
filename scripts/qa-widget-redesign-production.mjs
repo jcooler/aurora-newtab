@@ -374,7 +374,7 @@ export async function runProductionQa() {
 
     await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
     await page.locator('[data-canvas-surface]').waitFor()
-    await seedInformationFirstFixtures(page, { contributionDayCount: 35 })
+    await seedInformationFirstFixtures(page, { contributionDayCount: 112 })
     const extensionId = new URL(page.url()).host
     const seedUrl = `chrome-extension://${extensionId}/manifest.json`
     const sentry = workFixtures().sentry
