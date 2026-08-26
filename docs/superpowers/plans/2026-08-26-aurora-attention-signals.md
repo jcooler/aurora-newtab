@@ -623,7 +623,7 @@ git commit -m "feat: project scoped attention snapshots"
 - Consumes: `useAttentionSignals`, `AttentionRefreshOwners`, `AttentionSignal[]`, and `summarizeAttention`.
 - Produces: a text-only trigger and viewport-clamped labelled context region.
 
-- [ ] **Step 1: Write failing interaction and presentation tests**
+- [x] **Step 1: Write failing interaction and presentation tests**
 
 Test the context panel directly:
 
@@ -647,7 +647,7 @@ Update the briefing component tests to assert:
 - The exact source detail rows appear when opened.
 - Master-off state renders neither owner nor trigger.
 
-- [ ] **Step 2: Run component tests and verify red**
+- [x] **Step 2: Run component tests and verify red**
 
 Run:
 
@@ -657,7 +657,7 @@ npx vitest run src/newtab/components/AttentionContextPanel.test.tsx src/newtab/c
 
 Expected: missing component and old plain-paragraph behavior failures.
 
-- [ ] **Step 3: Implement the context panel interaction**
+- [x] **Step 3: Implement the context panel interaction**
 
 `AttentionContextPanel` owns one trigger ref, one panel ref, local open state, a short close timer, outside-pointer and Escape listeners, and a `useLayoutEffect` measurement. Render the panel through `createPortal(document.body)` with fixed `left` and `top` clamped against its measured dimensions and an 8px margin.
 
@@ -683,19 +683,19 @@ Use this semantic outline:
 
 The panel has no `aria-modal`, backdrop, focus trap, or scroll lock. Links receive visible focus styling and safe `rel="noreferrer"` behavior.
 
-- [ ] **Step 4: Integrate the hook and refresh owners into AuroraBriefing**
+- [x] **Step 4: Integrate the hook and refresh owners into AuroraBriefing**
 
 Render `AttentionRefreshOwners` whenever Settings and connectors are hydrated and the master switch is on. Render `AttentionContextPanel` only when `useAttentionSignals` is ready and has signals. Remove `todoLists` reads and the three duplicate profile paragraphs.
 
 Style a plain text trigger with transparent background, inherited photo ink, underline or tone change only on hover/focus, and no permanent panel chrome. Style the portaled surface with the existing solid panel token, bounded width, maximum viewport height, and no page-level scrollbar changes.
 
-- [ ] **Step 5: Run component tests and verify green**
+- [x] **Step 5: Run component tests and verify green**
 
 Run the Step 2 command.
 
 Expected: all context interactions, accessibility semantics, helper composition, and text-only presentation tests pass.
 
-- [ ] **Step 6: Commit the interaction**
+- [x] **Step 6: Commit the interaction**
 
 ```powershell
 git add -- src/newtab/components/AttentionContextPanel.tsx src/newtab/components/AttentionContextPanel.test.tsx src/newtab/components/AuroraBriefing.tsx src/newtab/components/AuroraBriefing.test.tsx src/newtab/index.css src/newtab/dayNowPresentation.test.ts

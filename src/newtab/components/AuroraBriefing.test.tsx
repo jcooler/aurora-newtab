@@ -1,127 +1,86 @@
 // @vitest-environment jsdom
-import { act, render, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createStorage } from '../../lib/storage/index'
-import { memoryDriver } from '../../lib/storage/driver'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AttentionSignal } from '../../lib/attention'
+import { createStorage, type AuroraStorage } from '../../lib/storage'
 import { StorageProvider } from '../../lib/storage/context'
+import { memoryDriver } from '../../lib/storage/driver'
 import { defaults } from '../../lib/storage/schema'
-import { resolvedLocalTimeZone } from '../../lib/dates'
-import { connectorSnapshotScope } from '../../services/connectors/snapshotIdentity'
-import { weatherRequestIdentity } from '../../services/weather/identity'
-import type { IcsConfig } from '../../services/connectors/types'
 import AuroraBriefing from './AuroraBriefing'
 
-const NOW = new Date(2026, 7, 16, 12, 0).getTime()
-const ICS_CONFIG: IcsConfig = {
-  enabled: true,
-  calendars: [{ name: 'Work', url: 'https://calendar.example/private-token/basic.ics' }],
-}
+let hookResult: { ready: boolean; signals: AttentionSignal[] }
 
-afterEach(() => {
-  vi.useRealTimers()
-  vi.unstubAllGlobals()
-})
+vi.mock('./useAttentionSignals', () => ({ useAttentionSignals: () => hookResult }))
+vi.mock('./AttentionRefreshOwners', () => ({ default: () => <span data-attention-refresh-owner="" /> }))
 
-async function renderBriefing({
-  validScope = true,
-  weatherAge = 0,
-  briefingEnabled = true,
-  withSignals = true,
-}: {
-  validScope?: boolean
-  weatherAge?: number
-  briefingEnabled?: boolean | 'absent'
-  withSignals?: boolean
-} = {}) {
-  vi.useFakeTimers({ shouldAdvanceTime: true })
-  vi.setSystemTime(NOW)
+const WORK: AttentionSignal = { key: 'assignment:github:42', kind: 'assignment', source: 'GitHub', title: 'Review authentication fix', detail: 'acme/aurora · First seen by Aurora 2h ago', timestamp: 1 }
+const FAILURE: AttentionSignal = { key: 'deployment:aurora', kind: 'deployment', source: 'Vercel', title: 'aurora-newtab', detail: 'Failed 18m ago', timestamp: 2 }
+
+async function makeStorage(briefingEnabled: boolean | 'absent' = true): Promise<AuroraStorage> {
   const storage = createStorage(memoryDriver())
   await storage.init()
-  const scope = await connectorSnapshotScope('ics', ICS_CONFIG, { timeZone: resolvedLocalTimeZone() })
-  const location = { label: 'New York', lat: 40.71, lon: -74.01, manual: true }
-  const settings = { ...defaults().settings, use24Hour: false }
+  const settings = defaults().settings
   if (briefingEnabled !== 'absent') settings.briefingEnabled = briefingEnabled
-  await storage.setMany({
-    settings,
-    todoLists: withSignals ? [{ id: 'today', name: 'Today', items: [
-      { id: '1', text: 'Ship', done: false },
-      { id: '2', text: 'Done', done: true },
-    ] }] : [],
-    connectors: withSignals ? { ics: ICS_CONFIG } : {},
-    connectorSnapshots: withSignals ? {
-      ics: {
-        scope: validScope ? scope : 'ics:v2:wrong',
-        fetchedAt: NOW,
-        data: { events: [{
-          summary: 'Design review',
-          // shouldAdvanceTime lets Testing Library's polling clock move. Keep
-          // the fixture safely inside the formatter's floored 48-minute band.
-          start: NOW + 48 * 60_000 + 30_000,
-          end: NOW + 78 * 60_000 + 30_000,
-          allDay: false,
-          cal: 0,
-          meetUrl: 'https://zoom.us/j/private-capability',
-        }] },
-      },
-    } : {},
-    location: withSignals ? location : null,
-    weatherCache: withSignals ? {
-      current: { tempC: 20, feelsLikeC: 20, code: 1, windKmh: 5, humidity: 40 },
-      hourly: [{ time: '2026-08-16T19:00', tempC: 18, precipProb: 70, code: 61 }],
-      fetchedAt: NOW - weatherAge,
-      locationLabel: location.label,
-      requestIdentity: weatherRequestIdentity(location.lat, location.lon),
-    } : null,
-  })
-  const fetchSpy = vi.fn()
-  vi.stubGlobal('fetch', fetchSpy)
-  const view = render(<StorageProvider storage={storage}><AuroraBriefing /></StorageProvider>)
-  await act(async () => {})
-  return { storage, fetchSpy, ...view }
+  await storage.setMany({ settings, todoLists: [{ id: 'old', name: 'Tasks', items: [{ id: '1', text: 'Old undated task', done: false }] }] })
+  return storage
 }
 
-describe('AuroraBriefing local-only rendering', () => {
-  it('renders nothing when the opt-in preference is absent or off and never rewrites Settings', async () => {
-    for (const briefingEnabled of ['absent', false] as const) {
-      const { container, storage, fetchSpy, unmount } = await renderBriefing({ briefingEnabled })
-      expect(container.querySelector('[data-aurora-briefing]')).toBeNull()
-      expect((await storage.get('settings')).briefingEnabled).toBe(briefingEnabled === 'absent' ? undefined : false)
-      expect(fetchSpy).not.toHaveBeenCalled()
-      unmount()
+function mount(storage: AuroraStorage) {
+  return render(<StorageProvider storage={storage}><AuroraBriefing /></StorageProvider>)
+}
+
+beforeEach(() => { hookResult = { ready: true, signals: [] } })
+afterEach(() => vi.clearAllMocks())
+
+describe('AuroraBriefing attention composition', () => {
+  it('renders neither refresh ownership nor trigger when the master preference is absent or off', async () => {
+    for (const enabled of ['absent', false] as const) {
+      const view = mount(await makeStorage(enabled))
+      await waitFor(() => expect(document.querySelector('[data-attention-refresh-owner]')).toBeNull())
+      expect(screen.queryByRole('button', { name: /attention/i })).toBeNull()
+      view.unmount()
     }
   })
 
-  it('renders no empty briefing when enabled but no signal is useful', async () => {
-    const { container } = await renderBriefing({ briefingEnabled: true, withSignals: false })
-    await waitFor(() => expect(container.querySelector('[data-aurora-briefing]')).toBeNull())
-    expect(container.textContent).not.toContain('Nothing urgent.')
+  it('keeps refresh owners mounted while enabled even when no signal is visible', async () => {
+    const { container } = mount(await makeStorage(true))
+    await waitFor(() => expect(container.querySelector('[data-attention-refresh-owner]')).toBeTruthy())
+    expect(container.querySelector('[data-aurora-briefing]')).toBeNull()
+    expect(container.textContent).not.toContain('Old undated task')
+    expect(container.textContent).not.toContain('Nothing urgent')
   })
 
-  it('renders deterministic 1/2/3 segment variants without initiating a request or exposing a capability URL', async () => {
-    const { container, fetchSpy } = await renderBriefing()
-    await waitFor(() => expect(container.querySelector('[data-briefing-display]')?.textContent).toContain('Design review'))
-
-    expect(container.querySelector('[data-briefing-compact]')?.textContent).toBe('Design review in 48m')
-    expect(container.querySelector('[data-aurora-briefing]')?.getAttribute('data-canvas-type-role')).toBe('support')
-    expect(container.querySelector('[data-briefing-standard]')?.textContent).toBe('Design review in 48m · 1 task needs attention')
-    expect(container.querySelector('[data-briefing-display]')?.textContent).toBe('Design review in 48m · 1 task needs attention · Rain 7 PM')
-    expect(container.textContent).not.toContain('private-token')
-    expect(container.textContent).not.toContain('zoom.us')
-    expect(fetchSpy).not.toHaveBeenCalled()
+  it('renders one plain text trigger with approved mixed summary copy and no card or icon chrome', async () => {
+    hookResult = { ready: true, signals: [FAILURE, WORK] }
+    const { container } = mount(await makeStorage(true))
+    const trigger = await screen.findByRole('button', { name: '2 items need attention' })
+    expect(container.querySelectorAll('[data-aurora-briefing]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-briefing-compact], [data-briefing-standard], [data-briefing-display]')).toHaveLength(0)
+    expect(trigger.className).toContain('aurora-briefing__trigger')
+    expect(trigger.className).not.toMatch(/(?:card|widget|panel)/)
+    expect(trigger.querySelector('svg')).toBeNull()
+    expect(container.querySelector('[data-preview]')).toBeNull()
+    expect(container.textContent).not.toContain('Old undated task')
   })
 
-  it('omits wrong-scope Calendar data and stale Weather while retaining local Tasks', async () => {
-    const { container } = await renderBriefing({ validScope: false, weatherAge: 30 * 60_000 })
-    await waitFor(() => expect(container.querySelector('[data-briefing-display]')?.textContent).toBe('1 task needs attention'))
+  it('opens exact source details from the greeting helper', async () => {
+    hookResult = { ready: true, signals: [FAILURE, WORK] }
+    mount(await makeStorage(true))
+    const trigger = await screen.findByRole('button', { name: '2 items need attention' })
+    fireEvent.click(trigger)
+    expect(screen.getByRole('region', { name: 'Attention details' })).toBeTruthy()
+    expect(screen.getByText('GitHub')).toBeTruthy()
+    expect(screen.getByText('Review authentication fix')).toBeTruthy()
+    expect(screen.getByText(/First seen by Aurora 2h ago/)).toBeTruthy()
+    expect(screen.getByText('Vercel')).toBeTruthy()
+    expect(screen.getByText('aurora-newtab')).toBeTruthy()
+    expect(screen.getByText('Failed 18m ago')).toBeTruthy()
   })
 
-  it('reacts to local task storage updates without persistence side effects', async () => {
-    const { container, storage, fetchSpy } = await renderBriefing()
-    await waitFor(() => expect(container.querySelector('[data-briefing-standard]')?.textContent).toContain('1 task'))
-    await act(async () => {
-      await storage.set('todoLists', [{ id: 'today', name: 'Today', items: [] }])
-    })
-    await waitFor(() => expect(container.querySelector('[data-briefing-standard]')?.textContent).toBe('Design review in 48m · Rain 7 PM'))
-    expect(fetchSpy).not.toHaveBeenCalled()
+  it('waits for scoped signal projection before exposing a trigger', async () => {
+    hookResult = { ready: false, signals: [WORK] }
+    const { container } = mount(await makeStorage(true))
+    await waitFor(() => expect(container.querySelector('[data-attention-refresh-owner]')).toBeTruthy())
+    expect(screen.queryByRole('button', { name: /attention/i })).toBeNull()
   })
 })

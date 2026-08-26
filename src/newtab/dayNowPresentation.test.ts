@@ -30,10 +30,10 @@ describe('W4-P1 Day and Now presentation boundary', () => {
     expect(indexCss).toMatch(/\.aurora-greeting\s*\{[\s\S]*?width: 100%;/)
     expect(indexCss).not.toMatch(/data-canvas-size="compact"[^}]+data-block-id="greeting"[^}]+\.aurora-greeting > p\s*\{[^}]+font-size:/)
     expect(indexCss).toMatch(/\[data-canvas-type-role="greeting"\][^{]*\{[^}]+font-size: var\(--canvas-type-greeting\);/)
-    // The retired stage-profile reveals were keyed on a root attribute no
-    // longer published; the compact sentence is the live presentation and
-    // the richer variants stay in markup for the NL-P5 tier catalog.
-    expect(indexCss).toMatch(/\.aurora-briefing \[data-briefing-standard\],[\s\S]*?display: none;/)
+    expect(briefingSource).toContain('<AttentionContextPanel')
+    expect(briefingSource).not.toContain('data-briefing-compact')
+    expect(indexCss).toMatch(/\.aurora-briefing__trigger\s*\{[\s\S]*?background:\s*transparent;/)
+    expect(indexCss).not.toMatch(/\.aurora-briefing__trigger\s*\{[^}]*box-shadow:/)
     expect(indexCss).not.toContain('data-stage-profile')
   })
 })

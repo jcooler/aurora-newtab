@@ -2168,21 +2168,89 @@ select > option {
   line-height: 20px;
   font-weight: 500;
 }
-.aurora-briefing p {
+.aurora-briefing__trigger {
   min-width: 0;
   max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.aurora-briefing [data-briefing-standard],
-.aurora-briefing [data-briefing-display] {
-  display: none;
+.aurora-briefing__trigger:hover,
+.aurora-briefing__trigger:focus-visible {
+  color: var(--canvas-fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
-/* The retired stage-profile reveals for the standard/display Briefing
-   sentences were keyed on a root attribute no longer published, so the
-   compact sentence is the one live presentation. The richer sentences stay
-   in the markup for the NL-P5 tier catalog to reveal per designed tier. */
+.aurora-briefing__trigger:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.aurora-attention-panel {
+  z-index: 1000;
+  width: min(22rem, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  color: var(--fg);
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.35);
+  text-align: left;
+}
+.aurora-attention-panel__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.aurora-attention-panel__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 8px;
+  border-radius: calc(var(--radius) - 4px);
+}
+.aurora-attention-panel__row + .aurora-attention-panel__row {
+  border-top: 1px solid var(--panel-border);
+}
+.aurora-attention-panel__source {
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.aurora-attention-panel__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.aurora-attention-panel__title:hover {
+  text-decoration: underline;
+}
+a.aurora-attention-panel__title:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--panel-accent);
+  outline-offset: 2px;
+}
+.aurora-attention-panel__detail {
+  grid-column: 1 / -1;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
 
 /* Closed Bookmarks remains in the normal grid stacking order. Elevation is
    reserved for its live popover; otherwise the wrapper's full allocation can
@@ -2785,16 +2853,6 @@ select > option {
 }
 
 .canvas-item[data-block-id="clock"]:not([data-canvas-size="compact"]) [data-clock-date] {
-  display: block;
-}
-
-.aurora-canvas[data-canvas-profile="standard"] .aurora-briefing [data-briefing-compact],
-.aurora-canvas:is([data-canvas-profile="display"], [data-canvas-profile="ultrawide"]) .aurora-briefing [data-briefing-compact] {
-  display: none;
-}
-
-.aurora-canvas[data-canvas-profile="standard"] .aurora-briefing [data-briefing-standard],
-.aurora-canvas:is([data-canvas-profile="display"], [data-canvas-profile="ultrawide"]) .aurora-briefing [data-briefing-display] {
   display: block;
 }
 
