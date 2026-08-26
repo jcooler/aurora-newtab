@@ -16,10 +16,10 @@ describe('two-axis dock geometry', () => {
     expect(DOCK_EDGE_INSET).toBe(5)
     expect(DOCK_MAGNETIC_THRESHOLD).toBe(5)
     expect(fallbackDockBandRect('top', { width: 1000, height: 900 })).toEqual({
-      left: 5, top: 5, width: 990, height: 128,
+      left: 5, top: 5, width: 990, height: 78,
     })
     expect(fallbackDockBandRect('bottom', { width: 1000, height: 445 })).toEqual({
-      left: 5, top: 344, width: 990, height: 96,
+      left: 5, top: 380, width: 990, height: 60,
     })
   })
 

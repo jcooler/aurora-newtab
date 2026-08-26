@@ -216,7 +216,7 @@ describe('CanvasSurface (anchored named layout)', () => {
   })
 
   it('pins the responsive transparent band and exact nested legacy baselines', () => {
-    expect(indexCss).toMatch(/\.canvas-bottom-bar,\s*\.canvas-top-bar\s*\{[^}]*right:\s*5px;[^}]*left:\s*5px;[^}]*height:\s*clamp\(96px,\s*16vh,\s*128px\)/)
+    expect(indexCss).toMatch(/\.canvas-bottom-bar,\s*\.canvas-top-bar\s*\{[^}]*right:\s*5px;[^}]*left:\s*5px;[^}]*height:\s*clamp\(60px,\s*10vh,\s*78px\)/)
     expect(indexCss).toMatch(/\.canvas-bottom-bar\s*\{\s*bottom:\s*5px;\s*\}/)
     expect(indexCss).toMatch(/\.canvas-top-bar\s*\{\s*top:\s*5px;\s*\}/)
     expect(indexCss).toMatch(/\.dock-lane\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*100%/)
@@ -226,7 +226,7 @@ describe('CanvasSurface (anchored named layout)', () => {
   })
 
   it('limits the transient edit boundary to the real transparent dock band', () => {
-    expect(indexCss).toMatch(/\.dock-drop-zone\s*\{[^}]*right:\s*5px;[^}]*left:\s*5px;[^}]*height:\s*clamp\(96px,\s*16vh,\s*128px\)/)
+    expect(indexCss).toMatch(/\.dock-drop-zone\s*\{[^}]*right:\s*5px;[^}]*left:\s*5px;[^}]*height:\s*clamp\(60px,\s*10vh,\s*78px\)/)
     expect(indexCss).toMatch(/\.dock-drop-zone\[data-edge="top"\]\s*\{\s*top:\s*5px;\s*\}/)
     expect(indexCss).toMatch(/\.dock-drop-zone\[data-edge="bottom"\]\s*\{\s*bottom:\s*5px;\s*\}/)
     expect(indexCss).not.toMatch(/\.dock-drop-zone\s*\{[^}]*background:/)

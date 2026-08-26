@@ -69,15 +69,15 @@ function installStackGeometry() {
 function installDockGeometry() {
   return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     if (this.hasAttribute('data-canvas-surface')) return testRect(0, 0, 1000, 600)
-    if (this.classList.contains('canvas-top-bar')) return testRect(5, 5, 990, 96)
-    if (this.classList.contains('canvas-bottom-bar')) return testRect(5, 499, 990, 96)
+    if (this.classList.contains('canvas-top-bar')) return testRect(5, 5, 990, 60)
+    if (this.classList.contains('canvas-bottom-bar')) return testRect(5, 535, 990, 60)
     const objectId = this.getAttribute('data-canvas-object-id')
     if (objectId === 'weather' || objectId === 'clock') {
       const width = objectId === 'weather' ? 180 : 160
       const height = objectId === 'weather' ? 40 : 36
       if (this.dataset.canvasMode === 'docked') {
         const edge = this.closest('.canvas-top-bar') ? 'top' : 'bottom'
-        const band = edge === 'top' ? testRect(5, 5, 990, 96) : testRect(5, 499, 990, 96)
+        const band = edge === 'top' ? testRect(5, 5, 990, 60) : testRect(5, 535, 990, 60)
         const xPct = Number.parseFloat(this.style.left || this.style.marginLeft || '50')
         const yPct = Number.parseFloat(this.style.top || '50')
         const centerX = band.left + band.width * xPct / 100
@@ -1021,8 +1021,8 @@ describe('App Canvas composition', () => {
     await act(async () => {})
 
     const toolbar = screen.getByRole('toolbar', { name: 'Edit layout' })
-    // 5px edge inset + 96px short-window band + 8px clearance.
-    expect(toolbar.style.top).toBe('109px')
+    // 5px edge inset + 60px short-window band + 8px clearance.
+    expect(toolbar.style.top).toBe('73px')
   })
 
   it('keeps dock tier and return tier through bottom -> canvas -> top in one gesture', async () => {
@@ -1091,7 +1091,7 @@ describe('App Canvas composition', () => {
     await act(async () => {})
     fireEvent.keyDown(window, { key: 'ArrowUp' })
     await act(async () => {})
-    expect(Number.parseFloat(canvasItem('weather').style.top)).toBeCloseTo(40 / 96 * 100, 5)
+    expect(Number.parseFloat(canvasItem('weather').style.top)).toBeCloseTo(22 / 60 * 100, 5)
     fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true })
     await act(async () => {})
     expect(Number.parseFloat(canvasItem('weather').style.left)).toBeCloseTo(496 / 990 * 100, 5)

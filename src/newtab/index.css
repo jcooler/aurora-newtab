@@ -840,7 +840,7 @@
   z-index: 45;
   right: 5px;
   left: 5px;
-  height: clamp(96px, 16vh, 128px);
+  height: clamp(60px, 10vh, 78px);
   border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
   border-radius: var(--radius-panel);
   pointer-events: none;
@@ -1153,7 +1153,7 @@
   z-index: 30;
   right: 5px;
   left: 5px;
-  height: clamp(96px, 16vh, 128px);
+  height: clamp(60px, 10vh, 78px);
   display: flex;
   /* The full-width lane is pointer-TRANSPARENT: only its members catch
      events, so the empty stretches never block launchers, the settings

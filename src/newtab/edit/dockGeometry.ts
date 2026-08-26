@@ -5,9 +5,9 @@ export const DOCK_SIDE_INSET = 5
 export const DOCK_EDGE_INSET = 5
 export const DOCK_MAGNETIC_THRESHOLD = 5
 
-const DOCK_MIN_HEIGHT = 96
-const DOCK_MAX_HEIGHT = 128
-const DOCK_VIEWPORT_HEIGHT_RATIO = 0.16
+const DOCK_MIN_HEIGHT = 60
+const DOCK_MAX_HEIGHT = 78
+const DOCK_VIEWPORT_HEIGHT_RATIO = 0.1
 
 export interface RectLike {
   left: number
