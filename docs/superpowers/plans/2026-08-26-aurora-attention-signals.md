@@ -43,8 +43,9 @@
 - `src/newtab/components/AuroraBriefing.tsx`: hydration gate, refresh-owner mount, inline summary trigger, and context-panel composition.
 - `src/newtab/index.css`: text trigger, non-modal surface, rows, focus, and clamped-size presentation.
 - `src/settings/sections/General.tsx`: master switch copy and four subordinate source switches.
+- `scripts/qa-attention-signals-contracts.mjs`: executable provenance and geometry assertions shared by the witness and its tests.
 - `scripts/qa-attention-signals.mjs`: exact-build browser witness.
-- `scripts/qa-attention-signals.test.mjs`: QA contract that requires provenance, interaction, and geometry assertions.
+- `scripts/qa-attention-signals.test.mjs`: behavior tests for exact invocation, provenance, viewport containment, and collision rejection.
 
 ---
 
@@ -773,6 +774,7 @@ git commit -m "feat: control greeting attention sources"
 ### Task 8: Add exact browser QA and deliver the branch
 
 **Files:**
+- Create: `scripts/qa-attention-signals-contracts.mjs`
 - Create: `scripts/qa-attention-signals.mjs`
 - Create: `scripts/qa-attention-signals.test.mjs`
 - Modify: `package.json`
@@ -780,24 +782,53 @@ git commit -m "feat: control greeting attention sources"
 
 **Interfaces:**
 - Consumes: exact `dist/build-provenance.json`, the extension build, Playwright, controlled storage fixtures, and the implemented attention UI.
-- Produces: screenshots, geometry JSON, interaction assertions, console/page-error logs, and a pushed commit matching local HEAD.
+- Produces: `requireExact`, `assertBuildCommit`, `assertViewportContained`, `assertNoIntersection`, screenshots, geometry JSON, interaction assertions, console/page-error logs, and a pushed commit matching local HEAD.
 
-- [ ] **Step 1: Write the failing QA contract test**
+- [ ] **Step 1: Write the failing executable QA contract tests**
 
-The script contract must assert source text for every required gate:
+Test the pure gates with literal fixtures and spawn the real entry point without `--exact`:
 
 ```js
-assert.match(source, /process\.argv\.includes\('--exact'\)/)
-assert.match(source, /build-provenance\.json/)
-assert.match(source, /aria-expanded/)
-assert.match(source, /Attention details/)
-assert.match(source, /1600/)
-assert.match(source, /900/)
-assert.match(source, /two-tab/i)
-assert.match(source, /console/i)
-assert.match(source, /pageerror/i)
-assert.match(source, /overlap|intersection/i)
+test('rejects a stale build commit', () => {
+  assert.throws(
+    () => assertBuildCommit({ commit: 'old' }, 'head'),
+    /dist provenance does not match HEAD/,
+  )
+})
+
+test('rejects a context panel outside the viewport', () => {
+  assert.throws(
+    () => assertViewportContained(
+      { left: -1, top: 20, right: 199, bottom: 120 },
+      { width: 1600, height: 900 },
+      8,
+    ),
+    /viewport/,
+  )
+})
+
+test('rejects a context panel that intersects the Clock', () => {
+  assert.throws(
+    () => assertNoIntersection(
+      { left: 600, top: 100, right: 900, bottom: 300 },
+      { left: 800, top: 200, right: 1000, bottom: 400 },
+      'Clock',
+    ),
+    /Clock/,
+  )
+})
+
+test('the real QA entry point refuses a non-exact invocation', () => {
+  const result = spawnSync(process.execPath, ['scripts/qa-attention-signals.mjs'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  })
+  assert.notEqual(result.status, 0)
+  assert.match(`${result.stdout}\n${result.stderr}`, /requires --exact/)
+})
 ```
+
+The production witness must import and call the tested helpers. Two-tab behavior, browser interaction, console errors, page errors, and screenshots remain assertions of the real Playwright run rather than source-text checks.
 
 - [ ] **Step 2: Run the contract test and verify red**
 
@@ -811,7 +842,7 @@ Expected: missing-script failure.
 
 - [ ] **Step 3: Implement the exact Playwright witness**
 
-`qa-attention-signals.mjs` must:
+`qa-attention-signals-contracts.mjs` provides the tested pure gates. `qa-attention-signals.mjs` must:
 
 1. Require `--exact` unconditionally.
 2. Read HEAD and assert `dist/build-provenance.json` matches it.
@@ -844,7 +875,7 @@ Expected: every command exits 0 and the build writes HEAD to `dist/build-provena
 - [ ] **Step 5: Commit the QA harness against the feature commit**
 
 ```powershell
-git add -- scripts/qa-attention-signals.mjs scripts/qa-attention-signals.test.mjs package.json
+git add -- scripts/qa-attention-signals-contracts.mjs scripts/qa-attention-signals.mjs scripts/qa-attention-signals.test.mjs package.json
 git commit -m "test: verify attention signals in chromium"
 npm run build
 npm run qa:attention-signals
