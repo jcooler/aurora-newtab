@@ -351,7 +351,7 @@ async function exerciseCompact(page, output, evidence) {
   await page.setViewportSize(COMPACT)
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('[data-canvas-surface]').waitFor()
-  const trigger = await waitForSummary(page)
+  const trigger = await waitForAnySummary(page)
   await page.screenshot({ path: resolve(output, 'attention-compact-width.png'), animations: 'disabled' })
   await trigger.tap()
   const panel = page.getByRole('region', { name: 'Attention details' })
