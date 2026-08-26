@@ -11,6 +11,7 @@ import type { StatusConfig } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import type { WidgetPresentationMode } from '../../widgetRenderers'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
+import StatusTooltip from './StatusTooltip'
 
 // The status widget — Task 84 (W3-SP2), the eighth connector and the third
 // no-auth one (crypto.ts/ics.ts's own company) to reach the newtab page.
@@ -164,15 +165,23 @@ function StatusInner({
   }
 
   const framed = presentation === 'stack'
+  const compact = tier === 'compact'
   const visibleRows = framed && tier === 'compact' ? rows.slice(0, 4) : rows
   const body = (
     <>
-      <div className="flex items-center justify-between gap-2">
+      {!compact ? <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Service status</h2>
-      </div>
+      </div> : null}
       <span data-status-summary className="sr-only">{summaryValue}, {rows.length} services</span>
-      <div data-work-pulse-detail data-work-pulse-status-dots data-testid="status-dots" className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-        {visibleRows.map((service, index) => (
+      <div data-work-pulse-detail data-work-pulse-status-dots data-testid="status-dots" className={`${compact ? '' : 'mt-1'} flex flex-wrap gap-x-3 gap-y-1`}>
+        {visibleRows.map((service, index) => compact ? (
+          <StatusTooltip key={index} service={service}>
+            <span className={`size-2 rounded-full ${dotClass(service.indicator)}`} aria-hidden />
+            <span className={`max-w-24 truncate text-[11px] leading-4 ${presentation === 'free' ? 'text-canvas-fg-muted' : 'text-fg-muted'}`}>
+              {service.name}
+            </span>
+          </StatusTooltip>
+        ) : (
           <span key={index} title={dotTitle(service)} className="flex min-w-0 items-center gap-1.5">
             <span className={`size-2 rounded-full ${dotClass(service.indicator)}`} aria-hidden />
             <span className={`max-w-24 truncate text-[11px] leading-4 ${presentation === 'free' ? 'text-canvas-fg-muted' : 'text-fg-muted'}`}>
@@ -183,7 +192,7 @@ function StatusInner({
       </div>
       {tier !== 'compact' ? trouble.map((service, index) => (
         <p key={index} data-work-pulse-rows className="text-photo mt-1 truncate text-sm text-red-400">
-          {service.name} — {service.description}
+          {service.name}: {service.description}
         </p>
       )) : null}
     </>

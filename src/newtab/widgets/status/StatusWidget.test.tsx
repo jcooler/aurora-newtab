@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -162,10 +162,32 @@ describe('StatusWidget — DOM contract', () => {
     expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
     expect(frame.textContent).toContain('GitHub')
     expect(frame.textContent).toContain('Vercel')
+    if (tier === 'compact') {
+      expect(within(frame).queryByText('Service status')).toBeNull()
+      expect(frame.querySelectorAll('[data-status-service]')).toHaveLength(2)
+    }
     if (tier === 'standard') {
-      const issue = screen.getByText('Vercel — Elevated build latency')
+      const issue = screen.getByText('Vercel: Elevated build latency')
       expect(issue.className).not.toContain('hidden')
     }
+  })
+
+  it('shows compact status and provider context on hover and keyboard focus', async () => {
+    const storage = await seededStorage(CONNECTED, {
+      services: [
+        { name: 'GitHub', indicator: 'none', description: 'All Systems Operational' },
+        { name: 'Vercel', indicator: 'minor', description: 'Elevated build latency' },
+      ],
+    })
+    mount(storage, 'compact')
+    const vercel = await screen.findByText('Vercel')
+    const trigger = vercel.closest('[data-status-service]') as HTMLElement
+    fireEvent.mouseEnter(trigger)
+    expect(await screen.findByRole('tooltip')).toHaveProperty('textContent', 'Vercel: Partial outage. Elevated build latency')
+    fireEvent.mouseLeave(trigger)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(trigger)
+    expect(await screen.findByRole('tooltip')).toHaveProperty('textContent', 'Vercel: Partial outage. Elevated build latency')
   })
 
   it('renders Service status as a static readout without a Details control or popup', async () => {
@@ -212,9 +234,9 @@ describe('StatusWidget — DOM contract', () => {
     const view = mount(storage, 'compact')
     const compact = await readyFrame()
     // Compact still names each service; the exact frame bounds the row.
-    expect(compact.querySelectorAll('span[title]')).toHaveLength(2)
+    expect(compact.querySelectorAll('[data-status-service]')).toHaveLength(2)
     expect(compact.textContent).toContain('GitHub')
-    expect(compact.querySelector('[title="GitHub: All Systems Operational"]')).toBeTruthy()
+    expect(compact.querySelector('[data-status-service]')?.getAttribute('tabindex')).toBe('0')
 
     view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="standard" presentation="stack" /></StorageProvider>)
     const standard = await readyFrame()
@@ -343,7 +365,7 @@ describe('StatusWidget — trouble lines', () => {
       data,
     )
     mount(storage, 'standard', 'free')
-    const line = await screen.findByText('Bravo — Major Outage')
+    const line = await screen.findByText('Bravo: Major Outage')
     expect(line.tagName).toBe('P')
     expect(line.className).toContain('text-red-400')
     expect(line.className).toContain('text-photo')
@@ -367,10 +389,10 @@ describe('StatusWidget — trouble lines', () => {
       data,
     )
     mount(storage)
-    await screen.findByText('Bravo — Major Outage')
+    await screen.findByText('Bravo: Major Outage')
     const section = document.querySelector('section[aria-label="Service status"]')!
     const lines = [...section.querySelectorAll('p')].map((p) => p.textContent)
-    expect(lines).toEqual(['Bravo — Major Outage', 'Charlie — Partial Outage', 'Alpha — Degraded Performance'])
+    expect(lines).toEqual(['Bravo: Major Outage', 'Charlie: Partial Outage', 'Alpha: Degraded Performance'])
   })
 
   it('caps trouble lines at 3 with a 4-affected fixture, worst-first, ties keep configured order', async () => {
@@ -390,12 +412,12 @@ describe('StatusWidget — trouble lines', () => {
       data,
     )
     mount(storage)
-    await screen.findByText('Three — d3')
+    await screen.findByText('Three: d3')
     const section = document.querySelector('section[aria-label="Service status"]')!
     const lines = [...section.querySelectorAll('p')].map((p) => p.textContent)
     // Three and Four both critical (tie -> configured order), Two is major,
     // One (minor) is dropped by the MAX_TROUBLE_LINES=3 cap.
-    expect(lines).toEqual(['Three — d3', 'Four — d4', 'Two — d2'])
-    expect(screen.queryByText('One — d1')).toBeNull()
+    expect(lines).toEqual(['Three: d3', 'Four: d4', 'Two: d2'])
+    expect(screen.queryByText('One: d1')).toBeNull()
   })
 })

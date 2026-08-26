@@ -584,6 +584,22 @@
   .focus-celebration { display: none; }
 }
 
+.status-service-tooltip {
+  position: fixed;
+  z-index: 90;
+  display: block;
+  width: min(280px, calc(100vw - 16px));
+  padding: 7px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  color: var(--fg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
 /* The Docked tier's dense line (named-layouts spec 2.3): one text-first row,
    middle dots separating facts, never wrapping — the strip owns overflow. */
 /* Dock lines wear the SAME chip metrics as the Tasks/Notes launchers
