@@ -41,7 +41,7 @@ assert.equal(parseBuildCommit(readFileSync(resolve(dist, 'build-provenance.json'
 const output = resolve(repoRoot, 'docs/superpowers/qa/canvas-polish/acceptance')
 mkdirSync(output, { recursive: true })
 const profile = mkdtempSync(resolve(tmpdir(), 'aurora-canvas-polish-'))
-const evidence = { commit, consoleErrors: [], pageErrors: [], seedState: {}, firstView: {}, stackView: {}, result: 'FAIL' }
+const evidence = { commit, consoleErrors: [], pageErrors: [], seedState: {}, settingsState: {}, firstView: {}, stackView: {}, result: 'FAIL' }
 let context
 
 try {
@@ -124,6 +124,12 @@ try {
 
   await page.getByRole('button', { name: 'Open settings' }).click()
   await page.getByRole('tab', { name: 'Widgets' }).click()
+  await page.waitForTimeout(500)
+  evidence.settingsState = await page.evaluate(async () => ({
+    location: (await chrome.storage.local.get('location')).location,
+    text: document.querySelector('[role="dialog"][aria-label="Settings"]')?.textContent,
+  }))
+  await page.screenshot({ path: resolve(output, 'weather-settings-1600x900.png') })
   await page.getByText('Dallas, GA', { exact: true }).waitFor()
   assert(await page.getByRole('button', { name: 'Clear Dallas, GA weather location' }).isVisible())
   await page.getByRole('button', { name: 'Close settings' }).click()
