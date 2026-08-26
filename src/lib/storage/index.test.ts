@@ -45,6 +45,7 @@ const KNOWN_KEYS = [
   'calendarWeekStart',
   'connectors',
   'connectorSnapshots',
+  'attentionLedger',
   'habits',
   'apodCache',
 ] as const satisfies readonly DataKey[]
@@ -508,7 +509,7 @@ describe('createStorage', () => {
     await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
 
     expect(controlled.writes).toHaveLength(1)
-    expect(controlled.writes[0]['aurora:version']).toBe(18)
+    expect(controlled.writes[0]['aurora:version']).toBe(19)
     expect((controlled.writes[0].settings as ReturnType<typeof defaults>['settings']).widgets).toMatchObject({
       readingList: false,
       recentlyClosed: false,
@@ -559,7 +560,7 @@ describe('createStorage', () => {
     expect(controlled.writes[0].layout).toEqual(before.layout)
     expect(controlled.writes[0].layouts).toEqual(before.layouts)
     expect(controlled.writes[0].settings).toEqual(before.settings)
-    expect(controlled.writes[0]['aurora:version']).toBe(18)
+    expect(controlled.writes[0]['aurora:version']).toBe(19)
     expect(controlled.base.dump().unknown).toEqual(before.unknown)
   })
 

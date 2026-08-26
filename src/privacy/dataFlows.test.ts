@@ -35,6 +35,7 @@ const DATA_KEYS = [
   'calendarWeekStart',
   'connectors',
   'connectorSnapshots',
+  'attentionLedger',
   'habits',
   'apodCache',
 ] as const
@@ -77,6 +78,10 @@ describe('code-backed privacy inventory', () => {
     expect(STORED_DATA_FLOWS.connectorSnapshots.export).toBe('excluded')
     expect(STORED_DATA_FLOWS.apodCache.export).toBe('excluded')
     expect(STORED_DATA_FLOWS.weatherAlertCache.export).toBe('excluded')
+    expect((STORED_DATA_FLOWS as unknown as Record<string, { export: string; transmission: string }>).attentionLedger).toEqual(expect.objectContaining({
+      export: 'excluded',
+      transmission: 'none',
+    }))
 
     const data = {
       ...defaults(),
@@ -98,6 +103,7 @@ describe('code-backed privacy inventory', () => {
         },
       },
       connectorSnapshots: { crypto: { fetchedAt: 1, data: { coins: [] } } },
+      attentionLedger: { version: 1 as const, sources: {} },
       apodCache: { date: '2026-08-14', photo: null },
       weatherAlertCache: {
         requestIdentity: 'nws-alerts:v1:https://api.weather.gov/alerts/active?point=1,2',
@@ -109,6 +115,7 @@ describe('code-backed privacy inventory', () => {
     const exported = JSON.parse(serializeBackup(data)).data
     expect(exported.weatherCache).toEqual(data.weatherCache)
     expect(exported).not.toHaveProperty('connectorSnapshots')
+    expect(exported).not.toHaveProperty('attentionLedger')
     expect(exported).not.toHaveProperty('apodCache')
     expect(exported).not.toHaveProperty('weatherAlertCache')
     expect(validateBackupShape(data).ok).toBe(true)

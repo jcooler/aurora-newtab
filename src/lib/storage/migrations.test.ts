@@ -15,6 +15,36 @@ const EMPTY_MIGRATED_LAYOUT = {
 } as const
 
 describe('migrate', () => {
+  it('defaults every explainable Greeting helper source on with an empty device-local ledger', () => {
+    const data = defaults() as unknown as Record<string, unknown>
+    const settings = data.settings as Record<string, unknown>
+
+    expect(settings.briefingSources).toEqual({
+      calendar: true,
+      assignments: true,
+      deployments: true,
+      rain: true,
+    })
+    expect(data.attentionLedger).toEqual({ version: 1, sources: {} })
+  })
+
+  it('migrates v18 Settings without replacing existing values or partial source choices', () => {
+    const settings = { ...defaults().settings, name: 'Jon' } as unknown as Record<string, unknown>
+    settings.briefingSources = { assignments: false }
+
+    const out = migrate({ ...defaults(), settings }, 18) as unknown as {
+      settings: Record<string, unknown>
+    }
+
+    expect(out.settings.name).toBe('Jon')
+    expect(out.settings.briefingSources).toEqual({
+      calendar: true,
+      assignments: false,
+      deployments: true,
+      rain: true,
+    })
+  })
+
   it('fills an empty snapshot with defaults', () => {
     expect(migrate({}, 1)).toEqual({ ...defaults(), layout: EMPTY_MIGRATED_LAYOUT })
   })
@@ -107,14 +137,19 @@ describe('migrate', () => {
         calls.push(16)
         return data
       },
-      // registry[17] upgrades v17 -> v18 (CURRENT_VERSION)
+      // registry[17] upgrades v17 -> v18
       17: (data) => {
         calls.push(17)
         return data
       },
+      // registry[18] upgrades v18 -> v19 (CURRENT_VERSION)
+      18: (data) => {
+        calls.push(18)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -630,7 +665,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(18)
+    expect(CURRENT_VERSION).toBe(19)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -723,7 +758,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(18)
+    expect(CURRENT_VERSION).toBe(19)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill and v16->v17 Flow preference are the only
     // Settings deltas on the way up.

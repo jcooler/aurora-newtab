@@ -30,13 +30,14 @@ export interface BackupEnvelope {
   version: number
   exportedAt: string
   redactions: BackupRedactions
-  // connectorSnapshots, apodCache, and weatherAlertCache are caches, not user data —
+  // connectorSnapshots, attentionLedger, apodCache, and weatherAlertCache are
+  // derived state or caches, not user data —
   // deliberately excluded from every export (smaller files, and one less
   // validator surface on import: see validateBackupShape's matching
   // never-trust-it-on-import handling below). `connectors` (user-chosen
   // config) IS exported, minus anything a connector's registry descriptor
   // lists in `secretFields`.
-  data: Omit<AuroraData, 'connectorSnapshots' | 'apodCache' | 'weatherAlertCache'>
+  data: Omit<AuroraData, 'connectorSnapshots' | 'attentionLedger' | 'apodCache' | 'weatherAlertCache'>
 }
 
 export type ParseBackupResult =
@@ -117,6 +118,7 @@ export function redactBackupData(data: AuroraData): { data: BackupEnvelope['data
   }
   const {
     connectorSnapshots: _connectorSnapshots,
+    attentionLedger: _attentionLedger,
     apodCache: _apodCache,
     weatherAlertCache: _weatherAlertCache,
     ...rest
@@ -274,6 +276,7 @@ function isSettings(v: unknown): boolean {
     v.flowVolume >= 0 &&
     v.flowVolume <= 100 &&
     isOptional(v.briefingEnabled, isBoolean) &&
+    isBriefingSources(v.briefingSources) &&
     LAYOUT_DENSITY_SET.has(v.layoutDensity) &&
     isWidgetToggles(v.widgets)
   )
@@ -317,6 +320,16 @@ function isLinks(v: unknown): boolean {
 
 function isTimerConfig(v: unknown): boolean {
   return isPlainObject(v) && isNumber(v.workMinutes) && isNumber(v.breakMinutes)
+}
+
+function isBriefingSources(v: unknown): boolean {
+  return (
+    isPlainObject(v) &&
+    isBoolean(v.calendar) &&
+    isBoolean(v.assignments) &&
+    isBoolean(v.deployments) &&
+    isBoolean(v.rain)
+  )
 }
 
 function isTimerSession(v: unknown): boolean {
@@ -481,7 +494,7 @@ function isHabits(v: unknown): boolean {
   return Array.isArray(v)
 }
 
-const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache' | 'weatherAlertCache'>, (v: unknown) => boolean> = {
+const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'attentionLedger' | 'apodCache' | 'weatherAlertCache'>, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
   todoLists: isTodoLists,
@@ -573,15 +586,20 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
   const source = data as unknown as Record<string, unknown>
   const cleaned = {} as Record<string, unknown>
   for (const key of DATA_KEYS) {
-    // connectorSnapshots, apodCache, and weatherAlertCache are caches, not user data (see
-    // serializeBackup's doc comment): neither is ever trusted from an
-    // import, both are always reset regardless of what — if anything — is
+    // connectorSnapshots, attentionLedger, apodCache, and weatherAlertCache
+    // are caches or device-local derived state (see serializeBackup's doc
+    // comment): none is ever trusted from an import; each is reset regardless
+    // of what is present for the key.
     // present for the key. No validator needed for either; they're simply
     // never read. Their "empty" values differ by shape: connectorSnapshots
     // is a Partial<Record<...>> (empty object), apodCache is a nullable
     // single value (null) — see schema.ts's AuroraData.apodCache/defaults().
     if (key === 'connectorSnapshots') {
       cleaned[key] = {}
+      continue
+    }
+    if (key === 'attentionLedger') {
+      cleaned[key] = { version: 1, sources: {} }
       continue
     }
     if (key === 'apodCache') {

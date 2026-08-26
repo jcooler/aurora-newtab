@@ -3,10 +3,40 @@ import type { CalendarLayoutPreferences, CalendarWeekStart, LayoutsDocument } fr
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 18
+export const CURRENT_VERSION = 19
 
 export const FLOW_AMBIENCE_VALUES = ['off', 'creek', 'rain', 'ocean', 'forest'] as const
 export type FlowAmbience = typeof FLOW_AMBIENCE_VALUES[number]
+
+export const DEFAULT_BRIEFING_SOURCES = {
+  calendar: true,
+  assignments: true,
+  deployments: true,
+  rain: true,
+} as const
+
+export interface BriefingSources {
+  calendar: boolean
+  assignments: boolean
+  deployments: boolean
+  rain: boolean
+}
+
+export type AttentionAssignmentSource = 'github' | 'gitlab' | 'jira' | 'linear'
+
+export interface AttentionLedgerItem {
+  firstSeenAt: number | null
+}
+
+export interface AttentionLedgerSource {
+  observedAt: number
+  items: Record<string, AttentionLedgerItem>
+}
+
+export interface AttentionLedger {
+  version: 1
+  sources: Partial<Record<AttentionAssignmentSource, AttentionLedgerSource>>
+}
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -51,6 +81,8 @@ export interface Settings {
   /** Opt-in Canvas briefing. Missing remains equivalent to false so existing
    *  settings load without a migration or eager rewrite. */
   briefingEnabled?: boolean
+  /** Independently controllable sources within the Greeting helper. */
+  briefingSources: BriefingSources
   /** The widget-color customizer (Task 60, which retired the three-theme
    *  system). `null` = the default surface defined by themes.css's :root. A
    *  `#rrggbb` string re-tints every widget's panel at runtime
@@ -338,6 +370,8 @@ export interface AuroraData {
   calendarWeekStart: CalendarWeekStart
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>
   connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
+  /** Device-local derived first-observation state. Excluded from backups. */
+  attentionLedger: AttentionLedger
   habits: Habit[]
   // apodCache (Task 95): a top-level key, so it needs neither a
   // CURRENT_VERSION bump nor a new migrations.ts step — migrate()'s own
@@ -367,6 +401,7 @@ export function defaults(): AuroraData {
       muted: false,
       flowAmbience: 'off',
       flowVolume: 15,
+      briefingSources: { ...DEFAULT_BRIEFING_SOURCES },
       layoutDensity: 'auto',
       widgets: {
         search: true,
@@ -407,6 +442,7 @@ export function defaults(): AuroraData {
     calendarWeekStart: 'locale',
     connectors: {},
     connectorSnapshots: {},
+    attentionLedger: { version: 1, sources: {} },
     habits: [],
     apodCache: null,
   }

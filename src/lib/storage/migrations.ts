@@ -1,4 +1,4 @@
-import { CURRENT_VERSION, defaults, type AuroraData } from './schema'
+import { CURRENT_VERSION, DEFAULT_BRIEFING_SOURCES, defaults, type AuroraData } from './schema'
 import { isPlainObject } from '../object'
 import { layoutV2FromLegacy } from '../layout/v2'
 
@@ -261,6 +261,21 @@ export const migrations: Record<number, Migration> = {
         flowVolume: Object.prototype.hasOwnProperty.call(settings, 'flowVolume')
           ? settings.flowVolume
           : 15,
+      },
+    }
+  },
+  // v18 -> v19: Greeting helper source preferences are nested Settings state.
+  // Merge defaults below any stored partial object so every new source is
+  // explicit while an existing user choice remains authoritative.
+  18: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    const stored = isPlainObject(settings.briefingSources) ? settings.briefingSources : {}
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        briefingSources: { ...DEFAULT_BRIEFING_SOURCES, ...stored },
       },
     }
   },

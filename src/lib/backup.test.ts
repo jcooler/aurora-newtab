@@ -40,6 +40,64 @@ describe('Quick Link import safety (W1-P9)', () => {
   })
 })
 
+describe('attention state backup boundary', () => {
+  it('excludes device-local attention history from serialized backups', () => {
+    const input = {
+      ...defaults(),
+      attentionLedger: {
+        version: 1,
+        sources: {
+          github: {
+            observedAt: 100,
+            items: { '123': { firstSeenAt: 100 } },
+          },
+        },
+      },
+    } as unknown as AuroraData
+
+    const envelope = JSON.parse(serializeBackup(input)) as { data: Record<string, unknown> }
+
+    expect(envelope.data).not.toHaveProperty('attentionLedger')
+  })
+
+  it('resets forged or missing attention history during import', () => {
+    const forged = JSON.parse(serializeBackup(defaults())) as {
+      data: Record<string, unknown>
+    }
+    forged.data.attentionLedger = {
+      version: 1,
+      sources: { github: { observedAt: 100, items: { forged: { firstSeenAt: 100 } } } },
+    }
+
+    const result = prepareBackup(JSON.stringify(forged))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect((result.data as unknown as Record<string, unknown>).attentionLedger).toEqual({
+        version: 1,
+        sources: {},
+      })
+    }
+  })
+
+  it('rejects malformed Greeting helper source settings', () => {
+    const data = defaults() as unknown as AuroraData & {
+      settings: AuroraData['settings'] & { briefingSources: unknown }
+    }
+    data.settings.briefingSources = {
+      calendar: true,
+      assignments: 'yes',
+      deployments: true,
+      rain: true,
+    }
+
+    expect(validateBackupShape(data)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "settings" data is invalid.',
+    })
+  })
+})
+
 describe('timerSession backup contract (Flow)', () => {
   const runningSession = {
     mode: 'work' as const,
@@ -314,9 +372,10 @@ describe('serializeBackup / parseBackup round-trip', () => {
     const result = parseBackup(json)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, weatherAlertCache: _weatherAlertCache, ...expected } = input
+      const { connectorSnapshots: _connectorSnapshots, attentionLedger: _attentionLedger, apodCache: _apodCache, weatherAlertCache: _weatherAlertCache, ...expected } = input
       expect(result.data).toEqual(expected)
       expect('connectorSnapshots' in result.data).toBe(false)
+      expect('attentionLedger' in result.data).toBe(false)
       expect('apodCache' in result.data).toBe(false)
       expect('weatherAlertCache' in result.data).toBe(false)
       expect(result.version).toBe(CURRENT_VERSION)
@@ -330,7 +389,7 @@ describe('serializeBackup / parseBackup round-trip', () => {
     expect(envelope.version).toBe(CURRENT_VERSION)
     expect(typeof envelope.exportedAt).toBe('string')
     expect(new Date(envelope.exportedAt).toString()).not.toBe('Invalid Date')
-    const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, weatherAlertCache: _weatherAlertCache, ...expectedData } = defaults()
+    const { connectorSnapshots: _connectorSnapshots, attentionLedger: _attentionLedger, apodCache: _apodCache, weatherAlertCache: _weatherAlertCache, ...expectedData } = defaults()
     expect(envelope.data).toEqual(expectedData)
     // Pretty-printed: multiple lines, not a single minified line.
     expect(json.split('\n').length).toBeGreaterThan(1)
@@ -585,7 +644,7 @@ describe('apodCache export / import exclusion (Task 95)', () => {
 
 describe('weatherAlertCache export / import exclusion', () => {
   it('keeps the current schema version pinned and defaults the additive cache to null', () => {
-    expect(CURRENT_VERSION).toBe(18)
+    expect(CURRENT_VERSION).toBe(19)
     expect(defaults().weatherAlertCache).toBeNull()
     expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
   })
@@ -1413,7 +1472,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
       const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
       expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
       expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
-      expect(CURRENT_VERSION).toBe(18)
+      expect(CURRENT_VERSION).toBe(19)
     }
   })
 
