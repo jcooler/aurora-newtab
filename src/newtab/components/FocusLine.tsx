@@ -16,12 +16,14 @@ export default function FocusLine({
   const [stored, save] = useStoredKey('focus')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [celebrating, setCelebrating] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const editRef = useRef<HTMLButtonElement>(null)
   const committed = useRef(false)
   const canceled = useRef(false)
   const restoreEditFocus = useRef(false)
   const editorDay = useRef<string | null>(null)
+  const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { key: today } = useLocalDay()
   const focus = stored === undefined ? null : currentFocus(stored, today)
 
@@ -36,6 +38,10 @@ export default function FocusLine({
     restoreEditFocus.current = false
     editRef.current?.focus()
   }, [editing, focus])
+
+  useEffect(() => () => {
+    if (celebrationTimeoutRef.current !== null) clearTimeout(celebrationTimeoutRef.current)
+  }, [])
 
   function beginEdit() {
     committed.current = false
@@ -81,15 +87,39 @@ export default function FocusLine({
     setEditing(false)
   }
 
+  function toggleDone() {
+    if (!focus) return
+    const done = !focus.done
+    if (done) {
+      if (celebrationTimeoutRef.current !== null) clearTimeout(celebrationTimeoutRef.current)
+      setCelebrating(true)
+      celebrationTimeoutRef.current = setTimeout(() => {
+        celebrationTimeoutRef.current = null
+        setCelebrating(false)
+      }, 900)
+    } else {
+      if (celebrationTimeoutRef.current !== null) clearTimeout(celebrationTimeoutRef.current)
+      celebrationTimeoutRef.current = null
+      setCelebrating(false)
+    }
+    save({ ...focus, done })
+  }
+
   if (stored === undefined) return null
 
   const content = (
     <div
       data-focus-footprint=""
       data-focus-state={!focus ? 'empty' : editing ? 'editing' : focus.done ? 'completed' : 'committed'}
-      className="grid h-full min-h-0 w-full place-items-center"
-      aria-live="polite"
+      className="relative flex h-full min-h-0 w-full flex-col items-center justify-center"
     >
+      <p
+        id="focus-prompt"
+        data-canvas-type-role="support"
+        className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg"
+      >
+        What&rsquo;s your main focus today?
+      </p>
       {!focus || editing ? (
       <form
         className="flex w-full flex-col items-center"
@@ -98,17 +128,11 @@ export default function FocusLine({
           commitDraft(draft, true)
         }}
       >
-        <label
-          htmlFor="focus-input"
-          data-canvas-type-role="support"
-          className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg"
-        >
-          What&rsquo;s your main focus today?
-        </label>
         <input
           ref={inputRef}
           id="focus-input"
           name="focus"
+          aria-labelledby="focus-prompt"
           autoComplete="off"
           data-canvas-type-role="support"
           value={draft}
@@ -145,7 +169,7 @@ export default function FocusLine({
           id="focus-done"
           type="checkbox"
           checked={focus.done}
-          onChange={() => save({ ...focus, done: !focus.done })}
+          onChange={toggleDone}
           className="peer sr-only"
         />
         <span
@@ -174,7 +198,6 @@ export default function FocusLine({
       >
         {focus.text}
       </label>
-      {focus.done && <span data-canvas-type-role="metadata" className="text-photo text-sm text-accent">Nice.</span>}
       <button
         ref={editRef}
         type="button"
@@ -185,6 +208,12 @@ export default function FocusLine({
       </button>
       </div>
       )}
+      <span role="status" className="sr-only">{celebrating ? 'Focus completed' : ''}</span>
+      {celebrating ? (
+        <span data-focus-celebration aria-hidden className="focus-celebration">
+          {Array.from({ length: 12 }, (_, index) => <i key={index} />)}
+        </span>
+      ) : null}
     </div>
   )
   if (presentation === 'stack') {

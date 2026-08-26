@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
@@ -34,6 +34,7 @@ function setupStack(focus: { text: string; date: string; done: boolean } | null)
 }
 
 describe('FocusLine editor ownership', () => {
+  afterEach(() => vi.useRealTimers())
   beforeEach(() => {
     localDay.sample = {
       key: '2026-07-26', timeZone: 'America/New_York', now: new Date('2026-07-26T12:00:00Z'),
@@ -193,8 +194,8 @@ describe('FocusLine editor ownership', () => {
     const prompt = await screen.findByText(/main focus today/i)
     const footprint = prompt.closest('[data-focus-footprint]')
     expect(footprint).not.toBeNull()
-    expect(footprint!.className).toContain('grid')
-    expect(footprint!.className).toContain('place-items-center')
+    expect(footprint!.className).toContain('flex-col')
+    expect(footprint!.className).toContain('items-center')
     expect(prompt.hasAttribute('data-focus-prompt')).toBe(false)
     expect(prompt.className).not.toContain('focus-prompt-label')
     expect(prompt.className).not.toContain('bg-')
@@ -205,15 +206,31 @@ describe('FocusLine editor ownership', () => {
     await waitFor(() => expect(driver.dump().focus).toEqual({
       text: 'Centered work', date: '2026-07-26', done: false,
     }))
+    expect(screen.getByText(/main focus today/i)).toBeTruthy()
     expect(screen.getByText('Centered work').closest('[data-focus-footprint]')?.className).toBe(footprint!.className)
 
     fireEvent.click(screen.getByRole('checkbox'))
-    await screen.findByText('Nice.')
-    expect(screen.getByText('Nice.').closest('[data-focus-footprint]')?.className).toBe(footprint!.className)
+    expect((await screen.findByRole('status')).textContent).toBe('Focus completed')
+    expect(screen.queryByText('Nice.')).toBeNull()
+    expect(document.querySelector('[data-focus-celebration]')).toBeTruthy()
+    expect(screen.getByText(/main focus today/i).closest('[data-focus-footprint]')?.className).toBe(footprint!.className)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(screen.getByLabelText(/main focus today/i).closest('[data-focus-footprint]')?.className).toBe(footprint!.className)
     expect(document.documentElement.style.getPropertyValue('--canvas-fg-muted')).toBe('')
+  })
+
+  it('removes the decorative completion burst after 900ms and does not celebrate unchecking', async () => {
+    setup({ text: 'Finish this', date: '2026-07-26', done: false })
+    await screen.findByRole('checkbox')
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('checkbox')); await Promise.resolve() })
+    expect(document.querySelector('[data-focus-celebration]')).toBeTruthy()
+    await act(async () => { await vi.advanceTimersByTimeAsync(900) })
+    expect(document.querySelector('[data-focus-celebration]')).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole('checkbox')); await Promise.resolve() })
+    expect(document.querySelector('[data-focus-celebration]')).toBeNull()
+    vi.useRealTimers()
   })
 
   it('wires both the prompt and committed value to the supporting-information type role', async () => {

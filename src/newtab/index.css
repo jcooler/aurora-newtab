@@ -543,6 +543,47 @@
   .stack-card__dots { transition: none; }
 }
 
+.focus-celebration {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.focus-celebration i {
+  --focus-x: 48px;
+  --focus-y: -42px;
+  --focus-rotate: 140deg;
+  position: absolute;
+  width: 5px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--panel-accent);
+  animation: focus-confetti 850ms cubic-bezier(.16,.84,.31,1) both;
+}
+.focus-celebration i:nth-child(2n) { background: #38bdf8; }
+.focus-celebration i:nth-child(3n) { background: #f0abfc; }
+.focus-celebration i:nth-child(4n) { background: #facc15; }
+.focus-celebration i:nth-child(2) { --focus-x: -52px; --focus-y: -36px; --focus-rotate: -110deg; }
+.focus-celebration i:nth-child(3) { --focus-x: 70px; --focus-y: -12px; --focus-rotate: 220deg; }
+.focus-celebration i:nth-child(4) { --focus-x: -68px; --focus-y: -8px; --focus-rotate: -190deg; }
+.focus-celebration i:nth-child(5) { --focus-x: 38px; --focus-y: 38px; --focus-rotate: 175deg; }
+.focus-celebration i:nth-child(6) { --focus-x: -42px; --focus-y: 42px; --focus-rotate: -145deg; }
+.focus-celebration i:nth-child(7) { --focus-x: 18px; --focus-y: -58px; --focus-rotate: 250deg; }
+.focus-celebration i:nth-child(8) { --focus-x: -18px; --focus-y: -60px; --focus-rotate: -235deg; }
+.focus-celebration i:nth-child(9) { --focus-x: 76px; --focus-y: 22px; --focus-rotate: 310deg; }
+.focus-celebration i:nth-child(10) { --focus-x: -78px; --focus-y: 18px; --focus-rotate: -300deg; }
+.focus-celebration i:nth-child(11) { --focus-x: 12px; --focus-y: 52px; --focus-rotate: 125deg; }
+.focus-celebration i:nth-child(12) { --focus-x: -10px; --focus-y: 54px; --focus-rotate: -120deg; }
+@keyframes focus-confetti {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0); }
+  16% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--focus-x), var(--focus-y)) rotate(var(--focus-rotate)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-celebration { display: none; }
+}
+
 /* The Docked tier's dense line (named-layouts spec 2.3): one text-first row,
    middle dots separating facts, never wrapping — the strip owns overflow. */
 /* Dock lines wear the SAME chip metrics as the Tasks/Notes launchers
