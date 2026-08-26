@@ -105,7 +105,10 @@ export default function SearchBar({
       role="search"
       data-canvas-size={canvasSize}
       data-search-safe-zone=""
-      className={presentation === 'stack' ? 'core-search-stack__form' : 'mt-8 mid:mt-4 short:mt-2 xshort:mt-1 max-[420px]:mb-3'}
+      data-search-presentation={presentation}
+      className={presentation === 'stack'
+        ? 'core-search-stack__form'
+        : 'text-photo mt-8 mid:mt-4 short:mt-2 xshort:mt-1 max-[420px]:mb-3 flex items-center gap-2 text-canvas-fg'}
       style={presentation !== 'stack' && geometry ? { width: `${geometry.width}px`, transform: `translateX(${geometry.translateX}px)` } : undefined}
       onSubmit={(e) => {
         e.preventDefault()
@@ -113,7 +116,21 @@ export default function SearchBar({
         if (q) void searchWeb(q)
       }}
     >
-      {presentation === 'stack' ? <span aria-hidden className="core-search-stack__icon">⌕</span> : null}
+      {presentation === 'stack' ? <span aria-hidden className="core-search-stack__icon">⌕</span> : (
+        <svg
+          data-testid="free-search-icon"
+          aria-hidden
+          viewBox="0 0 24 24"
+          className="size-4 shrink-0 text-canvas-fg-muted"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
+          <circle cx="11" cy="11" r="6" />
+          <path d="m16 16 4 4" />
+        </svg>
+      )}
       <input
         name="q"
         type="search"
@@ -123,7 +140,7 @@ export default function SearchBar({
         data-canvas-type-role="body"
         className={presentation === 'stack'
           ? 'core-search-stack__input outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
-          : 'w-full rounded-panel border border-panel-border bg-panel-solid px-4 py-2 mid:py-1 short:py-1 xshort:py-0.5 text-center text-fg placeholder:text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] outline-none focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'}
+          : 'text-photo min-w-0 flex-1 border-b border-canvas-fg-muted/50 bg-transparent px-1 py-2 mid:py-1 short:py-1 xshort:py-0.5 text-left text-canvas-fg placeholder:text-canvas-fg-muted outline-none focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'}
       />
       {presentation === 'stack' && canvasSize === 'standard' ? <kbd>Enter</kbd> : null}
     </form>

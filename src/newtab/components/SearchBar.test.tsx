@@ -88,8 +88,18 @@ describe('SearchBar', () => {
   it('publishes the safe-zone hook and a visible focus outline', async () => {
     const input = await renderSearchBar()
     expect(screen.getByRole('search').hasAttribute('data-search-safe-zone')).toBe(true)
+    expect(screen.getByRole('search').dataset.searchPresentation).toBe('free')
     expect(input.classList.contains('focus-visible:outline-2')).toBe(true)
     expect(input.classList.contains('focus-visible:outline-offset-2')).toBe(true)
+  })
+
+  it('keeps free Search transparent and line-led instead of painting a card', async () => {
+    const input = await renderSearchBar()
+    expect(screen.getByTestId('free-search-icon')).toBeTruthy()
+    for (const token of ['rounded-panel', 'bg-panel-solid', 'shadow-lg', 'backdrop-blur-[var(--panel-blur)]']) {
+      expect(input.classList.contains(token)).toBe(false)
+    }
+    expect(input.classList.contains('border-b')).toBe(true)
   })
 
   it('keeps the real search action inside an exact Standard stack face', async () => {

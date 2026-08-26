@@ -111,6 +111,14 @@ describe('LinksWidget add editor', () => {
     }
   })
 
+  it('keeps the free Add control frameless', async () => {
+    setup()
+    const add = await screen.findByRole('button', { name: 'Add quick link' })
+    for (const token of ['rounded-panel', 'border', 'border-dashed', 'bg-panel-solid', 'shadow-lg']) {
+      expect(add.classList.contains(token)).toBe(false)
+    }
+  })
+
   it('renders six Standard stack links in two readable columns with destination copy', async () => {
     const base = defaults()
     const links = ['Mail', 'Calendar', 'Drive', 'Aurora', 'GitHub', 'Home'].map((title, index) => ({

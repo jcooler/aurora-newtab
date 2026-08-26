@@ -245,7 +245,7 @@ export default function LinksWidget({
           type="button"
           aria-label="Add quick link"
           onClick={openEditor}
-          className="flex size-12 items-center justify-center rounded-panel border border-dashed border-panel-border text-xl text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+          className="text-photo flex size-12 items-center justify-center text-2xl text-canvas-fg-muted hover:text-canvas-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           +
         </button>

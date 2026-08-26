@@ -23,6 +23,10 @@ describe('LinkTile navigation', () => {
     expect(anchor?.getAttribute('href')).toBe('https://example.test/path')
     expect(anchor?.getAttribute('aria-label')).toBe('Destination')
     expect(anchor?.getAttribute('target')).toBeNull()
+    expect(anchor?.dataset.quickLinkPresentation).toBe('free')
+    for (const token of ['rounded-panel', 'border', 'bg-panel-solid', 'shadow-lg', 'backdrop-blur-[var(--panel-blur)]']) {
+      expect(anchor?.classList.contains(token)).toBe(false)
+    }
   })
 
   it('renders no anchor or favicon for an unsafe legacy stored URL', () => {

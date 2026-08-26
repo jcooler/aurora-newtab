@@ -83,8 +83,9 @@ export default function LinkTile({
       <a
         href={link.url}
         aria-label={link.title}
+        data-quick-link-presentation="free"
         onKeyDown={handleReorder}
-        className="flex size-12 mid:size-11 short:size-10 xshort:size-9 items-center justify-center rounded-panel border border-panel-border bg-panel-solid shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition group-hover:border-accent focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        className="text-photo flex size-12 mid:size-11 short:size-10 xshort:size-9 items-center justify-center text-canvas-fg transition-transform group-hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-reduce:transition-none"
       >
         {iconFailed ? (
           <span aria-hidden className="text-lg text-fg-muted">
