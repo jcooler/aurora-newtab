@@ -16,6 +16,7 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
     muted: false,
     flowAmbience: 'off',
     flowVolume: 15,
+    briefingSources: { calendar: true, assignments: true, deployments: true, rain: true },
     layoutDensity: 'auto',
     widgets: {
       search: true,

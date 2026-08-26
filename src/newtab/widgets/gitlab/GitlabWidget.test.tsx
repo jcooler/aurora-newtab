@@ -19,11 +19,13 @@ afterEach(() => __resetInFlight())
 const DATA: GitlabData = {
   mrs: [
     {
+      id: '204',
       title: 'Add rate limiting to the ingest API',
       url: 'https://gitlab.com/acme/platform/-/merge_requests/204',
       project: 'acme/platform',
     },
     {
+      id: '207',
       title: 'Bump vite to 6.x',
       url: 'https://gitlab.com/acme/platform/-/merge_requests/207',
       project: 'acme/platform',
@@ -147,6 +149,7 @@ describe('GitlabWidget', () => {
   it('caps MR rows at 3', async () => {
     const many: GitlabData = {
       mrs: Array.from({ length: 4 }, (_, i) => ({
+        id: `mr-${i}`,
         title: `MR ${i}`,
         url: `https://gitlab.com/o/r/-/merge_requests/${i}`,
         project: 'o/r',
@@ -244,8 +247,8 @@ const CONTRIB: Contributions = {
 }
 
 const REVIEW_MRS: GitlabData['reviewMrs'] = [
-  { title: 'Review: refactor the auth guard', url: 'https://gitlab.com/acme/platform/-/merge_requests/300', project: 'acme/platform' },
-  { title: 'Review: drop the legacy shim', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
+  { id: '300', title: 'Review: refactor the auth guard', url: 'https://gitlab.com/acme/platform/-/merge_requests/300', project: 'acme/platform' },
+  { id: '301', title: 'Review: drop the legacy shim', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
 ]
 
 const FULL_DATA: GitlabData = { ...DATA, reviewMrs: REVIEW_MRS, contributions: CONTRIB }
@@ -386,6 +389,7 @@ describe('GitlabWidget — composed card (wave 2)', () => {
       ...DATA,
       mrs: [],
       reviewMrs: Array.from({ length: 3 }, (_, i) => ({
+        id: `review-${i}`,
         title: `Review ${i}`,
         url: `https://gitlab.com/o/r/-/merge_requests/${i}`,
         project: 'o/r',

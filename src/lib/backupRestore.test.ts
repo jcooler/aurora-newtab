@@ -333,6 +333,7 @@ describe('backup restore coordinator', () => {
         muted: true,
         flowAmbience: 'creek',
         flowVolume: 15,
+        briefingSources: { calendar: true, assignments: true, deployments: true, rain: true },
         layoutDensity: 'auto',
         widgets: {
           search: false,
@@ -373,6 +374,7 @@ describe('backup restore coordinator', () => {
       calendarWeekStart: 'locale',
       connectors: {},
       connectorSnapshots: {},
+      attentionLedger: { version: 1, sources: {} },
       habits: [{ id: 'before-habit', name: 'Before habit', createdAt: 10, log: ['2026-08-13'] }],
       apodCache: null,
     }

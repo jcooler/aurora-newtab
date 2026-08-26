@@ -81,17 +81,16 @@ describe('attention state backup boundary', () => {
   })
 
   it('rejects malformed Greeting helper source settings', () => {
-    const data = defaults() as unknown as AuroraData & {
-      settings: AuroraData['settings'] & { briefingSources: unknown }
-    }
-    data.settings.briefingSources = {
+    const data = defaults() as unknown as Record<string, unknown>
+    const settings = data.settings as Record<string, unknown>
+    settings.briefingSources = {
       calendar: true,
       assignments: 'yes',
       deployments: true,
       rain: true,
     }
 
-    expect(validateBackupShape(data)).toEqual({
+    expect(validateBackupShape(data as unknown as AuroraData)).toEqual({
       ok: false,
       reason: 'That backup\'s "settings" data is invalid.',
     })

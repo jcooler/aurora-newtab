@@ -61,7 +61,9 @@ function router(routes: {
   })
 }
 
-const searchBody = (items: Array<{ title: string; html_url: string; repository_url: string }>) => ({ items })
+const searchBody = (items: Array<{ id?: number | string; title: string; html_url: string; repository_url: string }>) => ({
+  items: items.map((item, index) => ({ id: item.id ?? index + 1, ...item })),
+})
 
 describe('whoamiGithub', () => {
   it('returns the login on a 200 /user response', async () => {
@@ -115,22 +117,43 @@ describe('fetchGithub — three independent sections', () => {
       prs: fakeResponse({
         status: 200,
         body: searchBody([
-          { title: 'Fix the flaky test', html_url: 'https://github.com/acme/app/pull/1', repository_url: 'https://api.github.com/repos/acme/app' },
+          { id: 101, title: 'Fix the flaky test', html_url: 'https://github.com/acme/app/pull/1', repository_url: 'https://api.github.com/repos/acme/app' },
         ]),
       }),
       issues: fakeResponse({
         status: 200,
         body: searchBody([
-          { title: 'Crash on launch', html_url: 'https://github.com/acme/web/issues/9', repository_url: 'https://api.github.com/repos/acme/web' },
+          { id: '202', title: 'Crash on launch', html_url: 'https://github.com/acme/web/issues/9', repository_url: 'https://api.github.com/repos/acme/web' },
         ]),
       }),
       notifications: fakeResponse({ status: 200, body: [{}, {}] }),
     })
 
     const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
-    expect(data.prs).toEqual([{ title: 'Fix the flaky test', url: 'https://github.com/acme/app/pull/1', repo: 'acme/app' }])
-    expect(data.issues).toEqual([{ title: 'Crash on launch', url: 'https://github.com/acme/web/issues/9', repo: 'acme/web' }])
+    expect(data.prs).toEqual([{ id: '101', title: 'Fix the flaky test', url: 'https://github.com/acme/app/pull/1', repo: 'acme/app' }])
+    expect(data.issues).toEqual([{ id: '202', title: 'Crash on launch', url: 'https://github.com/acme/web/issues/9', repo: 'acme/web' }])
     expect(data.notifications).toBe(2)
+  })
+
+  it('skips a search row without a provider-native stable id', async () => {
+    const fetchFn = router({
+      prs: fakeResponse({ status: 200, body: searchBody([]) }),
+      issues: fakeResponse({
+        status: 200,
+        body: {
+          items: [{
+            title: 'Untrackable issue',
+            html_url: 'https://github.com/acme/web/issues/99',
+            repository_url: 'https://api.github.com/repos/acme/web',
+          }],
+        },
+      }),
+      notifications: fakeResponse({ status: 200, body: [] }),
+    })
+
+    const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
+
+    expect(data.issues).toEqual([])
   })
 
   it('counts the unread notifications array length', async () => {
@@ -162,8 +185,8 @@ describe('fetchGithub — three independent sections', () => {
 
   it('a network failure on ONE section keeps that section\'s prev slice, others refresh', async () => {
     const prev: GithubData = {
-      prs: [{ title: 'Old PR', url: 'https://github.com/o/r/pull/7', repo: 'o/r' }],
-      issues: [{ title: 'Old issue', url: 'https://github.com/o/r/issues/8', repo: 'o/r' }],
+      prs: [{ id: '7', title: 'Old PR', url: 'https://github.com/o/r/pull/7', repo: 'o/r' }],
+      issues: [{ id: '8', title: 'Old issue', url: 'https://github.com/o/r/issues/8', repo: 'o/r' }],
       notifications: 4,
       etags: {},
       contributions: null,
@@ -183,7 +206,7 @@ describe('fetchGithub — three independent sections', () => {
 
     const data = await fetchGithub('t', prev, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
     expect(data.prs).toEqual(prev.prs) // kept verbatim through the failure
-    expect(data.issues).toEqual([{ title: 'Fresh issue', url: 'https://github.com/o/r/issues/10', repo: 'o/r' }])
+    expect(data.issues).toEqual([{ id: '1', title: 'Fresh issue', url: 'https://github.com/o/r/issues/10', repo: 'o/r' }])
     expect(data.notifications).toBe(1)
   })
 
@@ -387,7 +410,7 @@ describe('fetchGithub — per-view gating (disabled sections send no request)', 
 
   it('views.pulls === false: no PR request; prev items + etag carried verbatim', async () => {
     const prev: GithubData = {
-      prs: [{ title: 'Old PR', url: 'https://github.com/o/r/pull/7', repo: 'o/r' }],
+      prs: [{ id: '7', title: 'Old PR', url: 'https://github.com/o/r/pull/7', repo: 'o/r' }],
       issues: [],
       notifications: null,
       etags: { [PR_PATH]: 'W/"prs-old"' },
@@ -410,7 +433,7 @@ describe('fetchGithub — per-view gating (disabled sections send no request)', 
   it('views.issues === false: no issue request; prev items + etag carried verbatim', async () => {
     const prev: GithubData = {
       prs: [],
-      issues: [{ title: 'Old issue', url: 'https://github.com/o/r/issues/8', repo: 'o/r' }],
+      issues: [{ id: '8', title: 'Old issue', url: 'https://github.com/o/r/issues/8', repo: 'o/r' }],
       notifications: null,
       etags: { [ISSUE_PATH]: 'W/"iss-old"' },
       contributions: null,

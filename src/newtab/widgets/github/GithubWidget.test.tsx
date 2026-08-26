@@ -18,10 +18,10 @@ afterEach(() => __resetInFlight())
 
 const DATA: GithubData = {
   prs: [
-    { title: 'Fix the flaky login test', url: 'https://github.com/acme/app/pull/12', repo: 'acme/app' },
-    { title: 'Wire the new settings tab', url: 'https://github.com/acme/app/pull/13', repo: 'acme/app' },
+    { id: '12', title: 'Fix the flaky login test', url: 'https://github.com/acme/app/pull/12', repo: 'acme/app' },
+    { id: '13', title: 'Wire the new settings tab', url: 'https://github.com/acme/app/pull/13', repo: 'acme/app' },
   ],
-  issues: [{ title: 'Crash on cold start', url: 'https://github.com/acme/web/issues/9', repo: 'acme/web' }],
+  issues: [{ id: '9', title: 'Crash on cold start', url: 'https://github.com/acme/web/issues/9', repo: 'acme/web' }],
   notifications: 3,
   contributions: null,
   etags: {},
@@ -213,6 +213,7 @@ describe('GithubWidget', () => {
   it('caps PR rows at 2', async () => {
     const many: GithubData = {
       prs: Array.from({ length: 3 }, (_, i) => ({
+        id: `pr-${i}`,
         title: `PR ${i}`,
         url: `https://github.com/o/r/pull/${i}`,
         repo: 'o/r',
@@ -233,6 +234,7 @@ describe('GithubWidget', () => {
     const many: GithubData = {
       prs: [],
       issues: Array.from({ length: 3 }, (_, i) => ({
+        id: `issue-${i}`,
         title: `Issue ${i}`,
         url: `https://github.com/o/r/issues/${i}`,
         repo: 'o/r',
