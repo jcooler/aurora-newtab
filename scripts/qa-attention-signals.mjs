@@ -91,6 +91,7 @@ async function waitForSummary(page) {
 }
 
 async function openWithHover(page, trigger) {
+  await page.mouse.move(1, 1)
   await trigger.hover()
   const panel = page.getByRole('region', { name: 'Attention details' })
   await panel.waitFor({ state: 'visible' })
