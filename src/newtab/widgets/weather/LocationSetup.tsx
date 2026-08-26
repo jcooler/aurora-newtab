@@ -5,6 +5,7 @@ import { reverseGeocode } from '../../../services/weather/reverseGeocode'
 import type { GeoMatch } from '../../../services/weather/types'
 import { useStorage } from '../../../lib/storage/context'
 import type { TierFrameTier } from '../shared/TierFrame'
+import { formatGeoMatchLabel } from './locationLabel'
 
 const SEARCH_DEBOUNCE_MS = 300
 const MIN_QUERY_LENGTH = 2
@@ -280,6 +281,7 @@ export default function LocationSetup({ tier = 'standard' }: { tier?: TierFrameT
   async function selectResult(index: number) {
     const m = results[index]
     if (!m) return
+    const label = formatGeoMatchLabel(m)
     const generation = selectionGenerationRef.current + 1
     selectionGenerationRef.current = generation
     devicePendingRef.current = false
@@ -300,12 +302,12 @@ export default function LocationSetup({ tier = 'standard' }: { tier?: TierFrameT
     controllerRef.current?.abort()
     try {
       await storage.setMany({
-        location: { lat: m.lat, lon: m.lon, label: m.name, manual: true },
+        location: { lat: m.lat, lon: m.lon, label, manual: true },
         weatherCache: null,
         weatherAlertCache: null,
       })
       if (!mountedRef.current || selectionGenerationRef.current !== generation) return
-      setQuery(m.name)
+      setQuery(label)
       setOpen(false)
       setActiveIndex(-1)
     } catch {
@@ -378,7 +380,7 @@ export default function LocationSetup({ tier = 'standard' }: { tier?: TierFrameT
           >
             <span className="shrink-0">{m.name}</span>
             {secondary && (
-              <span className="min-w-0 flex-1 truncate text-xs text-fg-muted">— {secondary}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-fg-muted">, {secondary}</span>
             )}
           </li>
         )

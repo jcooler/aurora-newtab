@@ -33,14 +33,16 @@ export default function Weather({
     <>
       <div className={row}>
         <span className={label}>Location</span>
+        <span className="min-w-0 flex-1 truncate text-right text-sm text-fg">{location.label}</span>
         <button
           type="button"
           onClick={() => void clearLocation()}
           disabled={clearing}
           aria-describedby={error ? 'weather-clear-error' : undefined}
+          aria-label={`Clear ${location.label} weather location`}
           className={btnQuiet}
         >
-          {`${location.label} — clear`}
+          Clear
         </button>
       </div>
       {error && (

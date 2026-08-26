@@ -600,12 +600,12 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     const write = vi.spyOn(driver, 'write')
     const storage = createStorage(driver)
     await storage.init()
-    await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
+    await storage.set('location', { lat: 34, lon: -84.8, label: 'Dallas, GA', manual: true })
     await storage.set('weatherCache', {
       current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
       hourly: [],
       fetchedAt: Date.now(),
-      locationLabel: 'Springfield',
+      locationLabel: 'Dallas, GA',
     })
     render(
       <StorageProvider storage={storage}>
@@ -616,7 +616,8 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     openTab('Widgets')
     openWidgetEditor('Weather location')
 
-    const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
+    expect(await screen.findByText('Dallas, GA')).toBeTruthy()
+    const clearButton = screen.getByRole('button', { name: 'Clear Dallas, GA weather location' })
     write.mockClear()
     await act(async () => {
       fireEvent.click(clearButton)
@@ -662,7 +663,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     openTab('Widgets')
     openWidgetEditor('Weather location')
 
-    const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
+    const clearButton = await screen.findByRole('button', { name: 'Clear Springfield weather location' })
     await act(async () => {
       fireEvent.click(clearButton)
       await Promise.resolve()

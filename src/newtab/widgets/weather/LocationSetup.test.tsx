@@ -82,7 +82,7 @@ describe('LocationSetup typeahead', () => {
 
     fireEvent.click(screen.getByRole('option', { name: /Dallas/ }))
     await act(async () => {})
-    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true })
     expect(input.getAttribute('aria-expanded')).toBe('false')
   })
 
@@ -191,6 +191,8 @@ describe('LocationSetup typeahead', () => {
     expect(options[0].textContent).toContain('Dallas')
     expect(options[0].textContent).toContain('Texas')
     expect(options[0].textContent).toContain('United States')
+    expect(options[0].textContent).not.toContain('—')
+    expect(options[0].textContent).toContain(', Texas, United States')
     const [name, secondary] = options[0].querySelectorAll('span')
     expect(name.classList.contains('shrink-0')).toBe(true)
     expect(secondary.classList.contains('min-w-0')).toBe(true)
@@ -266,8 +268,8 @@ describe('LocationSetup typeahead', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
     await act(async () => {})
 
-    expect(await storage.get('location')).toEqual({ lat: 34.0, lon: -84.8, label: 'Dallas', manual: true })
-    expect(input.value).toBe('Dallas')
+    expect(await storage.get('location')).toEqual({ lat: 34.0, lon: -84.8, label: 'Dallas, GA', manual: true })
+    expect(input.value).toBe('Dallas, GA')
     expect(screen.queryByRole('listbox')).toBeNull()
   })
 
@@ -297,7 +299,7 @@ describe('LocationSetup typeahead', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
     await act(async () => {})
 
-    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true })
   })
 
   it('clicking a suggestion selects it the same way as Enter', async () => {
@@ -312,7 +314,7 @@ describe('LocationSetup typeahead', () => {
     fireEvent.click(screen.getByRole('option'))
     await act(async () => {})
 
-    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true })
     expect(screen.queryByRole('listbox')).toBeNull()
   })
 
@@ -340,7 +342,7 @@ describe('LocationSetup typeahead', () => {
 
     expect(write).toHaveBeenCalledTimes(1)
     expect(write).toHaveBeenCalledWith({
-      location: { lat: 32.78, lon: -96.8, label: 'Dallas', manual: true },
+      location: { lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true },
       weatherCache: null,
       weatherAlertCache: null,
     })
@@ -410,8 +412,8 @@ describe('LocationSetup typeahead', () => {
     fireEvent.click(screen.getByRole('option'))
     await act(async () => {})
 
-    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
-    expect(input.value).toBe('Dallas')
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true })
+    expect(input.value).toBe('Dallas, TX')
     expect(screen.queryByRole('listbox')).toBeNull()
 
     // Advance well past where the cancelled "Dal" timer would have fired —
@@ -807,7 +809,7 @@ describe('LocationSetup "Use my location" (geolocation is an install-time permis
     expect(await storage.get('location')).toEqual({
       lat: 34,
       lon: -84.8,
-      label: 'Dallas',
+      label: 'Dallas, GA',
       manual: true,
     })
     expect(await storage.get('weatherCache')).toBeNull()
