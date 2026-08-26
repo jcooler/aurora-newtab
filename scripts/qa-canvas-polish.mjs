@@ -197,14 +197,25 @@ try {
   const fromBox = await from.boundingBox()
   const toBox = await to.boundingBox()
   assert(fromBox && toBox)
+  const targetMember = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)
+    ?.closest('[data-stack-inspector-member]')?.getAttribute('data-stack-inspector-member'), {
+    x: toBox.x + toBox.width / 2,
+    y: toBox.y + toBox.height / 2,
+  })
+  assert.equal(targetMember, 'notes')
   await from.dispatchEvent('pointerdown', {
+    bubbles: true,
     pointerId: 77,
+    pointerType: 'mouse',
+    isPrimary: true,
+    buttons: 1,
     clientX: fromBox.x + fromBox.width / 2,
     clientY: fromBox.y + fromBox.height / 2,
   })
+  await page.waitForTimeout(50)
   await page.evaluate(({ x, y }) => {
-    document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 77, clientX: x, clientY: y }))
-    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 77, clientX: x, clientY: y }))
+    document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 77, pointerType: 'mouse', isPrimary: true, buttons: 1, clientX: x, clientY: y }))
+    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 77, pointerType: 'mouse', isPrimary: true, buttons: 0, clientX: x, clientY: y }))
   }, { x: toBox.x + toBox.width / 2, y: toBox.y + toBox.height / 2 })
   const order = await inspector.locator('[data-stack-inspector-member]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-stack-inspector-member')))
   assert.deepEqual(order, ['tasks', 'notes'])
