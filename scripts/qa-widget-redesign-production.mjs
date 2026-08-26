@@ -259,7 +259,7 @@ async function inspectOwnerVisibleCanvas(page, output) {
     status: '[data-service-status-surface="intrinsic"]',
   })) {
     const item = page.getByTestId(`canvas-item-${id}`)
-    await item.locator(selector).waitFor()
+    await item.locator(selector).first().waitFor()
     intrinsicEvidence[id] = await item.evaluate((node) => ({
       tierFrames: node.querySelectorAll('[data-tier-frame]').length,
       text: (node.textContent ?? '').trim().replace(/\s+/g, ' '),
