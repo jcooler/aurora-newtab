@@ -216,6 +216,10 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).toMatch(/\.canvas-item:hover\s*>\s*\.canvas-item-chrome\s+\.canvas-item-chrome__button,[^{]*\{[^}]*pointer-events:\s*auto/)
   })
 
+  it('makes stack inspector rows real pointer reorder targets inside the modeless inspector', () => {
+    expect(indexCss).toMatch(/\.stack-inspector__member\s*\{[^}]*pointer-events:\s*auto/)
+  })
+
   it('keeps hidden-widget recovery buttons interactive inside the modeless toolbar menu', () => {
     expect(indexCss).toMatch(/\.edit-toolbar__hidden-menu\s*>\s*button\s*\{[^}]*pointer-events:\s*auto/)
   })

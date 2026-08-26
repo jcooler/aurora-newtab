@@ -886,6 +886,7 @@
   grid-template-columns: 28px minmax(0, 1fr) 28px 28px auto;
   align-items: center;
   border-top: 1px solid color-mix(in srgb, var(--control-border) 65%, transparent);
+  pointer-events: auto;
 }
 .stack-inspector__member:first-child {
   border-top: 0;
