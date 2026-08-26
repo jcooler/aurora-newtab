@@ -3,6 +3,7 @@ import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import { DEFAULT_BRIEFING_SOURCES } from '../../lib/storage/schema'
 import {
   attentionRuntimeScope,
+  attentionSnapshotScope,
   effectiveGithubViews,
   effectiveGitlabViews,
   effectiveJiraViews,
@@ -55,60 +56,64 @@ function connectedLinear(config: ConnectorConfig | undefined): LinearConfig | nu
 }
 
 function GithubRefreshOwner({ config, runtime }: { config: GithubConfig; runtime: ActiveAttentionRuntimeScope }) {
-  const views = effectiveGithubViews(resolveGithubViews(config), runtime)
+  const configuredViews = resolveGithubViews(config)
+  const views = effectiveGithubViews(configuredViews, runtime)
   useConnectorSnapshot<GithubData>(
     'github',
     config,
     (previous) => fetchGithub(config.token, previous, views),
     undefined,
-    runtime,
+    attentionSnapshotScope(runtime, 'assignments', configuredViews.pulls && configuredViews.issues),
   )
   return null
 }
 
 function GitlabRefreshOwner({ config, runtime }: { config: GitlabConfig; runtime: ActiveAttentionRuntimeScope }) {
-  const views = effectiveGitlabViews(resolveViews(DEFAULT_GITLAB_VIEWS, config.views), runtime)
+  const configuredViews = resolveViews(DEFAULT_GITLAB_VIEWS, config.views)
+  const views = effectiveGitlabViews(configuredViews, runtime)
   useConnectorSnapshot<GitlabData>(
     'gitlab',
     config,
     (previous) => fetchGitlab(config.instanceUrl, config.token, config.username, views, previous),
     undefined,
-    runtime,
+    attentionSnapshotScope(runtime, 'assignments', configuredViews.mergeRequests && configuredViews.reviewAsks),
   )
   return null
 }
 
 function JiraRefreshOwner({ config, runtime }: { config: JiraConfig; runtime: ActiveAttentionRuntimeScope }) {
-  const views = effectiveJiraViews(resolveViews(DEFAULT_JIRA_VIEWS, config.views), runtime)
+  const configuredViews = resolveViews(DEFAULT_JIRA_VIEWS, config.views)
+  const views = effectiveJiraViews(configuredViews, runtime)
   useConnectorSnapshot<JiraData>(
     'jira',
     config,
     (previous) => fetchJira(config.site, config.email, config.apiToken, views, previous),
     undefined,
-    runtime,
+    attentionSnapshotScope(runtime, 'assignments', configuredViews.assigned),
   )
   return null
 }
 
 function VercelRefreshOwner({ config, runtime }: { config: VercelConfig; runtime: ActiveAttentionRuntimeScope }) {
-  const views = effectiveVercelViews(resolveViews(DEFAULT_VERCEL_VIEWS, config.views), runtime)
+  const configuredViews = resolveViews(DEFAULT_VERCEL_VIEWS, config.views)
+  const views = effectiveVercelViews(configuredViews, runtime)
   useConnectorSnapshot<VercelData>(
     'vercel',
     config,
     (previous) => fetchVercel(config.token, views, previous),
     undefined,
-    runtime,
+    attentionSnapshotScope(runtime, 'deployments', configuredViews.deployments),
   )
   return null
 }
 
-function LinearRefreshOwner({ config, runtime }: { config: LinearConfig; runtime: ActiveAttentionRuntimeScope }) {
+function LinearRefreshOwner({ config }: { config: LinearConfig }) {
   useConnectorSnapshot<LinearWorkData>(
     'linear',
     config,
     () => fetchLinearWork(config.token, linearTeamIds(config)),
     undefined,
-    runtime,
+    undefined,
     isLinearWorkData,
   )
   return null
@@ -132,7 +137,7 @@ export default function AttentionRefreshOwners() {
       {github ? <GithubRefreshOwner config={github} runtime={runtime} /> : null}
       {gitlab ? <GitlabRefreshOwner config={gitlab} runtime={runtime} /> : null}
       {jira ? <JiraRefreshOwner config={jira} runtime={runtime} /> : null}
-      {linear ? <LinearRefreshOwner config={linear} runtime={runtime} /> : null}
+      {linear ? <LinearRefreshOwner config={linear} /> : null}
       {vercel ? <VercelRefreshOwner config={vercel} runtime={runtime} /> : null}
     </>
   )

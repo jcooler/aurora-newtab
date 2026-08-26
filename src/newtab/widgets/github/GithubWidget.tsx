@@ -9,7 +9,7 @@ import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
-import { attentionRuntimeScope, effectiveGithubViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
+import { attentionRuntimeScope, attentionSnapshotScope, effectiveGithubViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
 // so a full page reads as "50+" rather than an exact-but-misleading number.
@@ -107,7 +107,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { g
   const { data, state } = useConnectorSnapshot<GithubData>('github', github, (prev) =>
     fetchGithub(token, prev, fetchViews),
     undefined,
-    runtime,
+    attentionSnapshotScope(runtime, 'assignments', views.pulls && views.issues),
   )
 
   // All four sections off: the user asked for nothing to show, so render no

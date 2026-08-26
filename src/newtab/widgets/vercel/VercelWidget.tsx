@@ -8,7 +8,7 @@ import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
-import { attentionRuntimeScope, effectiveVercelViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
+import { attentionRuntimeScope, attentionSnapshotScope, effectiveVercelViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 const MAX_DEPLOYMENTS = 5
 
@@ -112,7 +112,7 @@ function VercelInner({
   const { data, state } = useConnectorSnapshot<VercelData>('vercel', vercel, (prev) =>
     fetchVercel(token, fetchViews, prev),
     undefined,
-    runtime,
+    attentionSnapshotScope(runtime, 'deployments', views.deployments),
   )
   const tier = canvasSize ?? 'standard'
   if (!data) {

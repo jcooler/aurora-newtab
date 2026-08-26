@@ -10,7 +10,7 @@ import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
-import { attentionRuntimeScope, effectiveJiraViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
+import { attentionRuntimeScope, attentionSnapshotScope, effectiveJiraViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the counts line above already says "there's more"), and it shares the
@@ -176,7 +176,7 @@ function JiraInner({
   const { data, state } = useConnectorSnapshot<JiraData>('jira', jira, (prev) =>
     fetchJira(site, email, apiToken, fetchViews, prev),
     undefined,
-    runtime,
+    attentionSnapshotScope(runtime, 'assignments', views.assigned),
   )
   const tier = canvasSize ?? 'standard'
   if (!data) {

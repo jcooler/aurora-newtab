@@ -101,7 +101,6 @@ async function openWithHover(page, trigger) {
 async function seedFixtures(page, layouts) {
   const now = Date.now() - 1_000
   const eventStart = now + 2 * 60 * 60_000 + 5 * 60_000
-  const runtimeScope = { assignments: true, deployments: true }
   const github = {
     enabled: true,
     token: 'QA_GITHUB_TOKEN_DO_NOT_USE',
@@ -121,8 +120,8 @@ async function seedFixtures(page, layouts) {
     upcomingCount: 3,
     meetLinks: true,
   }
-  const githubScope = snapshotScope('github', github, runtimeScope)
-  const vercelScope = snapshotScope('vercel', vercel, runtimeScope)
+  const githubScope = snapshotScope('github', github, undefined)
+  const vercelScope = snapshotScope('vercel', vercel, undefined)
   const icsScope = snapshotScope('ics', ics, { timeZone: 'America/New_York' }, 'v2')
 
   await page.evaluate(async (fixture) => {

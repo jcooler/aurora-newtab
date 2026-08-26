@@ -12,9 +12,11 @@ import { useNow } from '../../lib/hooks/useNow'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import { useStorage } from '../../lib/storage/context'
 import { DEFAULT_BRIEFING_SOURCES, type AttentionAssignmentSource } from '../../lib/storage/schema'
-import { attentionRuntimeScope } from '../../services/connectors/attentionPolicy'
+import { attentionRuntimeScope, attentionSnapshotScope } from '../../services/connectors/attentionPolicy'
+import { resolveGithubViews } from '../../services/connectors/github'
+import { DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
 import { isIcsData, icsCalendarsOf } from '../../services/connectors/ics'
-import { normalizeJiraSite } from '../../services/connectors/jira'
+import { DEFAULT_JIRA_VIEWS, normalizeJiraSite } from '../../services/connectors/jira'
 import { getConnector } from '../../services/connectors/registry'
 import { connectorSnapshotScope } from '../../services/connectors/snapshotIdentity'
 import type {
@@ -27,6 +29,8 @@ import type {
   LinearConfig,
   VercelConfig,
 } from '../../services/connectors/types'
+import { DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
+import { resolveViews } from '../../services/connectors/views'
 import { weatherRequestIdentity } from '../../services/weather/identity'
 
 const WEATHER_TTL_MS = 30 * 60 * 1_000
@@ -131,7 +135,7 @@ async function validScope(
   id: 'github' | 'gitlab' | 'jira' | 'linear' | 'vercel',
   config: ConnectorConfig,
   snapshot: ConnectorSnapshot,
-  runtime: ReturnType<typeof attentionRuntimeScope>,
+  runtime: unknown,
 ): Promise<boolean> {
   return snapshot.scope === await connectorSnapshotScope(id, config, runtime)
 }
@@ -202,7 +206,11 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
       if (sources.assignments && runtime?.assignments) {
         const github = githubConfig(connectors.github)
         const githubSnapshot = snapshots.github
-        if (github && currentSnapshot(githubSnapshot, nowMs) && await validScope('github', github, githubSnapshot, runtime)) {
+        const githubViews = github ? resolveGithubViews(github) : null
+        const githubScope = githubViews
+          ? attentionSnapshotScope(runtime, 'assignments', githubViews.pulls && githubViews.issues)
+          : undefined
+        if (github && currentSnapshot(githubSnapshot, nowMs) && await validScope('github', github, githubSnapshot, githubScope)) {
           const data = isRecord(githubSnapshot.data) ? githubSnapshot.data : null
           const rawRows = data && Array.isArray(data.prs) && Array.isArray(data.issues) ? [...data.prs, ...data.issues] : null
           const projected = rowsFrom(rawRows, 'github', 'GitHub', githubSnapshot.fetchedAt, (row) => {
@@ -220,7 +228,11 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
 
         const gitlab = gitlabConfig(connectors.gitlab)
         const gitlabSnapshot = snapshots.gitlab
-        if (gitlab && currentSnapshot(gitlabSnapshot, nowMs) && await validScope('gitlab', gitlab, gitlabSnapshot, runtime)) {
+        const gitlabViews = gitlab ? resolveViews(DEFAULT_GITLAB_VIEWS, gitlab.views) : null
+        const gitlabScope = gitlabViews
+          ? attentionSnapshotScope(runtime, 'assignments', gitlabViews.mergeRequests && gitlabViews.reviewAsks)
+          : undefined
+        if (gitlab && currentSnapshot(gitlabSnapshot, nowMs) && await validScope('gitlab', gitlab, gitlabSnapshot, gitlabScope)) {
           const data = isRecord(gitlabSnapshot.data) ? gitlabSnapshot.data : null
           const rawRows = data && Array.isArray(data.mrs) && Array.isArray(data.reviewMrs) ? [...data.mrs, ...data.reviewMrs] : null
           const origin = originOf(gitlab.instanceUrl)
@@ -235,7 +247,9 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
 
         const jira = jiraConfig(connectors.jira)
         const jiraSnapshot = snapshots.jira
-        if (jira && currentSnapshot(jiraSnapshot, nowMs) && await validScope('jira', jira, jiraSnapshot, runtime)) {
+        const jiraViews = jira ? resolveViews(DEFAULT_JIRA_VIEWS, jira.views) : null
+        const jiraScope = jiraViews ? attentionSnapshotScope(runtime, 'assignments', jiraViews.assigned) : undefined
+        if (jira && currentSnapshot(jiraSnapshot, nowMs) && await validScope('jira', jira, jiraSnapshot, jiraScope)) {
           const data = isRecord(jiraSnapshot.data) ? jiraSnapshot.data : null
           const site = normalizeJiraSite(jira.site)
           const origin = site ? `https://${site}` : ''
@@ -251,7 +265,7 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
 
         const linear = linearConfig(connectors.linear)
         const linearSnapshot = snapshots.linear
-        if (linear && currentSnapshot(linearSnapshot, nowMs) && await validScope('linear', linear, linearSnapshot, runtime)) {
+        if (linear && currentSnapshot(linearSnapshot, nowMs) && await validScope('linear', linear, linearSnapshot, undefined)) {
           const data = isRecord(linearSnapshot.data) ? linearSnapshot.data : null
           const projected = rowsFrom(data?.issues, 'linear', 'Linear', linearSnapshot.fetchedAt, (row) => {
             const id = clean(row.id)
@@ -269,7 +283,9 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
       if (sources.deployments && runtime?.deployments) {
         const vercel = vercelConfig(connectors.vercel)
         const vercelSnapshot = snapshots.vercel
-        if (vercel && currentSnapshot(vercelSnapshot, nowMs) && await validScope('vercel', vercel, vercelSnapshot, runtime)) {
+        const vercelViews = vercel ? resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views) : null
+        const vercelScope = vercelViews ? attentionSnapshotScope(runtime, 'deployments', vercelViews.deployments) : undefined
+        if (vercel && currentSnapshot(vercelSnapshot, nowMs) && await validScope('vercel', vercel, vercelSnapshot, vercelScope)) {
           const data = isRecord(vercelSnapshot.data) ? vercelSnapshot.data : null
           const raw = data?.deployments
           if (Array.isArray(raw)) {

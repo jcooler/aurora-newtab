@@ -7,8 +7,10 @@ import { StorageProvider } from '../../lib/storage/context'
 import { memoryDriver } from '../../lib/storage/driver'
 import { defaults, type AttentionLedger, type AuroraData, type BriefingSources } from '../../lib/storage/schema'
 import { resolvedLocalTimeZone } from '../../lib/dates'
-import { attentionRuntimeScope } from '../../services/connectors/attentionPolicy'
-import type { GithubData } from '../../services/connectors/github'
+import { attentionRuntimeScope, attentionSnapshotScope } from '../../services/connectors/attentionPolicy'
+import { resolveGithubViews, type GithubData } from '../../services/connectors/github'
+import { DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
+import { DEFAULT_JIRA_VIEWS } from '../../services/connectors/jira'
 import { connectorSnapshotScope } from '../../services/connectors/snapshotIdentity'
 import type {
   GithubConfig,
@@ -19,6 +21,8 @@ import type {
   VercelConfig,
 } from '../../services/connectors/types'
 import { weatherRequestIdentity } from '../../services/weather/identity'
+import { DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
+import { resolveViews } from '../../services/connectors/views'
 import { useAttentionSignals } from './useAttentionSignals'
 
 const NOW = Date.UTC(2026, 7, 26, 16, 0, 0)
@@ -53,7 +57,24 @@ async function scopeFor(
   id: 'github' | 'gitlab' | 'jira' | 'linear' | 'vercel',
   config: GithubConfig | GitlabConfig | JiraConfig | LinearConfig | VercelConfig,
 ) {
-  return connectorSnapshotScope(id, config, attentionRuntimeScope(true, SOURCES))
+  const runtime = attentionRuntimeScope(true, SOURCES)
+  if (id === 'github') {
+    const views = resolveGithubViews(config as GithubConfig)
+    return connectorSnapshotScope(id, config, attentionSnapshotScope(runtime, 'assignments', views.pulls && views.issues))
+  }
+  if (id === 'gitlab') {
+    const views = resolveViews(DEFAULT_GITLAB_VIEWS, (config as GitlabConfig).views)
+    return connectorSnapshotScope(id, config, attentionSnapshotScope(runtime, 'assignments', views.mergeRequests && views.reviewAsks))
+  }
+  if (id === 'jira') {
+    const views = resolveViews(DEFAULT_JIRA_VIEWS, (config as JiraConfig).views)
+    return connectorSnapshotScope(id, config, attentionSnapshotScope(runtime, 'assignments', views.assigned))
+  }
+  if (id === 'vercel') {
+    const views = resolveViews(DEFAULT_VERCEL_VIEWS, (config as VercelConfig).views)
+    return connectorSnapshotScope(id, config, attentionSnapshotScope(runtime, 'deployments', views.deployments))
+  }
+  return connectorSnapshotScope(id, config)
 }
 
 beforeEach(() => {
@@ -154,17 +175,16 @@ describe('useAttentionSignals', () => {
   })
 
   it('does not baseline legacy GitHub or GitLab cached rows that lack stable IDs', async () => {
-    const runtime = attentionRuntimeScope(true, SOURCES)
     const storage = await makeStorage({
       connectors: { github: GITHUB, gitlab: GITLAB },
       connectorSnapshots: {
         github: {
-          scope: await connectorSnapshotScope('github', GITHUB, runtime),
+          scope: await scopeFor('github', GITHUB),
           fetchedAt: NOW - 1_000,
           data: githubData([{ title: 'Legacy GitHub row', repo: 'acme/app', url: 'https://github.com/acme/app/issues/1' } as never]),
         },
         gitlab: {
-          scope: await connectorSnapshotScope('gitlab', GITLAB, runtime),
+          scope: await scopeFor('gitlab', GITLAB),
           fetchedAt: NOW - 1_000,
           data: {
             mrs: [{ title: 'Legacy GitLab row', project: 'acme/app', url: 'https://gitlab.example.com/acme/app/-/merge_requests/1' }],

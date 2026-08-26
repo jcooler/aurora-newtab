@@ -12,7 +12,7 @@ import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
-import { attentionRuntimeScope, effectiveGitlabViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
+import { attentionRuntimeScope, attentionSnapshotScope, effectiveGitlabViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
 // so a full page reads as "20+" rather than an exact-but-misleading number.
@@ -205,7 +205,7 @@ function GitlabInner({
   const { data, state } = useConnectorSnapshot<GitlabData>('gitlab', gitlab, (prev) =>
     fetchGitlab(instanceUrl, token, username, fetchViews, prev),
     undefined,
-    runtime,
+    attentionSnapshotScope(runtime, 'assignments', views.mergeRequests && views.reviewAsks),
   )
   const tier = canvasSize ?? 'standard'
   if (!data) {

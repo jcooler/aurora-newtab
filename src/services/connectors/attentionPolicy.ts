@@ -7,6 +7,7 @@ export interface ActiveAttentionRuntimeScope {
 }
 
 export type AttentionRuntimeScope = ActiveAttentionRuntimeScope | undefined
+export type AttentionSnapshotScope = { assignments: true } | { deployments: true } | undefined
 
 export function attentionRuntimeScope(
   briefingEnabled: boolean,
@@ -15,6 +16,15 @@ export function attentionRuntimeScope(
   const assignments = briefingEnabled && sources.assignments
   const deployments = briefingEnabled && sources.deployments
   return assignments || deployments ? { assignments, deployments } : undefined
+}
+
+export function attentionSnapshotScope(
+  runtime: AttentionRuntimeScope,
+  source: 'assignments' | 'deployments',
+  configuredViewsAlreadyFetchSource: boolean,
+): AttentionSnapshotScope {
+  if (configuredViewsAlreadyFetchSource || runtime?.[source] !== true) return undefined
+  return source === 'assignments' ? { assignments: true } : { deployments: true }
 }
 
 export function effectiveGithubViews(
