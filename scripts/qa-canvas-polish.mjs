@@ -124,6 +124,7 @@ try {
 
   await page.getByRole('button', { name: 'Open settings' }).click()
   await page.getByRole('tab', { name: 'Widgets' }).click()
+  await page.getByRole('button', { name: 'Weather location' }).click()
   await page.waitForTimeout(500)
   evidence.settingsState = await page.evaluate(async () => ({
     location: (await chrome.storage.local.get('location')).location,
