@@ -168,7 +168,7 @@ try {
     const widgets = Object.fromEntries(blockIds.map((id) => [id, { kind: 'hidden' }]))
     const stack = {
       id: 'stack-polish', members: ['notes', 'tasks'], facing: 'notes',
-      anchor: 'center', offsetX: -50, offsetY: 0, tier: 'standard', layer: 1,
+      anchor: 'center', offsetX: -50, offsetY: 0, tier: 'compact', layer: 1,
     }
     const layout = { id: 'stack-polish-layout', name: 'Stack polish', widgets, stacks: [stack] }
     await chrome.storage.local.set({
