@@ -229,6 +229,7 @@ async function exercisePanel(page, output, evidence) {
   await panel.waitFor({ state: 'detached' })
   assert.equal(await trigger.evaluate((node) => document.activeElement === node), true, 'Escape did not return focus to the attention summary')
 
+  await page.getByRole('button', { name: 'Open settings' }).focus()
   await trigger.focus()
   panel = page.getByRole('region', { name: 'Attention details' })
   await panel.waitFor({ state: 'visible' })
