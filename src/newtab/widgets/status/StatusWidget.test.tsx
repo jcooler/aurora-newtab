@@ -11,6 +11,7 @@ import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import type { WidgetPresentationMode } from '../../widgetRenderers'
 import StatusWidget from './StatusWidget'
+import indexCss from '../../index.css?raw'
 
 // The snapshot hook's in-flight dedupe map is module-level and survives
 // across cases; reset it so one test's refresh can't dedupe the next — same
@@ -71,6 +72,10 @@ async function readyFrame() {
 }
 
 describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
+  it('restores real pointer hit testing only for compact service tooltip owners', () => {
+    expect(indexCss).toMatch(/\.canvas-item:not\(\[data-canvas-object-id\^="stack:"\]\)\[data-block-id="status"\] \[data-status-service\]\s*\{[^}]*pointer-events:\s*auto/)
+  })
+
   it('renders nothing — and never runs the snapshot refresh — when the connector is disabled', async () => {
     const storage = await seededStorage({ ...CONNECTED, enabled: false }, null)
     const { container } = mount(storage)
