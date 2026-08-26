@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -99,22 +99,14 @@ async function openWithHover(page, trigger) {
   return panel
 }
 
-async function grantFixturePermissions(page) {
-  const origins = ['https://api.github.com/*', 'https://api.vercel.com/*', 'https://calendar.example.test/*']
-  await page.evaluate((requested) => {
-    const button = document.createElement('button')
-    button.id = 'qa-grant-permissions'
-    button.addEventListener('click', () => {
-      void chrome.permissions.request({ origins: requested }).then((granted) => {
-        document.documentElement.dataset.qaPermissionsGranted = String(granted)
-      })
-    })
-    document.body.append(button)
-  }, origins)
-  await page.locator('#qa-grant-permissions').click()
-  await page.waitForFunction(() => document.documentElement.dataset.qaPermissionsGranted === 'true')
-  const held = await page.evaluate(async (requested) => chrome.permissions.contains({ origins: requested }), origins)
-  assert.equal(held, true, 'fixture host permissions were not granted')
+function preparePermissionHarness(dist, profile) {
+  const qaDist = resolve(profile, 'extension')
+  cpSync(dist, qaDist, { recursive: true })
+  const manifestPath = resolve(qaDist, 'manifest.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.host_permissions = ['https://api.github.com/*', 'https://api.vercel.com/*', 'https://calendar.example.test/*']
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+  return qaDist
 }
 
 async function assertPanelClearsVisibleUi(page, panelRect) {
@@ -408,8 +400,10 @@ export async function runAttentionSignalsQa(args = process.argv.slice(2)) {
   let caught
   try {
     const browserMode = resolveSfP1BrowserMode(args.includes('--headed') ? ['--headed'] : [])
+    const qaDist = preparePermissionHarness(dist, profile)
+    evidence.permissionHarness = 'Exact dist copy with fixture hosts promoted to required permissions; production permission revocation is covered by reactive unit tests.'
     context = await chromium.launchPersistentContext(profile, {
-      ...resolveSfP1ContextOptions(browserMode, dist),
+      ...resolveSfP1ContextOptions(browserMode, qaDist),
       hasTouch: true,
     })
     context.on('page', (candidate) => attachRuntimeAudit(candidate, evidence))
@@ -423,7 +417,9 @@ export async function runAttentionSignalsQa(args = process.argv.slice(2)) {
     const extensionId = new URL(page.url()).host
     const seedUrl = `chrome-extension://${extensionId}/manifest.json`
     await page.goto(seedUrl, { waitUntil: 'domcontentloaded' })
-    await grantFixturePermissions(page)
+    assert.equal(await page.evaluate(() => chrome.permissions.contains({ origins: [
+      'https://api.github.com/*', 'https://api.vercel.com/*', 'https://calendar.example.test/*',
+    ] })), true, 'fixture host permissions are missing from the temporary QA manifest')
     const fixture = await seedFixtures(page, attentionLayout(authorityIds))
     await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
     await page.locator('[data-canvas-surface]').waitFor()
