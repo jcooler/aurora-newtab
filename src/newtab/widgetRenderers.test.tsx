@@ -21,7 +21,7 @@ describe('time and productivity widget renderers', () => {
     },
   )
 
-  it.each(['worldClocks', 'countdown', 'search', 'links'] as const)(
+  it.each(['worldClocks', 'countdown'] as const)(
     'uses the approved redesigned %s face on the standalone canvas',
     (id) => {
       const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'free' }) as ReactElement<{
@@ -30,6 +30,18 @@ describe('time and productivity widget renderers', () => {
       }>
       expect(element.props.canvasSize).toBe('standard')
       expect(element.props.presentation).toBe('stack')
+    },
+  )
+
+  it.each(['search', 'links'] as const)(
+    'keeps standalone %s frameless on the photograph',
+    (id) => {
+      const element = WIDGET_RENDERERS[id]({ canvasSize: 'standard', presentation: 'free' }) as ReactElement<{
+        canvasSize?: CanvasSize
+        presentation?: WidgetPresentationMode
+      }>
+      expect(element.props.canvasSize).toBe('standard')
+      expect(element.props.presentation).toBe('free')
     },
   )
 

@@ -71,8 +71,8 @@ function effectiveVariant({ stageVariant, canvasSize }: WidgetRendererProps): Wi
 }
 
 /** Some authored standalone faces deliberately share the framed composition
- * used in stacks. Intrinsic Clock and Quote are excluded at their call sites:
- * their free presentation belongs directly on the photograph. */
+ * used in stacks. Clock, Quote, Search, and Quick Links are excluded at their
+ * call sites because their free presentation belongs directly on the photo. */
 function approvedCanvasFace(presentation?: WidgetPresentationMode): WidgetPresentationMode | undefined {
   return presentation === 'free' ? 'stack' : presentation
 }
@@ -90,9 +90,9 @@ export const WIDGET_RENDERERS = {
   greeting: (_props: WidgetRendererProps) => <Greeting />,
   worldClocks: (props) => <WorldClocks canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} docked={props.docked} />,
   countdown: (props) => <CountdownLine canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} docked={props.docked} />,
-  search: (props) => <SearchBar canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} />,
+  search: (props) => <SearchBar canvasSize={props.canvasSize} presentation={props.presentation} />,
   focus: (props) => <FocusLine canvasSize={props.canvasSize} presentation={props.presentation} />,
-  links: (props) => <LinksWidget canvasSize={props.canvasSize} presentation={approvedCanvasFace(props.presentation)} />,
+  links: (props) => <LinksWidget canvasSize={props.canvasSize} presentation={props.presentation} />,
   habits: (props) => <HabitsWidget canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} />,
   bookmarks: ({ onBookmarksPopoverOpenChange, canvasSize }) => <BookmarksBar onPopoverOpenChange={onBookmarksPopoverOpenChange} canvasSize={canvasSize} />,
   status: (props) => <StatusWidget canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} />,
