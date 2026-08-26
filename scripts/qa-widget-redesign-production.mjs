@@ -255,7 +255,7 @@ async function inspectOwnerVisibleCanvas(page, output) {
     focus: '[data-focus-footprint]',
     links: '[data-quick-link-presentation="free"]',
     quote: 'figure',
-    search: '[data-search-presentation="free"]',
+    search: '[data-search-presentation="free"] input[aria-label="Search the web"]',
     status: '[data-service-status-surface="intrinsic"]',
   })) {
     const item = page.getByTestId(`canvas-item-${id}`)
@@ -263,9 +263,13 @@ async function inspectOwnerVisibleCanvas(page, output) {
     intrinsicEvidence[id] = await item.evaluate((node) => ({
       tierFrames: node.querySelectorAll('[data-tier-frame]').length,
       text: (node.textContent ?? '').trim().replace(/\s+/g, ' '),
+      accessibleLabel: node.querySelector('[aria-label]')?.getAttribute('aria-label') ?? '',
     }))
     assert.equal(intrinsicEvidence[id].tierFrames, 0, `${id} regressed to a tier card`)
-    assert(intrinsicEvidence[id].text.length > 0, `${id} lost its intrinsic content`)
+    assert(
+      intrinsicEvidence[id].text.length > 0 || intrinsicEvidence[id].accessibleLabel.length > 0,
+      `${id} lost its intrinsic content`,
+    )
   }
 
   const visibleBounds = {}
