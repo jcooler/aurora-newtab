@@ -1,11 +1,13 @@
 # Aurora 2 Status
 
-**Updated:** 2026-08-23<br>
+**Updated:** 2026-08-26<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Complete widget redesign production<br>
-**Last verified packet:** `Complete widget redesign production` - all 34 approved targets covering 36 source identities, a composed 3,278-test stabilized gate, TypeScript, 253-module production build, 15 catalog contracts, and 30 exact mixed-stack Chromium captures<br>
-**Current packet:** None; owner visual review of the installed extension is next
+**Current wave:** Canvas polish and stack interactions<br>
+**Last verified packet:** `Canvas polish and stack interactions` - 3,396 green tests, a 263-module build, 31 production catalog captures, exact attention and dock witnesses, and focused 1600x900 plus 1408x445 Chromium acceptance<br>
+**Current packet:** Owner MacBook trial, then higher-quality image direction before premium and subscription strategy
+
+- **Canvas polish and stack interactions (2026-08-26, VERIFIED):** Free Search and Quick Links are restored as intrinsic photo-first controls; Weather preserves `Dallas, GA` style region labels and separates Clear; Focus keeps its prompt, saved item, check control, and short reduced-motion-safe celebration; compact Status is names and dots with service-specific hover and focus context. Stack grip movement reorders in place, arrows and Remove remain interactive, controls overlay the fixed stack footprint, stacks reach the same 8px edge as ordinary widgets, and dock depth is reduced to `clamp(60px, 10vh, 78px)`. The bounded review found and closed one pointer-control regression and added bottom-edge-safe Status tooltip placement. Final evidence includes 212 files / 3,396 tests, a 263-module build, 31 exact production catalog captures, exact attention, dock, UI recovery, and canvas polish Chromium witnesses, zero accepted runtime errors, and the report at `docs/superpowers/reports/AURORA-CANVAS-POLISH-AND-STACK-INTERACTIONS-QA.md`. The feature branch is approved for GitHub push and MacBook testing; merge and Store state remain untouched.
 
 - **Complete widget redesign production Task 8 (2026-08-23, VERIFIED):** The exact production catalog pins all 34 approved presentation targets and renders Weather plus On This Day, GitHub plus Unified Calendar, Tasks plus Notes, Clock plus Quote, and Jira plus Sentry in dark, light, and saturated panels with both faces visible. The 30/30 accepted Chromium replay measured exact Compact, Standard, and Full frames, an 11px visible text floor, no clipping or internal scroll owner, 15 layouts-only facing writes, one approved Weather alert cache write, a byte-stable legacy `layout`, zero runtime errors, and zero failed or unexpected requests. Visual review caught a synthetic legacy-Calendar fixture and then a real 10px Full weekday floor; the fixture was corrected to model explicit consolidation and the product floor was fixed RED-first. The stabilized suite produced 3,277 green tests plus the corrected 5/5 authority family, TypeScript, 15/15 Node catalog contracts, and a clean 253-module production build. Report: `docs/superpowers/reports/WIDGET-REDESIGN-PRODUCTION-QA.md`. The protected checkout and Chrome Web Store remain untouched.
 
