@@ -118,11 +118,9 @@ function preparePermissionHarness(dist, profile) {
 
 async function assertPanelClearsVisibleUi(page, panelRect) {
   const obstacles = await page.evaluate(() => {
-    const trigger = document.querySelector('.aurora-briefing__trigger')
-    const owner = trigger?.closest('[data-testid^="canvas-item-"]')
     const selector = '[data-testid^="canvas-item-"], .utility-tray-trigger, .chrome-tab-trigger, .settings-gear, .layout-badge-host'
     return [...document.querySelectorAll(selector)].flatMap((node) => {
-      if (!(node instanceof HTMLElement) || node === owner || owner?.contains(node)) return []
+      if (!(node instanceof HTMLElement) || getComputedStyle(node).visibility === 'hidden') return []
       const rect = node.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return []
       return [{
@@ -358,6 +356,7 @@ async function exerciseCompact(page, output, evidence) {
   await panel.waitFor({ state: 'visible' })
   const panelRect = rectFromBox(await panel.boundingBox())
   assertViewportContained(panelRect, COMPACT)
+  const obstacles = await assertPanelClearsVisibleUi(page, panelRect)
   await page.screenshot({ path: resolve(output, 'attention-touch-context.png'), animations: 'disabled' })
   const compactHealth = await assertPageHealth(page, 'compact attention view')
 
@@ -368,13 +367,16 @@ async function exerciseCompact(page, output, evidence) {
   })
   const edgePanelRect = rectFromBox(await panel.boundingBox())
   assertViewportContained(edgePanelRect, EDGE_COMPACT)
+  const edgeObstacles = await assertPanelClearsVisibleUi(page, edgePanelRect)
   await page.screenshot({ path: resolve(output, 'attention-edge-clamped.png'), animations: 'disabled' })
   evidence.compact = {
     viewport: COMPACT,
     panelRect,
+    clearedObstacles: obstacles.map(({ label }) => label),
     health: compactHealth,
     edgeViewport: EDGE_COMPACT,
     edgePanelRect,
+    edgeClearedObstacles: edgeObstacles.map(({ label }) => label),
     edgeHealth: await assertPageHealth(page, 'edge-clamped attention view'),
   }
   await page.keyboard.press('Escape')

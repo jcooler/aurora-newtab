@@ -43,6 +43,7 @@ beforeAll(async () => {
     getAll: vi.fn().mockResolvedValue({ origins: [
       'https://api.github.com/*', 'https://gitlab.example.com/*', 'https://aurora.atlassian.net/*',
       'https://api.linear.app/*', 'https://api.vercel.com/*',
+      'https://calendar.example/*',
     ] }),
     onAdded: { addListener: (listener: (permissions: chrome.permissions.Permissions) => void) => permissionListeners.added.push(listener) },
     onRemoved: { addListener: (listener: (permissions: chrome.permissions.Permissions) => void) => permissionListeners.removed.push(listener) },
@@ -359,6 +360,15 @@ describe('useAttentionSignals', () => {
       },
     })
     const result = renderHook(() => useAttentionSignals(), { wrapper: wrapper(storage) })
+    await waitFor(() => expect(result.result.current.signals.map((signal) => signal.kind)).toEqual(['calendar', 'rain']))
+
+    act(() => {
+      for (const listener of permissionListeners.removed) listener({ origins: ['https://calendar.example/*'] })
+    })
+    await waitFor(() => expect(result.result.current.signals.map((signal) => signal.kind)).toEqual(['rain']))
+    act(() => {
+      for (const listener of permissionListeners.added) listener({ origins: ['https://calendar.example/*'] })
+    })
     await waitFor(() => expect(result.result.current.signals.map((signal) => signal.kind)).toEqual(['calendar', 'rain']))
 
     await act(async () => {

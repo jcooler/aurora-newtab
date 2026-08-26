@@ -5,12 +5,15 @@ describe('attention panel placement', () => {
   it('chooses a collision-free candidate instead of covering a nearby widget', () => {
     const placed = placeAttentionPanel({
       viewport: { width: 1600, height: 900 },
-      trigger: { left: 350, top: 400, right: 450, bottom: 430, width: 100, height: 30 },
+      trigger: { left: 246, top: 396, right: 584, bottom: 422, width: 338, height: 26 },
       panel: { width: 352, height: 190 },
-      obstacles: [{ left: 128, top: 548, right: 448, bottom: 748, width: 320, height: 200 }],
+      obstacles: [
+        { left: 213, top: 334, right: 588, bottom: 422, width: 375, height: 88 },
+        { left: 128, top: 548, right: 448, bottom: 748, width: 320, height: 200 },
+      ],
     })
 
-    expect(placed.top).toBeLessThan(400)
+    expect(placed.left).toBeGreaterThanOrEqual(592)
   })
 
   it('keeps the panel inside a narrow viewport', () => {

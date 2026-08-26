@@ -81,15 +81,20 @@ export default function AttentionContextPanel({
   }, [open])
 
   useLayoutEffect(() => {
+    if (!open) return
+    document.body.classList.add('aurora-attention-open')
+    return () => document.body.classList.remove('aurora-attention-open')
+  }, [open])
+
+  useLayoutEffect(() => {
     if (!open || !triggerRef.current || !panelRef.current) return
     const place = () => {
       const trigger = triggerRef.current?.getBoundingClientRect()
       const panel = panelRef.current?.getBoundingClientRect()
       if (!trigger || !panel) return
-      const owner = triggerRef.current?.closest('[data-testid^="canvas-item-"]')
       const selector = '[data-testid^="canvas-item-"], .utility-tray-trigger, .chrome-tab-trigger, .settings-gear, .layout-badge-host, [role="dialog"][aria-label="Settings"]'
       const obstacles = [...document.querySelectorAll<HTMLElement>(selector)]
-        .filter((node) => node !== owner && !owner?.contains(node))
+        .filter((node) => getComputedStyle(node).visibility !== 'hidden')
         .map((node) => node.getBoundingClientRect())
         .filter((rect) => rect.width > 0 && rect.height > 0) as AttentionRect[]
       setPosition(placeAttentionPanel({

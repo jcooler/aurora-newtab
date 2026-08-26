@@ -2307,6 +2307,11 @@ a.aurora-attention-panel__title:focus-visible {
 .canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="greeting"] .aurora-briefing__trigger {
   pointer-events: auto;
 }
+@media (max-width: 480px) {
+  body.aurora-attention-open .canvas-item:not([data-block-id="greeting"]) {
+    visibility: hidden;
+  }
+}
 .edit-guides--dock {
   z-index: 40;
 }

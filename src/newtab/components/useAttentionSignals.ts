@@ -319,6 +319,7 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
       const icsSnapshot = snapshots.ics
       if (
         sources.calendar && ics?.enabled && icsCalendarsOf(ics).length > 0 &&
+        hasAttentionConnectorPermission('ics', ics) &&
         currentSnapshot(icsSnapshot, nowMs) && isIcsData(icsSnapshot.data) &&
         icsSnapshot.scope === await connectorSnapshotScope('ics', ics, { timeZone })
       ) {
