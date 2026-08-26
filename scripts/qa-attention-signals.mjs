@@ -276,19 +276,19 @@ async function exerciseSettings(page, evidence) {
     const control = drawer.getByRole('switch', { name })
     assert.equal(await control.getAttribute('aria-checked'), 'true', `${name} was not initially enabled`)
     await control.click()
-    await page.waitForFunction((label) => document.querySelector(`[role="switch"][aria-label="${label}"]`)?.getAttribute('aria-checked') === 'false', name)
+    assert.equal(await control.getAttribute('aria-checked'), 'false', `${name} did not disable`)
     observed[name] = ['false']
     await control.click()
-    await page.waitForFunction((label) => document.querySelector(`[role="switch"][aria-label="${label}"]`)?.getAttribute('aria-checked') === 'true', name)
+    assert.equal(await control.getAttribute('aria-checked'), 'true', `${name} did not re-enable`)
     observed[name].push('true')
   }
 
   const master = drawer.getByRole('switch', { name: 'Greeting helper' })
   await master.click()
-  await page.waitForFunction(() => document.querySelector('[role="switch"][aria-label="Greeting helper"]')?.getAttribute('aria-checked') === 'false')
+  assert.equal(await master.getAttribute('aria-checked'), 'false', 'Greeting helper did not disable')
   for (const name of SOURCE_SWITCHES) assert.equal(await drawer.getByRole('switch', { name }).count(), 0, `${name} remained visible while the helper was disabled`)
   await master.click()
-  await page.waitForFunction(() => document.querySelector('[role="switch"][aria-label="Greeting helper"]')?.getAttribute('aria-checked') === 'true')
+  assert.equal(await master.getAttribute('aria-checked'), 'true', 'Greeting helper did not re-enable')
   for (const name of SOURCE_SWITCHES) await drawer.getByRole('switch', { name }).waitFor({ state: 'visible' })
 
   await page.evaluate(() => document.querySelector('.aurora-briefing__trigger')?.click())
