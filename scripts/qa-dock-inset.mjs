@@ -92,7 +92,7 @@ const fail = (message) => evidence.failures.push(message)
 const closeTo = (actual, expected, label) => {
   if (Math.abs(actual - expected) > 0.5) fail(`${label}: ${actual}, expected ${expected}`)
 }
-const dockHeight = (height) => Math.min(128, Math.max(96, height * 0.16))
+const dockHeight = (height) => Math.min(78, Math.max(60, height * 0.1))
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium',
