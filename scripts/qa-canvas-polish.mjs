@@ -140,7 +140,7 @@ try {
   await focusInput.press('Enter')
   assert(await page.getByText(/main focus today/i).isVisible())
   assert(await page.getByText('Finish the Mac test', { exact: true }).isVisible())
-  await page.locator('#focus-done').check()
+  await page.locator('label[for="focus-done"]').click()
   await page.locator('[data-focus-celebration]').waitFor()
   assert.equal(await page.getByText('Nice.', { exact: true }).count(), 0)
 
