@@ -1,5 +1,5 @@
 {
-  "commit": "a64f916648c03b44c736302dd1d401faed3d07bb",
+  "commit": "bbfbf4ab6bd0f92a820691aaf630d7019de75369",
   "wide": {
     "viewport": {
       "width": 1600,
@@ -8,23 +8,23 @@
     "items": [
       {
         "id": "canvas-item-clock",
-        "left": 587.515625,
+        "left": 635.515625,
         "top": 30.53125,
-        "right": 1012.484375,
+        "right": 964.484375,
         "bottom": 203.46875
       },
       {
         "id": "canvas-item-greeting",
-        "left": 1033.765625,
+        "left": 1037.390625,
         "top": 91.40625,
-        "right": 1462.234375,
+        "right": 1458.609375,
         "bottom": 142.59375
       },
       {
         "id": "canvas-item-quote",
-        "left": 791.8671875,
+        "left": 853.0859375,
         "top": 698.3125,
-        "right": 1512.1328125,
+        "right": 1450.9140625,
         "bottom": 741.6875
       },
       {
@@ -85,23 +85,23 @@
     "items": [
       {
         "id": "canvas-item-clock",
-        "left": 585.8046875,
+        "left": 612.5078125,
         "top": 8,
-        "right": 822.1953125,
+        "right": 795.4921875,
         "bottom": 113.46875
       },
       {
         "id": "canvas-item-greeting",
-        "left": 926.84375,
+        "left": 929.75,
         "top": 48.4765625,
-        "right": 1269.625,
+        "right": 1266.71875,
         "bottom": 85.0234375
       },
       {
         "id": "canvas-item-quote",
-        "left": 366.1171875,
+        "left": 423.5078125,
         "top": 370.625,
-        "right": 1041.8828125,
+        "right": 984.4921875,
         "bottom": 412.5625
       },
       {
