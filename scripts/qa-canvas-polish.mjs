@@ -196,12 +196,21 @@ try {
   const fromBox = await from.boundingBox()
   const toBox = await to.boundingBox()
   assert(fromBox && toBox)
-  const targetMember = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)
-    ?.closest('[data-stack-inspector-member]')?.getAttribute('data-stack-inspector-member'), {
+  const hitTarget = await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y)
+    return {
+      member: hit?.closest('[data-stack-inspector-member]')?.getAttribute('data-stack-inspector-member'),
+      tag: hit?.tagName,
+      className: hit instanceof HTMLElement ? hit.className : null,
+      viewport: { width: innerWidth, height: innerHeight },
+    }
+  }, {
     x: toBox.x + toBox.width / 2,
     y: toBox.y + toBox.height / 2,
   })
-  assert.equal(targetMember, 'notes')
+  evidence.stackView = { fromBox, toBox, hitTarget }
+  await page.screenshot({ path: resolve(output, 'stack-inspector-1600x900.png') })
+  assert.equal(hitTarget.member, 'notes')
   await from.dispatchEvent('pointerdown', {
     bubbles: true,
     pointerId: 77,
