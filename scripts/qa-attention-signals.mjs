@@ -22,6 +22,7 @@ import { snapshotScope } from './qa-shared-frame-p2.mjs'
 
 const DESKTOP = Object.freeze({ width: 1600, height: 900 })
 const COMPACT = Object.freeze({ width: 375, height: 812 })
+const EDGE_COMPACT = Object.freeze({ width: 320, height: 812 })
 const EXPECTED_SUMMARY = '2 items need attention · QA review in 2h'
 const SOURCE_SWITCHES = Object.freeze([
   'Upcoming calendar',
@@ -320,11 +321,26 @@ async function exerciseCompact(page, output, evidence) {
   await panel.waitFor({ state: 'visible' })
   const panelRect = rectFromBox(await panel.boundingBox())
   assertViewportContained(panelRect, COMPACT)
-  assert(Math.abs(panelRect.left - 8) <= 1, 'compact attention panel did not use the edge clamp')
-  await page.screenshot({ path: resolve(output, 'attention-edge-clamped.png'), animations: 'disabled' })
   await page.screenshot({ path: resolve(output, 'attention-touch-context.png'), animations: 'disabled' })
-  evidence.compact = { viewport: COMPACT, panelRect, health: await assertPageHealth(page, 'compact attention view') }
-  await trigger.tap()
+  const compactHealth = await assertPageHealth(page, 'compact attention view')
+
+  await page.setViewportSize(EDGE_COMPACT)
+  await page.waitForFunction(() => {
+    const panelNode = document.querySelector('[aria-label="Attention details"]')
+    return panelNode && Math.abs(panelNode.getBoundingClientRect().left - 8) <= 1
+  })
+  const edgePanelRect = rectFromBox(await panel.boundingBox())
+  assertViewportContained(edgePanelRect, EDGE_COMPACT)
+  await page.screenshot({ path: resolve(output, 'attention-edge-clamped.png'), animations: 'disabled' })
+  evidence.compact = {
+    viewport: COMPACT,
+    panelRect,
+    health: compactHealth,
+    edgeViewport: EDGE_COMPACT,
+    edgePanelRect,
+    edgeHealth: await assertPageHealth(page, 'edge-clamped attention view'),
+  }
+  await page.keyboard.press('Escape')
 }
 
 export async function runAttentionSignalsQa(args = process.argv.slice(2)) {
