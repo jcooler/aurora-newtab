@@ -42,6 +42,19 @@ describe('AttentionContextPanel', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
   })
 
+  it('reopens when keyboard focus returns after Escape closed an already-focused trigger', () => {
+    render(<><AttentionContextPanel summary="2 items need attention" signals={SIGNALS} /><button type="button">Outside</button></>)
+    const trigger = screen.getByRole('button', { name: '2 items need attention' })
+    const outside = screen.getByRole('button', { name: 'Outside' })
+    act(() => trigger.focus())
+    expect(screen.getByRole('region', { name: 'Attention details' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: 'Attention details' })).toBeNull()
+    act(() => outside.focus())
+    act(() => trigger.focus())
+    expect(screen.getByRole('region', { name: 'Attention details' })).toBeTruthy()
+  })
+
   it('toggles on tap or button activation and closes on an outside pointer', () => {
     render(<><AttentionContextPanel summary="2 items need attention" signals={SIGNALS} /><button type="button">Outside</button></>)
     const trigger = screen.getByRole('button', { name: '2 items need attention' })

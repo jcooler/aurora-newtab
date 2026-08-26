@@ -48,8 +48,13 @@ export default function AttentionContextPanel({
   const closeAndReturnFocus = () => {
     cancelClose()
     setOpen(false)
+    const trigger = triggerRef.current
+    if (!trigger || document.activeElement === trigger) {
+      returningFocus.current = false
+      return
+    }
     returningFocus.current = true
-    triggerRef.current?.focus()
+    trigger.focus()
   }
 
   useEffect(() => () => cancelClose(), [])
