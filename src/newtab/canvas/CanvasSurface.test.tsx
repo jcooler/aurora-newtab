@@ -211,6 +211,11 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).not.toContain('.dock-lane__placed')
   })
 
+  it('keeps hover chrome gaps pointer-transparent while enabling only its visible buttons', () => {
+    expect(indexCss).toMatch(/\.canvas-item:hover\s*>\s*\.canvas-item-chrome,\s*\.canvas-item:focus-within\s*>\s*\.canvas-item-chrome\s*\{[^}]*pointer-events:\s*none/)
+    expect(indexCss).toMatch(/\.canvas-item:hover\s*>\s*\.canvas-item-chrome\s+\.canvas-item-chrome__button,[^{]*\{[^}]*pointer-events:\s*auto/)
+  })
+
   it('keeps hidden-widget recovery buttons interactive inside the modeless toolbar menu', () => {
     expect(indexCss).toMatch(/\.edit-toolbar__hidden-menu\s*>\s*button\s*\{[^}]*pointer-events:\s*auto/)
   })

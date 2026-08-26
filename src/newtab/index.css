@@ -689,6 +689,10 @@
 .canvas-item:hover > .canvas-item-chrome,
 .canvas-item:focus-within > .canvas-item-chrome {
   opacity: 1;
+  pointer-events: none;
+}
+.canvas-item:hover > .canvas-item-chrome .canvas-item-chrome__button,
+.canvas-item:focus-within > .canvas-item-chrome .canvas-item-chrome__button {
   pointer-events: auto;
 }
 /* Docked members keep the same grip + gear (spec 2.5: the grip is the
@@ -913,6 +917,7 @@
 .stack-inspector__icon,
 .stack-inspector__remove {
   cursor: pointer;
+  pointer-events: none;
 }
 .stack-inspector__remove {
   padding-inline: 6px;
