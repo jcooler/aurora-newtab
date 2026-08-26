@@ -85,6 +85,7 @@ try {
     })
   }, { blockIds: BLOCK_IDS })
   await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1_000)
   evidence.seedState = await page.evaluate(async () => {
     const state = await chrome.storage.local.get(['settings', 'layouts', 'links', 'focus'])
     return {
@@ -94,6 +95,11 @@ try {
       focus: state.focus,
       searchItems: document.querySelectorAll('[data-testid="canvas-item-search"]').length,
       searchForms: document.querySelectorAll('[data-search-presentation]').length,
+      canvasItems: [...document.querySelectorAll('[data-testid^="canvas-item-"]')].map((node) => ({
+        id: node.getAttribute('data-testid'),
+        empty: node.getAttribute('data-canvas-empty'),
+        text: node.textContent?.trim(),
+      })),
     }
   })
   await page.waitForSelector('[data-testid="canvas-item-search"]')
