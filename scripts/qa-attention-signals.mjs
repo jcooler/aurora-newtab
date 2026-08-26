@@ -91,6 +91,13 @@ async function waitForSummary(page) {
   return trigger
 }
 
+async function waitForAnySummary(page) {
+  const trigger = page.locator('.aurora-briefing__trigger')
+  await trigger.waitFor({ state: 'visible' })
+  await page.waitForFunction(() => Boolean(document.querySelector('.aurora-briefing__trigger')?.textContent?.trim()))
+  return trigger
+}
+
 async function openWithHover(page, trigger) {
   await page.mouse.move(1, 1)
   await trigger.hover()
@@ -320,7 +327,8 @@ async function exerciseSettings(page, evidence) {
   assert.equal(await master.getAttribute('aria-checked'), 'true', 'Greeting helper did not re-enable')
   for (const name of SOURCE_SWITCHES) await drawer.getByRole('switch', { name }).waitFor({ state: 'visible' })
 
-  await waitForSummary(page)
+  const currentTrigger = await waitForAnySummary(page)
+  const summaryAfterReenable = (await currentTrigger.textContent())?.trim()
   await page.evaluate(() => document.querySelector('.aurora-briefing__trigger')?.click())
   const panel = page.getByRole('region', { name: 'Attention details' })
   await panel.waitFor({ state: 'visible' })
@@ -336,7 +344,7 @@ async function exerciseSettings(page, evidence) {
   const stored = await page.evaluate(async () => (await chrome.storage.local.get('settings')).settings)
   assert.deepEqual(stored.briefingSources, { calendar: true, assignments: true, deployments: true, rain: true })
   assert.equal(stored.briefingEnabled, true)
-  evidence.settings = { sourceTransitions: observed, masterDisable: true, panelRect, drawerRect }
+  evidence.settings = { sourceTransitions: observed, masterDisable: true, summaryAfterReenable, panelRect, drawerRect }
 }
 
 async function exerciseCompact(page, output, evidence) {
