@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "commit": "a64f916648c03b44c736302dd1d401faed3d07bb",
+  "commit": "d6643429674f9962349059f3b404771b948dcac9",
   "buildMode": "preview evidence; production adapters remain compiled out",
   "approvedTargets": [
     "clock",
@@ -458,19 +458,33 @@
       "intrinsic": {
         "clock": {
           "tierFrames": 0,
-          "text": "12:00Sunday, August 23"
+          "text": "12:00Sunday, August 23",
+          "accessibleLabel": "Move Clock"
         },
         "focus": {
           "tierFrames": 0,
-          "text": "Make the next tab usefulEdit"
+          "text": "What’s your main focus today?Make the next tab usefulEdit",
+          "accessibleLabel": "Move Focus"
+        },
+        "links": {
+          "tierFrames": 0,
+          "text": "Mail×Calendar×Drive×Aurora×GitHub×Home×+",
+          "accessibleLabel": "Quick links"
         },
         "quote": {
           "tierFrames": 0,
-          "text": "“Trust in the Lord with all your heart and lean not on your own understanding.”— Proverbs 3:5"
+          "text": "“Trust in the Lord with all your heart and lean not on your own understanding.”— Proverbs 3:5",
+          "accessibleLabel": "Move Quote"
+        },
+        "search": {
+          "tierFrames": 0,
+          "text": "",
+          "accessibleLabel": "Search the web"
         },
         "status": {
           "tierFrames": 0,
-          "text": "Service statusDetails1 service issue, 2 servicesGitHubVercelVercel — Elevated build latency"
+          "text": "Service status1 service issue, 2 servicesGitHubVercelVercel: Elevated build latency",
+          "accessibleLabel": "Service status"
         }
       },
       "selectionBounds": {
@@ -492,20 +506,6 @@
           "internalScrollOwners": 0
         },
         "countdown": {
-          "width": 320,
-          "height": 200,
-          "scrollWidth": 318,
-          "scrollHeight": 198,
-          "internalScrollOwners": 0
-        },
-        "search": {
-          "width": 320,
-          "height": 200,
-          "scrollWidth": 318,
-          "scrollHeight": 198,
-          "internalScrollOwners": 0
-        },
-        "links": {
           "width": 320,
           "height": 200,
           "scrollWidth": 318,
@@ -587,22 +587,22 @@
           "height": 200
         },
         "search": {
-          "x": 832,
-          "y": 413,
-          "width": 320,
-          "height": 200
+          "x": 891,
+          "y": 478.0625,
+          "width": 202,
+          "height": 69.875
         },
         "focus": {
           "x": 452.4375,
-          "y": 765,
+          "y": 753.2421875,
           "width": 279.125,
-          "height": 36
+          "height": 59.515625
         },
         "links": {
-          "x": 768,
-          "y": 683,
-          "width": 320,
-          "height": 200
+          "x": 790,
+          "y": 753.671875,
+          "width": 276,
+          "height": 58.65625
         },
         "quote": {
           "x": 508.984375,
@@ -623,9 +623,9 @@
           "height": 200
         },
         "status": {
-          "x": 95.3046875,
+          "x": 102.703125,
           "y": 747,
-          "width": 193.390625,
+          "width": 178.59375,
           "height": 72
         },
         "timer": {
@@ -660,9 +660,6 @@
       "key": "weather-on-this-day",
       "theme": "dark",
       "writes": [
-        [
-          "weatherAlertCache"
-        ],
         [
           "layouts"
         ]
