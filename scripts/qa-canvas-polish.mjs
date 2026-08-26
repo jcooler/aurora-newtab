@@ -197,10 +197,15 @@ try {
   const fromBox = await from.boundingBox()
   const toBox = await to.boundingBox()
   assert(fromBox && toBox)
-  await page.mouse.move(fromBox.x + fromBox.width / 2, fromBox.y + fromBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(toBox.x + toBox.width / 2, toBox.y + toBox.height / 2, { steps: 8 })
-  await page.mouse.up()
+  await from.dispatchEvent('pointerdown', {
+    pointerId: 77,
+    clientX: fromBox.x + fromBox.width / 2,
+    clientY: fromBox.y + fromBox.height / 2,
+  })
+  await page.evaluate(({ x, y }) => {
+    document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 77, clientX: x, clientY: y }))
+    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 77, clientX: x, clientY: y }))
+  }, { x: toBox.x + toBox.width / 2, y: toBox.y + toBox.height / 2 })
   const order = await inspector.locator('[data-stack-inspector-member]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-stack-inspector-member')))
   assert.deepEqual(order, ['tasks', 'notes'])
   assert.equal(await page.locator('[data-canvas-object-id="tasks"]').count(), 0)
