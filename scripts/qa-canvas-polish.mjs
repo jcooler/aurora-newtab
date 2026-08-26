@@ -41,7 +41,7 @@ assert.equal(parseBuildCommit(readFileSync(resolve(dist, 'build-provenance.json'
 const output = resolve(repoRoot, 'docs/superpowers/qa/canvas-polish/acceptance')
 mkdirSync(output, { recursive: true })
 const profile = mkdtempSync(resolve(tmpdir(), 'aurora-canvas-polish-'))
-const evidence = { commit, consoleErrors: [], pageErrors: [], firstView: {}, stackView: {}, result: 'FAIL' }
+const evidence = { commit, consoleErrors: [], pageErrors: [], seedState: {}, firstView: {}, stackView: {}, result: 'FAIL' }
 let context
 
 try {
@@ -85,6 +85,17 @@ try {
     })
   }, { blockIds: BLOCK_IDS })
   await page.reload({ waitUntil: 'domcontentloaded' })
+  evidence.seedState = await page.evaluate(async () => {
+    const state = await chrome.storage.local.get(['settings', 'layouts', 'links', 'focus'])
+    return {
+      widgets: state.settings?.widgets,
+      layouts: state.layouts,
+      links: state.links,
+      focus: state.focus,
+      searchItems: document.querySelectorAll('[data-testid="canvas-item-search"]').length,
+      searchForms: document.querySelectorAll('[data-search-presentation]').length,
+    }
+  })
   await page.waitForSelector('[data-testid="canvas-item-search"]')
 
   const search = page.locator('[data-search-presentation="free"]')
