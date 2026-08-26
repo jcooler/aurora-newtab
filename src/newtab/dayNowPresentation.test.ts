@@ -36,4 +36,12 @@ describe('W4-P1 Day and Now presentation boundary', () => {
     expect(indexCss).not.toMatch(/\.aurora-briefing__trigger\s*\{[^}]*box-shadow:/)
     expect(indexCss).not.toContain('data-stage-profile')
   })
+
+  it('keeps the attention trigger pointer-active inside the otherwise pointer-transparent Greeting', () => {
+    const transparentGreeting = indexCss.indexOf('[data-block-id="greeting"] > :not(.canvas-item-chrome)')
+    const interactiveTrigger = indexCss.indexOf('[data-block-id="greeting"] .aurora-briefing__trigger')
+    expect(transparentGreeting).toBeGreaterThan(-1)
+    expect(interactiveTrigger).toBeGreaterThan(transparentGreeting)
+    expect(indexCss.slice(interactiveTrigger, interactiveTrigger + 220)).toMatch(/pointer-events:\s*auto/)
+  })
 })

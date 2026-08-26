@@ -2302,6 +2302,11 @@ a.aurora-attention-panel__title:focus-visible {
 .canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="status"] > section {
   pointer-events: none;
 }
+/* Greeting gained one real control: its summary must opt back into hit
+   testing even though the surrounding display-only text stays transparent. */
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="greeting"] .aurora-briefing__trigger {
+  pointer-events: auto;
+}
 .edit-guides--dock {
   z-index: 40;
 }
