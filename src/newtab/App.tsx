@@ -729,13 +729,6 @@ function AuroraApp() {
                 onRemove={(id) => editMode.dispatch((current) => (
                   removeSelectedStackMember(selectStack(current, stack.id), id)
                 ))}
-                onMemberPointerDown={(id, event) => {
-                  startCanvasObjectDrag(
-                    { kind: 'stack-member', stackId: stack.id, id },
-                    `stack:${stack.id}`,
-                    event,
-                  )
-                }}
                 onHide={() => editMode.dispatch((current) => hideSelected(selectStack(current, stack.id)))}
               />
             )

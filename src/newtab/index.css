@@ -437,11 +437,7 @@
   position: relative;
   display: grid;
   place-items: center;
-  /* Keep every painted control inside the card's real hit box. Absolute
-     controls outside that box looked correct but Chromium hit-tested the
-     Canvas surface instead, making the arrows and dots decorative. The
-     gutters are transparent control space, not a second card surface. */
-  padding: 0 40px 36px;
+  padding: 0;
   touch-action: pan-y;
   user-select: none;
   transition: filter 120ms ease;
@@ -478,8 +474,8 @@
   cursor: pointer;
   transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
 }
-.stack-card__arrow--previous { left: 0; }
-.stack-card__arrow--next { right: 0; }
+.stack-card__arrow--previous { left: 6px; }
+.stack-card__arrow--next { right: 6px; }
 .stack-card:hover .stack-card__arrow,
 .stack-card:focus-within .stack-card__arrow {
   opacity: 0.9;
@@ -493,7 +489,7 @@
 .stack-card__dots {
   position: absolute;
   z-index: 2;
-  bottom: 0;
+  bottom: 4px;
   left: 50%;
   display: flex;
   translate: -50% 0;

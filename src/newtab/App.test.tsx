@@ -844,7 +844,7 @@ describe('App Canvas composition', () => {
     expect(screen.getByRole('group', { name: 'Notes, 2 of 2' })).toBeTruthy()
   })
 
-  it('dragging a member out dissolves a two-member stack and one Undo restores it', async () => {
+  it('the stack reorder grip never ejects a member onto the canvas', async () => {
     installStackGeometry()
     const storage = createStorage(memoryDriver())
     await storage.init()
@@ -857,19 +857,16 @@ describe('App Canvas composition', () => {
     })
     await act(async () => {})
     const inspector = screen.getByRole('dialog', { name: 'Notes +1 inspector' })
-    fireEvent.pointerDown(within(inspector).getByRole('button', { name: 'Move Tasks out of stack' }), {
+    fireEvent.pointerDown(within(inspector).getByRole('button', { name: 'Reorder Tasks' }), {
       pointerId: 42, clientX: 900, clientY: 400,
     })
     fireEvent.pointerMove(document, { pointerId: 42, clientX: 300, clientY: 300 })
     fireEvent.pointerUp(document, { pointerId: 42, clientX: 300, clientY: 300 })
     await act(async () => {})
 
-    expect(screen.queryByTestId('canvas-item-stack:stack-day')).toBeNull()
-    expect(canvasItem('notes')).toBeTruthy()
-    expect(canvasItem('tasks')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
-    await act(async () => {})
     expect(screen.getByTestId('canvas-item-stack:stack-day')).toBeTruthy()
+    expect(document.querySelector('[data-canvas-object-id="notes"]')).toBeNull()
+    expect(document.querySelector('[data-canvas-object-id="tasks"]')).toBeNull()
   })
 
   it('restores free movement exactly when the browser cancels the pointer gesture', async () => {
@@ -933,7 +930,7 @@ describe('App Canvas composition', () => {
     expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(true)
   })
 
-  it('keeps an inspector-origin member in its stack when the browser cancels the pointer gesture', async () => {
+  it('keeps the exact stack order when the browser cancels an inspector reorder gesture', async () => {
     installStackGeometry()
     const storage = createStorage(memoryDriver())
     await storage.init()
@@ -946,7 +943,7 @@ describe('App Canvas composition', () => {
     })
     await act(async () => {})
     const inspector = screen.getByRole('dialog', { name: 'Notes +1 inspector' })
-    fireEvent.pointerDown(within(inspector).getByRole('button', { name: 'Move Tasks out of stack' }), {
+    fireEvent.pointerDown(within(inspector).getByRole('button', { name: 'Reorder Tasks' }), {
       pointerId: 54, clientX: 900, clientY: 400,
     })
     fireEvent.pointerMove(document, { pointerId: 54, clientX: 300, clientY: 300 })
@@ -955,6 +952,8 @@ describe('App Canvas composition', () => {
 
     expect(screen.getByTestId('canvas-item-stack:stack-day')).toBeTruthy()
     expect(document.querySelector('[data-canvas-object-id="tasks"]')).toBeNull()
+    expect(Array.from(inspector.querySelectorAll('[data-stack-inspector-member]'))
+      .map((member) => member.getAttribute('data-stack-inspector-member'))).toEqual(['notes', 'tasks'])
     expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(true)
   })
 

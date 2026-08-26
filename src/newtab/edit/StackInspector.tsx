@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { anchorPanelAvoidingAnchor } from '../../lib/layout/anchor'
 import { type WidgetStack, type WidgetTier } from '../../lib/layout/namedLayouts'
 import type { BlockId } from '../../lib/layout/types'
@@ -20,7 +20,6 @@ export default function StackInspector({
   onLayer,
   onReorder,
   onRemove,
-  onMemberPointerDown,
   onHide,
 }: {
   stack: WidgetStack
@@ -31,10 +30,10 @@ export default function StackInspector({
   onLayer: (direction: 'forward' | 'backward') => void
   onReorder: (id: BlockId, direction: -1 | 1) => void
   onRemove: (id: BlockId) => void
-  onMemberPointerDown: (id: BlockId, event: React.PointerEvent) => void
   onHide: () => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const dragCleanupRef = useRef<(() => void) | null>(null)
   const [measuredHeight, setMeasuredHeight] = useState(1)
   useLayoutEffect(() => {
     const height = panelRef.current?.getBoundingClientRect().height ?? 0
@@ -59,6 +58,41 @@ export default function StackInspector({
         ? `Choose ${tierNames.join(' or ')} or remove the incompatible member.`
         : 'Remove an incompatible member to recover a shared size.'
     }`
+
+  useEffect(() => () => dragCleanupRef.current?.(), [])
+
+  function startMemberReorder(id: BlockId, index: number, event: React.PointerEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    dragCleanupRef.current?.()
+    let currentIndex = index
+    const pointerId = event.pointerId
+
+    const cleanup = () => {
+      document.removeEventListener('pointermove', move)
+      document.removeEventListener('pointerup', finish)
+      document.removeEventListener('pointercancel', finish)
+      if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null
+    }
+    const move = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId !== pointerId) return
+      const target = document.elementFromPoint?.(pointerEvent.clientX, pointerEvent.clientY)
+        ?.closest<HTMLElement>('[data-stack-inspector-member]')
+      const targetId = target?.dataset.stackInspectorMember as BlockId | undefined
+      const targetIndex = targetId ? stack.members.indexOf(targetId) : -1
+      if (targetIndex < 0 || targetIndex === currentIndex) return
+      const direction: -1 | 1 = targetIndex < currentIndex ? -1 : 1
+      onReorder(id, direction)
+      currentIndex += direction
+    }
+    const finish = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId === pointerId) cleanup()
+    }
+    document.addEventListener('pointermove', move)
+    document.addEventListener('pointerup', finish)
+    document.addEventListener('pointercancel', finish)
+    dragCleanupRef.current = cleanup
+  }
 
   return (
     <div
@@ -117,9 +151,9 @@ export default function StackInspector({
               <div key={id} data-stack-inspector-member={id} className="stack-inspector__member">
                 <button
                   type="button"
-                  aria-label={`Move ${entry.label} out of stack`}
+                  aria-label={`Reorder ${entry.label}`}
                   className="stack-inspector__drag"
-                  onPointerDown={(event) => { event.stopPropagation(); onMemberPointerDown(id, event) }}
+                  onPointerDown={(event) => startMemberReorder(id, index, event)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                     <circle cx="8" cy="6" r="1.6" /><circle cx="16" cy="6" r="1.6" />

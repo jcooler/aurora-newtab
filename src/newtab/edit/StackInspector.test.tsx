@@ -31,7 +31,6 @@ function setup() {
     onLayer: vi.fn(),
     onReorder: vi.fn(),
     onRemove: vi.fn(),
-    onMemberPointerDown: vi.fn(),
     onHide: vi.fn(),
   }
   render(
@@ -69,8 +68,8 @@ describe('StackInspector', () => {
     expect(onHide).toHaveBeenCalledOnce()
   })
 
-  it('shows ordered member rows with boundary-safe reorder, Remove, and drag-out handles', () => {
-    const { dialog, onReorder, onRemove, onMemberPointerDown } = setup()
+  it('shows ordered member rows with boundary-safe arrows, explicit Remove, and a reorder grip', () => {
+    const { dialog, onReorder, onRemove } = setup()
     const rows = [...dialog.querySelectorAll('[data-stack-inspector-member]')]
     expect(rows.map((row) => row.getAttribute('data-stack-inspector-member')))
       .toEqual(['weather', 'clock', 'notes'])
@@ -81,14 +80,19 @@ describe('StackInspector', () => {
     expect(onReorder).toHaveBeenCalledWith('clock', -1)
     fireEvent.click(within(rows[1] as HTMLElement).getByRole('button', { name: 'Remove Clock from stack' }))
     expect(onRemove).toHaveBeenCalledWith('clock')
-    fireEvent.pointerDown(within(rows[1] as HTMLElement).getByRole('button', { name: 'Move Clock out of stack' }))
-    expect(onMemberPointerDown).toHaveBeenCalledWith('clock', expect.anything())
+    const originalElementFromPoint = document.elementFromPoint
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => rows[0]) })
+    fireEvent.pointerDown(within(rows[1] as HTMLElement).getByRole('button', { name: 'Reorder Clock' }), { pointerId: 7 })
+    fireEvent.pointerMove(document, { pointerId: 7, clientX: 10, clientY: 10 })
+    fireEvent.pointerUp(document, { pointerId: 7, clientX: 10, clientY: 10 })
+    expect(onReorder).toHaveBeenLastCalledWith('clock', -1)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: originalElementFromPoint })
   })
 
   it('keeps overlap information passive and stack-local', () => {
     const callbacks = {
       onTier: vi.fn(), onLayer: vi.fn(), onReorder: vi.fn(), onRemove: vi.fn(),
-      onMemberPointerDown: vi.fn(), onHide: vi.fn(),
+      onHide: vi.fn(),
     }
     render(
       <StackInspector
@@ -119,7 +123,7 @@ describe('StackInspector', () => {
       .mockReturnValue(rect(0, 0, 280, 381.25) as DOMRect)
     const callbacks = {
       onTier: vi.fn(), onLayer: vi.fn(), onReorder: vi.fn(), onRemove: vi.fn(),
-      onMemberPointerDown: vi.fn(), onHide: vi.fn(),
+      onHide: vi.fn(),
     }
 
     try {
