@@ -166,6 +166,8 @@ try {
     const flags = Object.fromEntries(Object.keys(settings.widgets).map((id) => [id, false]))
     Object.assign(flags, { todo: true, notes: true })
     const widgets = Object.fromEntries(blockIds.map((id) => [id, { kind: 'hidden' }]))
+    delete widgets.notes
+    delete widgets.tasks
     const stack = {
       id: 'stack-polish', members: ['notes', 'tasks'], facing: 'notes',
       anchor: 'center', offsetX: -50, offsetY: 0, tier: 'compact', layer: 1,
