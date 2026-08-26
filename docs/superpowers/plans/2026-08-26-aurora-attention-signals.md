@@ -531,7 +531,7 @@ git commit -m "feat: refresh attention connector sources"
 - Consumes: hydrated Settings, connectors, snapshots, Calendar data, weather cache, attention ledger, `connectorSnapshotScope`, `reconcileAssignmentSource`, and `collectAttentionSignals`.
 - Produces: `useAttentionSignals(): { signals: AttentionSignal[]; ready: boolean }`.
 
-- [ ] **Step 1: Write failing hook tests**
+- [x] **Step 1: Write failing hook tests**
 
 Create a storage-backed hook harness and cover:
 
@@ -556,7 +556,7 @@ Also assert:
 - Two hook instances subscribed to one storage authority converge on one ledger result.
 - Calendar and weather continue to obey request identity, timezone scope, and freshness.
 
-- [ ] **Step 2: Run the hook tests and verify red**
+- [x] **Step 2: Run the hook tests and verify red**
 
 Run:
 
@@ -566,7 +566,7 @@ npx vitest run src/newtab/components/useAttentionSignals.test.tsx
 
 Expected: missing-hook failure.
 
-- [ ] **Step 3: Implement scoped projection and queued ledger reconciliation**
+- [x] **Step 3: Implement scoped projection and queued ledger reconciliation**
 
 The hook must:
 
@@ -594,13 +594,13 @@ function allowedHttpsUrl(value: string, allowedOrigin: string): string | undefin
 
 For Vercel, admit only `https:` URLs and retain the exact existing connector-provided destination. Do not persist admitted URLs in the ledger.
 
-- [ ] **Step 4: Run the hook tests and verify green**
+- [x] **Step 4: Run the hook tests and verify green**
 
 Run the Step 2 command.
 
 Expected: all scope, ledger, privacy, URL, freshness, and multi-instance tests pass.
 
-- [ ] **Step 5: Commit scoped attention projection**
+- [x] **Step 5: Commit scoped attention projection**
 
 ```powershell
 git add -- src/newtab/components/useAttentionSignals.ts src/newtab/components/useAttentionSignals.test.tsx src/services/connectors/linear.ts
