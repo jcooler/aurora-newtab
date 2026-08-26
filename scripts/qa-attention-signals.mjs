@@ -105,13 +105,13 @@ async function seedFixtures(page, layouts) {
     enabled: true,
     token: 'QA_GITHUB_TOKEN_DO_NOT_USE',
     username: 'aurora-qa',
-    views: { commitGraph: false, pulls: false, issues: false, notifications: false },
+    views: { commitGraph: false, pulls: true, issues: true, notifications: false },
   }
   const vercel = {
     enabled: true,
     token: 'QA_VERCEL_TOKEN_DO_NOT_USE',
     username: 'aurora-qa',
-    views: { deployments: false, statusSummary: false },
+    views: { deployments: true, statusSummary: false },
   }
   const ics = {
     enabled: true,
@@ -175,7 +175,11 @@ async function seedFixtures(page, layouts) {
 async function introduceNewAssignment(page, githubScope) {
   await page.evaluate(async (scope) => {
     const { connectorSnapshots } = await chrome.storage.local.get('connectorSnapshots')
-    const fetchedAt = Date.now()
+    // Keep the second observation monotonic while remaining behind the
+    // minute-level UI clock captured at render time. A provider refresh can
+    // legitimately land between clock ticks; this witness is about the
+    // resulting observation transition, not wall-clock scheduling.
+    const fetchedAt = connectorSnapshots.github.fetchedAt + 1
     await chrome.storage.local.set({
       connectorSnapshots: {
         ...connectorSnapshots,
