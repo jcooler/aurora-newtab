@@ -289,6 +289,7 @@ try {
       viewport,
       screenshot: `${viewport.width}x${viewport.height}-five-pixel-corner.png`,
       bands: { top: before.top.rect, bottom: before.bottom.rect },
+      members: { top: before.top.members, bottom: before.bottom.members },
       order: { top: before.top.order, bottom: before.bottom.order },
       internalMargins: Object.fromEntries([...before.top.members, ...before.bottom.members].map((member) => [member.id, member.margins])),
       toolbarTop,
