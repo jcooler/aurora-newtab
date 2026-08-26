@@ -291,6 +291,7 @@ async function exerciseSettings(page, evidence) {
   assert.equal(await master.getAttribute('aria-checked'), 'true', 'Greeting helper did not re-enable')
   for (const name of SOURCE_SWITCHES) await drawer.getByRole('switch', { name }).waitFor({ state: 'visible' })
 
+  await waitForSummary(page)
   await page.evaluate(() => document.querySelector('.aurora-briefing__trigger')?.click())
   const panel = page.getByRole('region', { name: 'Attention details' })
   await panel.waitFor({ state: 'visible' })
