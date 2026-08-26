@@ -136,7 +136,7 @@ export default function CanvasItem({
   }, [empty, entry.id, item, objectId, onGeometryChange, onObjectGeometryChange])
 
   // Edge safety clamp (NL-P6 finding F6, DY-P1 review I1). Anchored AND
-  // explicit two-axis dock placements are stored as PERCENT points while
+  // dock placements are stored as PERCENT points while
   // widgets have PIXEL dimensions. The same document opened in a narrower
   // window, a restored backup, or a legal 0/100 dock point can otherwise
   // strand painted content beyond its live surface. The correction is
@@ -147,8 +147,9 @@ export default function CanvasItem({
   useLayoutEffect(() => {
     const node = ref.current
     const surface = node?.offsetParent as HTMLElement | null
-    const explicitDock = item.mode === 'docked' && item.yPct !== undefined
-    if (!node || !surface || (item.mode !== 'anchored' && !explicitDock)) {
+    const docked = item.mode === 'docked'
+    const explicitDock = docked && item.yPct !== undefined
+    if (!node || !surface || (item.mode !== 'anchored' && !docked)) {
       if (clampRef.current.dx !== 0 || clampRef.current.dy !== 0) setClamp({ dx: 0, dy: 0 })
       return
     }
@@ -167,11 +168,15 @@ export default function CanvasItem({
       // Canvas placements retain their 8px viewport safety inset. A dock's
       // band already owns the approved 5px viewport inset, so its
       // member only needs to stay inside the band itself.
-      const next = edgeClampOffset(
+      const measured = edgeClampOffset(
         raw,
         { width: surfaceRect.width, height: surfaceRect.height },
-        explicitDock ? 0 : undefined,
+        docked ? 0 : undefined,
       )
+      // An absent-Y legacy dock member still owns the exact historical row
+      // baseline. Correct only inline overflow; explicit two-axis dock
+      // placements remain safely clamped on both axes.
+      const next = docked && !explicitDock ? { dx: measured.dx, dy: 0 } : measured
       if (Math.abs(next.dx - applied.dx) > 0.5 || Math.abs(next.dy - applied.dy) > 0.5) {
         setClamp(next)
       }
@@ -210,7 +215,7 @@ export default function CanvasItem({
     // old content-box percentage against the new full-width shared grid so
     // mixed legacy/explicit DOM order does not move an absent-Y pixel.
     marginLeft: `calc(${item.xPct}% + ${2 - item.xPct * 0.04}px)`,
-    transform: 'translateX(-50%)',
+    transform: `translateX(calc(-50% + ${clamp.dx}px))`,
   } : {
     position: 'relative',
     flex: '0 0 auto',

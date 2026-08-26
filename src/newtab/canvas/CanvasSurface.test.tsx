@@ -78,7 +78,7 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(nav.querySelector('.dock-lane')).toBeTruthy()
     const timer = screen.getByTestId('canvas-item-timer')
     expect(timer.style.marginLeft).toBe('calc(7.25% + 1.71px)')
-    expect(timer.style.transform).toBe('translateX(-50%)')
+    expect(timer.style.transform).toBe('translateX(calc(-50% + 0px))')
     // A legacy placement without x renders centered.
     expect(screen.getByTestId('canvas-item-bookmarks').style.marginLeft).toBe('calc(50% + 0px)')
   })

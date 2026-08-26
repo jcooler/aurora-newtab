@@ -131,6 +131,35 @@ describe('CanvasItem', () => {
     expect(item.style.top).toBe('0%')
   })
 
+  it('visually clamps a legacy dock member on the inline axis while preserving its exact row baseline', async () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.dataset.canvasMode === 'docked' ? this.parentElement : null
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.dataset.testid === 'dock-lane') return rect(5, 5, 590, 78)
+      if (this.dataset.canvasMode === 'docked') return rect(4, 21, 147, 38)
+      return rect(0, 0, 0, 0)
+    })
+
+    render(
+      <div data-testid="dock-lane">
+        <CanvasItem
+          entry={WIDGET_REGISTRY_BY_ID.clock}
+          item={{ id: 'clock', mode: 'docked', dock: 'top', order: 0, xPct: 12 }}
+        >
+          <span>Clock content</span>
+        </CanvasItem>
+      </div>,
+    )
+
+    const item = screen.getByTestId('canvas-item-clock')
+    await waitFor(() => {
+      expect(item.style.transform).toBe('translateX(calc(-50% + 1px))')
+    })
+    expect(item.style.top).toBe('')
+    expect(item.style.marginTop).toBe('')
+  })
+
   it('keeps normal dock content live and makes only the interior inert during editing', () => {
     const onGripPointerDown = vi.fn()
     const { rerender } = render(
