@@ -160,7 +160,6 @@ try {
   }
   await page.screenshot({ path: resolve(output, 'canvas-polish-1600x900.png') })
 
-  await page.setViewportSize({ width: 1408, height: 445 })
   await page.evaluate(async ({ blockIds }) => {
     const { settings } = await chrome.storage.local.get('settings')
     const flags = Object.fromEntries(Object.keys(settings.widgets).map((id) => [id, false]))
@@ -221,7 +220,20 @@ try {
   assert.deepEqual(order, ['tasks', 'notes'])
   assert.equal(await page.locator('[data-canvas-object-id="tasks"]').count(), 0)
   assert.equal(await page.locator('[data-canvas-object-id="notes"]').count(), 0)
-  evidence.stackView = { viewport: { width: 1408, height: 445 }, before, order }
+  await page.keyboard.press('Escape')
+  await page.setViewportSize({ width: 1408, height: 445 })
+  await page.waitForFunction(() => {
+    const node = document.querySelector('[data-canvas-object-id="stack:stack-polish"]')
+    return node && Math.abs(node.getBoundingClientRect().left - 8) <= 1
+  })
+  const shortRect = await rectOf(stack)
+  evidence.stackView = {
+    reorderViewport: { width: 1600, height: 900 },
+    shortViewport: { width: 1408, height: 445 },
+    before,
+    shortRect,
+    order,
+  }
   await page.screenshot({ path: resolve(output, 'stack-polish-1408x445.png') })
 
   assert.deepEqual(evidence.consoleErrors, [])
