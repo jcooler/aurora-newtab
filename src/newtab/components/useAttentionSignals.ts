@@ -338,9 +338,10 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
   }, [connectors, now, permissionRevision, settings, snapshots, timeZone])
 
   useEffect(() => {
-    if (settings === undefined || connectors === undefined) return
+    if (settings === undefined || connectors === undefined || ledger === undefined) return
     const sources = settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES
     if (settings.briefingEnabled !== true || !sources.assignments) {
+      if (Object.keys(ledger.sources).length === 0) return
       void storage.update('attentionLedger', clearAssignmentLedgerSources)
       return
     }
@@ -353,8 +354,9 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
     if (gitlab && hasAttentionConnectorPermission('gitlab', gitlab)) active.add('gitlab')
     if (jira && hasAttentionConnectorPermission('jira', jira)) active.add('jira')
     if (linear && hasAttentionConnectorPermission('linear', linear)) active.add('linear')
+    if (Object.keys(ledger.sources).every((source) => active.has(source as AttentionAssignmentSource))) return
     void storage.update('attentionLedger', (current) => retainAssignmentLedgerSources(current, active))
-  }, [connectors, permissionRevision, settings, storage])
+  }, [connectors, ledger, permissionRevision, settings, storage])
 
   useEffect(() => {
     if (!projection.ready || projection.assignments.length === 0) return
