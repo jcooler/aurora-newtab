@@ -714,7 +714,7 @@ git commit -m "feat: explain greeting attention context"
 - Consumes: `Settings.briefingEnabled`, `Settings.briefingSources`, and the existing `patch(Partial<Settings>)` authority.
 - Produces: four subordinate switches with preserved sibling values.
 
-- [ ] **Step 1: Write failing Settings tests**
+- [x] **Step 1: Write failing Settings tests**
 
 Assert the approved copy and persistence:
 
@@ -731,7 +731,7 @@ expect((await storage.get('settings')).briefingSources).toEqual({
 
 Assert all four controls are hidden or disabled when the master is off, every switch has description text, changing one preserves the other three, and external cross-tab Settings updates replace the displayed switch states.
 
-- [ ] **Step 2: Run Settings tests and verify red**
+- [x] **Step 2: Run Settings tests and verify red**
 
 Run:
 
@@ -741,7 +741,7 @@ npx vitest run src/settings/SettingsPanel.test.tsx
 
 Expected: missing source controls and outdated unfinished-task copy.
 
-- [ ] **Step 3: Implement subordinate controls**
+- [x] **Step 3: Implement subordinate controls**
 
 Replace the old description with truthful copy and render four rows while the master is enabled. Use a source-specific patch helper that reads the current `settings.briefingSources` prop on every render:
 
@@ -758,13 +758,13 @@ const patchBriefingSource = (key: keyof BriefingSources, checked: boolean) => {
 
 Labels are exactly `Upcoming calendar`, `Assigned work`, `Deployment failures`, and `Rain`. Copy states that Assigned work means newly observed connector items and that undated Aurora tasks are not counted.
 
-- [ ] **Step 4: Run Settings tests and verify green**
+- [x] **Step 4: Run Settings tests and verify green**
 
 Run the Step 2 command.
 
 Expected: Settings persistence, descriptions, and cross-tab rendering pass.
 
-- [ ] **Step 5: Commit source controls**
+- [x] **Step 5: Commit source controls**
 
 ```powershell
 git add -- src/settings/sections/General.tsx src/settings/SettingsPanel.test.tsx

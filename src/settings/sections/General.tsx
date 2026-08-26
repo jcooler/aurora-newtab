@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import type { FlowAmbience, Settings } from '../../lib/storage/schema'
+import { DEFAULT_BRIEFING_SOURCES, type BriefingSources, type FlowAmbience, type Settings } from '../../lib/storage/schema'
 import { contrastRatio, derivedFg, relativeLuminance } from '../../lib/color'
 import Section from '../Section'
 import ColorPickerRow from '../ColorPickerRow'
@@ -43,6 +43,10 @@ export default function General({
   const effectiveWidgetInk = settings.widgetTextColor ?? autoWidgetInk
   const effectivePhotoInk = settings.photoTextColor ?? DEFAULT_PHOTO_HEX
   const widgetContrast = contrastRatio(effectiveWidgetInk, panelHex)
+  const briefingSources = settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES
+  const patchBriefingSource = (key: keyof BriefingSources, checked: boolean) => {
+    patch({ briefingSources: { ...briefingSources, [key]: checked } })
+  }
 
   return (
     <>
@@ -222,8 +226,60 @@ export default function General({
           />
         </div>
         <p id="set-daily-summary-description" className="pb-2 text-xs text-fg-muted">
-          Shows a useful next event, unfinished task, or rain update beneath your greeting.
+          Shows useful upcoming context and recent attention beneath your greeting.
         </p>
+        {settings.briefingEnabled === true ? (
+          <div role="group" aria-label="Greeting helper sources" className="ml-2 border-l border-panel-border pl-3">
+            <div className={row}>
+              <label htmlFor="set-briefing-calendar" className={label}>Upcoming calendar</label>
+              <Switch
+                id="set-briefing-calendar"
+                checked={briefingSources.calendar}
+                onChange={(checked) => patchBriefingSource('calendar', checked)}
+                describedBy="set-briefing-calendar-description"
+              />
+            </div>
+            <p id="set-briefing-calendar-description" className="pb-2 text-xs text-fg-muted">
+              Shows the next useful event within 24 hours.
+            </p>
+            <div className={row}>
+              <label htmlFor="set-briefing-assignments" className={label}>Assigned work</label>
+              <Switch
+                id="set-briefing-assignments"
+                checked={briefingSources.assignments}
+                onChange={(checked) => patchBriefingSource('assignments', checked)}
+                describedBy="set-briefing-assignments-description"
+              />
+            </div>
+            <p id="set-briefing-assignments-description" className="pb-2 text-xs text-fg-muted">
+              Newly observed GitHub, GitLab, Jira, and Linear items stay here for six hours. Undated Aurora tasks are not counted.
+            </p>
+            <div className={row}>
+              <label htmlFor="set-briefing-deployments" className={label}>Deployment failures</label>
+              <Switch
+                id="set-briefing-deployments"
+                checked={briefingSources.deployments}
+                onChange={(checked) => patchBriefingSource('deployments', checked)}
+                describedBy="set-briefing-deployments-description"
+              />
+            </div>
+            <p id="set-briefing-deployments-description" className="pb-2 text-xs text-fg-muted">
+              Shows failed Vercel builds from the last six hours.
+            </p>
+            <div className={row}>
+              <label htmlFor="set-briefing-rain" className={label}>Rain</label>
+              <Switch
+                id="set-briefing-rain"
+                checked={briefingSources.rain}
+                onChange={(checked) => patchBriefingSource('rain', checked)}
+                describedBy="set-briefing-rain-description"
+              />
+            </div>
+            <p id="set-briefing-rain-description" className="pb-2 text-xs text-fg-muted">
+              Shows the first forecast hour with at least a 50% chance of rain.
+            </p>
+          </div>
+        ) : null}
       </Section>
     </>
   )

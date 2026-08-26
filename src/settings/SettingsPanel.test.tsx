@@ -2793,7 +2793,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(within(size).getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Automatic', 'Standard', 'Large',
     ])
-    expect(screen.getByText('Shows a useful next event, unfinished task, or rain update beneath your greeting.')).toBeTruthy()
+    expect(screen.getByText('Shows useful upcoming context and recent attention beneath your greeting.')).toBeTruthy()
     expect(screen.queryByLabelText('Mute sounds')).toBeNull()
     expect(screen.queryByLabelText('Show briefing')).toBeNull()
     expect(screen.queryByLabelText('Layout density')).toBeNull()
@@ -2860,6 +2860,60 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     })
     expect((await storage.get('settings')).briefingEnabled).toBe(true)
     expect(set).toHaveBeenCalledOnce()
+  })
+
+  it('shows truthful Greeting helper source controls and preserves sibling choices', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', { ...await storage.get('settings'), briefingEnabled: true })
+    await renderPanel(storage)
+
+    expect(screen.getByText(/newly observed GitHub, GitLab, Jira, and Linear items/i)).toBeTruthy()
+    expect(screen.getByText(/Undated Aurora tasks are not counted/i)).toBeTruthy()
+    for (const name of ['Upcoming calendar', 'Assigned work', 'Deployment failures', 'Rain']) {
+      const source = screen.getByRole('switch', { name })
+      expect(source.getAttribute('aria-checked')).toBe('true')
+      const describedBy = source.getAttribute('aria-describedby')
+      expect(describedBy).toBeTruthy()
+      expect(document.getElementById(describedBy!)?.textContent?.trim()).not.toBe('')
+    }
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('switch', { name: 'Assigned work' }))
+    })
+    expect((await storage.get('settings')).briefingSources).toEqual({
+      calendar: true,
+      assignments: false,
+      deployments: true,
+      rain: true,
+    })
+  })
+
+  it('hides source controls while the Greeting helper master switch is off', async () => {
+    await renderPanel()
+    for (const name of ['Upcoming calendar', 'Assigned work', 'Deployment failures', 'Rain']) {
+      expect(screen.queryByRole('switch', { name })).toBeNull()
+    }
+  })
+
+  it('replaces displayed source states after an external Settings update', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', { ...await storage.get('settings'), briefingEnabled: true })
+    await renderPanel(storage)
+
+    await act(async () => {
+      const current = await storage.get('settings')
+      await storage.set('settings', {
+        ...current,
+        briefingSources: { calendar: false, assignments: true, deployments: false, rain: true },
+      })
+    })
+
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Upcoming calendar' }).getAttribute('aria-checked')).toBe('false'))
+    expect(screen.getByRole('switch', { name: 'Assigned work' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('switch', { name: 'Deployment failures' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('switch', { name: 'Rain' }).getAttribute('aria-checked')).toBe('true')
   })
 
   it('keeps Flow ambience separate from the timer chime and persists the selected sound', async () => {
