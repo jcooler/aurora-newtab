@@ -1,9 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { AttentionSignal } from '../../lib/attention'
+import { placeAttentionPanel, type AttentionRect } from '../../lib/layout/attentionPanelPlacement'
 
 const VIEWPORT_MARGIN = 8
-const PANEL_GAP = 8
 const CLOSE_DELAY_MS = 140
 
 interface PanelPosition {
@@ -86,15 +86,18 @@ export default function AttentionContextPanel({
       const trigger = triggerRef.current?.getBoundingClientRect()
       const panel = panelRef.current?.getBoundingClientRect()
       if (!trigger || !panel) return
-      const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - panel.width - VIEWPORT_MARGIN)
-      const left = Math.min(maxLeft, Math.max(VIEWPORT_MARGIN, trigger.left + trigger.width / 2 - panel.width / 2))
-      const below = trigger.bottom + PANEL_GAP
-      const preferredTop = below + panel.height <= window.innerHeight - VIEWPORT_MARGIN
-        ? below
-        : trigger.top - panel.height - PANEL_GAP
-      const maxTop = Math.max(VIEWPORT_MARGIN, window.innerHeight - panel.height - VIEWPORT_MARGIN)
-      const top = Math.min(maxTop, Math.max(VIEWPORT_MARGIN, preferredTop))
-      setPosition({ left, top })
+      const owner = triggerRef.current?.closest('[data-testid^="canvas-item-"]')
+      const selector = '[data-testid^="canvas-item-"], .utility-tray-trigger, .chrome-tab-trigger, .settings-gear, .layout-badge-host, [role="dialog"][aria-label="Settings"]'
+      const obstacles = [...document.querySelectorAll<HTMLElement>(selector)]
+        .filter((node) => node !== owner && !owner?.contains(node))
+        .map((node) => node.getBoundingClientRect())
+        .filter((rect) => rect.width > 0 && rect.height > 0) as AttentionRect[]
+      setPosition(placeAttentionPanel({
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        trigger,
+        panel,
+        obstacles,
+      }))
     }
     place()
     window.addEventListener('resize', place)

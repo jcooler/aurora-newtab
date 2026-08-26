@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, render, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { __resetInFlight } from '../../lib/hooks/useConnectorSnapshot'
 import { createStorage, type AuroraStorage } from '../../lib/storage'
 import { StorageProvider } from '../../lib/storage/context'
@@ -28,6 +28,16 @@ const LINEAR: LinearConfig = {
   displayName: 'Jon',
 }
 const SOURCES: BriefingSources = { calendar: true, assignments: true, deployments: true, rain: true }
+
+beforeAll(async () => {
+  vi.stubGlobal('chrome', { permissions: {
+    getAll: vi.fn().mockResolvedValue({ origins: ['https://api.github.com/*', 'https://api.vercel.com/*', 'https://api.linear.app/*'] }),
+    onAdded: { addListener: vi.fn() },
+    onRemoved: { addListener: vi.fn() },
+  } })
+  const { initializePermissionMirror } = await import('../../services/permissionMirror')
+  await initializePermissionMirror()
+})
 
 function jsonResponse(body: unknown): Response {
   return {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStorage, type AuroraStorage } from '../../lib/storage'
 import { StorageProvider } from '../../lib/storage/context'
 import { memoryDriver } from '../../lib/storage/driver'
@@ -33,6 +33,23 @@ const JIRA: JiraConfig = { enabled: true, email: 'jon@example.com', apiToken: 'j
 const LINEAR: LinearConfig = { enabled: true, token: 'linear_secret', displayName: 'Jon' }
 const VERCEL: VercelConfig = { enabled: true, token: 'vercel_secret', username: 'jon' }
 const ICS: IcsConfig = { enabled: true, calendars: [{ name: 'Work', url: 'https://calendar.example/private/basic.ics' }] }
+const permissionListeners = {
+  added: [] as Array<(permissions: chrome.permissions.Permissions) => void>,
+  removed: [] as Array<(permissions: chrome.permissions.Permissions) => void>,
+}
+
+beforeAll(async () => {
+  vi.stubGlobal('chrome', { permissions: {
+    getAll: vi.fn().mockResolvedValue({ origins: [
+      'https://api.github.com/*', 'https://gitlab.example.com/*', 'https://aurora.atlassian.net/*',
+      'https://api.linear.app/*', 'https://api.vercel.com/*',
+    ] }),
+    onAdded: { addListener: (listener: (permissions: chrome.permissions.Permissions) => void) => permissionListeners.added.push(listener) },
+    onRemoved: { addListener: (listener: (permissions: chrome.permissions.Permissions) => void) => permissionListeners.removed.push(listener) },
+  } })
+  const { initializePermissionMirror } = await import('../../services/permissionMirror')
+  await initializePermissionMirror()
+})
 
 function githubData(items: GithubData['issues']): GithubData {
   return { prs: [], issues: items, notifications: null, contributions: null, etags: {} }
@@ -150,8 +167,38 @@ describe('useAttentionSignals', () => {
     })
     await waitFor(() => expect(result.result.current.ready).toBe(true))
     expect((await storage.get('attentionLedger')).sources.github).toEqual({
+      generation: validScope,
       observedAt: NOW - 500,
       items: { current: { firstSeenAt: null } },
+    })
+  })
+
+  it('reactively removes signals and ledger history when host permission is revoked', async () => {
+    const scope = await scopeFor('github', GITHUB)
+    const storage = await makeStorage({
+      connectors: { github: GITHUB },
+      attentionLedger: { version: 1, sources: { github: {
+        generation: scope,
+        observedAt: NOW - 2_000,
+        items: { current: { firstSeenAt: NOW - 60_000 } },
+      } } },
+      connectorSnapshots: { github: {
+        scope,
+        fetchedAt: NOW - 1_000,
+        data: githubData([{ id: 'current', title: 'Current issue', repo: 'acme/app', url: 'https://github.com/acme/app/issues/1' }]),
+      } },
+    })
+    const result = renderHook(() => useAttentionSignals(), { wrapper: wrapper(storage) })
+    await waitFor(() => expect(result.result.current.signals).toHaveLength(1))
+
+    act(() => {
+      for (const listener of permissionListeners.removed) listener({ origins: ['https://api.github.com/*'] })
+    })
+    await waitFor(() => expect(result.result.current.signals).toEqual([]))
+    await waitFor(async () => expect((await storage.get('attentionLedger')).sources.github).toBeUndefined())
+
+    act(() => {
+      for (const listener of permissionListeners.added) listener({ origins: ['https://api.github.com/*'] })
     })
   })
 
@@ -172,6 +219,19 @@ describe('useAttentionSignals', () => {
     await waitFor(() => expect(result.result.current.ready).toBe(true))
     expect(result.result.current.signals).toEqual([])
     expect((await storage.get('attentionLedger')).sources).toEqual({})
+  })
+
+  it('clears assignment history while the source is disabled so re-enable silently baselines the current account', async () => {
+    const storage = await makeStorage({
+      attentionLedger: { version: 1, sources: { github: { generation: 'old', observedAt: NOW - 1_000, items: { old: { firstSeenAt: null } } } } },
+    })
+    renderHook(() => useAttentionSignals(), { wrapper: wrapper(storage) })
+    await act(async () => storage.set('settings', {
+      ...defaults().settings,
+      briefingEnabled: true,
+      briefingSources: { ...SOURCES, assignments: false },
+    }))
+    await waitFor(async () => expect((await storage.get('attentionLedger')).sources).toEqual({}))
   })
 
   it('does not baseline legacy GitHub or GitLab cached rows that lack stable IDs', async () => {

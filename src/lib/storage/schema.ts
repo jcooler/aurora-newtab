@@ -29,6 +29,7 @@ export interface AttentionLedgerItem {
 }
 
 export interface AttentionLedgerSource {
+  generation?: string
   observedAt: number
   items: Record<string, AttentionLedgerItem>
 }

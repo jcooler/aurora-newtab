@@ -1,5 +1,6 @@
 import { useConnectorSnapshot } from '../../lib/hooks/useConnectorSnapshot'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import { usePermissionMirrorRevision } from '../../lib/hooks/usePermissionMirrorRevision'
 import { DEFAULT_BRIEFING_SOURCES } from '../../lib/storage/schema'
 import {
   attentionRuntimeScope,
@@ -10,6 +11,7 @@ import {
   effectiveVercelViews,
   type ActiveAttentionRuntimeScope,
 } from '../../services/connectors/attentionPolicy'
+import { hasAttentionConnectorPermission } from '../../services/connectors/attentionPermission'
 import { fetchGithub, resolveGithubViews, type GithubData } from '../../services/connectors/github'
 import { fetchGitlab, DEFAULT_GITLAB_VIEWS, type GitlabData } from '../../services/connectors/gitlab'
 import { fetchJira, DEFAULT_JIRA_VIEWS, type JiraData } from '../../services/connectors/jira'
@@ -120,17 +122,23 @@ function LinearRefreshOwner({ config }: { config: LinearConfig }) {
 }
 
 export default function AttentionRefreshOwners() {
+  usePermissionMirrorRevision()
   const [settings] = useStoredKey('settings')
   const [connectors] = useStoredKey('connectors')
   const sources = settings?.briefingSources ?? DEFAULT_BRIEFING_SOURCES
   const runtime = attentionRuntimeScope(settings?.briefingEnabled === true, sources)
   if (!runtime || !connectors) return null
 
-  const github = runtime.assignments ? connectedGithub(connectors.github) : null
-  const gitlab = runtime.assignments ? connectedGitlab(connectors.gitlab) : null
-  const jira = runtime.assignments ? connectedJira(connectors.jira) : null
-  const linear = runtime.assignments ? connectedLinear(connectors.linear) : null
-  const vercel = runtime.deployments ? connectedVercel(connectors.vercel) : null
+  const githubConfig = runtime.assignments ? connectedGithub(connectors.github) : null
+  const gitlabConfig = runtime.assignments ? connectedGitlab(connectors.gitlab) : null
+  const jiraConfig = runtime.assignments ? connectedJira(connectors.jira) : null
+  const linearConfig = runtime.assignments ? connectedLinear(connectors.linear) : null
+  const vercelConfig = runtime.deployments ? connectedVercel(connectors.vercel) : null
+  const github = githubConfig && hasAttentionConnectorPermission('github', githubConfig) ? githubConfig : null
+  const gitlab = gitlabConfig && hasAttentionConnectorPermission('gitlab', gitlabConfig) ? gitlabConfig : null
+  const jira = jiraConfig && hasAttentionConnectorPermission('jira', jiraConfig) ? jiraConfig : null
+  const linear = linearConfig && hasAttentionConnectorPermission('linear', linearConfig) ? linearConfig : null
+  const vercel = vercelConfig && hasAttentionConnectorPermission('vercel', vercelConfig) ? vercelConfig : null
 
   return (
     <>

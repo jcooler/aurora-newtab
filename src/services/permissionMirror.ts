@@ -10,6 +10,13 @@ let state: MirrorState = 'uninitialized'
 let initialization: Promise<void> | null = null
 const held = new Set<string>()
 const initializingEvents = new Map<string, boolean>()
+const subscribers = new Set<() => void>()
+let revision = 0
+
+function notify(): void {
+  revision += 1
+  for (const subscriber of subscribers) subscriber()
+}
 
 function patternsOf(change: chrome.permissions.Permissions): string[] {
   if (!Array.isArray(change.origins)) return []
@@ -23,15 +30,24 @@ function patternsOf(change: chrome.permissions.Permissions): string[] {
 }
 
 function applyChange(change: chrome.permissions.Permissions, present: boolean): void {
+  let changed = false
   for (const pattern of patternsOf(change)) {
     if (state === 'initializing') initializingEvents.set(pattern, present)
     if (state !== 'ready') continue
-    if (present) held.add(pattern)
-    else held.delete(pattern)
+    if (present && !held.has(pattern)) { held.add(pattern); changed = true }
+    else if (!present && held.delete(pattern)) changed = true
   }
+  if (changed) notify()
 }
 
 export const permissionMirror = {
+  subscribe(listener: () => void): () => void {
+    subscribers.add(listener)
+    return () => subscribers.delete(listener)
+  },
+  getRevision(): number {
+    return revision
+  },
   snapshot(patterns: readonly string[]): PermissionMirrorSnapshot {
     if (state !== 'ready') return { status: 'unavailable', preExisting: [], absent: [] }
     const canonical = canonicalOriginPatterns(patterns)
@@ -65,6 +81,7 @@ export function initializePermissionMirror(): Promise<void> {
       state = 'unavailable'
     } finally {
       initializingEvents.clear()
+      notify()
     }
   })()
   return initialization

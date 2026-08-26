@@ -54,12 +54,23 @@ describe('attention ledger reconciliation', () => {
   })
 
   it('timestamps only ids that arrive after the baseline', () => {
-    const baseline = reconcileAssignmentSource(emptyLedger(), 'github', ['old'], 1_000)
-    const result = reconcileAssignmentSource(baseline, 'github', ['old', 'new'], 2_000)
+    const baseline = reconcileAssignmentSource(emptyLedger(), 'github', ['old'], 1_000, 'account-a')
+    const result = reconcileAssignmentSource(baseline, 'github', ['old', 'new'], 2_000, 'account-a')
 
     expect(result.sources.github?.items).toEqual({
       new: { firstSeenAt: 2_000 },
       old: { firstSeenAt: null },
+    })
+  })
+
+  it('silently re-baselines when the connector generation changes', () => {
+    const baseline = reconcileAssignmentSource(emptyLedger(), 'github', ['old'], 1_000, 'account-a')
+    const changed = reconcileAssignmentSource(baseline, 'github', ['old', 'new'], 2_000, 'account-b')
+
+    expect(changed.sources.github).toEqual({
+      generation: 'account-b',
+      observedAt: 2_000,
+      items: { new: { firstSeenAt: null }, old: { firstSeenAt: null } },
     })
   })
 

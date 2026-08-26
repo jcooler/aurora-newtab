@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
   collectAttentionSignals,
+  clearAssignmentLedgerSources,
   reconcileAssignmentSource,
+  retainAssignmentLedgerSources,
   type AttentionAssignment,
   type AttentionDeployment,
   type AttentionEvent,
@@ -10,9 +12,11 @@ import {
 import { resolvedLocalTimeZone } from '../../lib/dates'
 import { useNow } from '../../lib/hooks/useNow'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import { usePermissionMirrorRevision } from '../../lib/hooks/usePermissionMirrorRevision'
 import { useStorage } from '../../lib/storage/context'
 import { DEFAULT_BRIEFING_SOURCES, type AttentionAssignmentSource } from '../../lib/storage/schema'
 import { attentionRuntimeScope, attentionSnapshotScope } from '../../services/connectors/attentionPolicy'
+import { hasAttentionConnectorPermission } from '../../services/connectors/attentionPermission'
 import { resolveGithubViews } from '../../services/connectors/github'
 import { DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
 import { isIcsData, icsCalendarsOf } from '../../services/connectors/ics'
@@ -47,6 +51,7 @@ interface AssignmentProjection {
   source: AttentionAssignmentSource
   sourceLabel: string
   observedAt: number
+  generation: string
   rows: AssignmentRow[]
 }
 
@@ -110,6 +115,7 @@ function rowsFrom(
   source: AttentionAssignmentSource,
   sourceLabel: string,
   observedAt: number,
+  generation: string,
   project: (row: Record<string, unknown>) => AssignmentRow | null,
 ): AssignmentProjection | null {
   if (!Array.isArray(rawRows)) return null
@@ -128,7 +134,7 @@ function rowsFrom(
     rows.push(row)
   }
   if (rawRows.length > 0 && legacyIdMissing) return null
-  return { source, sourceLabel, observedAt, rows }
+  return { source, sourceLabel, observedAt, generation, rows }
 }
 
 async function validScope(
@@ -178,6 +184,7 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
   const [ledger] = useStoredKey('attentionLedger')
   const [location] = useStoredKey('location')
   const [weatherCache] = useStoredKey('weatherCache')
+  const permissionRevision = usePermissionMirrorRevision()
   const now = useNow(60_000, settings?.briefingEnabled === true)
   const [projection, setProjection] = useState<ScopedProjection>(EMPTY_PROJECTION)
   const timeZone = resolvedLocalTimeZone()
@@ -210,10 +217,10 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
         const githubScope = githubViews
           ? attentionSnapshotScope(runtime, 'assignments', githubViews.pulls && githubViews.issues)
           : undefined
-        if (github && currentSnapshot(githubSnapshot, nowMs) && await validScope('github', github, githubSnapshot, githubScope)) {
+        if (github && hasAttentionConnectorPermission('github', github) && currentSnapshot(githubSnapshot, nowMs) && await validScope('github', github, githubSnapshot, githubScope)) {
           const data = isRecord(githubSnapshot.data) ? githubSnapshot.data : null
           const rawRows = data && Array.isArray(data.prs) && Array.isArray(data.issues) ? [...data.prs, ...data.issues] : null
-          const projected = rowsFrom(rawRows, 'github', 'GitHub', githubSnapshot.fetchedAt, (row) => {
+          const projected = rowsFrom(rawRows, 'github', 'GitHub', githubSnapshot.fetchedAt, githubSnapshot.scope!, (row) => {
             const id = clean(row.id)
             if (!id) return null
             return {
@@ -232,11 +239,11 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
         const gitlabScope = gitlabViews
           ? attentionSnapshotScope(runtime, 'assignments', gitlabViews.mergeRequests && gitlabViews.reviewAsks)
           : undefined
-        if (gitlab && currentSnapshot(gitlabSnapshot, nowMs) && await validScope('gitlab', gitlab, gitlabSnapshot, gitlabScope)) {
+        if (gitlab && hasAttentionConnectorPermission('gitlab', gitlab) && currentSnapshot(gitlabSnapshot, nowMs) && await validScope('gitlab', gitlab, gitlabSnapshot, gitlabScope)) {
           const data = isRecord(gitlabSnapshot.data) ? gitlabSnapshot.data : null
           const rawRows = data && Array.isArray(data.mrs) && Array.isArray(data.reviewMrs) ? [...data.mrs, ...data.reviewMrs] : null
           const origin = originOf(gitlab.instanceUrl)
-          const projected = rowsFrom(rawRows, 'gitlab', 'GitLab', gitlabSnapshot.fetchedAt, (row) => {
+          const projected = rowsFrom(rawRows, 'gitlab', 'GitLab', gitlabSnapshot.fetchedAt, gitlabSnapshot.scope!, (row) => {
             const id = clean(row.id)
             if (!id) return null
             const url = origin ? allowedHttpsUrl(row.url, origin) : undefined
@@ -249,11 +256,11 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
         const jiraSnapshot = snapshots.jira
         const jiraViews = jira ? resolveViews(DEFAULT_JIRA_VIEWS, jira.views) : null
         const jiraScope = jiraViews ? attentionSnapshotScope(runtime, 'assignments', jiraViews.assigned) : undefined
-        if (jira && currentSnapshot(jiraSnapshot, nowMs) && await validScope('jira', jira, jiraSnapshot, jiraScope)) {
+        if (jira && hasAttentionConnectorPermission('jira', jira) && currentSnapshot(jiraSnapshot, nowMs) && await validScope('jira', jira, jiraSnapshot, jiraScope)) {
           const data = isRecord(jiraSnapshot.data) ? jiraSnapshot.data : null
           const site = normalizeJiraSite(jira.site)
           const origin = site ? `https://${site}` : ''
-          const projected = rowsFrom(data?.issues, 'jira', 'Jira', jiraSnapshot.fetchedAt, (row) => {
+          const projected = rowsFrom(data?.issues, 'jira', 'Jira', jiraSnapshot.fetchedAt, jiraSnapshot.scope!, (row) => {
             const id = clean(row.key)
             if (!id) return null
             const status = clean(row.status)
@@ -265,9 +272,9 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
 
         const linear = linearConfig(connectors.linear)
         const linearSnapshot = snapshots.linear
-        if (linear && currentSnapshot(linearSnapshot, nowMs) && await validScope('linear', linear, linearSnapshot, undefined)) {
+        if (linear && hasAttentionConnectorPermission('linear', linear) && currentSnapshot(linearSnapshot, nowMs) && await validScope('linear', linear, linearSnapshot, undefined)) {
           const data = isRecord(linearSnapshot.data) ? linearSnapshot.data : null
-          const projected = rowsFrom(data?.issues, 'linear', 'Linear', linearSnapshot.fetchedAt, (row) => {
+          const projected = rowsFrom(data?.issues, 'linear', 'Linear', linearSnapshot.fetchedAt, linearSnapshot.scope!, (row) => {
             const id = clean(row.id)
             if (!id) return null
             const identifier = clean(row.identifier)
@@ -285,7 +292,7 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
         const vercelSnapshot = snapshots.vercel
         const vercelViews = vercel ? resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views) : null
         const vercelScope = vercelViews ? attentionSnapshotScope(runtime, 'deployments', vercelViews.deployments) : undefined
-        if (vercel && currentSnapshot(vercelSnapshot, nowMs) && await validScope('vercel', vercel, vercelSnapshot, vercelScope)) {
+        if (vercel && hasAttentionConnectorPermission('vercel', vercel) && currentSnapshot(vercelSnapshot, nowMs) && await validScope('vercel', vercel, vercelSnapshot, vercelScope)) {
           const data = isRecord(vercelSnapshot.data) ? vercelSnapshot.data : null
           const raw = data?.deployments
           if (Array.isArray(raw)) {
@@ -327,14 +334,33 @@ export function useAttentionSignals(): { signals: AttentionSignal[]; ready: bool
     })
 
     return () => { live = false }
-  }, [connectors, now, settings, snapshots, timeZone])
+  }, [connectors, now, permissionRevision, settings, snapshots, timeZone])
+
+  useEffect(() => {
+    if (settings === undefined || connectors === undefined) return
+    const sources = settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES
+    if (settings.briefingEnabled !== true || !sources.assignments) {
+      void storage.update('attentionLedger', clearAssignmentLedgerSources)
+      return
+    }
+    const active = new Set<AttentionAssignmentSource>()
+    const github = githubConfig(connectors.github)
+    const gitlab = gitlabConfig(connectors.gitlab)
+    const jira = jiraConfig(connectors.jira)
+    const linear = linearConfig(connectors.linear)
+    if (github && hasAttentionConnectorPermission('github', github)) active.add('github')
+    if (gitlab && hasAttentionConnectorPermission('gitlab', gitlab)) active.add('gitlab')
+    if (jira && hasAttentionConnectorPermission('jira', jira)) active.add('jira')
+    if (linear && hasAttentionConnectorPermission('linear', linear)) active.add('linear')
+    void storage.update('attentionLedger', (current) => retainAssignmentLedgerSources(current, active))
+  }, [connectors, permissionRevision, settings, storage])
 
   useEffect(() => {
     if (!projection.ready || projection.assignments.length === 0) return
     void storage.update('attentionLedger', (current) => {
       let next = current
       for (const source of projection.assignments) {
-        next = reconcileAssignmentSource(next, source.source, source.rows.map((row) => row.id), source.observedAt)
+        next = reconcileAssignmentSource(next, source.source, source.rows.map((row) => row.id), source.observedAt, source.generation)
       }
       return next
     })

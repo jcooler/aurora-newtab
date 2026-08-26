@@ -75,15 +75,17 @@ export function reconcileAssignmentSource(
   source: AttentionAssignmentSource,
   currentIds: readonly string[],
   observedAt: number,
+  generation?: string,
 ): AttentionLedger {
   if (!Number.isFinite(observedAt) || observedAt < 0) return ledger
   const previous = ledger.sources[source]
   if (previous && observedAt <= previous.observedAt) return ledger
 
+  const generationChanged = Boolean(previous?.generation && generation && previous.generation !== generation)
   const items = Object.fromEntries(validIds(currentIds).map((id) => [
     id,
     {
-      firstSeenAt: previous
+      firstSeenAt: previous && !generationChanged
         ? previous.items[id]?.firstSeenAt === undefined
           ? observedAt
           : previous.items[id].firstSeenAt
@@ -95,9 +97,23 @@ export function reconcileAssignmentSource(
     version: 1,
     sources: {
       ...ledger.sources,
-      [source]: { observedAt, items },
+      [source]: { ...(generation ? { generation } : {}), observedAt, items },
     },
   }
+}
+
+export function clearAssignmentLedgerSources(ledger: AttentionLedger): AttentionLedger {
+  return Object.keys(ledger.sources).length === 0 ? ledger : { version: 1, sources: {} }
+}
+
+export function retainAssignmentLedgerSources(
+  ledger: AttentionLedger,
+  active: ReadonlySet<AttentionAssignmentSource>,
+): AttentionLedger {
+  const sources = Object.fromEntries(
+    Object.entries(ledger.sources).filter(([source]) => active.has(source as AttentionAssignmentSource)),
+  ) as AttentionLedger['sources']
+  return Object.keys(sources).length === Object.keys(ledger.sources).length ? ledger : { version: 1, sources }
 }
 
 function relativeAge(now: number, timestamp: number): string {

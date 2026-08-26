@@ -77,6 +77,8 @@ describe('permission mirror', () => {
     const { initializePermissionMirror, permissionMirror } = await import('./permissionMirror')
     await initializePermissionMirror()
 
+    const listener = vi.fn()
+    const unsubscribe = permissionMirror.subscribe(listener)
     onRemoved.emit({ origins: ['https://held.example.com/*'] })
     onAdded.emit({ origins: ['https://later.example.com/*'] })
 
@@ -85,6 +87,8 @@ describe('permission mirror', () => {
       preExisting: ['https://later.example.com/*'],
       absent: ['https://held.example.com/*'],
     })
+    expect(listener).toHaveBeenCalledTimes(2)
+    unsubscribe()
   })
 
   it('records an explicit unavailable state when seeding rejects while allowing startup initialization to settle', async () => {

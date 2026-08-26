@@ -99,6 +99,43 @@ async function openWithHover(page, trigger) {
   return panel
 }
 
+async function grantFixturePermissions(page) {
+  const origins = ['https://api.github.com/*', 'https://api.vercel.com/*', 'https://calendar.example.test/*']
+  await page.evaluate((requested) => {
+    const button = document.createElement('button')
+    button.id = 'qa-grant-permissions'
+    button.addEventListener('click', () => {
+      void chrome.permissions.request({ origins: requested }).then((granted) => {
+        document.documentElement.dataset.qaPermissionsGranted = String(granted)
+      })
+    })
+    document.body.append(button)
+  }, origins)
+  await page.locator('#qa-grant-permissions').click()
+  await page.waitForFunction(() => document.documentElement.dataset.qaPermissionsGranted === 'true')
+  const held = await page.evaluate(async (requested) => chrome.permissions.contains({ origins: requested }), origins)
+  assert.equal(held, true, 'fixture host permissions were not granted')
+}
+
+async function assertPanelClearsVisibleUi(page, panelRect) {
+  const obstacles = await page.evaluate(() => {
+    const trigger = document.querySelector('.aurora-briefing__trigger')
+    const owner = trigger?.closest('[data-testid^="canvas-item-"]')
+    const selector = '[data-testid^="canvas-item-"], .utility-tray-trigger, .chrome-tab-trigger, .settings-gear, .layout-badge-host'
+    return [...document.querySelectorAll(selector)].flatMap((node) => {
+      if (!(node instanceof HTMLElement) || node === owner || owner?.contains(node)) return []
+      const rect = node.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return []
+      return [{
+        label: node.getAttribute('data-testid') ?? node.className,
+        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
+      }]
+    })
+  })
+  for (const obstacle of obstacles) assertNoIntersection(panelRect, obstacle.rect, obstacle.label)
+  return obstacles
+}
+
 async function seedFixtures(page, layouts) {
   const now = Date.now() - 1_000
   const eventStart = now + 2 * 60 * 60_000 + 5 * 60_000
@@ -215,7 +252,7 @@ async function exercisePanel(page, output, evidence) {
   const panelRect = rectFromBox(await panel.boundingBox())
   const clockRect = rectFromBox(await page.getByTestId('canvas-item-clock').boundingBox())
   assertViewportContained(panelRect, DESKTOP)
-  assertNoIntersection(panelRect, clockRect, 'Clock')
+  const obstacles = await assertPanelClearsVisibleUi(page, panelRect)
   await page.screenshot({ path: resolve(output, 'attention-1600x900.png'), animations: 'disabled' })
 
   const text = (await panel.textContent()) ?? ''
@@ -248,7 +285,7 @@ async function exercisePanel(page, output, evidence) {
   await trigger.tap()
   await panel.waitFor({ state: 'detached' })
 
-  evidence.desktop = { summary: EXPECTED_SUMMARY, panelRect, clockRect }
+  evidence.desktop = { summary: EXPECTED_SUMMARY, panelRect, clockRect, clearedObstacles: obstacles.map(({ label }) => label) }
 }
 
 async function exerciseSecondTab(context, firstPage, evidence) {
@@ -386,6 +423,7 @@ export async function runAttentionSignalsQa(args = process.argv.slice(2)) {
     const extensionId = new URL(page.url()).host
     const seedUrl = `chrome-extension://${extensionId}/manifest.json`
     await page.goto(seedUrl, { waitUntil: 'domcontentloaded' })
+    await grantFixturePermissions(page)
     const fixture = await seedFixtures(page, attentionLayout(authorityIds))
     await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
     await page.locator('[data-canvas-surface]').waitFor()
