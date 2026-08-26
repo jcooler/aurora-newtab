@@ -17,7 +17,7 @@ export const APPROVED_TARGET_IDS = Object.freeze(TARGET_WIDGETS.map(({ id }) => 
 export const OWNER_VISIBLE_CANVAS_CASE = Object.freeze({
   key: 'owner-visible-canvas',
   kind: 'owner-visible-canvas',
-  intrinsic: Object.freeze(['bookmarks', 'clock', 'focus', 'greeting', 'quote', 'status']),
+  intrinsic: Object.freeze(['bookmarks', 'clock', 'focus', 'greeting', 'links', 'quote', 'search', 'status']),
   members: Object.freeze([
     'bookmarks', 'clock', 'greeting', 'worldClocks', 'countdown', 'search',
     'focus', 'links', 'quote', 'weather', 'ics', 'status', 'timer', 'tasks',
@@ -211,8 +211,6 @@ async function inspectOwnerVisibleCanvas(page, output) {
   const framed = Object.freeze({
     worldClocks: 'standard',
     countdown: 'standard',
-    search: 'standard',
-    links: 'standard',
     weather: 'standard',
     ics: 'standard',
     tasks: 'compact',
@@ -255,7 +253,9 @@ async function inspectOwnerVisibleCanvas(page, output) {
   for (const [id, selector] of Object.entries({
     clock: '[data-clock-face]',
     focus: '[data-focus-footprint]',
+    links: '[data-quick-link-presentation="free"]',
     quote: 'figure',
+    search: '[data-search-presentation="free"]',
     status: '[data-service-status-surface="intrinsic"]',
   })) {
     const item = page.getByTestId(`canvas-item-${id}`)
