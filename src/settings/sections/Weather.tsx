@@ -24,7 +24,7 @@ export default function Weather({
     try {
       await storage.setMany({ location: null, weatherCache: null, weatherAlertCache: null })
     } catch {
-      setError('Could not clear weather location — try again.')
+      setError('Could not clear weather location. Try again.')
       setClearing(false)
     }
   }

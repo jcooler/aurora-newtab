@@ -918,7 +918,6 @@
 .stack-inspector__icon,
 .stack-inspector__remove {
   cursor: pointer;
-  pointer-events: none;
 }
 .stack-inspector__remove {
   padding-inline: 6px;

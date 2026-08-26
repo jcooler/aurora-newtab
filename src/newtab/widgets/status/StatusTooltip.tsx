@@ -26,6 +26,7 @@ export default function StatusTooltip({ service, children }: { service: ServiceS
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState({ left: 8, top: 8 })
   const triggerRef = useRef<HTMLSpanElement>(null)
+  const tooltipRef = useRef<HTMLSpanElement>(null)
   const id = useId()
 
   useLayoutEffect(() => {
@@ -33,10 +34,16 @@ export default function StatusTooltip({ service, children }: { service: ServiceS
     const place = () => {
       const rect = triggerRef.current?.getBoundingClientRect()
       if (!rect) return
-      const width = 280
+      const tooltipRect = tooltipRef.current?.getBoundingClientRect()
+      const width = tooltipRect?.width ?? 280
+      const height = tooltipRect?.height ?? 0
+      const below = rect.bottom + 6
+      const top = below + height <= window.innerHeight - 8
+        ? below
+        : rect.top - height - 6
       setPosition({
         left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
-        top: Math.max(8, rect.bottom + 6),
+        top: Math.max(8, Math.min(top, window.innerHeight - height - 8)),
       })
     }
     place()
@@ -61,7 +68,7 @@ export default function StatusTooltip({ service, children }: { service: ServiceS
         {children}
       </span>
       {open ? createPortal(
-        <span id={id} role="tooltip" className="status-service-tooltip" style={position}>
+        <span ref={tooltipRef} id={id} role="tooltip" className="status-service-tooltip" style={position}>
           {statusContext(service)}
         </span>,
         document.body,

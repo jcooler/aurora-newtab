@@ -229,6 +229,9 @@ try {
   assert.deepEqual(order, ['tasks', 'notes'])
   assert.equal(await page.locator('[data-canvas-object-id="tasks"]').count(), 0)
   assert.equal(await page.locator('[data-canvas-object-id="notes"]').count(), 0)
+  await inspector.getByRole('button', { name: 'Move Tasks later' }).click()
+  const arrowOrder = await inspector.locator('[data-stack-inspector-member]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-stack-inspector-member')))
+  assert.deepEqual(arrowOrder, ['notes', 'tasks'])
   await page.keyboard.press('Escape')
   await page.setViewportSize({ width: 1408, height: 445 })
   await page.waitForFunction(() => {
@@ -242,6 +245,7 @@ try {
     before,
     shortRect,
     order,
+    arrowOrder,
   }
   await page.screenshot({ path: resolve(output, 'stack-polish-1408x445.png') })
 
