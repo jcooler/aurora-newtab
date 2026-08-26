@@ -92,6 +92,8 @@ export default function AttentionContextPanel({
       const trigger = triggerRef.current?.getBoundingClientRect()
       const panel = panelRef.current?.getBoundingClientRect()
       if (!trigger || !panel) return
+      const owner = triggerRef.current?.closest<HTMLElement>('[data-testid^="canvas-item-"]')
+      const anchor = owner?.getBoundingClientRect() ?? trigger
       const selector = '[data-testid^="canvas-item-"], .utility-tray-trigger, .chrome-tab-trigger, .settings-gear, .layout-badge-host, [role="dialog"][aria-label="Settings"]'
       const obstacles = [...document.querySelectorAll<HTMLElement>(selector)]
         .filter((node) => getComputedStyle(node).visibility !== 'hidden')
@@ -99,7 +101,7 @@ export default function AttentionContextPanel({
         .filter((rect) => rect.width > 0 && rect.height > 0) as AttentionRect[]
       setPosition(placeAttentionPanel({
         viewport: { width: window.innerWidth, height: window.innerHeight },
-        trigger,
+        trigger: anchor,
         panel,
         obstacles,
       }))
