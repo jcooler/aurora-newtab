@@ -205,12 +205,10 @@ async function introduceNewAssignment(page, githubScope) {
 
 async function exercisePanel(page, output, evidence) {
   const trigger = await waitForSummary(page)
-  const hit = await trigger.evaluate((node) => {
-    const rect = node.getBoundingClientRect()
-    const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
-    return target === node || node.contains(target)
-  })
-  assert.equal(hit, true, 'attention summary is intercepted by another element')
+  await trigger.click()
+  await page.getByRole('region', { name: 'Attention details' }).waitFor({ state: 'visible' })
+  await trigger.click()
+  await page.getByRole('region', { name: 'Attention details' }).waitFor({ state: 'detached' })
 
   let panel = await openWithHover(page, trigger)
   const panelRect = rectFromBox(await panel.boundingBox())
