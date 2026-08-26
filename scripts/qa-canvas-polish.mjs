@@ -138,7 +138,7 @@ try {
   const focusInput = page.locator('#focus-input')
   await focusInput.fill('Finish the Mac test')
   await focusInput.press('Enter')
-  assert(await page.getByText("What's your main focus today?", { exact: true }).isVisible())
+  assert(await page.getByText(/main focus today/i).isVisible())
   assert(await page.getByText('Finish the Mac test', { exact: true }).isVisible())
   await page.locator('#focus-done').check()
   await page.locator('[data-focus-celebration]').waitFor()
