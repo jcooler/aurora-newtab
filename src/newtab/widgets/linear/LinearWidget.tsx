@@ -11,6 +11,8 @@ import {
   type LinearWorkData,
 } from '../../../services/connectors/linear'
 import type { ConnectorConfig, LinearConfig } from '../../../services/connectors/types'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
@@ -37,21 +39,31 @@ export default function LinearWidget({
   docked?: boolean
 } = {}) {
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const candidate = connectors?.linear
   if (!candidate || candidate.enabled !== true) return null
   const config = connectedLinear(candidate)
   if (!config) return <WorkConnectorSetup title="Linear" canvasSize={canvasSize} docked={docked} />
-  return <LinearInner config={config} canvasSize={canvasSize} docked={docked} />
+  return <LinearInner
+    config={config}
+    canvasSize={canvasSize}
+    docked={docked}
+    runtime={attentionRuntimeScope(
+      settings.briefingEnabled === true,
+      settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+    )}
+  />
 }
 
-function LinearInner({ config, canvasSize, docked }: { config: LinearConfig; canvasSize: CanvasSize; docked: boolean }) {
+function LinearInner({ config, canvasSize, docked, runtime }: { config: LinearConfig; canvasSize: CanvasSize; docked: boolean; runtime: AttentionRuntimeScope }) {
   const storage = useStorage()
   const { data, state, lastError } = useConnectorSnapshot<LinearWorkData>(
     'linear',
     config,
     () => fetchLinearWork(config.token, linearTeamIds(config)),
     undefined,
-    undefined,
+    runtime,
     isLinearWorkData,
   )
   const issues = data?.issues ?? []

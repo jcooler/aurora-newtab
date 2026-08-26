@@ -7,6 +7,8 @@ import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, effectiveVercelViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 const MAX_DEPLOYMENTS = 5
 
@@ -62,6 +64,8 @@ export default function VercelWidget({ canvasSize, docked }: { canvasSize?: Canv
   // satisfied), but a disabled/unconnected connector never mounts VercelInner
   // and therefore never runs useConnectorSnapshot's subscribe/refresh.
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const vercel = connectedVercel(connectors?.vercel)
   if (!vercel) return null
   const views = resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)
@@ -73,6 +77,10 @@ export default function VercelWidget({ canvasSize, docked }: { canvasSize?: Canv
       views={views}
       canvasSize={canvasSize}
       docked={docked}
+      runtime={attentionRuntimeScope(
+        settings.briefingEnabled === true,
+        settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+      )}
     />
   )
 }
@@ -83,12 +91,14 @@ function VercelInner({
   views,
   canvasSize,
   docked,
+  runtime,
 }: {
   vercel: VercelConfig
   token: string
   views: VercelViews
   canvasSize?: CanvasSize
   docked?: boolean
+  runtime: AttentionRuntimeScope
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchVercel's
@@ -98,8 +108,11 @@ function VercelInner({
   // every other connector widget. The user's resolved views gate the fetch
   // (fetchVercel skips the request when BOTH sections are off — see its own
   // doc comment) AND this render (below).
+  const fetchViews = effectiveVercelViews(views, runtime)
   const { data, state } = useConnectorSnapshot<VercelData>('vercel', vercel, (prev) =>
-    fetchVercel(token, views, prev),
+    fetchVercel(token, fetchViews, prev),
+    undefined,
+    runtime,
   )
   const tier = canvasSize ?? 'standard'
   if (!data) {

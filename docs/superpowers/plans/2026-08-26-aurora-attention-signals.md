@@ -432,13 +432,14 @@ git commit -m "feat: model explainable attention signals"
 - Modify: `src/newtab/widgets/gitlab/GitlabWidget.tsx`
 - Modify: `src/newtab/widgets/jira/JiraWidget.tsx`
 - Modify: `src/newtab/widgets/vercel/VercelWidget.tsx`
+- Modify: `src/newtab/widgets/linear/LinearWidget.tsx`
 - Modify: relevant widget tests
 
 **Interfaces:**
 - Consumes: `BriefingSources`, connector configs, connector view resolvers, connector fetch functions, and `useConnectorSnapshot`.
 - Produces: `attentionRuntimeScope`, `effectiveGithubViews`, `effectiveGitlabViews`, `effectiveJiraViews`, `effectiveVercelViews`, and `AttentionRefreshOwners`.
 
-- [ ] **Step 1: Write failing policy tests**
+- [x] **Step 1: Write failing policy tests**
 
 Assert the helper source settings union with widget views without changing renderer preferences:
 
@@ -457,7 +458,7 @@ expect(attentionRuntimeScope(enabledSources)).toEqual({ assignments: true, deplo
 
 Assert all functions return the user's original resolved views and a false/false scope when the helper or matching source is off.
 
-- [ ] **Step 2: Write failing refresh-owner tests**
+- [x] **Step 2: Write failing refresh-owner tests**
 
 Render with connected fixture configs and assert:
 
@@ -466,19 +467,20 @@ Render with connected fixture configs and assert:
 - Deployment failures off produces no Vercel request.
 - A connected source with its source enabled mounts exactly one effective refresh per connector scope.
 - A visible widget and hidden owner with identical runtime scope share the existing in-flight request.
+- Linear's visible widget and hidden owner use the same runtime scope and share the existing in-flight request.
 - No new permission request API is invoked.
 
-- [ ] **Step 3: Run policy, owner, and connector-widget tests and verify red**
+- [x] **Step 3: Run policy, owner, and connector-widget tests and verify red**
 
 Run:
 
 ```powershell
-npx vitest run src/services/connectors/attentionPolicy.test.ts src/newtab/components/AttentionRefreshOwners.test.tsx src/newtab/widgets/github/GithubWidget.test.tsx src/newtab/widgets/gitlab/GitlabWidget.test.tsx src/newtab/widgets/jira/JiraWidget.test.tsx src/newtab/widgets/vercel/VercelWidget.test.tsx
+npx vitest run src/services/connectors/attentionPolicy.test.ts src/newtab/components/AttentionRefreshOwners.test.tsx src/newtab/widgets/github/GithubWidget.test.tsx src/newtab/widgets/gitlab/GitlabWidget.test.tsx src/newtab/widgets/jira/JiraWidget.test.tsx src/newtab/widgets/vercel/VercelWidget.test.tsx src/newtab/widgets/linear/LinearWidget.test.tsx
 ```
 
 Expected: missing policy and refresh-owner modules, followed by fetch/scope mismatches.
 
-- [ ] **Step 4: Implement one effective policy for owners and widgets**
+- [x] **Step 4: Implement one effective policy for owners and widgets**
 
 Use a shared runtime identity:
 
@@ -503,16 +505,16 @@ The effective-view functions return a fresh view object whose assigned/deploymen
 
 `AttentionRefreshOwners` mounts null-rendering per-connector child components only for fully connected configs and enabled sources. Each child calls the existing fetcher with effective views. Linear uses `fetchLinearWork`, `linearTeamIds`, and `isLinearWorkData`. Do not duplicate request, permission, scope, or storage-write machinery.
 
-- [ ] **Step 5: Run policy, owner, and widget tests and verify green**
+- [x] **Step 5: Run policy, owner, and widget tests and verify green**
 
 Run the Step 3 command.
 
 Expected: policy, refresh ownership, coalescing, and visible-widget regressions all pass.
 
-- [ ] **Step 6: Commit shared refresh ownership**
+- [x] **Step 6: Commit shared refresh ownership**
 
 ```powershell
-git add -- src/services/connectors/attentionPolicy.ts src/services/connectors/attentionPolicy.test.ts src/newtab/components/AttentionRefreshOwners.tsx src/newtab/components/AttentionRefreshOwners.test.tsx src/newtab/widgets/github/GithubWidget.tsx src/newtab/widgets/gitlab/GitlabWidget.tsx src/newtab/widgets/jira/JiraWidget.tsx src/newtab/widgets/vercel/VercelWidget.tsx src/newtab/widgets/github/GithubWidget.test.tsx src/newtab/widgets/gitlab/GitlabWidget.test.tsx src/newtab/widgets/jira/JiraWidget.test.tsx src/newtab/widgets/vercel/VercelWidget.test.tsx
+git add -- src/services/connectors/attentionPolicy.ts src/services/connectors/attentionPolicy.test.ts src/newtab/components/AttentionRefreshOwners.tsx src/newtab/components/AttentionRefreshOwners.test.tsx src/newtab/widgets/github/GithubWidget.tsx src/newtab/widgets/gitlab/GitlabWidget.tsx src/newtab/widgets/jira/JiraWidget.tsx src/newtab/widgets/vercel/VercelWidget.tsx src/newtab/widgets/linear/LinearWidget.tsx src/newtab/widgets/github/GithubWidget.test.tsx src/newtab/widgets/gitlab/GitlabWidget.test.tsx src/newtab/widgets/jira/JiraWidget.test.tsx src/newtab/widgets/vercel/VercelWidget.test.tsx src/newtab/widgets/linear/LinearWidget.test.tsx
 git commit -m "feat: refresh attention connector sources"
 ```
 

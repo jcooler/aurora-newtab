@@ -11,6 +11,8 @@ import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, effectiveGitlabViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
 // so a full page reads as "20+" rather than an exact-but-misleading number.
@@ -104,6 +106,8 @@ export default function GitlabWidget({ canvasSize, docked }: { canvasSize?: Canv
   // disabled/unconnected connector never mounts GitlabInner and therefore
   // never runs useConnectorSnapshot's subscribe/refresh.
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const gitlab = connectedGitlab(connectors?.gitlab)
   if (!gitlab) return null
   const views = resolveViews(DEFAULT_GITLAB_VIEWS, gitlab.views)
@@ -156,6 +160,10 @@ export default function GitlabWidget({ canvasSize, docked }: { canvasSize?: Canv
       jiraDueSoonEnabled={jiraDueSoonEnabled}
       canvasSize={canvasSize}
       docked={docked}
+      runtime={attentionRuntimeScope(
+        settings.briefingEnabled === true,
+        settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+      )}
     />
   )
 }
@@ -172,6 +180,7 @@ function GitlabInner({
   jiraDueSoonEnabled,
   canvasSize,
   docked,
+  runtime,
 }: {
   gitlab: GitlabConfig
   token: string
@@ -184,6 +193,7 @@ function GitlabInner({
   jiraDueSoonEnabled: boolean
   canvasSize?: CanvasSize
   docked?: boolean
+  runtime: AttentionRuntimeScope
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so a per-section failure
@@ -191,8 +201,11 @@ function GitlabInner({
   // comment — but still carries `prev` forward for the quiet-failure path).
   // The user's resolved views gate the fetch (a section turned off never issues
   // a request — see fetchGitlab) AND this render (below).
+  const fetchViews = effectiveGitlabViews(views, runtime)
   const { data, state } = useConnectorSnapshot<GitlabData>('gitlab', gitlab, (prev) =>
-    fetchGitlab(instanceUrl, token, username, views, prev),
+    fetchGitlab(instanceUrl, token, username, fetchViews, prev),
+    undefined,
+    runtime,
   )
   const tier = canvasSize ?? 'standard'
   if (!data) {

@@ -9,6 +9,8 @@ import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, effectiveJiraViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the counts line above already says "there's more"), and it shares the
@@ -84,6 +86,8 @@ export default function JiraWidget({ canvasSize, docked }: { canvasSize?: Canvas
   // disabled/unconnected connector never mounts JiraInner and therefore
   // never runs useConnectorSnapshot's subscribe/refresh.
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const jira = connectedJira(connectors?.jira)
   if (!jira) return null
   const views = resolveViews(DEFAULT_JIRA_VIEWS, jira.views)
@@ -127,6 +131,10 @@ export default function JiraWidget({ canvasSize, docked }: { canvasSize?: Canvas
       anyGraphEnabled={anyGraphEnabled}
       canvasSize={canvasSize}
       docked={docked}
+      runtime={attentionRuntimeScope(
+        settings.briefingEnabled === true,
+        settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+      )}
     />
   )
 }
@@ -142,6 +150,7 @@ function JiraInner({
   anyGraphEnabled,
   canvasSize,
   docked,
+  runtime,
 }: {
   jira: JiraConfig
   site: string
@@ -153,6 +162,7 @@ function JiraInner({
   anyGraphEnabled: boolean
   canvasSize?: CanvasSize
   docked?: boolean
+  runtime: AttentionRuntimeScope
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so the two-section fetch's
@@ -162,8 +172,11 @@ function JiraInner({
   // rather than an empty shell — same as GithubInner/GitlabInner. The user's
   // resolved views gate the fetch (a section turned off never issues a
   // request — see fetchJira) AND this render (below).
+  const fetchViews = effectiveJiraViews(views, runtime)
   const { data, state } = useConnectorSnapshot<JiraData>('jira', jira, (prev) =>
-    fetchJira(site, email, apiToken, views, prev),
+    fetchJira(site, email, apiToken, fetchViews, prev),
+    undefined,
+    runtime,
   )
   const tier = canvasSize ?? 'standard'
   if (!data) {

@@ -8,6 +8,8 @@ import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, effectiveGithubViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
 // so a full page reads as "50+" rather than an exact-but-misleading number.
@@ -74,6 +76,8 @@ export default function GithubWidget({ canvasSize, docked }: { canvasSize?: Canv
   // unconnected connector never mounts GithubInner and therefore never runs
   // useConnectorSnapshot's subscribe/refresh.
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const github = connectedGithub(connectors?.github)
   if (!github) return null
   // Count the enabled forge SIBLINGS that share the right rail's flow column
@@ -85,18 +89,25 @@ export default function GithubWidget({ canvasSize, docked }: { canvasSize?: Canv
   // laps the Tasks pill). This governs the graph's reveal tier — see GithubInner
   // and App.tsx's right-rail comment.
   const forgeSiblings = (connectors?.gitlab?.enabled ? 1 : 0) + (connectors?.jira?.enabled ? 1 : 0)
-  return <GithubInner github={github} forgeSiblings={forgeSiblings} canvasSize={canvasSize} docked={docked} />
+  const runtime = attentionRuntimeScope(
+    settings.briefingEnabled === true,
+    settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+  )
+  return <GithubInner github={github} forgeSiblings={forgeSiblings} canvasSize={canvasSize} docked={docked} runtime={runtime} />
 }
 
-function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: GithubConfig; forgeSiblings: number; canvasSize?: CanvasSize; docked?: boolean }) {
+function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { github: GithubConfig; forgeSiblings: number; canvasSize?: CanvasSize; docked?: boolean; runtime: AttentionRuntimeScope }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately and
   // refreshes once per mount, carrying `prev` so ETag 304s keep each section.
   // The user's resolved views gate the fetch (a section turned off never issues
   // a request — see fetchGithub) AND this render (below).
   const token = github.token
   const views = resolveGithubViews(github)
+  const fetchViews = effectiveGithubViews(views, runtime)
   const { data, state } = useConnectorSnapshot<GithubData>('github', github, (prev) =>
-    fetchGithub(token, prev, views),
+    fetchGithub(token, prev, fetchViews),
+    undefined,
+    runtime,
   )
 
   // All four sections off: the user asked for nothing to show, so render no
