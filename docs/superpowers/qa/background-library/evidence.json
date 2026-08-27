@@ -1,0 +1,71 @@
+{
+  "commit": "d30f2bc70d3c63ab211bd173197c1b43591f1c4f",
+  "provenance": {
+    "commit": "d30f2bc70d3c63ab211bd173197c1b43591f1c4f"
+  },
+  "desktop": {
+    "viewport": "1600x900",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "originals": [
+      {
+        "id": "qNXhVgRfU0E",
+        "naturalWidth": 7008,
+        "src": "/photos/32-qNXhVgRfU0E-original.jpg"
+      },
+      {
+        "id": "0hU6r-vMtao",
+        "naturalWidth": 3028,
+        "src": "/photos/33-0hU6r-vMtao-original.jpg"
+      },
+      {
+        "id": "P-wAARoptz8",
+        "naturalWidth": 5347,
+        "src": "/photos/34-P-wAARoptz8-original.jpg"
+      },
+      {
+        "id": "oYEGPZebzGw",
+        "naturalWidth": 7008,
+        "src": "/photos/35-oYEGPZebzGw-original.jpg"
+      },
+      {
+        "id": "j3f1lwXBuAI",
+        "naturalWidth": 6240,
+        "src": "/photos/36-j3f1lwXBuAI-original.jpg"
+      },
+      {
+        "id": "V7EgUtCnvLY",
+        "naturalWidth": 11235,
+        "src": "/photos/37-V7EgUtCnvLY-original.jpg"
+      }
+    ],
+    "loadMs": 173,
+    "health": {
+      "pageClientWidth": 1600,
+      "pageScrollWidth": 1600,
+      "dialogClientWidth": 862,
+      "dialogScrollWidth": 862
+    }
+  },
+  "mobile": {
+    "viewport": "375x812 touch",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedRequests": [],
+    "loadMs": 160,
+    "health": {
+      "pageClientWidth": 375,
+      "pageScrollWidth": 375,
+      "dialogClientWidth": 375,
+      "dialogScrollWidth": 375
+    },
+    "lastChoice": {
+      "x": 12,
+      "y": 664.1875,
+      "width": 171.5,
+      "height": 135.9375
+    }
+  },
+  "result": "PASS"
+}

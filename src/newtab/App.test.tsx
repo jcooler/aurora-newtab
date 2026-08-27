@@ -785,6 +785,7 @@ describe('App Canvas composition', () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('layouts', stackedDocument())
+    await storage.update('photoPrefs', (prefs) => ({ ...prefs, locked: true }))
     const legacyBefore = JSON.stringify(await storage.get('layout'))
     const updateSpy = vi.spyOn(storage, 'update')
     await renderApp(storage)

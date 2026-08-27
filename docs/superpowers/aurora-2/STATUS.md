@@ -1,11 +1,13 @@
 # Aurora 2 Status
 
-**Updated:** 2026-08-26<br>
+**Updated:** 2026-08-27<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Canvas polish and stack interactions<br>
-**Last verified packet:** `Canvas polish and stack interactions` - 3,396 green tests, a 263-module build, 31 production catalog captures, exact attention and dock witnesses, and focused 1600x900 plus 1408x445 Chromium acceptance<br>
-**Current packet:** Owner MacBook trial, then higher-quality image direction before premium and subscription strategy
+**Current wave:** Background library and lock<br>
+**Last verified packet:** `Background library and lock` - 3,409 green tests, TypeScript, a 263-module build, and exact desktop plus mobile Chromium selection and lock witnesses<br>
+**Current packet:** Owner PC trial, then high-quality image review before premium and subscription strategy
+
+- **Background library and lock (2026-08-27, VERIFIED):** Removed owner-rejected catalog photos 19 and 23, added six approved untouched source-resolution landscapes, and expanded the bundled catalog to 27 photos with crisp local Settings previews. Daily Photo now supports keeping the current image and selecting any bundled image; selection locks immediately, unlocking preserves the image until the next local day, and serialized fresh-value updaters prevent delayed rotation from overwriting a new choice. The full gate passed 212 files / 3,409 tests, TypeScript, diff hygiene, and a 263-module production build. Two consecutive exact-commit Chromium runs exercised all six originals and the 27-photo picker at 1600x900 and touch-emulated 375x812 with exact source widths, no overflow, and zero console, page, or request failures. The protected checkout and Chrome Web Store remain untouched.
 
 - **Canvas polish and stack interactions (2026-08-26, VERIFIED):** Free Search and Quick Links are restored as intrinsic photo-first controls; Weather preserves `Dallas, GA` style region labels and separates Clear; Focus keeps its prompt, saved item, check control, and short reduced-motion-safe celebration; compact Status is names and dots with service-specific hover and focus context. Stack grip movement reorders in place, arrows and Remove remain interactive, controls overlay the fixed stack footprint, stacks reach the same 8px edge as ordinary widgets, and dock depth is reduced to `clamp(60px, 10vh, 78px)`. The bounded review found and closed one pointer-control regression and added bottom-edge-safe Status tooltip placement. Final evidence includes 212 files / 3,396 tests, a 263-module build, 31 exact production catalog captures, exact attention, dock, UI recovery, and canvas polish Chromium witnesses, zero accepted runtime errors, and the report at `docs/superpowers/reports/AURORA-CANVAS-POLISH-AND-STACK-INTERACTIONS-QA.md`. The feature branch is approved for GitHub push and MacBook testing; merge and Store state remain untouched.
 
