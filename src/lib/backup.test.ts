@@ -97,6 +97,28 @@ describe('attention state backup boundary', () => {
   })
 })
 
+describe('photo preference backup contract', () => {
+  it('accepts an optional background lock and preserves it', () => {
+    const result = validateBackupShape({
+      ...defaults(),
+      photoPrefs: { mode: 'auto', index: 3, lastRotated: '2026-08-27', locked: true },
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.photoPrefs.locked).toBe(true)
+  })
+
+  it('rejects a non-boolean background lock', () => {
+    expect(validateBackupShape({
+      ...defaults(),
+      photoPrefs: { mode: 'auto', index: 3, lastRotated: '2026-08-27', locked: 'yes' },
+    } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "photoPrefs" data is invalid.',
+    })
+  })
+})
+
 describe('timerSession backup contract (Flow)', () => {
   const runningSession = {
     mode: 'work' as const,

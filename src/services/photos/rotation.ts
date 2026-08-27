@@ -12,6 +12,7 @@ export function resolvePhoto(
   count: number,
 ): { index: number; rotated: boolean } {
   if (count <= 0) return { index: 0, rotated: false }
+  if (prefs.locked) return { index: prefs.index % count, rotated: false }
   if (prefs.lastRotated !== today) return { index: hashDay(today) % count, rotated: true }
   return { index: prefs.index % count, rotated: false }
 }
@@ -20,4 +21,20 @@ export function nextPhoto(prefs: PhotoPrefs, today: string, count: number): Phot
   if (count <= 0) return prefs
   const { index } = resolvePhoto(prefs, today, count)
   return { ...prefs, index: (index + 1) % count, lastRotated: today }
+}
+
+/**
+ * Applies a daily rotation to the value read inside the serialized storage
+ * updater. A delayed effect therefore cannot overwrite a newer lock or source.
+ */
+export function rotatePhotoForDay(
+  current: PhotoPrefs,
+  expectedMode: PhotoPrefs['mode'],
+  today: string,
+  count: number,
+): PhotoPrefs {
+  if (current.mode !== expectedMode) return current
+  const resolved = resolvePhoto(current, today, count)
+  if (!resolved.rotated) return current
+  return { ...current, index: resolved.index, lastRotated: today }
 }

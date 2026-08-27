@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import Background from './Background'
 import { listUploads } from '../../lib/idb'
 import { createStorage, type AuroraStorage } from '../../lib/storage/index'
@@ -54,10 +54,11 @@ async function renderBg(
   onPrefsChange: (next: PhotoPrefs) => void = vi.fn(),
   seed: Record<string, unknown> = {},
 ) {
-  const storage: AuroraStorage = createStorage(memoryDriver(seed))
+  const storage: AuroraStorage = createStorage(memoryDriver({ ...seed, photoPrefs: prefs }))
+  storage.subscribe('photoPrefs', onPrefsChange)
   const view = render(
     <StorageProvider storage={storage}>
-      <Background prefs={prefs} onPrefsChange={onPrefsChange} />
+      <Background prefs={prefs} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -70,11 +71,10 @@ async function renderBg(
     // present again, not just the inner Background.
     rerender: async (
       nextPrefs: PhotoPrefs,
-      nextOnPrefsChange: (next: PhotoPrefs) => void = onPrefsChange,
     ) => {
       view.rerender(
         <StorageProvider storage={storage}>
-          <Background prefs={nextPrefs} onPrefsChange={nextOnPrefsChange} />
+          <Background prefs={nextPrefs} />
         </StorageProvider>,
       )
       await act(async () => {})
@@ -145,6 +145,31 @@ describe('Background', () => {
     expect(onPrefsChange).toHaveBeenCalledTimes(1)
   })
 
+  it('manual refresh advances the current photo without clearing its lock', async () => {
+    const onPrefsChange = vi.fn()
+    const prefs: PhotoPrefs = {
+      mode: 'auto',
+      index: 0,
+      lastRotated: '2026-07-26',
+      locked: true,
+    }
+    const { storage } = await renderBg(prefs, onPrefsChange)
+    const changed = new Promise<PhotoPrefs>((resolve) => storage.subscribe('photoPrefs', resolve))
+
+    let saved!: PhotoPrefs
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'New background photo' }))
+      saved = await changed
+    })
+
+    expect(saved).toEqual({
+      mode: 'auto',
+      index: 1,
+      lastRotated: '2026-07-26',
+      locked: true,
+    })
+  })
+
   it('upload mode with a populated gallery shows the current photo and the refresh control', async () => {
     vi.mocked(listUploads).mockResolvedValue([
       { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
@@ -170,7 +195,7 @@ describe('Background', () => {
     const storage = createStorage(memoryDriver())
     render(
       <StorageProvider storage={storage}>
-        <Background prefs={prefs} onPrefsChange={vi.fn()} showControls={false} />
+        <Background prefs={prefs} showControls={false} />
       </StorageProvider>,
     )
     await act(async () => {})

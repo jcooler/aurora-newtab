@@ -16,6 +16,8 @@ import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../ser
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import { APOD_ORIGINS } from '../services/apod'
+import { readLocalDay } from '../lib/hooks/useLocalDay'
+import { BUNDLED } from '../services/photos'
 import { releaseUnownedOrigins, runOriginTransaction } from '../services/permissionTransactions'
 import SettingsPanel from './SettingsPanel'
 import { authState, connectorCardState } from './sections/Connectors'
@@ -1504,6 +1506,43 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect(screen.getByRole('alert').textContent).not.toContain('private')
     expect(URL.createObjectURL).not.toHaveBeenCalled()
     URL.createObjectURL = originalCreate
+  })
+})
+
+describe('SettingsPanel Background section (bundled photo selection)', () => {
+  it('shows every bundled photo with one accessible selected state', async () => {
+    await renderPanel()
+
+    const gallery = screen.getByRole('group', { name: 'Bundled photos' })
+    const choices = within(gallery).getAllByRole('button')
+    expect(choices).toHaveLength(BUNDLED.length)
+    expect(choices.filter((choice) => attr(choice, 'aria-pressed') === 'true')).toHaveLength(1)
+    expect(screen.getByRole('switch', { name: 'Keep this background' }).getAttribute('aria-checked')).toBe('false')
+    expect(within(gallery).getByText(BUNDLED[0]!.photographer)).toBeTruthy()
+  })
+
+  it('selects and locks a bundled photo, then unlocks without changing it immediately', async () => {
+    const storage = await renderPanel()
+    const selectedIndex = 2
+    const choice = screen.getByRole('button', { name: `Use ${BUNDLED[selectedIndex]!.label}` })
+
+    fireEvent.click(choice)
+    await waitFor(async () => {
+      expect(await storage.get('photoPrefs')).toMatchObject({
+        mode: 'auto',
+        index: selectedIndex,
+        lastRotated: readLocalDay().key,
+        locked: true,
+      })
+    })
+    expect(choice.getAttribute('aria-pressed')).toBe('true')
+    const lock = screen.getByRole('switch', { name: 'Keep this background' })
+    expect(lock.getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.click(lock)
+    await waitFor(async () => {
+      expect(await storage.get('photoPrefs')).toMatchObject({ index: selectedIndex, locked: false })
+    })
   })
 })
 

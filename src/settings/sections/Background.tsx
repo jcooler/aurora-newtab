@@ -4,12 +4,15 @@ import type { Upload } from '../../lib/hooks/useUploads'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { PhotoPrefs } from '../../lib/storage/schema'
 import { APOD_ORIGINS } from '../../services/apod'
+import { readLocalDay } from '../../lib/hooks/useLocalDay'
+import { BUNDLED, bundledPreviewUrl } from '../../services/photos'
 import {
   runOriginOwnerMutation,
   runOriginTransaction,
   type OriginTransactionResult,
 } from '../../services/permissionTransactions'
 import Section from '../Section'
+import Switch from '../Switch'
 import { row, label, select } from './shared'
 
 function reportTransactionCleanup<T>(
@@ -159,6 +162,23 @@ export default function Background({
     }
   }
 
+  async function handleLockChange(locked: boolean) {
+    if (!photoPrefs) return
+    await storage.update('photoPrefs', (prefs) => ({ ...prefs, locked }))
+  }
+
+  async function handleBundledSelection(index: number) {
+    if (!photoPrefs) return
+    const today = readLocalDay().key
+    await storage.update('photoPrefs', (prefs) => ({
+      ...prefs,
+      mode: 'auto',
+      index,
+      lastRotated: today,
+      locked: true,
+    }))
+  }
+
   return (
     <Section title="Background">
       <div className={row}>
@@ -189,6 +209,48 @@ export default function Background({
         <p id="bg-apod-error" role="alert" className="text-xs text-fg-muted">
           {apodError}
         </p>
+      )}
+      {photoPrefs?.mode === 'auto' && BUNDLED.length > 0 && (
+        <div className="flex flex-col gap-3 pt-2">
+          <div className={row}>
+            <label htmlFor="set-bg-locked" className={label}>
+              Keep this background
+            </label>
+            <Switch
+              id="set-bg-locked"
+              checked={photoPrefs.locked ?? false}
+              onChange={(locked) => void handleLockChange(locked)}
+            />
+          </div>
+          <div role="group" aria-label="Bundled photos" className="grid grid-cols-2 gap-2 min-[520px]:grid-cols-3">
+            {BUNDLED.map((photo, index) => {
+              const selected = photoPrefs.index % BUNDLED.length === index
+              return (
+                <button
+                  key={photo.id}
+                  type="button"
+                  aria-label={`Use ${photo.label}`}
+                  aria-pressed={selected}
+                  onClick={() => void handleBundledSelection(index)}
+                  className={`min-w-0 cursor-pointer overflow-hidden rounded-lg border text-left outline-none transition-[border-color,box-shadow] focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none ${
+                    selected ? 'border-accent ring-1 ring-accent' : 'border-control-border hover:border-fg-muted'
+                  }`}
+                >
+                  <img
+                    src={bundledPreviewUrl(index)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="aspect-[8/5] w-full bg-control-bg object-cover"
+                  />
+                  <span className="block truncate px-2 py-1.5 text-xs text-fg-muted">
+                    {photo.photographer}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       )}
       {photoPrefs?.mode === 'upload' && (
         <>

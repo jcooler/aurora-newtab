@@ -182,6 +182,8 @@ export interface PhotoPrefs {
   mode: 'auto' | 'upload' | 'gradient' | 'apod'
   index: number
   lastRotated: string
+  /** Stops the bundled daily rotation while preserving manual refresh. */
+  locked?: boolean
   /** Bumped on every new upload so the write is never deep-equal (chrome.storage
    *  emits no onChanged event for equal writes). */
   uploadedAt?: string

@@ -12,6 +12,7 @@ import {
   nextPhoto,
   pickTier,
   resolvePhoto,
+  rotatePhotoForDay,
   type PhotoTier,
 } from '../../services/photos/index'
 import { readLocalDay, useLocalDay } from '../../lib/hooks/useLocalDay'
@@ -46,12 +47,10 @@ function physicalMaxDimension(): number {
 
 export default function Background({
   prefs,
-  onPrefsChange,
   utilityTray,
   showControls = true,
 }: {
   prefs: PhotoPrefs
-  onPrefsChange: (next: PhotoPrefs) => void
   utilityTray?: UtilityTrayBridge
   showControls?: boolean
 }) {
@@ -172,7 +171,11 @@ export default function Background({
     // Gradient never owns index/lastRotated. Auto and upload both do now —
     // including upload cascaded to the bundled set, so a later real upload
     // resumes rotation from a sensible index instead of an untouched one.
-    if (effectiveMode !== 'gradient' && rotated) onPrefsChange({ ...prefs, index, lastRotated: today })
+    if (effectiveMode !== 'gradient' && rotated) {
+      void storage
+        .update('photoPrefs', (current) => rotatePhotoForDay(current, prefs.mode, today, count))
+        .catch((error: unknown) => console.error('[aurora] failed to rotate photoPrefs:', error))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per rotation
   }, [rotated, index, today, effectiveMode])
 
@@ -260,6 +263,14 @@ export default function Background({
   const showRefresh =
     (effectiveMode === 'auto' && BUNDLED.length > 0) || (effectiveMode === 'upload' && count > 1)
 
+  function advancePhoto() {
+    void storage
+      .update('photoPrefs', (current) =>
+        current.mode === prefs.mode ? nextPhoto(current, today, count) : current,
+      )
+      .catch((error: unknown) => console.error('[aurora] failed to advance photoPrefs:', error))
+  }
+
   // The button is rendered as a sibling of the aria-hidden layer, not nested inside
   // it: aria-hidden="true" removes ALL descendants from the accessibility tree
   // regardless of tabindex/pointer-events on them (this is the exact anti-pattern
@@ -337,7 +348,7 @@ export default function Background({
           type="button"
           aria-label="New background photo"
           title={credit ? `${credit.label} — click for a new photo` : 'New photo'}
-          onClick={() => onPrefsChange(nextPhoto(prefs, today, count))}
+          onClick={advancePhoto}
           // z-10 is load-bearing (owner-reported 2026-08-19: "muted and
           // unclickable"): the canvas surface is a positioned full-viewport
           // LATER sibling, so without an explicit level it hit-tests above
@@ -357,7 +368,7 @@ export default function Background({
               {showRefresh ? (
                 <button
                   type="button"
-                  onClick={() => onPrefsChange(nextPhoto(prefs, today, count))}
+                  onClick={advancePhoto}
                   className="min-h-9 rounded-lg bg-control-bg px-3 text-sm font-medium text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   New background photo

@@ -2,9 +2,9 @@
 import manifest from './photos.json'
 import type { PhotoTier } from './tier'
 
-export interface BundledPhoto {
+interface BundledPhotoBase {
   id: string
-  tiers: Record<PhotoTier, string>
+  preview: string
   label: string
   photographer: string
   license: string
@@ -13,11 +13,22 @@ export interface BundledPhoto {
   lqip: string
 }
 
-export const BUNDLED: BundledPhoto[] = manifest
+export type BundledPhoto = BundledPhotoBase & (
+  | { original: string; tiers?: never }
+  | { original?: never; tiers: Record<PhotoTier, string> }
+)
+
+export const BUNDLED = manifest as BundledPhoto[]
 
 /** Absolute extension URL for a bundled photo at the given resolution tier. */
 export function bundledUrl(index: number, tier: PhotoTier): string {
-  return `/photos/${BUNDLED[index]!.tiers[tier]}`
+  const photo = BUNDLED[index]!
+  return `/photos/${photo.original ?? photo.tiers[tier]}`
+}
+
+/** Small, sharp local image used only by the Settings photo picker. */
+export function bundledPreviewUrl(index: number): string {
+  return `/photos/${BUNDLED[index]!.preview}`
 }
 
 /**
@@ -31,6 +42,6 @@ export function bundledLqip(index: number): string {
   return BUNDLED[index]!.lqip
 }
 
-export { nextPhoto, resolvePhoto } from './rotation'
+export { nextPhoto, resolvePhoto, rotatePhotoForDay } from './rotation'
 export { pickTier } from './tier'
 export type { PhotoTier } from './tier'

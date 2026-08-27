@@ -91,7 +91,7 @@ function usableStoredLayout(value: StoredLayout | null | undefined): StoredLayou
 function AuroraApp() {
   const timerFlow = useTimerFlowState()
   const [settings] = useStoredKey('settings')
-  const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
+  const [photoPrefs] = useStoredKey('photoPrefs')
   const [layout] = useStoredKey('layout')
   const [layouts] = useStoredKey('layouts')
   const [connectors] = useStoredKey('connectors')
@@ -520,7 +520,7 @@ function AuroraApp() {
   if (timerFlow.flow) {
     return (
       <main data-aurora-flow="" className="aurora-canvas text-fg">
-        <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} showControls={false} />
+        <Background prefs={photoPrefs} showControls={false} />
         <FlowScreen />
       </main>
     )
@@ -607,7 +607,7 @@ function AuroraApp() {
       className="aurora-canvas text-fg"
     >
       <div className="contents" inert={utilityTrayOpen && narrowModality}>
-        <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} utilityTray={utilityTray} />
+        <Background prefs={photoPrefs} utilityTray={utilityTray} />
         <CanvasSurface
           activeLayout={renderedLayout}
           entries={activeEntries}

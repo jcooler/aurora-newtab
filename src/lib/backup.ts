@@ -354,6 +354,7 @@ function isPhotoPrefs(v: unknown): boolean {
     isString(v.mode) &&
     isNumber(v.index) &&
     isString(v.lastRotated) &&
+    isOptional(v.locked, isBoolean) &&
     isOptional(v.uploadedAt, isString)
   )
 }
