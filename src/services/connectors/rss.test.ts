@@ -421,6 +421,18 @@ describe('rssDescriptor', () => {
     expect(rssDescriptor.category).toBe('news-markets')
   })
 
+  it('redacts every feed but preserves the harmless display count for backups', () => {
+    const stored = { enabled: true, feeds: ['https://private.example.test/a?token=one'], shownCount: 7 }
+    expect(rssDescriptor.redactForBackup?.(stored)).toEqual({ enabled: true, feeds: [], shownCount: 7 })
+    expect(stored.feeds).toEqual(['https://private.example.test/a?token=one'])
+  })
+
+  it('requires re-entry only for an enabled RSS config whose feeds were redacted or are incomplete', () => {
+    expect(rssDescriptor.backupReentryRequired?.({ enabled: true, feeds: [], shownCount: 5 })).toBe(true)
+    expect(rssDescriptor.backupReentryRequired?.({ enabled: false, feeds: [], shownCount: 5 })).toBe(false)
+    expect(rssDescriptor.backupReentryRequired?.({ enabled: true, feeds: ['https://feed.example.test/rss'], shownCount: 5 })).toBe(false)
+  })
+
   it('origins() maps every configured feed to its https origin pattern', () => {
     const origins = rssDescriptor.origins({
       enabled: true,
@@ -443,5 +455,11 @@ describe('rssDescriptor', () => {
       shownCount: 5,
     })
     expect(origins).toEqual(['https://ok.example.com/*'])
+  })
+
+  it('ownsOrigins uses configured valid feeds rather than enabled, so disabled owners persist and generic toggles do not own', () => {
+    expect(rssDescriptor.ownsOrigins({ enabled: false, feeds: ['https://ok.example.com/feed'], shownCount: 5 })).toBe(true)
+    expect(rssDescriptor.ownsOrigins({ enabled: true, feeds: [], shownCount: 5 })).toBe(false)
+    expect(rssDescriptor.ownsOrigins({ enabled: true, feeds: ['not a url'], shownCount: 5 })).toBe(false)
   })
 })

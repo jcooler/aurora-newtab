@@ -1,5 +1,6 @@
-import { CURRENT_VERSION, defaults, type AuroraData } from './schema'
+import { CURRENT_VERSION, DEFAULT_BRIEFING_SOURCES, defaults, type AuroraData } from './schema'
 import { isPlainObject } from '../object'
+import { layoutV2FromLegacy } from '../layout/v2'
 
 type Snapshot = Record<string, unknown>
 
@@ -138,6 +139,143 @@ export const migrations: Record<number, Migration> = {
         ...d.settings,
         ...settings,
         widgets: { ...d.settings.widgets, ...widgets },
+      },
+    }
+  },
+  // v9 -> v10: preserve the complete known legacy percentage layout and map
+  // its explicit user positions into deterministic overrides for every
+  // future layout profile. The pure mapper validates before returning, so a
+  // malformed known row cannot produce a partial migration target.
+  9: (data) => ({
+    ...data,
+    layout: layoutV2FromLegacy(
+      Object.prototype.hasOwnProperty.call(data, 'layout') ? data.layout : {},
+    ),
+  }),
+  // v10 -> v11: density is one new nested Settings preference. Preserve an
+  // explicitly present value verbatim so strict backup validation can reject
+  // malformed v11-shaped data instead of laundering it into a valid import.
+  // A malformed Settings container is likewise left untouched for the backup
+  // boundary to reject; live current-schema repair is deliberately narrower
+  // and lives in storage/index.ts.
+  10: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) {
+      return Object.prototype.hasOwnProperty.call(data, 'settings')
+        ? data
+        : { ...data, settings: undefined }
+    }
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        layoutDensity: Object.prototype.hasOwnProperty.call(settings, 'layoutDensity')
+          ? settings.layoutDensity
+          : 'auto',
+      },
+    }
+  },
+  // v11 -> v12: the stored layout key becomes an explicit V1/V2/V3 union.
+  // This step is intentionally the identity function. Live initialization
+  // handles this version boundary as a metadata-only transaction so no
+  // Aurora data key is rewritten merely because the extension booted.
+  11: (data) => data,
+  // v12 -> v13: the named-layouts document key (NL-P1). Intentionally the
+  // identity, exactly like 11: live initialization treats every boundary from
+  // v11 on as a metadata-only version stamp (index.ts METADATA_ONLY_FLOOR) so
+  // no Aurora data key is rewritten merely because the extension booted.
+  // `layouts` itself is a brand-new top-level key backfilled to null by
+  // migrate()'s default-merge, the same way apodCache arrived.
+  12: (data) => data,
+  // v13 -> v14: the five appearance ink overrides (owner-approved 2026-08-18
+  // color system) are NESTED Settings fields — exactly what the final
+  // default-merge does NOT backfill (v1->v2's own comment) — so each is
+  // filled explicitly, `?? null` preserving any already-present value, the
+  // byte-for-byte style of v7->v8's panelColor backfill. NOT the identity,
+  // so METADATA_ONLY_FLOOR moved to 14 in the same change (index.ts's own
+  // rule on that constant). Guarded like steps 3/7/10: a non-object settings
+  // is left for backup.ts's validators to reject.
+  13: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        widgetTextColor: settings.widgetTextColor ?? null,
+        photoTextColor: settings.photoTextColor ?? null,
+        photoClockColor: settings.photoClockColor ?? null,
+        photoGreetingColor: settings.photoGreetingColor ?? null,
+        photoQuoteColor: settings.photoQuoteColor ?? null,
+      },
+    }
+  },
+  // v14 -> v15: Flow adds timerSession as a new top-level key. The migration
+  // registry step stays identity; migrate()'s final defaults merge supplies
+  // null without touching any prior user value.
+  14: (data) => data,
+  // v15 -> v16: Program F adds four nested browser-native widget toggles.
+  // This is the same generic nested-widget merge used by v6 -> v7 and
+  // v8 -> v9: current defaults fill only missing toggle keys while every
+  // stored choice and Settings sibling wins unchanged.
+  15: (data) => {
+    const d = defaults()
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    if (!isPlainObject(settings.widgets)) {
+      throw new Error('Invalid settings.widgets in schema v15')
+    }
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        widgets: { ...d.settings.widgets, ...settings.widgets },
+      },
+    }
+  },
+  // v16 -> v17: Flow ambience is a new nested Settings preference. Preserve
+  // any explicit value verbatim so backup validation can reject malformed
+  // current-schema data instead of normalizing it silently.
+  16: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        flowAmbience: Object.prototype.hasOwnProperty.call(settings, 'flowAmbience')
+          ? settings.flowAmbience
+          : 'off',
+      },
+    }
+  },
+  // v17 -> v18: make Flow volume explicit so existing users receive the new
+  // quieter baseline without resetting their selected sound.
+  17: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        flowVolume: Object.prototype.hasOwnProperty.call(settings, 'flowVolume')
+          ? settings.flowVolume
+          : 15,
+      },
+    }
+  },
+  // v18 -> v19: Greeting helper source preferences are nested Settings state.
+  // Merge defaults below any stored partial object so every new source is
+  // explicit while an existing user choice remains authoritative.
+  18: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    const stored = isPlainObject(settings.briefingSources) ? settings.briefingSources : {}
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        briefingSources: { ...DEFAULT_BRIEFING_SOURCES, ...stored },
       },
     }
   },

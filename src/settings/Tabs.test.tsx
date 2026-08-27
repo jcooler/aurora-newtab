@@ -49,7 +49,102 @@ function tablist() {
   return screen.getByRole('tablist')
 }
 
+function setRoomy(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn(() => ({
+      matches,
+      media: '(min-width: 900px)',
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
+
+function setViewportWidth(width: number) {
+  setRoomy(width >= 900)
+}
+
 describe('Tabs (ARIA tabs pattern)', () => {
+  it.each([
+    { width: 899, orientation: 'horizontal', key: 'ArrowRight' },
+    { width: 900, orientation: 'vertical', key: 'ArrowDown' },
+  ])('switches navigation exactly at the $width px boundary', ({ width, orientation, key }) => {
+    setViewportWidth(width)
+    render(<Host />)
+
+    expect(attr(tablist(), 'aria-orientation')).toBe(orientation)
+    fireEvent.keyDown(tablist(), { key })
+    expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(tab('Widgets'))
+  })
+
+  it('uses vertical navigation and vertical arrow keys on roomy screens', () => {
+    setRoomy(true)
+    render(<Host />)
+
+    expect(attr(tablist(), 'aria-orientation')).toBe('vertical')
+    expect(tablist().className).toContain('min-[900px]:flex-col')
+    fireEvent.keyDown(tablist(), { key: 'ArrowDown' })
+    expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(tab('Widgets'))
+    fireEvent.keyDown(tablist(), { key: 'ArrowUp' })
+    expect(attr(tab('General'), 'aria-selected')).toBe('true')
+  })
+
+  it('keeps horizontal navigation and horizontal arrow keys on reflowed screens', () => {
+    setRoomy(false)
+    render(<Host />)
+
+    expect(attr(tablist(), 'aria-orientation')).toBe('horizontal')
+    fireEvent.keyDown(tablist(), { key: 'ArrowRight' })
+    expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
+    fireEvent.keyDown(tablist(), { key: 'ArrowDown' })
+    expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
+  })
+
+  it('keeps both free three-tab and premium four-tab sets in one bounded horizontal row', () => {
+    const { rerender } = render(<Host />)
+    const assertNarrowRow = (expected: number) => {
+      expect(tablist().className).not.toContain('max-[420px]:grid')
+      expect(tablist().className).not.toContain('max-[420px]:grid-cols-2')
+      expect(screen.getAllByRole('tab')).toHaveLength(expected)
+      for (const item of screen.getAllByRole('tab')) {
+        expect(item.className.split(/\s+/)).toContain('min-h-9')
+        expect(item.className.split(/\s+/)).toContain('min-w-9')
+        expect(item.className).toContain('max-[420px]:flex-1')
+        expect(item.className).toContain('max-[420px]:min-w-0')
+      }
+    }
+
+    assertNarrowRow(3)
+    rerender(
+      <Tabs
+        tabs={[...TABS, { id: 'connectors' as Id, label: 'Connectors' }]}
+        active="general"
+        onChange={() => {}}
+      >
+        <p>general content</p>
+      </Tabs>,
+    )
+    assertNarrowRow(4)
+  })
+
+  it('uses a 9rem roomy rail and a bounded readable content measure', () => {
+    render(<Host />)
+
+    const shell = tablist().parentElement!
+    expect(shell.className).toContain('min-[900px]:grid-cols-[9rem_minmax(0,1fr)]')
+    const panel = screen.getByRole('tabpanel')
+    expect(panel.className).toContain('max-w-[38rem]')
+    expect(panel.className).toContain('mx-auto')
+    expect(panel.className).not.toContain('overflow-y-auto')
+  })
+
   it('renders one tab per entry; only the active one is selected and a tab stop', () => {
     render(<Host />)
 

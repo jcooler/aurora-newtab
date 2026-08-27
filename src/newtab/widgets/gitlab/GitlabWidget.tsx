@@ -6,6 +6,13 @@ import { DEFAULT_JIRA_VIEWS } from '../../../services/connectors/jira'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig, JiraConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import { buildContributionGrid } from '../shared/contributionGrid'
+import DockLine from '../shared/DockLine'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, attentionSnapshotScope, effectiveGitlabViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
 // so a full page reads as "20+" rather than an exact-but-misleading number.
@@ -39,6 +46,7 @@ const MAX_REVIEW_ASKS = 2
 const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
 const GRAPH_SEP_TALLER = ' taller:mt-3 taller:border-t taller:border-panel-border taller:pt-3'
 const GRAPH_SEP_GRAND = ' grand:mt-3 grand:border-t grand:border-panel-border grand:pt-3'
+const FRAMED_GRAPH_SEP = ' mt-2 border-t border-panel-border pt-2'
 
 /** Fix wave, Finding C1/I3 fallout: `reviewAsksTier`/its INVERSE both used to
  *  be built with `` `hidden ${tierName}:block` `` — a template-interpolated
@@ -92,14 +100,18 @@ function connectedGitlab(config: ConnectorConfig | undefined): GitlabConfig | nu
   return gitlab
 }
 
-export default function GitlabWidget() {
+export default function GitlabWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/RssWidget: the one
   // useStoredKey read runs every render (Rules of Hooks stay satisfied), but a
   // disabled/unconnected connector never mounts GitlabInner and therefore
   // never runs useConnectorSnapshot's subscribe/refresh.
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const gitlab = connectedGitlab(connectors?.gitlab)
   if (!gitlab) return null
+  const views = resolveViews(DEFAULT_GITLAB_VIEWS, gitlab.views)
+  if (!views.activityGraph && !views.mergeRequests && !views.reviewAsks && !views.todos) return null
 
   // The activity graph's reveal tier (below) depends on the OTHER forge cards
   // sharing the right rail's flow column (github, jira). `soleForgeCard`: neither
@@ -137,19 +149,27 @@ export default function GitlabWidget() {
 
   return (
     <GitlabInner
+      gitlab={gitlab}
       token={gitlab.token}
       instanceUrl={gitlab.instanceUrl}
       username={gitlab.username}
-      views={resolveViews(DEFAULT_GITLAB_VIEWS, gitlab.views)}
+      views={views}
       soleForgeCard={soleForgeCard}
       githubGraphEnabled={githubGraphEnabled}
       jiraEnabled={jiraEnabled}
       jiraDueSoonEnabled={jiraDueSoonEnabled}
+      canvasSize={canvasSize}
+      docked={docked}
+      runtime={attentionRuntimeScope(
+        settings.briefingEnabled === true,
+        settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+      )}
     />
   )
 }
 
 function GitlabInner({
+  gitlab,
   token,
   instanceUrl,
   username,
@@ -158,7 +178,11 @@ function GitlabInner({
   githubGraphEnabled,
   jiraEnabled,
   jiraDueSoonEnabled,
+  canvasSize,
+  docked,
+  runtime,
 }: {
+  gitlab: GitlabConfig
   token: string
   instanceUrl: string
   username: string
@@ -167,6 +191,9 @@ function GitlabInner({
   githubGraphEnabled: boolean
   jiraEnabled: boolean
   jiraDueSoonEnabled: boolean
+  canvasSize?: CanvasSize
+  docked?: boolean
+  runtime: AttentionRuntimeScope
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so a per-section failure
@@ -174,12 +201,19 @@ function GitlabInner({
   // comment — but still carries `prev` forward for the quiet-failure path).
   // The user's resolved views gate the fetch (a section turned off never issues
   // a request — see fetchGitlab) AND this render (below).
-  const { data } = useConnectorSnapshot<GitlabData>('gitlab', (prev) =>
-    fetchGitlab(instanceUrl, token, username, views, prev),
+  const fetchViews = effectiveGitlabViews(views, runtime)
+  const { data, state } = useConnectorSnapshot<GitlabData>('gitlab', gitlab, (prev) =>
+    fetchGitlab(instanceUrl, token, username, fetchViews, prev),
+    undefined,
+    attentionSnapshotScope(runtime, 'assignments', views.mergeRequests && views.reviewAsks),
   )
-  // No cached data yet (first-ever load in flight, or a total failure) renders
-  // nothing rather than an empty shell — same as GithubInner/RssInner.
-  if (!data) return null
+  const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="GitLab" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
+  const framed = canvasSize !== undefined
 
   // Old snapshots predate the contributions field — read it defensively. An
   // empty day array is treated as absent (a graph needs cells to draw), so the
@@ -195,10 +229,13 @@ function GitlabInner({
   // stacked (without github's graph) → `grand`. Task 77 measures whether a
   // very-tall reveal is honest and updates the class + derivation if so.
   const graphWrap = soleForgeCard ? 'hidden taller:block' : 'hidden grand:block'
-  const renderGraph = graph !== null && !githubGraphEnabled
+  const renderGraph = graph !== null && (framed || !githubGraphEnabled)
+  const fullGraphStats = tier === 'full' && graph
+    ? { total: graph.total, streak: buildContributionGrid(graph.days).streak }
+    : null
   // A data-bearing graph WITHHELD for github's — the falsifiable cross-card
   // state the harness probes (`data-yield="github"` on the section).
-  const graphYieldedToGithub = graph !== null && githubGraphEnabled
+  const graphYieldedToGithub = graph !== null && !framed && githubGraphEnabled
 
   // STRICTLY graph-only composition (activityGraph on, every other section off,
   // to-dos chip included). The graph is then the card's ONLY content, so the
@@ -209,17 +246,25 @@ function GitlabInner({
   //   · otherwise the WHOLE card follows the graph's reveal tier (the SECTION
   //     carries `hidden <tier>:block`), yielding as one — GithubWidget's pattern.
   const graphOnly = views.activityGraph && !views.mergeRequests && !views.reviewAsks && !views.todos
-  if (graphOnly && (graph === null || githubGraphEnabled)) return null
+  if (graphOnly && (graph === null || (!framed && githubGraphEnabled))) return null
   // Where the tier boundary lands: on the SECTION when strictly graph-only (the
   // whole card yields), on the inner graph wrapper otherwise. Exactly one carries
   // it, so the reveal is a single whole-card OR single-section boundary.
-  const sectionTier = graphOnly ? ` ${graphWrap}` : ''
-  const innerGraphClass = graphOnly ? undefined : graphWrap
+  const innerGraphClass = framed || graphOnly || canvasSize === 'full' ? undefined : graphWrap
   const graphSep = soleForgeCard ? GRAPH_SEP_TALLER : GRAPH_SEP_GRAND
 
   // A disabled list is empty regardless of what the snapshot still carries.
-  const mrs = views.mergeRequests ? (data.mrs ?? []).slice(0, MAX_MRS) : []
-  const reviewMrs = views.reviewAsks ? (data.reviewMrs ?? []).slice(0, MAX_REVIEW_ASKS) : []
+  const compact = tier === 'compact'
+  const allMrs = views.mergeRequests ? (data.mrs ?? []) : []
+  const allReviewMrs = views.reviewAsks ? (data.reviewMrs ?? []) : []
+  const mrs = framed
+    ? compact ? [] : allMrs.slice(0, 1)
+    : !compact ? allMrs.slice(0, canvasSize === 'standard' ? 1 : MAX_MRS) : []
+  const reviewMrs = framed
+    ? tier === 'full'
+      ? allReviewMrs.slice(0, 1)
+      : tier === 'standard' && mrs.length === 0 ? allReviewMrs.slice(0, 1) : []
+    : !compact ? allReviewMrs.slice(0, canvasSize === 'standard' ? 1 : MAX_REVIEW_ASKS) : []
   const todos = data.todos
 
   // Task 77 — review-asks yields under height pressure too, the SAME "extra
@@ -261,7 +306,7 @@ function GitlabInner({
         : jiraDueSoonEnabled
           ? 'roomier'
           : 'roomy'
-  const reviewAsksTier = reviewAsksTierName ? REVIEW_ASKS_TIER_CLASS[reviewAsksTierName] : ''
+  const reviewAsksTier = !framed && reviewAsksTierName ? REVIEW_ASKS_TIER_CLASS[reviewAsksTierName] : ''
 
   // The friendly empty line ("No MRs assigned to you.") shows whenever a rows
   // section is enabled and NOTHING from either rows list would actually be
@@ -294,13 +339,15 @@ function GitlabInner({
   //     line shows unconditionally, exactly as before.
   // Exactly one of {graph, review-asks rows, empty line} is ever visible at
   // any height — never a husk band, never a double render.
-  const showEmpty =
-    (views.mergeRequests || views.reviewAsks) &&
-    mrs.length === 0 &&
-    (reviewMrs.length === 0 || reviewAsksTierName !== '')
-  const emptyLineTier =
-    graph === null || githubGraphEnabled
-      ? reviewMrs.length > 0 && reviewAsksTierName
+  const showEmpty = framed
+    ? (views.mergeRequests || views.reviewAsks) && allMrs.length === 0 && allReviewMrs.length === 0
+    : (views.mergeRequests || views.reviewAsks) &&
+      allMrs.length === 0 &&
+      (allReviewMrs.length === 0 || reviewAsksTierName !== '')
+  const emptyLineTier = framed
+    ? ''
+    : graph === null || githubGraphEnabled
+      ? allReviewMrs.length > 0 && reviewAsksTierName
         ? REVIEW_ASKS_INVERSE_TIER_CLASS[reviewAsksTierName]
         : ''
       : soleForgeCard
@@ -312,8 +359,32 @@ function GitlabInner({
   // to-dos chip with a positive count, and no friendly empty line. (to-dos-only
   // with 0 to-dos is the canonical case; all-views-off is the degenerate one.)
   const chipShows = views.todos && todos > 0
-  const anyRow = mrs.length > 0 || reviewMrs.length > 0
-  if (!renderGraph && !anyRow && !chipShows && !showEmpty) return null
+  const anySelectedRow = allMrs.length > 0 || allReviewMrs.length > 0
+  if (!renderGraph && !anySelectedRow && !chipShows && !showEmpty) return null
+  const prioritizedCount = allMrs.length + allReviewMrs.length
+  const summaryValue = chipShows
+    ? `${todos >= TODOS_CAP ? '20+' : todos} need attention`
+    : prioritizedCount > 0
+      ? `${prioritizedCount} open ${prioritizedCount === 1 ? 'item' : 'items'}`
+      : 'All clear'
+
+  // Docked tier (NL-P5 batch 2, GithubWidget's exemplar shape): dense facts
+  // from the SAME derivations the card renders — one data owner, no second
+  // fetch. The no-husk return above already covered the no-data case.
+  if (docked) {
+    const dockFacts = [
+      allMrs.length > 0 && `${allMrs.length} MR${allMrs.length === 1 ? '' : 's'}`,
+      allReviewMrs.length > 0 && `${allReviewMrs.length} review${allReviewMrs.length === 1 ? '' : 's'}`,
+      chipShows && `${todos >= TODOS_CAP ? '20+' : todos} to-dos`,
+    ]
+    return (
+      <DockLine
+        label="GitLab"
+        facts={dockFacts.some(Boolean) ? dockFacts : ['All clear']}
+        tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+      />
+    )
+  }
 
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's
@@ -323,20 +394,40 @@ function GitlabInner({
     // right-column-only chrome trim, not a shape change. `data-yield="github"`
     // marks the cross-card yield (a data-bearing gitlab graph withheld because
     // github's is the hero) for the harness probe.
-    <section
-      aria-label="GitLab"
+    <TierFrame
+      label="GitLab"
+      tier={tier}
+      state={resourceFrameState(state, showEmpty)}
+      data-canvas-size={tier}
       {...(graphYieldedToGithub ? { 'data-yield': 'github' } : {})}
-      className={`w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg${sectionTier}`}
+      // Full earns its footprint (batch-2 owner review): a wider card whose
+      // graph renders at larger cells below — never Standard restated.
+      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
     >
-      <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
+      <header className="mb-1.5 dense:mb-1 flex items-center gap-3">
         <h2 className="text-sm font-semibold text-fg">GitLab</h2>
+        {fullGraphStats && (
+          <p className="min-w-0 flex-1 truncate text-right text-xs text-fg-muted">
+            <span className="font-semibold tabular-nums text-fg">{fullGraphStats.total}</span> contributions
+            <span aria-hidden className="mx-1.5 text-fg-muted/40">·</span>
+            <span className="font-semibold tabular-nums text-accent">{fullGraphStats.streak}</span> day streak
+          </p>
+        )}
         {/* To-dos chip renders only when the view is on AND the count is > 0 —
             todos is a plain number here (no null/"unavailable" case, unlike
             github's notifications), so 0 (all caught up) is the only hidden
             state besides the view being off. "20+" at the per-page cap. */}
         {views.todos && todos > 0 && (
-          <span className="text-xs text-fg-muted">{todos >= TODOS_CAP ? '20+' : todos} to-dos</span>
+          <span className="shrink-0 text-xs text-fg-muted">{todos >= TODOS_CAP ? '20+' : todos} to-dos</span>
         )}
+      </header>
+
+      <div className={framed && graph ? 'sr-only' : undefined}>
+        <WorkPulseSummary
+          label="GitLab"
+          value={summaryValue}
+          tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+        />
       </div>
 
       {/* Activity graph on top — the board's composed face. It yields FIRST
@@ -346,26 +437,59 @@ function GitlabInner({
           (sectionTier) and this wrapper carries nothing — the whole card yields
           as one, no husk. */}
       {renderGraph && graph && (
-        <div className={innerGraphClass}>
-          <ContributionGraph contributions={graph} />
+        <div
+          data-work-pulse-detail
+          className={[innerGraphClass, tier === 'full' ? '[&_[data-contribution-summary]]:hidden' : ''].filter(Boolean).join(' ') || undefined}
+        >
+          <ContributionGraph
+            contributions={graph}
+            tier={tier}
+            showMonthTicks={tier === 'full'}
+            showSummary={tier !== 'full'}
+          />
         </div>
       )}
 
-      {mrs.length > 0 && (
-        <ul className={`flex flex-col gap-2 dense:gap-1${renderGraph ? graphSep : ''}`}>
+      {tier === 'full' && (mrs.length > 0 || reviewMrs.length > 0) && (
+        <div
+          role="group"
+          aria-label="GitLab merge request queues"
+          className={`${renderGraph ? 'mt-1.5 border-t border-panel-border pt-1.5' : ''} grid ${mrs.length > 0 && reviewMrs.length > 0 ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}
+        >
+          {mrs.length > 0 && (
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Assigned</p>
+              <ul data-work-pulse-rows>
+                {mrs.map((item) => <ItemRow key={item.url} item={item} />)}
+              </ul>
+            </div>
+          )}
+          {reviewMrs.length > 0 && (
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Review asks</p>
+              <ul data-work-pulse-rows>
+                {reviewMrs.map((item) => <ItemRow key={item.url} item={item} />)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tier !== 'full' && mrs.length > 0 && (
+        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${renderGraph ? framed ? FRAMED_GRAPH_SEP : graphSep : ''}`}>
           {mrs.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
         </ul>
       )}
 
-      {reviewMrs.length > 0 && (
-        <div className={(mrs.length > 0 ? ROW_SEP : renderGraph ? graphSep : '') + reviewAsksTier}>
+      {tier !== 'full' && reviewMrs.length > 0 && (
+        <div className={(mrs.length > 0 ? ROW_SEP : renderGraph ? framed ? FRAMED_GRAPH_SEP : graphSep : '') + reviewAsksTier}>
           {/* The eyebrow separates review asks from the assigned MRs ONLY when
               both render — a single review list needs no label (its rows carry
               their own context), same restraint as github's unlabelled lists. */}
           {mrs.length > 0 && <p className={EYEBROW}>Review asks</p>}
-          <ul className="flex flex-col gap-2 dense:gap-1">
+          <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">
             {reviewMrs.map((item) => (
               <ItemRow key={item.url} item={item} />
             ))}
@@ -373,8 +497,8 @@ function GitlabInner({
         </div>
       )}
 
-      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>No MRs assigned to you.</p>}
-    </section>
+      {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>No MRs assigned to you.</p>}
+    </TierFrame>
   )
 }
 
@@ -393,8 +517,8 @@ function ItemRow({ item }: { item: GitlabMr }) {
         title={item.title}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        {item.project && <span className="block truncate text-xs text-fg-muted">{item.project}</span>}
-        <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        {item.project && <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.project}</span>}
+        <span className="block truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>
       </a>

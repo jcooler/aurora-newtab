@@ -1,6 +1,13 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { anchorPanel, hugHorizontal, type PanelPlacement } from '../../../lib/layout/anchor'
+import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
+import { hugHorizontal } from '../../../lib/layout/anchor'
+import type { NotesPanelHandle } from './NotesPanel'
+import { createPortal } from 'react-dom'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 
 const NotesPanel = lazy(() => import('./NotesPanel'))
 
@@ -21,23 +28,72 @@ export const NOTES_CORNER_HUG_PX = 48
 
 export default function NotesWidget({
   onOpenChange,
-}: { onOpenChange?: (open: boolean) => void } = {}) {
-  // Gate BEFORE the panel's open/close state exists, same shape as
-  // TimerWidget: a disabled widget (settings.widgets.notes starts true, but
-  // can be turned off) mounts nothing past the settings read — which is also
-  // what makes the onOpenChange cleanup below (in NotesInner) fire reliably
-  // on a mid-session disable: NotesInner actually UNMOUNTS rather than one
-  // instance persisting across the toggle. See WeatherWidget's own
-  // onExpandedChange comment for the full writeup of why that matters.
+  utilityTray,
+  canvasSize = 'compact',
+  docked = false,
+  presentation = 'free',
+}: {
+  onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
+  canvasSize?: CanvasSize
+  docked?: boolean
+  presentation?: WidgetPresentationMode
+} = {}) {
+  // Keep NotesInner mounted across a settings disable so an open dirty panel
+  // can finish (or recover) its authority-backed close before disappearing.
+  // Once it is disabled and closed, NotesInner renders nothing.
   const [settings] = useStoredKey('settings')
-  if (!settings?.widgets.notes) return null
-  return <NotesInner onOpenChange={onOpenChange} />
+  const [notes] = useStoredKey('notes')
+  if (!settings) return null
+  return (
+    <NotesInner
+      enabled={settings.widgets.notes}
+      onOpenChange={onOpenChange}
+      utilityTray={utilityTray}
+      canvasSize={canvasSize}
+      docked={docked}
+      hasSavedNote={Boolean(notes?.text.trim())}
+      noteUpdatedAt={notes?.updatedAt ?? 0}
+      presentation={presentation}
+    />
+  )
 }
 
-function NotesInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
+function NotesInner({
+  enabled,
+  onOpenChange,
+  utilityTray,
+  canvasSize,
+  docked,
+  hasSavedNote,
+  noteUpdatedAt,
+  presentation,
+}: {
+  enabled: boolean
+  onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
+  canvasSize: CanvasSize
+  docked: boolean
+  hasSavedNote: boolean
+  noteUpdatedAt: number
+  presentation: WidgetPresentationMode
+}) {
   const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const pillRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<NotesPanelHandle>(null)
+  const viewportPanelRef = useRef<HTMLDivElement>(null)
+  const mapInvokerRect = useCallback(
+    (rect: DOMRectReadOnly, viewportWidth: number) =>
+      hugHorizontal(rect, NOTES_CORNER_HUG_PX, viewportWidth),
+    [],
+  )
+  const anchor = useViewportPanelAnchor({
+    open: utilityTray ? false : open,
+    invokerRef: pillRef,
+    panelRef: viewportPanelRef,
+    preferredSize: NOTES_PANEL_SIZE,
+    mapInvokerRect,
+  })
 
   // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own
   // `onExpandedChange` uses (see its comment for the full writeup): a ref
@@ -60,40 +116,91 @@ function NotesInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }
     return () => onOpenChangeRef.current?.(false)
   }, [open])
 
-  // The panel follows the pill: measured on open (not live-tracked — the
-  // pill can't move while the panel is open today, since arrange mode closes
-  // panels).
-  const togglePanel = () => {
-    if (open) {
+  // The panel follows the pill and live rendered panel size while open.
+  const requestPanelClose = useCallback(() => {
+    const panel = panelRef.current
+    if (!panel) {
       setOpen(false)
+      return Promise.resolve(true)
+    }
+    return panel.requestClose()
+  }, [])
+
+  useEffect(() => {
+    if (!enabled && open) void requestPanelClose()
+  }, [enabled, open, requestPanelClose])
+
+  const togglePanel = () => {
+    if (utilityTray && pillRef.current) {
+      utilityTray.requestTool('notes', pillRef.current)
       return
     }
-    if (pillRef.current) {
-      const rect = pillRef.current.getBoundingClientRect()
-      const hugged = hugHorizontal(rect, NOTES_CORNER_HUG_PX, window.innerWidth)
-      setAnchor(
-        anchorPanel(hugged, NOTES_PANEL_SIZE, { w: window.innerWidth, h: window.innerHeight }),
-      )
+    if (open) {
+      void requestPanelClose()
+      return
     }
+    if (!enabled) return
     setOpen(true)
   }
 
+  const panelOpen = utilityTray ? utilityTray.activeTool === 'notes' : open
+
+  useEffect(() => {
+    if (!utilityTray || !panelOpen) return
+    utilityTray.registerCloseGuard('notes', async () => panelRef.current?.flushLatest() ?? true)
+    return () => utilityTray.registerCloseGuard('notes', null)
+  }, [panelOpen, utilityTray])
+
+  if (!enabled && !panelOpen) return null
+
+  const panel = panelOpen && (utilityTray?.host || anchor) ? (
+    <Suspense fallback={null}>
+      <NotesPanel
+        ref={panelRef}
+        anchor={anchor ?? undefined}
+        embedded={Boolean(utilityTray)}
+        onClose={utilityTray ? utilityTray.close : () => setOpen(false)}
+        viewportRef={(node) => { viewportPanelRef.current = node }}
+      />
+    </Suspense>
+  ) : null
+  const trigger = enabled ? (
+    <button
+      ref={pillRef}
+      type="button"
+      aria-label="Notes"
+      aria-expanded={panelOpen}
+      onClick={togglePanel}
+      data-testid={docked ? 'notes-dock' : undefined}
+      className={docked
+        ? 'flex max-w-80 items-center gap-2 rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+        : 'flex h-full w-full cursor-pointer flex-col items-stretch justify-center gap-2 rounded-[inherit] p-3 text-left focus-visible:outline-2 focus-visible:outline-accent'}
+    >
+      {docked ? (
+        <strong className="shrink-0 font-semibold text-fg">Notes</strong>
+      ) : (
+        <>
+          <span className="flex items-center justify-between">
+            <strong className="text-sm font-semibold text-fg">Notes</strong>
+            <span className="text-[11px] text-fg-muted">{hasSavedNote ? (noteUpdatedAt ? 'Edited recently' : 'Saved note') : 'Scratchpad'}</span>
+          </span>
+          <span className="text-sm leading-5 text-fg-muted">
+            Your note stays private until you open it.
+          </span>
+          <span className="mt-auto text-sm font-medium text-fg">Open notes</span>
+        </>
+      )}
+    </button>
+  ) : null
+
   return (
     <>
-      <button
-        ref={pillRef}
-        type="button"
-        aria-expanded={open}
-        onClick={togglePanel}
-        className="rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-      >
-        Notes
-      </button>
-      {open && anchor && (
-        <Suspense fallback={null}>
-          <NotesPanel anchor={anchor} onClose={() => setOpen(false)} />
-        </Suspense>
-      )}
+      {trigger && (docked ? trigger : (
+        <TierFrame label="Notes card" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready">
+          <div data-notes-presentation={presentation} className="h-full">{trigger}</div>
+        </TierFrame>
+      ))}
+      {utilityTray?.host && panel ? createPortal(panel, utilityTray.host) : panel}
     </>
   )
 }

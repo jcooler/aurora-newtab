@@ -20,7 +20,7 @@ export default function About() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Buy me a coffee — support Aurora"
-        className="hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+        className="hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:inline-flex max-[420px]:min-h-9 max-[420px]:items-center"
       >
         ☕ Buy me a coffee
       </a>

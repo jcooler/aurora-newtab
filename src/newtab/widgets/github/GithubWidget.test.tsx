@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { Contributions, GithubData } from '../../../services/connectors/github'
 import type { GithubConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import GithubWidget from './GithubWidget'
 
@@ -17,10 +18,10 @@ afterEach(() => __resetInFlight())
 
 const DATA: GithubData = {
   prs: [
-    { title: 'Fix the flaky login test', url: 'https://github.com/acme/app/pull/12', repo: 'acme/app' },
-    { title: 'Wire the new settings tab', url: 'https://github.com/acme/app/pull/13', repo: 'acme/app' },
+    { id: '12', title: 'Fix the flaky login test', url: 'https://github.com/acme/app/pull/12', repo: 'acme/app' },
+    { id: '13', title: 'Wire the new settings tab', url: 'https://github.com/acme/app/pull/13', repo: 'acme/app' },
   ],
-  issues: [{ title: 'Crash on cold start', url: 'https://github.com/acme/web/issues/9', repo: 'acme/web' }],
+  issues: [{ id: '9', title: 'Crash on cold start', url: 'https://github.com/acme/web/issues/9', repo: 'acme/web' }],
   notifications: 3,
   contributions: null,
   etags: {},
@@ -57,19 +58,115 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { github: config })
-  if (data) await storage.set('connectorSnapshots', { github: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      github: { scope: await connectorSnapshotScope('github', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <GithubWidget />
+      <GithubWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'GitHub' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'GitHub' })
+}
+
 describe('GithubWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'GitHub' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
+  it.each([
+    ['compact', '10px', '7px', false],
+    ['standard', '16px', '10px', false],
+    ['full', '23px', '17px', true],
+  ] as const)('uses the centered %s contribution geometry', async (tier, width, height, showsMonths) => {
+    const config = {
+      ...CONNECTED,
+      views: { commitGraph: true, pulls: true, issues: true, notifications: true },
+    }
+    mount(await seededStorage(config, DATA_WITH_GRAPH), tier)
+    const graph = await screen.findByRole('img', { name: /contribution activity/i })
+    expect(graph.style.gridAutoColumns).toBe(width)
+    expect(graph.style.gridTemplateRows).toBe(`repeat(7, ${height})`)
+    expect(graph.closest('[data-contribution-composition]')?.className).toContain('mx-auto')
+    expect(document.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
+  })
+
+  it('makes Full visibly richer than Standard without removing either selected row family', async () => {
+    const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
+    const standardView = mount(await seededStorage(config, DATA_WITH_GRAPH), 'standard')
+    const standardFrame = await readyFrame()
+    expect(standardFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(1)
+    standardView.unmount()
+
+    mount(await seededStorage(config, DATA_WITH_GRAPH), 'full')
+    const fullFrame = await readyFrame()
+    expect(fullFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(2)
+    const graphSummary = fullFrame.querySelector<HTMLElement>('[data-contribution-header-summary]')
+    expect(graphSummary?.textContent).toContain('contributions')
+    expect(graphSummary?.textContent).toContain('day streak')
+    expect(fullFrame.querySelector('[data-contribution-summary]')).toBeNull()
+    const rowGroup = fullFrame.querySelector<HTMLElement>('[data-github-row-families="parallel"]')
+    expect(rowGroup?.className).toContain('grid-cols-2')
+    expect(rowGroup?.querySelectorAll('ul')).toHaveLength(2)
+    expect(screen.getByText('Fix the flaky login test').className).not.toContain('dense:text-xs')
+    expect(screen.getByText('Crash on cold start')).toBeTruthy()
+  })
+
+  it('Compact shows the graph with contributions and streak, matching GitLab compact (batch-2 owner review)', async () => {
+    const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
+    mount(await seededStorage(config, DATA_WITH_GRAPH), 'compact')
+    expect(await screen.findByRole('img', { name: /contribution activity/i })).toBeTruthy()
+    expect(screen.getByText('contributions')).toBeTruthy()
+    expect(screen.getByText('day streak')).toBeTruthy()
+  })
+
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <GithubWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('GitHub: 2 PRs, 1 issue, 3 unread')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the card entirely — no rows, no graph.
+    expect(screen.queryByText('Fix the flaky login test')).toBeNull()
+  })
+
+  it('Compact derives attention from selected PR and issue rows when notifications are zero', async () => {
+    const selectedRows: GithubConfig = {
+      ...CONNECTED,
+      views: { commitGraph: false, pulls: true, issues: true, notifications: true },
+    }
+    mount(await seededStorage(selectedRows, { ...DATA, notifications: 0 }), 'compact')
+    expect(await screen.findByLabelText('GitHub: 3 open items')).toBeTruthy()
+    expect(screen.queryByText('All clear')).toBeNull()
+    expect(screen.queryByText('Fix the flaky login test')).toBeNull()
+  })
+
+  it('Full keeps a graph with selected rows visible without a legacy height-tier class', async () => {
+    mount(await seededStorage({ ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: false } }, DATA_WITH_GRAPH), 'full')
+    const graph = await screen.findByRole('img', { name: /contribution activity/i })
+    const container = graph.closest('[data-work-pulse-detail]')
+    expect(container?.className).not.toContain('hidden')
+    expect(container?.className).not.toContain('taller:block')
+    expect(container?.className).not.toContain('grand:block')
+    expect(screen.getByText('Fix the flaky login test')).toBeTruthy()
+  })
   it('renders PR and issue rows plus the unread count from the seeded snapshot', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
@@ -79,6 +176,7 @@ describe('GithubWidget', () => {
     expect(screen.getByText('Crash on cold start')).toBeTruthy()
     // Unread header chip.
     expect(screen.getByText('3 unread')).toBeTruthy()
+    expect(screen.getByLabelText('GitHub: 3 need attention').getAttribute('data-work-pulse-tone')).toBe('attention')
     // Repo prefix rides above each title.
     expect(screen.getAllByText('acme/app').length).toBeGreaterThan(0)
     expect(screen.getByText('acme/web')).toBeTruthy()
@@ -96,6 +194,7 @@ describe('GithubWidget', () => {
     mount(storage)
     await screen.findByText('Fix the flaky login test')
     expect(screen.queryByText(/unread/)).toBeNull()
+    expect(screen.getByLabelText('GitHub: 3 open items')).toBeTruthy()
   })
 
   it('hides the unread row when the count is zero (all caught up)', async () => {
@@ -114,6 +213,7 @@ describe('GithubWidget', () => {
   it('caps PR rows at 2', async () => {
     const many: GithubData = {
       prs: Array.from({ length: 3 }, (_, i) => ({
+        id: `pr-${i}`,
         title: `PR ${i}`,
         url: `https://github.com/o/r/pull/${i}`,
         repo: 'o/r',
@@ -134,6 +234,7 @@ describe('GithubWidget', () => {
     const many: GithubData = {
       prs: [],
       issues: Array.from({ length: 3 }, (_, i) => ({
+        id: `issue-${i}`,
         title: `Issue ${i}`,
         url: `https://github.com/o/r/issues/${i}`,
         repo: 'o/r',
@@ -244,7 +345,9 @@ describe('GithubWidget', () => {
       ...(gitlab ? { gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'x' } } : {}),
       ...(jira ? { jira: { enabled: true, email: 'a@b.co', apiToken: 'jr', site: 's.atlassian.net', displayName: 'X' } } : {}),
     })
-    await storage.set('connectorSnapshots', { github: { fetchedAt: Date.now(), data } })
+    await storage.set('connectorSnapshots', {
+      github: { scope: await connectorSnapshotScope('github', github), fetchedAt: Date.now(), data },
+    })
     return storage
   }
   const graphWrapper = () => screen.getByRole('img').closest('section')!
@@ -294,22 +397,18 @@ describe('GithubWidget', () => {
     expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeNull()
   })
 
-  // Round 3 — a STRICTLY graph-only card (commitGraph on, everything else off)
-  // moves the tier boundary to the SECTION itself: the whole card yields as one
-  // (never a header-only "GitHub" husk), and with no graph data it renders null.
-  it('strictly graph-only, SOLE card → the whole SECTION carries `taller:block` (whole-card yield), not an inner wrapper', async () => {
+  it('strictly graph-only, SOLE card remains represented without a height tier', async () => {
     mount(await seededWithSiblings(false, false, GRAPH_ONLY))
     const img = await screen.findByRole('img')
-    expect(sectionHasTier('taller')).toBe(true)
-    // no INNER descendant carries a tier class — the section owns the boundary.
+    expect(sectionHasTier('taller')).toBe(false)
     expect(graphWrapper().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
     expect(graphWrapper().contains(img)).toBe(true)
   })
 
-  it('strictly graph-only, TWO siblings → still `taller` on the SECTION (short card fits at 890; no husk at 890-1040)', async () => {
+  it('strictly graph-only, TWO siblings also remains represented without a height tier', async () => {
     mount(await seededWithSiblings(true, true, GRAPH_ONLY))
     await screen.findByRole('img')
-    expect(sectionHasTier('taller')).toBe(true)
+    expect(sectionHasTier('taller')).toBe(false)
     expect(sectionHasTier('grand')).toBe(false)
     expect(graphWrapper().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
   })
@@ -328,8 +427,7 @@ describe('GithubWidget', () => {
   it('strictly graph-only with NO contributions data (old snapshot / empty days) renders null — nothing it could ever show', async () => {
     const storage = await seededStorage(GRAPH_ONLY, { prs: [], issues: [], notifications: 3, contributions: null, etags: {} })
     const { container } = mount(storage)
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   // Fix wave — the quiet-day empty line must follow the GRAPH'S tier, not a data
@@ -436,8 +534,7 @@ describe('GithubWidget', () => {
       etags: {},
     })
     const { container } = mount(storage)
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('notifications-only with count null (endpoint unavailable) → also renders null', async () => {
@@ -449,8 +546,7 @@ describe('GithubWidget', () => {
       etags: {},
     })
     const { container } = mount(storage)
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('notifications-only WITH a positive count → the card renders (the chip carries it, no rows, no graph)', async () => {

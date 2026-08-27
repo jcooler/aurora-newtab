@@ -261,6 +261,22 @@ describe('statusDescriptor', () => {
   it('origins() on an empty/undefined-services config is []', () => {
     expect(statusDescriptor.origins({ enabled: true })).toEqual([])
   })
+
+  it('owns origins only when a valid service is configured, independent of enabled', () => {
+    expect(
+      statusDescriptor.ownsOrigins({
+        enabled: false,
+        services: [{ name: 'Good', url: 'https://good.example.com/api/v2/status.json' }],
+      }),
+    ).toBe(true)
+    expect(statusDescriptor.ownsOrigins({ enabled: true })).toBe(false)
+    expect(
+      statusDescriptor.ownsOrigins({
+        enabled: true,
+        services: [{ name: 'Bad', url: 'http://bad.example.com/status.json' }],
+      }),
+    ).toBe(false)
+  })
 })
 
 describe('CURATED_STATUS', () => {

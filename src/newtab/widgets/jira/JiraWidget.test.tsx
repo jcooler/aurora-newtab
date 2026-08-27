@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { JiraData } from '../../../services/connectors/jira'
 import type { JiraConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import JiraWidget from './JiraWidget'
 
@@ -51,19 +52,75 @@ async function seededStorage(config: JiraConfig, data: JiraData | null = DATA): 
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { jira: config })
-  if (data) await storage.set('connectorSnapshots', { jira: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      jira: { scope: await connectorSnapshotScope('jira', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <JiraWidget />
+      <JiraWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Jira' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'Jira' })
+}
+
 describe('JiraWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Jira' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
+  it.each([
+    ['compact', 0],
+    ['standard', 2],
+    ['full', 3],
+  ] as const)('uses the exact %s frame and bounds prioritized named rows to %i', async (tier, rowCount) => {
+    const data: JiraData = {
+      ...DATA,
+      issues: [
+        ...DATA.issues,
+        { key: 'AUR-14', summary: 'Review the release checklist', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-14' },
+        { key: 'AUR-15', summary: 'Prepare the launch notes', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-15' },
+      ],
+    }
+    mount(await seededStorage(CONNECTED, data), tier)
+    const frame = await readyFrame()
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).toContain(`tier-frame--${tier}`)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(rowCount)
+    if (rowCount > 0) {
+      expect(screen.getByText('AUR-12')).toBeTruthy()
+      expect(screen.getByText('Fix the flaky auth test on CI').className).not.toContain('dense:text-xs')
+    }
+  })
+
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <JiraWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Jira: 2 assigned')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the card entirely — no rows, no counts line.
+    expect(screen.queryByText('Fix the flaky auth test on CI')).toBeNull()
+  })
+
   it('renders issue rows plus the counts line from the seeded snapshot', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
@@ -72,6 +129,7 @@ describe('JiraWidget', () => {
     expect(screen.getByText('Fix the flaky auth test on CI')).toBeTruthy()
     expect(screen.getByText('AUR-13')).toBeTruthy()
     expect(screen.getByText('Weather chip overlaps the bar at 800px wide')).toBeTruthy()
+    expect(screen.getByLabelText('Jira: 5 active items').getAttribute('data-work-pulse-tone')).toBe('attention')
     // Counts line: first two statuses by count, descending.
     expect(screen.getByText('3 In Progress · 2 To Do')).toBeTruthy()
   })
@@ -116,6 +174,7 @@ describe('JiraWidget', () => {
     const storage = await seededStorage(CONNECTED, { issues: [], counts: {}, dueSoon: [] })
     mount(storage)
     expect(await screen.findByText('Nothing assigned to you.')).toBeTruthy()
+    expect(screen.getByLabelText('Jira: All clear').getAttribute('data-work-pulse-tone')).toBe('quiet')
   })
 
   // Cap lowered 5 -> 3 (Task 55 fix round): this is a glance panel sharing
@@ -228,6 +287,15 @@ const DUE_ONLY: JiraConfig = { ...CONNECTED, views: { assigned: false, statusChi
 const CHIPS_ONLY: JiraConfig = { ...CONNECTED, views: { assigned: false, statusChips: true, dueSoon: false } }
 
 describe('JiraWidget — composed card (wave 2)', () => {
+  it('uses real due-soon rows in Standard when that is the only selected issue family', async () => {
+    const storage = await seededStorage(DUE_ONLY, { ...DATA, issues: [], counts: {}, dueSoon: DUE_SOON })
+    mount(storage, 'standard')
+
+    expect(await screen.findByText('Ship the release notes')).toBeTruthy()
+    expect(screen.getByTitle('Ship the release notes').getAttribute('href')).toContain('/browse/AUR-20')
+    expect(screen.getByText('To Do')).toBeTruthy()
+  })
+
   it('renders assigned issues and the due-soon list (below a DUE SOON eyebrow) when both are on', async () => {
     const storage = await seededStorage(ALL_ON, { ...DATA, dueSoon: DUE_SOON })
     mount(storage)
@@ -283,8 +351,7 @@ describe('JiraWidget — composed card (wave 2)', () => {
   it('status-chips-only with empty counts → renders null (never a bare "Jira" heading)', async () => {
     const storage = await seededStorage(CHIPS_ONLY, { issues: [], counts: {}, dueSoon: [] })
     const { container } = mount(storage)
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('status-chips-only WITH counts present → the card renders (the chip carries it, no rows, no empty line)', async () => {
@@ -319,7 +386,11 @@ async function seededMulti(jira: JiraConfig, data: JiraData | null, siblings: Re
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { jira, ...siblings })
-  if (data) await storage.set('connectorSnapshots', { jira: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      jira: { scope: await connectorSnapshotScope('jira', jira), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 

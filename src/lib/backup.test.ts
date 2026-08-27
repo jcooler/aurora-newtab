@@ -1,8 +1,390 @@
 import { describe, expect, it } from 'vitest'
-import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
+import {
+  BACKUP_REDACTION_NOTICE,
+  prepareBackup,
+  serializeBackup,
+  parseBackup,
+  redactBackupData,
+  validateBackupShape,
+  stripSecrets,
+} from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
-import { migrate } from './storage/migrations'
+import { migrate, migrations } from './storage/migrations'
+import type { LayoutV2, Placement } from './layout/types'
+import type { LayoutV3 } from './layout/canvasTypes'
+import { layoutV2FromLegacy } from './layout/v2'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
+
+describe('Quick Link import safety (W1-P9)', () => {
+  it.each([
+    'mailto:user@example.com',
+    'javascript:payload@example.com',
+    'data:text/plain,hello',
+    'chrome://settings',
+    'file:///private.txt',
+    'https://user:password@example.com/private',
+    'https:example.com',
+    'https:/example.com',
+  ])('rejects a backup containing unsafe or credential-bearing URL %s', (url) => {
+    expect(validateBackupShape({
+      ...defaults(),
+      links: [{ id: 'unsafe', title: 'Unsafe', url }],
+    })).toEqual({ ok: false, reason: 'That backup\'s "links" data is invalid.' })
+  })
+
+  it('retains a valid HTTP(S) Quick Link', () => {
+    const links = [{ id: 'safe', title: 'Safe', url: 'https://example.test/path' }]
+    const result = validateBackupShape({ ...defaults(), links })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.links).toEqual(links)
+  })
+})
+
+describe('attention state backup boundary', () => {
+  it('excludes device-local attention history from serialized backups', () => {
+    const input = {
+      ...defaults(),
+      attentionLedger: {
+        version: 1,
+        sources: {
+          github: {
+            observedAt: 100,
+            items: { '123': { firstSeenAt: 100 } },
+          },
+        },
+      },
+    } as unknown as AuroraData
+
+    const envelope = JSON.parse(serializeBackup(input)) as { data: Record<string, unknown> }
+
+    expect(envelope.data).not.toHaveProperty('attentionLedger')
+  })
+
+  it('resets forged or missing attention history during import', () => {
+    const forged = JSON.parse(serializeBackup(defaults())) as {
+      data: Record<string, unknown>
+    }
+    forged.data.attentionLedger = {
+      version: 1,
+      sources: { github: { observedAt: 100, items: { forged: { firstSeenAt: 100 } } } },
+    }
+
+    const result = prepareBackup(JSON.stringify(forged))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect((result.data as unknown as Record<string, unknown>).attentionLedger).toEqual({
+        version: 1,
+        sources: {},
+      })
+    }
+  })
+
+  it('rejects malformed Greeting helper source settings', () => {
+    const data = defaults() as unknown as Record<string, unknown>
+    const settings = data.settings as Record<string, unknown>
+    settings.briefingSources = {
+      calendar: true,
+      assignments: 'yes',
+      deployments: true,
+      rain: true,
+    }
+
+    expect(validateBackupShape(data as unknown as AuroraData)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "settings" data is invalid.',
+    })
+  })
+})
+
+describe('photo preference backup contract', () => {
+  it('accepts an optional background lock and preserves it', () => {
+    const result = validateBackupShape({
+      ...defaults(),
+      photoPrefs: { mode: 'auto', index: 3, lastRotated: '2026-08-27', locked: true },
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.photoPrefs.locked).toBe(true)
+  })
+
+  it('rejects a non-boolean background lock', () => {
+    expect(validateBackupShape({
+      ...defaults(),
+      photoPrefs: { mode: 'auto', index: 3, lastRotated: '2026-08-27', locked: 'yes' },
+    } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "photoPrefs" data is invalid.',
+    })
+  })
+})
+
+describe('timerSession backup contract (Flow)', () => {
+  const runningSession = {
+    mode: 'work' as const,
+    running: true,
+    endsAt: 1_800_000,
+    remainingMs: 1_500_000,
+    cycles: 2,
+    flow: true,
+  }
+
+  it('accepts null and a complete session and exports the session verbatim', () => {
+    expect(validateBackupShape({ ...defaults(), timerSession: null } as never).ok).toBe(true)
+    const result = validateBackupShape({ ...defaults(), timerSession: runningSession } as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.timerSession).toEqual(runningSession)
+
+    const envelope = JSON.parse(serializeBackup({ ...defaults(), timerSession: runningSession } as never))
+    expect(envelope.data.timerSession).toEqual(runningSession)
+  })
+
+  it.each([
+    ['unknown mode', { ...runningSession, mode: 'focus' }],
+    ['non-boolean running', { ...runningSession, running: 'yes' }],
+    ['invalid deadline', { ...runningSession, endsAt: Number.NaN }],
+    ['negative remaining', { ...runningSession, remainingMs: -1 }],
+    ['fractional cycles', { ...runningSession, cycles: 1.5 }],
+    ['non-boolean flow', { ...runningSession, flow: 1 }],
+    ['missing flow', Object.fromEntries(Object.entries(runningSession).filter(([key]) => key !== 'flow'))],
+  ])('rejects a session with %s', (_label, timerSession) => {
+    expect(validateBackupShape({ ...defaults(), timerSession } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "timerSession" data is invalid.',
+    })
+  })
+})
+
+describe('Flow ambience backup contract', () => {
+  it.each(['off', 'creek', 'rain', 'ocean', 'forest'] as const)('round-trips the supported %s choice', (flowAmbience) => {
+    const data = { ...defaults(), settings: { ...defaults().settings, flowAmbience, flowVolume: 15 } }
+    const prepared = prepareBackup(serializeBackup(data))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) {
+      expect(prepared.data.settings.flowAmbience).toBe(flowAmbience)
+      expect(prepared.data.settings.flowVolume).toBe(15)
+    }
+  })
+
+  it.each([undefined, null, true, 'fireplace'])('rejects invalid current-schema choice %s', (flowAmbience) => {
+    const settings = { ...defaults().settings } as Record<string, unknown>
+    if (flowAmbience === undefined) delete settings.flowAmbience
+    else settings.flowAmbience = flowAmbience
+    expect(validateBackupShape({ ...defaults(), settings } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "settings" data is invalid.',
+    })
+  })
+
+  it.each([undefined, null, Number.NaN, -1, 101, 12.5, '15'])('rejects invalid Flow volume %s', (flowVolume) => {
+    const settings = { ...defaults().settings } as Record<string, unknown>
+    if (flowVolume === undefined) delete settings.flowVolume
+    else settings.flowVolume = flowVolume
+    expect(validateBackupShape({ ...defaults(), settings } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "settings" data is invalid.',
+    })
+  })
+})
+
+describe('secret-safe redaction and prepared import (W1-P4)', () => {
+  it('removes every RSS capability URL without mutating the stored config', () => {
+    const feeds = [
+      'https://feeds.example.com/private.xml?token=rss-capability-one',
+      'https://other.example.com/secret.xml?token=rss-capability-two',
+    ]
+    const input = { ...defaults(), connectors: { rss: { enabled: true, feeds, shownCount: 7 } } }
+
+    const result = redactBackupData(input)
+    const serialized = JSON.stringify(result)
+
+    expect(result.data.connectors.rss).toEqual({ enabled: true, feeds: [], shownCount: 7 })
+    expect(serialized).not.toContain(feeds[0])
+    expect(serialized).not.toContain(feeds[1])
+    expect(serialized).not.toContain('rss-capability-one')
+    expect(serialized).not.toContain('rss-capability-two')
+    expect(input.connectors.rss?.feeds).toEqual(feeds)
+  })
+
+  it('redacts token and calendar capabilities while retaining reconnect identities and view settings', () => {
+    const input = {
+      ...defaults(),
+      connectors: {
+        github: { enabled: true, token: 'github-bearer', username: 'octocat' },
+        gitlab: { enabled: true, token: 'gitlab-bearer', instanceUrl: 'https://gitlab.example.test', username: 'jon' },
+        jira: { enabled: true, apiToken: 'jira-api-token', email: 'jon@example.test', site: 'acme.atlassian.net', displayName: 'Jon' },
+        vercel: { enabled: true, token: 'vercel-bearer', username: 'shipper' },
+        homeassistant: { enabled: true, token: 'ha-bearer', instanceUrl: 'https://home.example.test', locationName: 'Home' },
+        ics: {
+          enabled: true,
+          url: 'https://calendar.example.test/legacy.ics?token=legacy-capability',
+          calendars: [{ name: 'Family', url: 'https://calendar.example.test/multi.ics?token=multi-capability' }],
+          view: 'upcoming',
+          upcomingCount: 4,
+          meetLinks: false,
+        },
+      },
+    } as AuroraData
+
+    const { data } = redactBackupData(input)
+    const serialized = JSON.stringify(data)
+
+    for (const secret of ['github-bearer', 'gitlab-bearer', 'jira-api-token', 'vercel-bearer', 'ha-bearer', 'legacy-capability', 'multi-capability']) {
+      expect(serialized).not.toContain(secret)
+    }
+    expect(data.connectors.github).toMatchObject({ username: 'octocat' })
+    expect(data.connectors.gitlab).toMatchObject({ instanceUrl: 'https://gitlab.example.test', username: 'jon' })
+    expect(data.connectors.jira).toMatchObject({ email: 'jon@example.test', site: 'acme.atlassian.net', displayName: 'Jon' })
+    expect(data.connectors.homeassistant).toMatchObject({ instanceUrl: 'https://home.example.test', locationName: 'Home' })
+    expect(data.connectors.ics).toEqual({ enabled: true, calendars: [], view: 'upcoming', upcomingCount: 4, meetLinks: false })
+  })
+
+  it('excludes forged cache values and declares stable re-entry ids only for recoverable incomplete configs', () => {
+    const input = {
+      ...defaults(),
+      connectorSnapshots: { github: { fetchedAt: 1, data: { private: 'forged' } } },
+      apodCache: { date: '2026-08-14', photo: { url: 'https://private.example.test/photo', title: 'forged' } },
+      connectors: {
+        github: { enabled: true, token: 'token', username: 'octocat' },
+        rss: { enabled: true, feeds: ['https://feed.example.test/private'], shownCount: 5 },
+        ics: { enabled: true, calendars: [], view: 'today' },
+        crypto: { enabled: true, coins: [] },
+      },
+    } as AuroraData
+
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data).not.toHaveProperty('connectorSnapshots')
+    expect(envelope.data).not.toHaveProperty('apodCache')
+    expect(envelope.redactions).toEqual({
+      reentryRequired: ['rss', 'github', 'ics'],
+      notice: BACKUP_REDACTION_NOTICE,
+    })
+  })
+
+  it('prepares legacy token and ambiguous ICS envelopes without inventing a Calendar label', () => {
+    const legacy = {
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      data: {
+        ...defaults(),
+        connectors: {
+          github: { enabled: true, username: 'octocat' },
+          ics: { enabled: true },
+        },
+      },
+    }
+
+    const result = prepareBackup(JSON.stringify(legacy))
+    expect(result).toMatchObject({ ok: true })
+    if (result.ok) {
+      expect(result.redactions.reentryRequired).toEqual(['github'])
+      expect(result.legacyReentryMayBeRequired).toBe(true)
+    }
+  })
+
+  it('does not warn about re-entry for a complete legacy ICS capability URL', () => {
+    const result = prepareBackup(JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      data: { ...defaults(), connectors: { ics: { enabled: true, url: 'https://calendar.example.test/legacy.ics' } } },
+    }))
+    expect(result).toMatchObject({ ok: true })
+    if (result.ok) {
+      expect(result.redactions.reentryRequired).toEqual([])
+      expect(result.legacyReentryMayBeRequired).toBe(false)
+    }
+  })
+
+  it('rejects Calendar re-entry metadata that contradicts a complete legacy ICS capability URL', () => {
+    const result = prepareBackup(JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      redactions: { reentryRequired: ['ics'], notice: BACKUP_REDACTION_NOTICE },
+      data: { ...defaults(), connectors: { ics: { enabled: true, url: 'https://calendar.example.test/legacy.ics' } } },
+    }))
+    expect(result).toEqual({ ok: false, reason: "That backup's redaction metadata is invalid." })
+  })
+
+  it.each([
+    ['malformed metadata', { reentryRequired: ['github'], notice: 7 }],
+    ['unknown id', { reentryRequired: ['bogus'], notice: BACKUP_REDACTION_NOTICE }],
+    ['duplicate id', { reentryRequired: ['github', 'github'], notice: BACKUP_REDACTION_NOTICE }],
+    ['inconsistent id', { reentryRequired: ['ics'], notice: BACKUP_REDACTION_NOTICE }],
+    ['wrong notice', { reentryRequired: [], notice: 'unsafe label' }],
+  ])('rejects a present %s before preparation', (_name, redactions) => {
+    const data = {
+      ...defaults(),
+      connectors: redactions === null ? {} : { github: { enabled: true, username: 'octocat' } },
+    }
+    const raw = JSON.stringify({ app: 'aurora', version: CURRENT_VERSION, exportedAt: '2026-08-14T12:00:00.000Z', redactions, data })
+    expect(prepareBackup(raw).ok).toBe(false)
+  })
+
+  it('rejects non-canonical exportedAt before a consumer can confirm', () => {
+    const raw = JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      exportedAt: '2026-08-14T12:00:00Z',
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+      data: defaults(),
+    })
+    expect(prepareBackup(raw).ok).toBe(false)
+  })
+
+  it('migrates legacy data and derives only real restored origins', () => {
+    const v1 = { app: 'aurora', version: 1, data: { settings: defaults().settings } }
+    expect(prepareBackup(JSON.stringify(v1)).ok).toBe(true)
+
+    const prepared = prepareBackup(JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+      data: {
+        ...defaults(),
+        photoPrefs: { mode: 'apod', index: 0, lastRotated: '' },
+        connectors: {
+          status: { enabled: true, services: [{ name: 'Status', url: 'https://status.example.test/api/v2/status.json' }] },
+          crypto: { enabled: true, coins: ['bitcoin'] },
+          github: { enabled: true, username: 'octocat' },
+          rss: { enabled: true, feeds: [], shownCount: 5 },
+          ics: { enabled: true, calendars: [] },
+        },
+      },
+    }))
+    expect(prepared).toMatchObject({ ok: true })
+    if (prepared.ok) {
+      expect(prepared.requiredOrigins.sort()).toEqual([
+        'https://api.coingecko.com/*',
+        'https://api.nasa.gov/*',
+        'https://apod.nasa.gov/*',
+        'https://status.example.test/*',
+      ])
+    }
+  })
+
+  it('turns a missing migration step into the preparation rejection without returning data', () => {
+    const original = migrations[1]
+    delete migrations[1]
+    try {
+      expect(prepareBackup(JSON.stringify({ app: 'aurora', version: 1, data: { settings: defaults().settings } }))).toEqual({
+        ok: false,
+        reason: 'That backup cannot be migrated by this Aurora version.',
+      })
+    } finally {
+      migrations[1] = original
+    }
+  })
+
+  it('never prepares a malformed data shape even when envelope metadata is valid', () => {
+    const raw = JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+      data: { ...defaults(), settings: 'malformed' },
+    })
+    expect(prepareBackup(raw)).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
+  })
+})
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots and apodCache (both excluded from export)', () => {
@@ -11,10 +393,12 @@ describe('serializeBackup / parseBackup round-trip', () => {
     const result = parseBackup(json)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...expected } = input
+      const { connectorSnapshots: _connectorSnapshots, attentionLedger: _attentionLedger, apodCache: _apodCache, weatherAlertCache: _weatherAlertCache, ...expected } = input
       expect(result.data).toEqual(expected)
       expect('connectorSnapshots' in result.data).toBe(false)
+      expect('attentionLedger' in result.data).toBe(false)
       expect('apodCache' in result.data).toBe(false)
+      expect('weatherAlertCache' in result.data).toBe(false)
       expect(result.version).toBe(CURRENT_VERSION)
     }
   })
@@ -26,7 +410,7 @@ describe('serializeBackup / parseBackup round-trip', () => {
     expect(envelope.version).toBe(CURRENT_VERSION)
     expect(typeof envelope.exportedAt).toBe('string')
     expect(new Date(envelope.exportedAt).toString()).not.toBe('Invalid Date')
-    const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...expectedData } = defaults()
+    const { connectorSnapshots: _connectorSnapshots, attentionLedger: _attentionLedger, apodCache: _apodCache, weatherAlertCache: _weatherAlertCache, ...expectedData } = defaults()
     expect(envelope.data).toEqual(expectedData)
     // Pretty-printed: multiple lines, not a single minified line.
     expect(json.split('\n').length).toBeGreaterThan(1)
@@ -60,6 +444,7 @@ describe('connector config / snapshot handling (Task 39)', () => {
       ttlMs: 1_000,
       secretFields: ['apiKey'],
       origins: () => [],
+      ownsOrigins: () => false,
     }
     const stored = { enabled: true, feeds: [], shownCount: 5, apiKey: 'super-secret' }
     const connectors = { rss: stored } as AuroraData['connectors']
@@ -195,9 +580,9 @@ describe('connector config / snapshot handling (Task 39)', () => {
     const input = { ...defaults(), connectors: { ics: stored } as AuroraData['connectors'] }
 
     const envelope = JSON.parse(serializeBackup(input))
-    expect(envelope.data.connectors.ics).toEqual({ enabled: true, view: 'upcoming', upcomingCount: 3 })
+    expect(envelope.data.connectors.ics).toEqual({ enabled: true, calendars: [], view: 'upcoming', upcomingCount: 3 })
     expect('url' in envelope.data.connectors.ics).toBe(false)
-    expect('calendars' in envelope.data.connectors.ics).toBe(false)
+    expect(envelope.data.connectors.ics.calendars).toEqual([])
     // The object handed in (what's actually in storage) survives untouched.
     expect(stored.url).toBe('https://calendar.example.com/private-abc123/basic.ics')
     expect(stored.calendars).toEqual([{ name: 'P', url: 'https://calendar.example.com/private-def456/personal.ics' }])
@@ -275,6 +660,42 @@ describe('apodCache export / import exclusion (Task 95)', () => {
     const result = validateBackupShape(defaults())
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data.apodCache).toBeNull()
+  })
+})
+
+describe('weatherAlertCache export / import exclusion', () => {
+  it('keeps the current schema version pinned and defaults the additive cache to null', () => {
+    expect(CURRENT_VERSION).toBe(19)
+    expect(defaults().weatherAlertCache).toBeNull()
+    expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
+  })
+
+  it('never exports a populated alert cache', () => {
+    const input = {
+      ...defaults(),
+      weatherAlertCache: {
+        requestIdentity: 'nws-alerts:v1:https://api.weather.gov/alerts/active?point=1,2',
+        fetchedAt: 123,
+        status: 'supported' as const,
+        alerts: [],
+      },
+    }
+    const envelope = JSON.parse(serializeBackup(input))
+    expect('weatherAlertCache' in envelope.data).toBe(false)
+  })
+
+  it('resets a forged or missing imported alert cache to null', () => {
+    const forged = validateBackupShape({
+      ...defaults(),
+      weatherAlertCache: { requestIdentity: 'forged', fetchedAt: 1, status: 'supported', alerts: [{ secret: true }] },
+    } as unknown as AuroraData)
+    expect(forged.ok).toBe(true)
+    if (forged.ok) expect(forged.data.weatherAlertCache).toBeNull()
+
+    const { weatherAlertCache: _weatherAlertCache, ...missing } = defaults()
+    const legacy = validateBackupShape(missing as AuroraData)
+    expect(legacy.ok).toBe(true)
+    if (legacy.ok) expect(legacy.data.weatherAlertCache).toBeNull()
   })
 })
 
@@ -412,16 +833,171 @@ describe('parseBackup rejections', () => {
 describe('parseBackup accepts older/current versions (migration is the caller\'s job)', () => {
   it('accepts version === CURRENT_VERSION', () => {
     const result = parseBackup(JSON.stringify({ app: 'aurora', version: CURRENT_VERSION, data: { a: 1 } }))
-    expect(result).toEqual({ ok: true, data: { a: 1 }, version: CURRENT_VERSION })
+    expect(result).toEqual({
+      ok: true,
+      data: { a: 1 },
+      version: CURRENT_VERSION,
+      exportedAt: undefined,
+      redactionsPresent: false,
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+    })
   })
 
   it('accepts version 1 without migrating it', () => {
     const result = parseBackup(JSON.stringify({ app: 'aurora', version: 1, data: { a: 1 } }))
-    expect(result).toEqual({ ok: true, data: { a: 1 }, version: 1 })
+    expect(result).toEqual({
+      ok: true,
+      data: { a: 1 },
+      version: 1,
+      exportedAt: undefined,
+      redactionsPresent: false,
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+    })
   })
 })
 
 describe('validateBackupShape rejections (per-key structural check)', () => {
+  it('accepts legacy/current weather identities but rejects malformed identity values', () => {
+    const baseWeather = {
+      current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: 123,
+      locationLabel: 'Springfield',
+    }
+    expect(validateBackupShape({ ...defaults(), weatherCache: baseWeather } as never).ok).toBe(true)
+    expect(validateBackupShape({
+      ...defaults(),
+      weatherCache: { ...baseWeather, requestIdentity: 'open-meteo:v1:public-contract' },
+    } as never).ok).toBe(true)
+    expect(validateBackupShape({
+      ...defaults(),
+      weatherCache: { ...baseWeather, requestIdentity: { label: 'secretly wrong' } },
+    } as never)).toEqual({ ok: false, reason: 'That backup\'s "weatherCache" data is invalid.' })
+  })
+
+  it('accepts exact available, partial-pollen, and unavailable environmental cache shapes', () => {
+    const baseWeather = {
+      current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: 123,
+      locationLabel: 'Springfield',
+      requestIdentity: 'open-meteo:v1:public-contract',
+    }
+    const available = {
+      requestIdentity: 'open-meteo-air:v1:public-contract',
+      fetchedAt: 123,
+      status: 'available',
+      usAqi: 42,
+      uvIndex: 3.5,
+      pollen: {
+        status: 'available',
+        readings: [
+          { species: 'birch', grainsPerCubicMeter: 0 },
+          { species: 'grass', grainsPerCubicMeter: 2.5 },
+          { species: 'ragweed', grainsPerCubicMeter: 1 },
+        ],
+      },
+    }
+    const unavailable = {
+      requestIdentity: 'open-meteo-air:v1:public-contract',
+      fetchedAt: 124,
+      status: 'unavailable',
+      usAqi: null,
+      uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }
+    expect(validateBackupShape({
+      ...defaults(),
+      weatherCache: { ...baseWeather, environment: available },
+    } as never).ok).toBe(true)
+    expect(validateBackupShape({
+      ...defaults(),
+      weatherCache: { ...baseWeather, environment: unavailable },
+    } as never).ok).toBe(true)
+  })
+
+  it.each([
+    ['unknown environment key', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: 1, uvIndex: 1,
+      pollen: { status: 'unavailable' }, surprise: true,
+    }],
+    ['unavailable with a reading', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'unavailable', usAqi: 1, uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }],
+    ['unavailable with available pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'unavailable', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: 1 }] },
+    }],
+    ['empty available pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [] },
+    }],
+    ['duplicate pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [
+        { species: 'grass', grainsPerCubicMeter: 1 },
+        { species: 'grass', grainsPerCubicMeter: 2 },
+      ] },
+    }],
+    ['reordered pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [
+        { species: 'ragweed', grainsPerCubicMeter: 1 },
+        { species: 'alder', grainsPerCubicMeter: 2 },
+      ] },
+    }],
+    ['unknown pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [{ species: 'cedar', grainsPerCubicMeter: 1 }] },
+    }],
+    ['negative pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: -1 }] },
+    }],
+    ['non-finite AQI', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: Number.NaN, uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }],
+    ['missing nullable UV', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null,
+      pollen: { status: 'unavailable' },
+    }],
+    ['unknown reading key', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [
+        { species: 'grass', grainsPerCubicMeter: 1, label: 'Grass' },
+      ] },
+    }],
+  ])('rejects malformed environmental cache: %s', (_name, environment) => {
+    const result = validateBackupShape({
+      ...defaults(),
+      weatherCache: {
+        current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+        hourly: [],
+        fetchedAt: 123,
+        locationLabel: 'Springfield',
+        requestIdentity: 'open-meteo:v1:public-contract',
+        environment,
+      },
+    } as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "weatherCache" data is invalid.' })
+  })
+
+  it.each([
+    { lat: 91, lon: 0 },
+    { lat: -91, lon: 0 },
+    { lat: 0, lon: 181 },
+    { lat: 0, lon: -181 },
+    { lat: Number.NaN, lon: 0 },
+  ])('rejects invalid stored location coordinates: $lat, $lon', ({ lat, lon }) => {
+    const result = validateBackupShape({
+      ...defaults(),
+      location: { lat, lon, label: 'Invalid', manual: true },
+    } as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "location" data is invalid.' })
+  })
+
   it('rejects settings as a string', () => {
     const result = validateBackupShape({ ...defaults(), settings: 'oops' } as never)
     expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
@@ -469,8 +1045,8 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
     expect(result).toEqual({ ok: false, reason: 'That backup\'s "timerConfig" data is invalid.' })
   })
 
-  it('rejects a layout whose entry is not a finite pair', () => {
-    const bad = { ...defaults(), layout: { clock: { x: NaN, y: 10 } } }
+  it('rejects a V2 layout whose known legacy entry is not a finite pair', () => {
+    const bad = { ...defaults(), layout: { version: 2, profiles: {}, legacy: { clock: { x: NaN, y: 10 } } } }
     const result = validateBackupShape(bad as never)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('That backup\'s "layout" data is invalid.')
@@ -483,6 +1059,22 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
 })
 
 describe('validateBackupShape: migration-then-validate order', () => {
+  it('a v15 backup gains browser-native toggles before strict validation', () => {
+    const widgets = { ...defaults().settings.widgets } as Record<string, boolean>
+    for (const key of ['readingList', 'recentlyClosed', 'downloads', 'tabGroups']) delete widgets[key]
+    const migrated = migrate({ ...defaults(), settings: { ...defaults().settings, widgets } }, 15)
+    const result = validateBackupShape(migrated)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.settings.widgets).toMatchObject({
+        readingList: false,
+        recentlyClosed: false,
+        downloads: false,
+        tabGroups: false,
+      })
+    }
+  })
+
   it('a valid v1-era backup migrates forward and then still passes validation', () => {
     const v1Settings = {
       ...defaults().settings,
@@ -601,12 +1193,391 @@ describe('validateBackupShape: unknown-key dropping', () => {
     }
   })
 
-  it('drops unknown block ids from layout on import but keeps known ones', () => {
-    const data = { ...defaults(), layout: { clock: { x: 40, y: 30 }, bogus: { x: 1, y: 1 } } }
+  it('drops unknown profile and block ids from V2 layout while keeping known placements and legacy rows', () => {
+    const placement: Placement = { zone: 'now', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' }
+    const data = {
+      ...defaults(),
+      layout: {
+        version: 2,
+        profiles: { standard: { clock: placement, bogus: 'malformed but unknown' }, future: { clock: 'ignored' } },
+        legacy: { clock: { x: 40, y: 30 }, bogus: 'malformed but unknown' },
+      },
+    }
     const result = validateBackupShape(data as never)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.data.layout).toEqual({ clock: { x: 40, y: 30 } })
+      expect(result.data.layout).toEqual({
+        version: 2,
+        profiles: { standard: { clock: placement } },
+        legacy: { clock: { x: 40, y: 30 } },
+      })
     }
+  })
+})
+
+describe('schema v11 layout density backup boundary', () => {
+  const safeReason = { ok: false, reason: 'That backup\'s "settings" data is invalid.' } as const
+
+  function withoutDensity() {
+    const { layoutDensity: _layoutDensity, ...settings } = defaults().settings as unknown as Record<string, unknown>
+    return settings
+  }
+
+  it.each(['auto', 'compact', 'balanced', 'spacious'] as const)(
+    'exports and strictly restores the exact %s preference',
+    (layoutDensity) => {
+      const input = { ...defaults(), settings: { ...defaults().settings, layoutDensity } }
+      const envelope = JSON.parse(serializeBackup(input))
+      expect(envelope.version).toBe(CURRENT_VERSION)
+      expect(envelope.data.settings.layoutDensity).toBe(layoutDensity)
+
+      const prepared = prepareBackup(JSON.stringify(envelope))
+      expect(prepared.ok).toBe(true)
+      if (prepared.ok) expect(prepared.data.settings).toEqual(input.settings)
+    },
+  )
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['non-string', 7],
+    ['unknown', 'dense'],
+  ])('rejects current schema v11 %s density instead of normalizing it', (_label, layoutDensity) => {
+    const settings = { ...defaults().settings } as unknown as Record<string, unknown>
+    if (layoutDensity === undefined) delete settings.layoutDensity
+    else settings.layoutDensity = layoutDensity
+    const raw = JSON.stringify({ app: 'aurora', version: 11, data: { ...defaults(), settings } })
+
+    expect(prepareBackup(raw)).toEqual(safeReason)
+  })
+
+  it('migrates a schema-10 backup to Auto Fit while preserving every sibling and layout byte-for-byte', () => {
+    const layout: LayoutV2 = {
+      version: 2,
+      profiles: { standard: { clock: { zone: 'now', order: 0, colSpan: 2, rowSpan: 2, variant: 'standard', priority: 'pinned' } } },
+      legacy: { clock: { x: 50, y: 50 } },
+    }
+    const settings = { ...withoutDensity(), name: 'Migrated backup', muted: true }
+    const raw = JSON.stringify({ app: 'aurora', version: 10, data: { ...defaults(), settings, layout } })
+    const prepared = prepareBackup(raw)
+
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) {
+      expect(prepared.data.settings).toEqual({ ...settings, layoutDensity: 'auto' })
+      expect(prepared.data.layout).toEqual(layout)
+    }
+  })
+
+  it('runs an older supported backup through all steps and ends at Auto Fit', () => {
+    const raw = JSON.stringify({ app: 'aurora', version: 1, data: { settings: withoutDensity() } })
+    const prepared = prepareBackup(raw)
+
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.settings.layoutDensity).toBe('auto')
+  })
+
+  it('rejects a schema-10 backup with missing settings instead of defaulting it', () => {
+    const raw = JSON.stringify({ app: 'aurora', version: 10, data: {} })
+
+    expect(prepareBackup(raw)).toEqual(safeReason)
+  })
+})
+
+describe('W3-P1 Layout V2 backup compatibility', () => {
+  const placement: Placement = {
+    zone: 'pulse', order: 2, colSpan: 2, rowSpan: 3,
+    variant: 'expanded', priority: 'automatic', locked: true,
+  }
+
+  function envelope(version: number, layout: unknown): string {
+    const data = { ...defaults(), layout }
+    if (version <= 10) {
+      const { layoutDensity: _layoutDensity, ...settings } = data.settings as unknown as Record<string, unknown>
+      data.settings = settings as unknown as AuroraData['settings']
+    }
+    return JSON.stringify({ app: 'aurora', version, data })
+  }
+
+  it('exports the current schema with only the supplied V2 overrides and exact optional legacy map', () => {
+    const layout: LayoutV2 = { version: 2, profiles: { display: { notes: placement } }, legacy: { notes: { x: 12, y: 34 } } }
+    const parsed = JSON.parse(serializeBackup({ ...defaults(), layout }))
+    expect(parsed.version).toBe(CURRENT_VERSION)
+    expect(parsed.data.layout).toEqual(layout)
+    expect(Object.keys(parsed.data.layout.profiles)).toEqual(['display'])
+  })
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('migrates a v%s layout through the complete historical acceptance matrix', (version) => {
+    const legacy = { clock: { x: 50, y: 50 }, greeting: { x: 83.333, y: 50 } }
+    const result = prepareBackup(envelope(version, legacy))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const migratedLayout = result.data.layout as LayoutV2
+    const expectedLegacy = version <= 2 ? {} : legacy
+    expect(migratedLayout).toEqual(layoutV2FromLegacy(expectedLegacy))
+    expect(migratedLayout.legacy).toEqual(expectedLegacy)
+    expect(Object.keys(migratedLayout.profiles)).toEqual(['compact', 'standard', 'display', 'ultrawide'])
+    for (const profile of ['compact', 'standard', 'display', 'ultrawide'] as const) {
+      expect(migratedLayout.profiles[profile]).toEqual(layoutV2FromLegacy(expectedLegacy).profiles[profile])
+    }
+  })
+
+  it.each([
+    ['primitive', 'bad'],
+    ['array', []],
+    ['malformed known row', { clock: { x: 1e400, y: 10 } }],
+  ])('maps old %s layout failures to the safe layout reason', (_label, layout) => {
+    expect(prepareBackup(envelope(9, layout))).toEqual({ ok: false, reason: 'That backup\'s "layout" data is invalid.' })
+  })
+
+  it('drops malformed unknown legacy ids only after validating every known row', () => {
+    const result = prepareBackup(envelope(9, { clock: { x: 10, y: 20 }, bogus: 'malformed' }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect((result.data.layout as LayoutV2).legacy).toEqual({ clock: { x: 10, y: 20 } })
+
+    expect(prepareBackup(envelope(9, { clock: { x: 'bad', y: 20 }, bogus: { x: 1, y: 2 } }))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "layout" data is invalid.',
+    })
+  })
+
+  it('round-trips valid current profiles and optional legacy after cleanup', () => {
+    const layout: LayoutV2 = { version: 2, profiles: { standard: { notes: placement } }, legacy: { notes: { x: 15, y: 25 } } }
+    const result = prepareBackup(envelope(11, layout))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.layout).toEqual(layout)
+  })
+
+  it('round-trips a valid V3 layout with exact V2 recovery', () => {
+    const semanticV2: LayoutV2 = {
+      version: 2,
+      profiles: { standard: { notes: placement } },
+      legacy: { notes: { x: 15.25, y: 25.75 } },
+    }
+    const layout: LayoutV3 = {
+      version: 3,
+      profiles: {
+        compact: {
+          mode: 'derived',
+          placements: {},
+        },
+        standard: {
+          mode: 'custom',
+          placements: {
+            clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 2 },
+            timer: { kind: 'bottom-bar', order: 0, size: 'compact' },
+          },
+        },
+      },
+      recovery: { semanticV2 },
+    }
+
+    const result = prepareBackup(envelope(CURRENT_VERSION, layout))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.layout).toEqual(layout)
+  })
+
+  it('drops unknown V3 profiles and block IDs while retaining valid known siblings', () => {
+    const layout = {
+      version: 3,
+      profiles: {
+        standard: {
+          mode: 'custom',
+          placements: {
+            clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 2 },
+            futureWidget: { kind: 'canvas', x: 'malformed but unknown', y: 4, size: 'compact', layer: 0 },
+          },
+        },
+        futureProfile: { mode: 'custom', placements: { clock: 'ignored' } },
+      },
+    }
+
+    const result = prepareBackup(envelope(CURRENT_VERSION, layout))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.layout).toEqual({
+        version: 3,
+        profiles: {
+          standard: {
+            mode: 'custom',
+            placements: {
+              clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 2 },
+            },
+          },
+        },
+      })
+    }
+  })
+
+  it.each([
+    ['non-finite coordinate', { kind: 'canvas', x: 1e400, y: 40, size: 'full', layer: 0 }],
+    ['invalid size', { kind: 'canvas', x: 50, y: 40, size: 'expanded', layer: 0 }],
+    ['invalid Bottom bar size', { kind: 'bottom-bar', order: 0, size: 'standard' }],
+  ])('rejects current V3 %s before restore', (_label, placement) => {
+    const layout = {
+      version: 3,
+      profiles: { standard: { mode: 'custom', placements: { clock: placement } } },
+    }
+
+    expect(prepareBackup(envelope(CURRENT_VERSION, layout))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "layout" data is invalid.',
+    })
+  })
+
+  it.each([
+    ['primitive layout', 'bad'],
+    ['array layout', []],
+    ['malformed V1 known row', { clock: { x: 1 } }],
+    ['wrong version', { version: 4, profiles: {} }],
+    ['primitive profiles', { version: 2, profiles: 'bad' }],
+    ['malformed known profile', { version: 2, profiles: { standard: [] } }],
+    ['malformed known placement', { version: 2, profiles: { standard: { clock: { ...placement, zone: 'future' } } } }],
+    ['missing variant', { version: 2, profiles: { standard: { clock: { ...placement, variant: undefined } } } }],
+    ['invalid variant', { version: 2, profiles: { standard: { clock: { ...placement, variant: 'future' } } } }],
+    ['missing priority', { version: 2, profiles: { standard: { clock: { ...placement, priority: undefined } } } }],
+    ['invalid priority', { version: 2, profiles: { standard: { clock: { ...placement, priority: 'future' } } } }],
+    ['negative order', { version: 2, profiles: { standard: { clock: { ...placement, order: -1 } } } }],
+    ['fractional order', { version: 2, profiles: { standard: { clock: { ...placement, order: 0.5 } } } }],
+    ['zero span', { version: 2, profiles: { standard: { clock: { ...placement, colSpan: 0 } } } }],
+    ['fractional span', { version: 2, profiles: { standard: { clock: { ...placement, rowSpan: 1.5 } } } }],
+    ['nonboolean locked', { version: 2, profiles: { standard: { clock: { ...placement, locked: 'yes' } } } }],
+    ['malformed legacy', { version: 2, profiles: {}, legacy: { clock: { x: 1, y: 'bad' } } }],
+  ])('rejects current V2 %s with the safe layout reason', (_label, layout) => {
+    expect(prepareBackup(envelope(11, layout))).toEqual({ ok: false, reason: 'That backup\'s "layout" data is invalid.' })
+  })
+})
+
+describe('layouts document backup boundary (NL-P1)', () => {
+  const document = {
+    version: 1,
+    activeLayoutId: 'work',
+    layouts: [{
+      id: 'work',
+      name: 'Work',
+      widgets: {
+        clock: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -8, tier: 'full', layer: 0 },
+        bookmarks: { kind: 'docked', dock: 'top', order: 0 },
+      },
+      stacks: [{
+        id: 'stack-day',
+        members: ['weather', 'monthCal'],
+        facing: 'weather',
+        anchor: 'left',
+        offsetX: 8,
+        offsetY: 0,
+        tier: 'standard',
+        layer: 2,
+      }],
+    }],
+  }
+
+  it('serializes layouts and round-trips it through prepare/validate exactly', () => {
+    const input = { ...defaults(), layouts: structuredClone(document) as AuroraData['layouts'] }
+    const prepared = prepareBackup(serializeBackup(input))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.layouts).toEqual(document)
+  })
+
+  it('round-trips explicit dock y and returnTier without materializing absent fields', () => {
+    const withDy = structuredClone(document) as { layouts: { widgets: Record<string, unknown> }[] }
+    withDy.layouts[0].widgets.bookmarks = {
+      kind: 'docked', dock: 'top', order: 0, x: 18, y: 67.5, returnTier: 'standard',
+    }
+    const prepared = prepareBackup(serializeBackup({
+      ...defaults(), layouts: withDy as unknown as AuroraData['layouts'],
+    }))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) {
+      const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
+      expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
+      expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
+      expect(CURRENT_VERSION).toBe(19)
+    }
+  })
+
+  it.each([
+    ['y', Number.NaN],
+    ['y', -0.01],
+    ['y', 100.01],
+    ['returnTier', 'giant'],
+  ])('rejects malformed dock %s at the backup boundary', (field, value) => {
+    const malformed = structuredClone(document) as { layouts: { widgets: Record<string, unknown> }[] }
+    malformed.layouts[0].widgets.bookmarks = {
+      kind: 'docked', dock: 'top', order: 0, [field]: value,
+    }
+    const backup = JSON.parse(serializeBackup(defaults())) as { data: Record<string, unknown> }
+    backup.data.layouts = malformed
+    expect(prepareBackup(JSON.stringify(backup))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "layouts" data is invalid.',
+    })
+  })
+
+  it('serializes the default null layouts and imports it as null', () => {
+    const prepared = prepareBackup(serializeBackup(defaults()))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.layouts).toBeNull()
+  })
+
+  it('imports a pre-v13 backup with layouts backfilled to null', () => {
+    const envelope = JSON.parse(serializeBackup(defaults())) as { version: number; data: Record<string, unknown> }
+    envelope.version = 12
+    delete envelope.data.layouts
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.layouts).toBeNull()
+  })
+
+  it('rejects a malformed layouts document with the exact reason', () => {
+    const envelope = JSON.parse(serializeBackup(defaults())) as { data: Record<string, unknown> }
+    envelope.data.layouts = { version: 1, activeLayoutId: 'missing', layouts: [] }
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared).toEqual({ ok: false, reason: 'That backup\'s "layouts" data is invalid.' })
+  })
+
+  it('round-trips a hidden placement', () => {
+    const withHidden = structuredClone(document) as { layouts: { widgets: Record<string, unknown> }[] }
+    withHidden.layouts[0].widgets.notes = { kind: 'hidden' }
+    const prepared = prepareBackup(serializeBackup({ ...defaults(), layouts: withHidden as unknown as AuroraData['layouts'] }))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) {
+      const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
+      expect(layouts.layouts[0].widgets.notes).toEqual({ kind: 'hidden' })
+    }
+  })
+
+  it('drops an unknown widget id inside an otherwise valid document instead of failing the import', () => {
+    const withUnknown = structuredClone(document) as {
+      layouts: { widgets: Record<string, unknown> }[]
+    }
+    withUnknown.layouts[0].widgets.futureWidget = { kind: 'docked', dock: 'top', order: 3 }
+    const envelope = JSON.parse(serializeBackup(defaults())) as { data: Record<string, unknown> }
+    envelope.data.layouts = withUnknown
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.layouts).toEqual(document)
+  })
+
+  it.each([
+    ['unknown member', [{ ...document.layouts[0].stacks[0], members: ['weather', 'futureWidget'] }]],
+    ['duplicate member', [{ ...document.layouts[0].stacks[0], members: ['weather', 'weather'] }]],
+    ['bad facing', [{ ...document.layouts[0].stacks[0], facing: 'clock' }]],
+    ['bad tier', [{ ...document.layouts[0].stacks[0], tier: 'docked' }]],
+    ['bad geometry', [{ ...document.layouts[0].stacks[0], offsetX: 'far' }]],
+    ['duplicate id', [document.layouts[0].stacks[0], { ...document.layouts[0].stacks[0], members: ['sun', 'moon'] }]],
+  ])('rejects a stack with %s instead of cleaning the backup', (_label, stacks) => {
+    const malformed = structuredClone(document) as unknown as {
+      layouts: Array<{ stacks: unknown[] }>
+    }
+    malformed.layouts[0].stacks = stacks
+    const backup = JSON.parse(serializeBackup(defaults())) as { data: Record<string, unknown> }
+    backup.data.layouts = malformed
+
+    expect(prepareBackup(JSON.stringify(backup))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "layouts" data is invalid.',
+    })
   })
 })

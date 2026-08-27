@@ -1,6 +1,6 @@
+import { useState } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { StoredLocation } from '../../lib/storage/schema'
-import Section from '../Section'
 import { row, label, btnQuiet } from './shared'
 
 /** Shows the current weather location with a one-click way to clear it
@@ -14,21 +14,42 @@ export default function Weather({
   location: StoredLocation
   storage: AuroraStorage
 }) {
+  const [clearing, setClearing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function clearLocation() {
+    if (clearing) return
+    setClearing(true)
+    setError(null)
+    try {
+      await storage.setMany({ location: null, weatherCache: null, weatherAlertCache: null })
+    } catch {
+      setError('Could not clear weather location. Try again.')
+      setClearing(false)
+    }
+  }
+
   return (
-    <Section title="Weather">
+    <>
       <div className={row}>
         <span className={label}>Location</span>
+        <span className="min-w-0 flex-1 truncate text-right text-sm text-fg">{location.label}</span>
         <button
           type="button"
-          onClick={() => {
-            void storage.set('location', null)
-            void storage.set('weatherCache', null)
-          }}
+          onClick={() => void clearLocation()}
+          disabled={clearing}
+          aria-describedby={error ? 'weather-clear-error' : undefined}
+          aria-label={`Clear ${location.label} weather location`}
           className={btnQuiet}
         >
-          {`${location.label} — clear`}
+          Clear
         </button>
       </div>
-    </Section>
+      {error && (
+        <p id="weather-clear-error" role="alert" className="mt-2 text-sm text-fg-muted">
+          {error}
+        </p>
+      )}
+    </>
   )
 }

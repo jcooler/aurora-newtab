@@ -1,4 +1,5 @@
 import { defineManifest } from '@crxjs/vite-plugin'
+import { MANIFEST_PRIVACY_DESCRIPTION } from './privacy/dataFlows'
 
 // `bookmarks` is normally an OPTIONAL permission: real users are never
 // prompted for it just to load the extension — BookmarksBar.tsx requests it
@@ -56,12 +57,18 @@ import { defineManifest } from '@crxjs/vite-plugin'
 // building, so this recomputes per build with no extra env var or
 // cross-build state to keep in sync beyond package.json's own scripts.
 const PREVIEW = 'preview'
+const OPTIONAL_BROWSER_WIDGET_PERMISSIONS = [
+  'readingList',
+  'sessions',
+  'downloads',
+  'tabGroups',
+] as const
 
 export default defineManifest((env) => ({
   manifest_version: 3,
   name: 'Aurora',
-  version: '1.14.0',
-  description: 'A calm, local-first new-tab dashboard. No accounts, no tracking, no backend.',
+  version: '2.0.0',
+  description: MANIFEST_PRIVACY_DESCRIPTION,
   // `search` (Red Argon remediation, v1.2.1): gives access to chrome.search
   // — see src/services/search.ts, the ONLY caller of chrome.search.query()
   // in this codebase. Chrome's optional-permissions allow-list (the same
@@ -77,7 +84,7 @@ export default defineManifest((env) => ({
   // gesture in Settings.
   permissions:
     env.mode === PREVIEW
-      ? ['storage', 'favicon', 'bookmarks', 'geolocation', 'search']
+      ? ['storage', 'favicon', 'bookmarks', ...OPTIONAL_BROWSER_WIDGET_PERMISSIONS, 'geolocation', 'search']
       : ['storage', 'favicon', 'geolocation', 'search'],
   // Chrome disallows (warns/rejects) listing the same permission as both
   // install-time and optional, so the preview build drops `bookmarks` from
@@ -85,7 +92,9 @@ export default defineManifest((env) => ({
   // `geolocation` can NEVER appear in this array, in either mode — see the
   // comment above the `permissions` array for the exact Chrome warning that
   // rules it out.
-  optional_permissions: env.mode === PREVIEW ? [] : ['bookmarks'],
+  optional_permissions: env.mode === PREVIEW
+    ? []
+    : ['bookmarks', ...OPTIONAL_BROWSER_WIDGET_PERMISSIONS],
   // Per-origin host access for connectors (src/services/permissions.ts's
   // originPattern/hasOrigin/ensureOrigin/removeOrigin): every https origin
   // is requestable, but none is pre-granted — a connector still gets

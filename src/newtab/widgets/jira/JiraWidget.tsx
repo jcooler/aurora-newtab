@@ -5,6 +5,12 @@ import { DEFAULT_GITLAB_VIEWS } from '../../../services/connectors/gitlab'
 import { resolveGithubViews } from '../../../services/connectors/github'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, JiraConfig, JiraViews, GitlabConfig, GithubConfig } from '../../../services/connectors/types'
+import DockLine from '../shared/DockLine'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, attentionSnapshotScope, effectiveJiraViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the counts line above already says "there's more"), and it shares the
@@ -74,14 +80,18 @@ function connectedJira(config: ConnectorConfig | undefined): JiraConfig | null {
   return jira
 }
 
-export default function JiraWidget() {
+export default function JiraWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/GitlabWidget: the one
   // useStoredKey read runs every render (Rules of Hooks stay satisfied), but a
   // disabled/unconnected connector never mounts JiraInner and therefore
   // never runs useConnectorSnapshot's subscribe/refresh.
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const jira = connectedJira(connectors?.jira)
   if (!jira) return null
+  const views = resolveViews(DEFAULT_JIRA_VIEWS, jira.views)
+  if (!views.assigned && !views.dueSoon && !views.statusChips) return null
 
   // Task 77 — the due-soon section-tier fix (mirrors GitlabWidget.tsx's
   // reviewAsksTier, symmetric derivation, see index.css's
@@ -111,18 +121,26 @@ export default function JiraWidget() {
 
   return (
     <JiraInner
+      jira={jira}
       site={jira.site}
       email={jira.email}
       apiToken={jira.apiToken}
-      views={resolveViews(DEFAULT_JIRA_VIEWS, jira.views)}
+      views={views}
       gitlabEnabled={gitlabEnabled}
       gitlabReviewAsksEnabled={gitlabReviewAsksEnabled}
       anyGraphEnabled={anyGraphEnabled}
+      canvasSize={canvasSize}
+      docked={docked}
+      runtime={attentionRuntimeScope(
+        settings.briefingEnabled === true,
+        settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+      )}
     />
   )
 }
 
 function JiraInner({
+  jira,
   site,
   email,
   apiToken,
@@ -130,7 +148,11 @@ function JiraInner({
   gitlabEnabled,
   gitlabReviewAsksEnabled,
   anyGraphEnabled,
+  canvasSize,
+  docked,
+  runtime,
 }: {
+  jira: JiraConfig
   site: string
   email: string
   apiToken: string
@@ -138,6 +160,9 @@ function JiraInner({
   gitlabEnabled: boolean
   gitlabReviewAsksEnabled: boolean
   anyGraphEnabled: boolean
+  canvasSize?: CanvasSize
+  docked?: boolean
+  runtime: AttentionRuntimeScope
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so the two-section fetch's
@@ -147,14 +172,35 @@ function JiraInner({
   // rather than an empty shell — same as GithubInner/GitlabInner. The user's
   // resolved views gate the fetch (a section turned off never issues a
   // request — see fetchJira) AND this render (below).
-  const { data } = useConnectorSnapshot<JiraData>('jira', (prev) =>
-    fetchJira(site, email, apiToken, views, prev),
+  const fetchViews = effectiveJiraViews(views, runtime)
+  const { data, state } = useConnectorSnapshot<JiraData>('jira', jira, (prev) =>
+    fetchJira(site, email, apiToken, fetchViews, prev),
+    undefined,
+    attentionSnapshotScope(runtime, 'assignments', views.assigned),
   )
-  if (!data) return null
+  const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="Jira" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
+  const framed = canvasSize !== undefined
 
   // A disabled list is empty regardless of what the snapshot still carries.
-  const issues = views.assigned ? (data.issues ?? []).slice(0, MAX_ISSUES) : []
-  const dueSoon = views.dueSoon ? (data.dueSoon ?? []).slice(0, MAX_DUE_SOON) : []
+  const compact = tier === 'compact'
+  const standard = tier === 'standard'
+  const allIssues = views.assigned ? (data.issues ?? []) : []
+  const allDueSoon = views.dueSoon ? (data.dueSoon ?? []) : []
+  const issues = framed
+    ? compact ? [] : allIssues.slice(0, standard ? 2 : allDueSoon.length > 0 ? 2 : MAX_ISSUES)
+    : canvasSize !== 'compact' ? allIssues.slice(0, canvasSize === 'standard' ? 2 : MAX_ISSUES) : []
+  const dueSoon = framed
+    ? compact || (standard && allIssues.length > 0)
+      ? []
+      : allDueSoon.slice(0, tier === 'full' && issues.length > 0 ? 1 : MAX_DUE_SOON)
+    : canvasSize !== 'compact' && (canvasSize !== 'standard' || allIssues.length === 0)
+      ? allDueSoon.slice(0, MAX_DUE_SOON)
+      : []
   const counts = data.counts ?? {}
   const countEntries = Object.entries(counts)
 
@@ -200,7 +246,7 @@ function JiraInner({
         : gitlabReviewAsksEnabled
           ? 'roomier'
           : 'roomy'
-  const dueSoonTier = dueSoonTierName ? DUE_SOON_TIER_CLASS[dueSoonTierName] : ''
+  const dueSoonTier = !framed && dueSoonTierName ? DUE_SOON_TIER_CLASS[dueSoonTierName] : ''
 
   // The friendly empty line shows when a rows section is enabled and NOTHING
   // from either rows list would actually be VISIBLE. Jira has no GRAPH
@@ -220,19 +266,45 @@ function JiraInner({
   // genuinely empty, or its own tier is '' (unconditional — no gitlab
   // sibling threatens it), the line shows unconditionally, exactly as
   // before.
-  const showEmpty =
-    (views.assigned || views.dueSoon) &&
-    issues.length === 0 &&
-    (dueSoon.length === 0 || dueSoonTierName !== '')
-  const emptyLineTier = dueSoon.length > 0 && dueSoonTierName ? DUE_SOON_INVERSE_TIER_CLASS[dueSoonTierName] : ''
+  const showEmpty = framed
+    ? (views.assigned || views.dueSoon) && allIssues.length === 0 && allDueSoon.length === 0
+    : (views.assigned || views.dueSoon) &&
+      allIssues.length === 0 &&
+      (allDueSoon.length === 0 || dueSoonTierName !== '')
+  const emptyLineTier = !framed && allDueSoon.length > 0 && dueSoonTierName
+    ? DUE_SOON_INVERSE_TIER_CLASS[dueSoonTierName]
+    : ''
 
   // No-husk law (wave 2, generalized): render null when NOTHING inside the card
   // would render — no rows in either enabled list, no status chip with a value,
   // and no empty line. (status-chips-only with empty counts is the canonical
   // case; all-views-off is the degenerate one.)
   const chipShows = views.statusChips && countEntries.length > 0
-  const anyRow = issues.length > 0 || dueSoon.length > 0
-  if (!anyRow && !chipShows && !showEmpty) return null
+  const anySelectedRow = allIssues.length > 0 || allDueSoon.length > 0
+  if (!anySelectedRow && !chipShows && !showEmpty) return null
+  const countedWork = countEntries.reduce((total, [, count]) => total + count, 0)
+  const prioritizedCount = allIssues.length + allDueSoon.length
+  const attentionCount = countedWork > 0 ? countedWork : prioritizedCount
+  const summaryValue = attentionCount > 0
+    ? `${attentionCount} active ${attentionCount === 1 ? 'item' : 'items'}`
+    : 'All clear'
+
+  // Docked tier (NL-P5 batch 2, GithubWidget's exemplar shape): dense facts
+  // from the SAME selected-view lists the card renders — one data owner, no
+  // second fetch. The no-husk return above already covered the no-data case.
+  if (docked) {
+    const dockFacts = [
+      allIssues.length > 0 && `${allIssues.length} assigned`,
+      allDueSoon.length > 0 && `${allDueSoon.length} due soon`,
+    ]
+    return (
+      <DockLine
+        label="Jira"
+        facts={dockFacts.some(Boolean) ? dockFacts : ['All clear']}
+        tone={attentionCount > 0 ? 'attention' : 'quiet'}
+      />
+    )
+  }
 
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's/
@@ -241,7 +313,13 @@ function JiraInner({
     // `p-4`->`p-3` (Task 55 fix round 2 — see GithubWidget.tsx's own
     // MAX_PRS comment): a modest, right-column-only chrome trim, not a
     // shape change.
-    <section aria-label="Jira" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    <TierFrame
+      label="Jira"
+      tier={tier}
+      state={resourceFrameState(state, showEmpty)}
+      data-canvas-size={tier}
+      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
+    >
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">Jira</h2>
         {/* Counts line renders only when the view is on AND there's at least
@@ -256,8 +334,14 @@ function JiraInner({
         )}
       </div>
 
+      <WorkPulseSummary
+        label="Jira"
+        value={summaryValue}
+        tone={attentionCount > 0 ? 'attention' : 'quiet'}
+      />
+
       {issues.length > 0 && (
-        <ul className="flex flex-col gap-2 dense:gap-1">
+        <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">
           {issues.map((item) => (
             <ItemRow key={item.key} item={item} />
           ))}
@@ -270,7 +354,7 @@ function JiraInner({
               both render — a single due-soon list needs no label (each row's due
               prefix carries its own context). */}
           {issues.length > 0 && <p className={EYEBROW}>Due soon</p>}
-          <ul className="flex flex-col gap-2 dense:gap-1">
+          <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">
             {dueSoon.map((item) => (
               <ItemRow key={item.key} item={item} />
             ))}
@@ -278,8 +362,8 @@ function JiraInner({
         </div>
       )}
 
-      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>Nothing assigned to you.</p>}
-    </section>
+      {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>Nothing assigned to you.</p>}
+    </TierFrame>
   )
 }
 
@@ -301,8 +385,9 @@ function ItemRow({ item }: { item: JiraIssue }) {
         title={item.summary}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span className="block truncate text-xs text-fg-muted font-medium">{prefix}</span>
-        <span className="block truncate text-sm dense:text-xs text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted font-medium">{prefix}</span>
+        <span data-work-pulse-detail className="block truncate text-xs text-fg-muted">{item.status}</span>
+        <span className="block truncate text-sm text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.summary}
         </span>
       </a>

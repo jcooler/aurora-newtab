@@ -1,6 +1,14 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { anchorPanel, hugHorizontal, type PanelPlacement } from '../../../lib/layout/anchor'
+import { useStorage } from '../../../lib/storage/context'
+import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
+import { hugHorizontal } from '../../../lib/layout/anchor'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
+import { todoReducer } from './todoReducer'
 
 const TodoPanel = lazy(() => import('./TodoPanel'))
 
@@ -28,7 +36,17 @@ export const TODO_CORNER_HUG_PX = 48
 
 export default function TodoWidget({
   onOpenChange,
-}: { onOpenChange?: (open: boolean) => void } = {}) {
+  utilityTray,
+  canvasSize = 'compact',
+  docked = false,
+  presentation = 'free',
+}: {
+  onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
+  canvasSize?: CanvasSize
+  docked?: boolean
+  presentation?: WidgetPresentationMode
+} = {}) {
   // Gate BEFORE the panel's open/close state exists, same shape as
   // NotesWidget/TimerWidget: a disabled widget (settings.widgets.todo can be
   // switched off mid-session) mounts nothing past the settings read, which
@@ -41,13 +59,52 @@ export default function TodoWidget({
   // writeup of why that guarantee matters.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.todo) return null
-  return <TodoInner onOpenChange={onOpenChange} />
+  return (
+    <TodoInner
+      onOpenChange={onOpenChange}
+      utilityTray={utilityTray}
+      canvasSize={canvasSize}
+      docked={docked}
+      presentation={presentation}
+    />
+  )
 }
 
-function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
+function TodoInner({
+  onOpenChange,
+  utilityTray,
+  canvasSize,
+  docked,
+  presentation,
+}: {
+  onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
+  canvasSize: CanvasSize
+  docked: boolean
+  presentation: WidgetPresentationMode
+}) {
+  const [todoLists] = useStoredKey('todoLists')
+  const storage = useStorage()
   const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const pillRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const mapInvokerRect = useCallback(
+    (rect: DOMRectReadOnly, viewportWidth: number) =>
+      hugHorizontal(rect, TODO_CORNER_HUG_PX, viewportWidth),
+    [],
+  )
+  const getDockBoundaryElement = useCallback(
+    () => document.querySelector<HTMLElement>('[data-stage-zone-container="dock"]'),
+    [],
+  )
+  const anchor = useViewportPanelAnchor({
+    open: utilityTray ? false : open,
+    invokerRef: pillRef,
+    panelRef,
+    preferredSize: TODO_PANEL_SIZE,
+    mapInvokerRect,
+    getBottomBoundaryElement: getDockBoundaryElement,
+  })
 
   // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own
   // `onExpandedChange` uses (see its comment for the full writeup): a ref
@@ -70,40 +127,90 @@ function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void })
     return () => onOpenChangeRef.current?.(false)
   }, [open])
 
-  // The panel follows the pill: measured on open (not live-tracked — the
-  // pill can't move while the panel is open today, since arrange mode closes
-  // panels).
+  // The panel follows the pill and live rendered panel size while open.
   const togglePanel = () => {
+    if (utilityTray && pillRef.current) {
+      utilityTray.requestTool('tasks', pillRef.current)
+      return
+    }
     if (open) {
       setOpen(false)
       return
     }
-    if (pillRef.current) {
-      const rect = pillRef.current.getBoundingClientRect()
-      const hugged = hugHorizontal(rect, TODO_CORNER_HUG_PX, window.innerWidth)
-      setAnchor(
-        anchorPanel(hugged, TODO_PANEL_SIZE, { w: window.innerWidth, h: window.innerHeight }),
-      )
-    }
     setOpen(true)
   }
 
+  const panelOpen = utilityTray ? utilityTray.activeTool === 'tasks' : open
+  const panel = panelOpen && (utilityTray?.host || anchor) ? (
+    <Suspense fallback={null}>
+      <TodoPanel
+        anchor={anchor ?? undefined}
+        embedded={Boolean(utilityTray)}
+        onClose={utilityTray ? utilityTray.close : () => setOpen(false)}
+        viewportRef={(node) => { panelRef.current = node }}
+      />
+    </Suspense>
+  ) : null
+  const openItems = (todoLists ?? []).flatMap((list) =>
+    list.items.filter((item) => !item.done).map((item) => ({ listId: list.id, item })),
+  )
+  const toggleItem = (listId: string, itemId: string) => {
+    void storage.update('todoLists', (lists) => todoReducer(lists, { type: 'toggleItem', listId, itemId }))
+  }
+  const trigger = (
+    <button
+      ref={pillRef}
+      type="button"
+      aria-label="Tasks"
+      aria-expanded={panelOpen}
+      onClick={togglePanel}
+      data-testid={docked ? 'tasks-dock' : undefined}
+      className={docked
+        ? 'flex max-w-72 items-center gap-2 rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+        : 'flex w-full cursor-pointer items-center justify-between rounded-lg px-1 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-accent'}
+    >
+      {docked ? (
+        <><strong className="font-semibold text-fg">Tasks</strong><span>{openItems.length} open</span></>
+      ) : (
+        <>
+          <strong className="text-sm font-semibold text-fg">Tasks</strong>
+          <span className="flex items-center gap-2 text-[11px] text-fg-muted">
+            {openItems.length} open <span className="text-fg">Open tasks</span>
+          </span>
+        </>
+      )}
+    </button>
+  )
+
   return (
     <>
-      <button
-        ref={pillRef}
-        type="button"
-        aria-expanded={open}
-        onClick={togglePanel}
-        className="rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-      >
-        Tasks
-      </button>
-      {open && anchor && (
-        <Suspense fallback={null}>
-          <TodoPanel anchor={anchor} onClose={() => setOpen(false)} />
-        </Suspense>
+      {docked ? trigger : (
+        <TierFrame label="Tasks card" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state={openItems.length ? 'ready' : 'empty'} className="gap-2 p-3">
+          <div data-tasks-presentation={presentation} className="flex min-h-0 flex-1 flex-col gap-2">
+            {trigger}
+            <div className="grid min-h-0 flex-1 content-start gap-1.5">
+              {openItems.slice(0, 2).map(({ listId, item }) => (
+                <button
+                  key={`${listId}:${item.id}`}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={false}
+                  aria-label={item.text}
+                  onClick={() => toggleItem(listId, item.id)}
+                  className="flex min-h-9 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-panel-border bg-control-bg px-2.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span aria-hidden className="grid size-4 shrink-0 place-items-center rounded border border-fg-muted/50 text-[10px] text-accent" />
+                  <span title={item.text} className="min-w-0 flex-1 truncate text-sm text-fg">{item.text}</span>
+                </button>
+              ))}
+              {openItems.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-panel-border px-3 py-3 text-sm text-fg-muted">No open tasks. Your queue is clear.</p>
+              ) : null}
+            </div>
+          </div>
+        </TierFrame>
       )}
+      {utilityTray?.host && panel ? createPortal(panel, utilityTray.host) : panel}
     </>
   )
 }

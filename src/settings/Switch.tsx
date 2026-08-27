@@ -59,20 +59,26 @@ export default function Switch({
       // 36×20 track (h-5 w-9) with a 2px inset (p-0.5) framing the 16px thumb.
       // cursor-pointer is explicit because Tailwind v4 preflight sets
       // `button { cursor: default }` (same fix as Tabs.tsx / the chips).
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full p-0.5 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none ${
-        checked ? 'bg-accent' : 'bg-switch-off'
-      }`}
+      className="relative inline-flex min-h-9 w-9 shrink-0 cursor-pointer items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50"
     >
       {/* The signature micro-interaction: the 16px thumb slides 16px across the
           32px inner track with a slight overshoot (the cubic-bezier overshoots
           past 1 before settling), and snaps instantly under
           prefers-reduced-motion. */}
       <span
+        data-switch-track
         aria-hidden
-        className={`size-4 rounded-full bg-white shadow-sm shadow-black/30 transition-transform duration-150 ease-[cubic-bezier(.34,1.3,.64,1)] motion-reduce:transition-none ${
-          checked ? 'translate-x-4' : 'translate-x-0'
+        className={`absolute left-0 top-1/2 inline-flex h-5 w-9 -translate-y-1/2 items-center rounded-full p-0.5 transition-colors duration-150 motion-reduce:transition-none ${
+          checked ? 'bg-accent' : 'bg-switch-off'
         }`}
-      />
+      >
+        <span
+          data-switch-thumb
+          className={`size-4 rounded-full bg-white shadow-sm shadow-black/30 transition-transform duration-150 ease-[cubic-bezier(.34,1.3,.64,1)] motion-reduce:transition-none ${
+            checked ? 'translate-x-4' : 'translate-x-0'
+          }`}
+        />
+      </span>
     </button>
   )
 }

@@ -1,19 +1,27 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { createStorage, type AuroraStorage } from '../lib/storage/index'
-import { memoryDriver } from '../lib/storage/driver'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { AtomicRestoreRollbackError, createStorage, type AuroraStorage } from '../lib/storage/index'
+import { memoryDriver, type StorageDriver } from '../lib/storage/driver'
+import { createInProcessStorageAuthority } from '../lib/storage/authority'
 import { StorageProvider } from '../lib/storage/context'
-import { parseBackup } from '../lib/backup'
-import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
+import { BACKUP_REDACTION_NOTICE, parseBackup, serializeBackup } from '../lib/backup'
+import { CURRENT_VERSION, defaults, type AuroraData } from '../lib/storage/schema'
+import { emptyLayoutV2, layoutV2FromLegacy } from '../lib/layout/v2'
+import { saveCanvasProfile } from '../lib/layout/canvasAdapter'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, StatusConfig, VercelConfig } from '../services/connectors/types'
+import type { LayoutsDocument } from '../lib/layout/namedLayouts'
 import { CURATED_STATUS } from '../services/connectors/status'
 import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../services/connectors/homeassistant'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import { APOD_ORIGINS } from '../services/apod'
+import { readLocalDay } from '../lib/hooks/useLocalDay'
+import { BUNDLED } from '../services/photos'
+import { releaseUnownedOrigins, runOriginTransaction } from '../services/permissionTransactions'
 import SettingsPanel from './SettingsPanel'
-import { authState } from './sections/Connectors'
+import { authState, connectorCardState } from './sections/Connectors'
+import indexCss from '../newtab/index.css?raw'
 // Imported (not hardcoded) so the About footer's version assertion below
 // can't silently drift from package.json — the same file __APP_VERSION__ is
 // itself derived from at build time (see vite.config.ts / vitest.config.ts).
@@ -49,9 +57,24 @@ import { isPremium } from '../lib/premium'
 // "still held by an enabled connector?" check).
 vi.mock('../services/permissions', async (importActual) => {
   const actual = await importActual<typeof import('../services/permissions')>()
-  return { ...actual, ensureOrigin: vi.fn(), removeOrigin: vi.fn(), ensureOrigins: vi.fn() }
+  const ensureOrigin = vi.fn()
+  const ensurePermission = vi.fn()
+  // Existing card tests assert connector-specific input/origin mapping through
+  // this singular spy. TokenConnectForm now correctly calls ensureOrigins via
+  // its transaction, so the test boundary delegates that one-origin batch to
+  // the established spy while the dedicated transaction tests exercise Chrome.
+  const ensureOrigins = vi.fn(async (origins: readonly string[]) => {
+    const granted = await ensureOrigin(origins[0]!)
+    if (granted) {
+      origins.forEach((origin) => cleanupHeld.add(origin))
+      cleanupAddedListeners.forEach((listener) => listener({ origins: [...origins] }))
+    }
+    return granted
+  })
+  return { ...actual, ensurePermission, ensureOrigin, removeOrigin: vi.fn(), ensureOrigins }
 })
-import { ensureOrigin, ensureOrigins, removeOrigin } from '../services/permissions'
+import { ensurePermission, ensureOrigin, ensureOrigins, originPattern, removeOrigin } from '../services/permissions'
+import { initializePermissionMirror } from '../services/permissionMirror'
 
 // The GitHub connector card's connect flow calls whoamiGithub (a real network
 // GET /user) — mock ONLY that. githubDescriptor and fetchGithub stay REAL via
@@ -110,12 +133,125 @@ function attr(el: Element, name: string) {
   return el.getAttribute(name)
 }
 
-async function renderPanel(onArrangeLayout: () => void = () => {}) {
-  const storage = createStorage(memoryDriver())
-  await storage.init()
+function expectLocalRoutineTarget(el: Element) {
+  const classes = el.getAttribute('class')?.split(/\s+/) ?? []
+  expect(classes).toContain('min-h-9')
+  expect(classes).toContain('min-w-9')
+}
+
+afterEach(() => {
+  const removed = [...cleanupHeld]
+  cleanupHeld.clear()
+  if (removed.length > 0) cleanupRemovedListeners.forEach((listener) => listener({ origins: removed }))
+  // Background's APOD cases reset/configure the plural mock directly. Restore
+  // the token-card compatibility delegate for the next test without changing
+  // any completed assertion in the test that just ran.
+  vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+    const granted = await vi.mocked(ensureOrigin)(origins[0]!)
+    if (granted) {
+      origins.forEach((origin) => cleanupHeld.add(origin))
+      cleanupAddedListeners.forEach((listener) => listener({ origins: [...origins] }))
+    }
+    return granted
+  })
+})
+
+type PermissionListener = (permissions: chrome.permissions.Permissions) => void
+
+const cleanupHeld = new Set<string>()
+const cleanupAddedListeners: PermissionListener[] = []
+const cleanupRemovedListeners: PermissionListener[] = []
+
+async function removeHeldOrigin(pattern: string): Promise<boolean> {
+  const removed = cleanupHeld.delete(pattern)
+  if (removed) cleanupRemovedListeners.forEach((listener) => listener({ origins: [pattern] }))
+  return removed
+}
+
+function holdOrigin(pattern: string) {
+  cleanupHeld.add(pattern)
+  cleanupAddedListeners.forEach((listener) => listener({ origins: [pattern] }))
+}
+
+function deferred<T = void>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+function installQueuedLifecycleLocks() {
+  const originalLocks = navigator.locks
+  let tail: Promise<void> = Promise.resolve()
+  const request = vi.fn(<T,>(
+    _name: string,
+    _options: LockOptions,
+    work: () => Promise<T>,
+  ): Promise<T> => {
+    const result = tail.then(work)
+    tail = result.then(
+      () => undefined,
+      () => undefined,
+    )
+    return result
+  })
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+  return () => Object.defineProperty(navigator, 'locks', { configurable: true, value: originalLocks })
+}
+
+function deferPermissionRemovals() {
+  const started = deferred<void>()
+  const allow = deferred<void>()
+  vi.mocked(removeOrigin).mockImplementation(async (pattern) => {
+    started.resolve()
+    await allow.promise
+    return removeHeldOrigin(pattern)
+  })
+  return { started, allow }
+}
+
+beforeAll(async () => {
+  vi.stubGlobal('chrome', {
+    permissions: {
+      getAll: async () => ({ origins: [...cleanupHeld] }),
+      request: async ({ origins = [] }: chrome.permissions.Permissions) => {
+        origins.forEach((origin) => cleanupHeld.add(origin))
+        cleanupAddedListeners.forEach((listener) => listener({ origins }))
+        return true
+      },
+      contains: async ({ origins = [] }: chrome.permissions.Permissions) => origins.every((origin) => cleanupHeld.has(origin)),
+      remove: async ({ origins = [] }: chrome.permissions.Permissions) => {
+        const removed = origins.some((origin) => cleanupHeld.delete(origin))
+        if (removed) cleanupRemovedListeners.forEach((listener) => listener({ origins }))
+        return removed
+      },
+      onAdded: { addListener: (listener: PermissionListener) => cleanupAddedListeners.push(listener) },
+      onRemoved: { addListener: (listener: PermissionListener) => cleanupRemovedListeners.push(listener) },
+    },
+  })
+  Object.defineProperty(navigator, 'locks', {
+    configurable: true,
+    value: { request: async (_name: string, _options: LockOptions, work: () => Promise<unknown>) => work() },
+  })
+  await initializePermissionMirror()
+})
+
+afterAll(() => {
+  vi.unstubAllGlobals()
+  Reflect.deleteProperty(navigator, 'locks')
+})
+
+async function renderPanel(
+  suppliedStorage?: AuroraStorage,
+) {
+  const storage = suppliedStorage ?? createStorage(memoryDriver())
+  if (!suppliedStorage) await storage.init()
   render(
     <StorageProvider storage={storage}>
-      <SettingsPanel onArrangeLayout={onArrangeLayout} />
+      <SettingsPanel />
     </StorageProvider>,
   )
   // Settings resolves asynchronously (useStoredKey's storage.get().then(...)),
@@ -135,7 +271,79 @@ function openTab(name: 'General' | 'Widgets' | 'Connectors' | 'Data') {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
 
+async function renderPanelWithLayouts(layoutsDocument: LayoutsDocument) {
+  const driver = memoryDriver()
+  const storage = createStorage(driver)
+  await storage.init()
+  await storage.set('layouts', layoutsDocument)
+  const write = vi.spyOn(driver, 'write')
+  write.mockClear()
+  render(
+    <StorageProvider storage={storage}>
+      <SettingsPanel
+        layoutsDocument={layoutsDocument}
+        calendarConsolidationLayout={layoutsDocument.layouts.find(
+          (layout) => layout.id === layoutsDocument.activeLayoutId,
+        ) ?? null}
+      />
+    </StorageProvider>,
+  )
+  await screen.findByLabelText('Your name')
+  return { storage, write }
+}
+
+async function openWidgetsTabAndWaitForLayout(storage: AuroraStorage) {
+  const get = vi.spyOn(storage, 'get')
+  openTab('Widgets')
+  await waitFor(() => {
+    expect(get).toHaveBeenCalledWith('layout')
+  })
+  const read = get.mock.results.find((result, index) =>
+    get.mock.calls[index]?.[0] === 'layout' && result.type === 'return'
+  )?.value as Promise<unknown> | undefined
+  if (!read) throw new Error('Layout storage read was not captured')
+  try {
+    await act(async () => {
+      await read
+    })
+  } finally {
+    get.mockRestore()
+  }
+}
+
+function openWidgetEditor(name: 'Weather location' | 'World clocks' | 'Countdowns' | 'Habits') {
+  const button = screen.getByRole('button', { name })
+  if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button)
+}
+
+function openConnectorEditor(name: string) {
+  const action = screen.queryByRole('button', { name: new RegExp(`^(Set up|Edit|Reconnect) ${name}$`) })
+  if (action) fireEvent.click(action)
+}
+
 describe('SettingsPanel tabs (General / Widgets / Data)', () => {
+  it('applies the shared row/control contract with a 36px floor and narrow reflow', async () => {
+    await renderPanel()
+    const name = screen.getByLabelText('Your name')
+    expect(name.className.split(/\s+/)).toContain('min-h-9')
+    expect(name.className).toContain('min-w-0')
+    expect(name.className).toContain('max-w-full')
+    expect(name.className).toContain('max-[420px]:w-full')
+    expect(name.parentElement?.className).toContain('max-[420px]:flex-col')
+    expect(name.parentElement?.className).toContain('max-[420px]:items-stretch')
+  })
+
+  it('keeps the Connectors sticky search inverse to ordinary and narrow Drawer padding', async () => {
+    await renderPanel()
+    openTab('Connectors')
+    const sticky = screen.getByLabelText('Search connectors').parentElement
+    expect(sticky?.className).toContain('-top-6')
+    expect(sticky?.className).toContain('max-[420px]:-top-3')
+    expect(sticky?.className).toContain('settings-sticky-surface')
+    expect(sticky?.className).not.toContain('bg-panel-solid')
+    expect(indexCss).toMatch(/\.settings-sticky-surface\s*\{[\s\S]*?rgb\(from var\(--panel-solid\) r g b \/ 1\)/)
+  })
+
   it('opens on General, showing its own sections and nothing from the other tabs', async () => {
     await renderPanel()
 
@@ -151,12 +359,14 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(screen.getByLabelText('Widget color')).toBeTruthy()
     expect(screen.getByLabelText('24-hour clock')).toBeTruthy()
     expect(screen.getByLabelText('Units')).toBeTruthy()
-    expect(screen.getByLabelText('Mute sounds')).toBeTruthy()
+    expect(screen.getByLabelText('Text size')).toBeTruthy()
+    expect(screen.getByLabelText('Timer completion sound')).toBeTruthy()
+    expect(screen.getByLabelText('Greeting helper')).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Background' })).toBeTruthy()
 
     // The other tabs' sections are UNMOUNTED, not hidden — the whole reason
     // this shell swaps children instead of toggling visibility.
-    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
+    expect(screen.queryByLabelText('Bookmarks')).toBeNull()
     expect(screen.queryByRole('region', { name: 'World clocks' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Countdowns' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
@@ -170,26 +380,62 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     openTab('Connectors')
 
     expect(screen.getByRole('region', { name: 'Connectors' })).toBeTruthy()
-    // The one shipped connector card (RSS), rendered from its registry
-    // descriptor — label, blurb, and its enable toggle.
+    // Registry-driven cards begin with a truthful setup action and no false
+    // visibility switch until configuration exists.
     expect(screen.getByRole('heading', { name: 'RSS' })).toBeTruthy()
-    expect(screen.getByLabelText('Enable RSS')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up RSS' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show RSS on Canvas' })).toBeNull()
+    expect(
+      screen.getByText('Connector details stay in this Chrome profile and are sent only to the services you choose.'),
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'How connector data is handled' })).toBeTruthy()
 
     expect(screen.queryByLabelText('Your name')).toBeNull()
-    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
+    expect(screen.queryByLabelText('Bookmarks')).toBeNull()
     expect(screen.queryByRole('region', { name: 'Data' })).toBeNull()
     expect(document.querySelector('footer')).toBeNull()
   })
 
-  it('the Widgets tab holds the toggles, world clocks, countdowns and Layout', async () => {
-    await renderPanel()
-    openTab('Widgets')
+  it('groups compact Widget toggles and keeps editor bodies closed until requested', async () => {
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
 
     expect(screen.getByRole('region', { name: 'Widgets' })).toBeTruthy()
-    expect(screen.getByLabelText('Bookmarks bar')).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'World clocks' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Countdowns' })).toBeTruthy()
+    const core = within(screen.getByRole('region', { name: 'Core' }))
+    const personal = within(screen.getByRole('region', { name: 'Personal' }))
+    const timeAndSky = within(screen.getByRole('region', { name: 'Time & sky' }))
+    expect(core.getAllByRole('switch')).toHaveLength(6)
+    for (const name of ['Search', 'Bookmarks', 'Quick links', 'Focus timer', 'Tasks', 'Notes']) {
+      expect(core.getByRole('switch', { name })).toBeTruthy()
+    }
+    expect(personal.getAllByRole('switch')).toHaveLength(4)
+    for (const name of ['Weather', 'Daily quote', 'Habits', 'Month calendar']) {
+      expect(personal.getByRole('switch', { name })).toBeTruthy()
+    }
+    expect(timeAndSky.getAllByRole('switch')).toHaveLength(4)
+    for (const name of ['World clocks', 'Countdown', 'Sun times', 'Moon phase']) {
+      expect(timeAndSky.getByRole('switch', { name })).toBeTruthy()
+    }
+    const browser = screen.getByRole('region', { name: 'Browser' })
+    expect(within(browser).getAllByRole('switch')).toHaveLength(4)
+    for (const name of ['Reading List', 'Recently Closed', 'Downloads', 'Tab Groups']) {
+      expect(within(browser).getByRole('switch', { name })).toBeTruthy()
+    }
+    const grids = document.querySelectorAll('[data-widget-toggle-grid]')
+    expect(grids).toHaveLength(4)
+    for (const grid of grids) {
+      expect(grid.className).toContain('grid-cols-1')
+      expect(grid.className).toContain('min-[900px]:grid-cols-2')
+    }
+    expect(screen.getByRole('button', { name: 'World clocks' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Countdowns' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'World clocks' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Countdowns' })).toBeNull()
     expect(screen.getByRole('region', { name: 'Layout' })).toBeTruthy()
+
+    const groups = document.querySelector('[data-widget-toggle-groups]')!
+    const editors = document.querySelector('[data-widget-editors]')!
+    expect(groups.compareDocumentPosition(editors) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
 
     expect(screen.queryByLabelText('Your name')).toBeNull()
     expect(screen.queryByRole('region', { name: 'Background' })).toBeNull()
@@ -202,14 +448,17 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
 
     expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull() // not on General
-    openTab('Widgets')
-    expect(screen.getByRole('region', { name: 'Weather' })).toBeTruthy()
+    await openWidgetsTabAndWaitForLayout(storage)
+    const disclosure = screen.getByRole('button', { name: 'Weather location' })
+    expect(screen.queryByRole('region', { name: 'Weather location' })).toBeNull()
+    fireEvent.click(disclosure)
+    expect(screen.getByRole('region', { name: 'Weather location' })).toBeTruthy()
   })
 
   it('the Data tab holds Data and the About footer', async () => {
@@ -221,7 +470,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(document.querySelector('footer')).not.toBeNull()
 
     expect(screen.queryByLabelText('Your name')).toBeNull()
-    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
+    expect(screen.queryByLabelText('Bookmarks')).toBeNull()
   })
 })
 
@@ -262,7 +511,7 @@ describe('SettingsPanel Widget color row', () => {
     await storage.set('settings', { ...defaults().settings, panelColor: '#12ab34' })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -281,36 +530,155 @@ describe('SettingsPanel Widget color row', () => {
   })
 })
 
+describe('SettingsPanel appearance inks (owner-approved 2026-08-18)', () => {
+  it('picking a widget text color writes it; an adequate pick shows no contrast warning', async () => {
+    const storage = await renderPanel()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Widget text'), { target: { value: '#ffffff' } })
+    })
+    await waitFor(async () => {
+      expect((await storage.get('settings')).widgetTextColor).toBe('#ffffff')
+    })
+    expect(screen.queryByTestId('widget-text-contrast-warning')).toBeNull()
+  })
+
+  it('a low-contrast widget text pick warns but is NOT blocked (the user owns the pick)', async () => {
+    const storage = await renderPanel()
+    await act(async () => {
+      // Dark gray on the default near-black panel: far below the 4.5 floor.
+      fireEvent.change(screen.getByLabelText('Widget text'), { target: { value: '#333333' } })
+    })
+    await waitFor(async () => {
+      expect((await storage.get('settings')).widgetTextColor).toBe('#333333')
+    })
+    expect(screen.getByTestId('widget-text-contrast-warning')).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reset widget text' }))
+    })
+    await waitFor(async () => {
+      expect((await storage.get('settings')).widgetTextColor).toBeNull()
+    })
+  })
+
+  it('a dark photo text pick warns about dark photos; a bright one does not', async () => {
+    const storage = await renderPanel()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Photo text'), { target: { value: '#112233' } })
+    })
+    await waitFor(async () => {
+      expect((await storage.get('settings')).photoTextColor).toBe('#112233')
+    })
+    expect(screen.getByTestId('photo-text-dark-warning')).toBeTruthy()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Photo text'), { target: { value: '#ffd700' } })
+    })
+    expect(screen.queryByTestId('photo-text-dark-warning')).toBeNull()
+  })
+
+  it('the per-element photo pickers write their own overrides', async () => {
+    const storage = await renderPanel()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Clock color'), { target: { value: '#ff69b4' } })
+      fireEvent.change(screen.getByLabelText('Quote color'), { target: { value: '#00ff88' } })
+    })
+    await waitFor(async () => {
+      const settings = await storage.get('settings')
+      expect(settings.photoClockColor).toBe('#ff69b4')
+      expect(settings.photoQuoteColor).toBe('#00ff88')
+      expect(settings.photoGreetingColor).toBeNull()
+    })
+  })
+})
+
 describe('SettingsPanel Weather section (clear-location control)', () => {
   it('is absent when no location is stored', async () => {
-    await renderPanel()
-    openTab('Widgets')
-    expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull()
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
+    expect(screen.queryByRole('button', { name: 'Weather location' })).toBeNull()
   })
 
   it('clearing the location resets both location and weatherCache', async () => {
-    const storage = createStorage(memoryDriver())
+    const driver = memoryDriver()
+    const write = vi.spyOn(driver, 'write')
+    const storage = createStorage(driver)
     await storage.init()
-    await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
+    await storage.set('location', { lat: 34, lon: -84.8, label: 'Dallas, GA', manual: true })
     await storage.set('weatherCache', {
       current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
       hourly: [],
       fetchedAt: Date.now(),
-      locationLabel: 'Springfield',
+      locationLabel: 'Dallas, GA',
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('Weather location')
 
-    const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
+    expect(await screen.findByText('Dallas, GA')).toBeTruthy()
+    const clearButton = screen.getByRole('button', { name: 'Clear Dallas, GA weather location' })
+    write.mockClear()
     await act(async () => {
       fireEvent.click(clearButton)
+      await Promise.resolve()
     })
 
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write).toHaveBeenCalledWith({ location: null, weatherCache: null, weatherAlertCache: null })
+    expect(await storage.get('location')).toBeNull()
+    expect(await storage.get('weatherCache')).toBeNull()
+    expect(await storage.get('weatherAlertCache')).toBeNull()
+  })
+
+  it('reports an atomic clear failure, preserves state, and permits retry', async () => {
+    const driver = memoryDriver()
+    const baseWrite = driver.write.bind(driver)
+    const storage = createStorage(driver)
+    await storage.init()
+    const location = { lat: 1, lon: 2, label: 'Springfield', manual: true }
+    await storage.setMany({
+      location,
+      weatherCache: {
+        current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+        hourly: [],
+        fetchedAt: Date.now(),
+        locationLabel: 'Springfield',
+      },
+    })
+    let failNext = true
+    driver.write = vi.fn(async (patch) => {
+      if (failNext) {
+        failNext = false
+        throw new Error('disk full')
+      }
+      await baseWrite(patch)
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Widgets')
+    openWidgetEditor('Weather location')
+
+    const clearButton = await screen.findByRole('button', { name: 'Clear Springfield weather location' })
+    await act(async () => {
+      fireEvent.click(clearButton)
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('alert').textContent).toContain('Could not clear weather location')
+    expect(clearButton.hasAttribute('disabled')).toBe(false)
+    expect(await storage.get('location')).toEqual(location)
+    expect(await storage.get('weatherCache')).not.toBeNull()
+
+    await act(async () => {
+      fireEvent.click(clearButton)
+      await Promise.resolve()
+    })
     expect(await storage.get('location')).toBeNull()
     expect(await storage.get('weatherCache')).toBeNull()
   })
@@ -325,7 +693,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(false)
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Bookmarks') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('false')
 
     await act(async () => {
@@ -344,7 +712,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockRejectedValue(new Error('gesture context lost'))
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Bookmarks') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
@@ -361,7 +729,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(true)
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Bookmarks') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
@@ -382,12 +750,12 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Bookmarks') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('true')
 
     await act(async () => {
@@ -400,7 +768,241 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
   })
 })
 
+describe('SettingsPanel Widgets section (browser-native permissions)', () => {
+  const cases = [
+    ['Reading List', 'readingList', 'readingList'],
+    ['Recently Closed', 'recentlyClosed', 'sessions'],
+    ['Downloads', 'downloads', 'downloads'],
+    ['Tab Groups', 'tabGroups', 'tabGroups'],
+  ] as const
+
+  beforeEach(() => {
+    vi.mocked(ensurePermission).mockReset()
+  })
+
+  it.each(cases)('requests only %s access and enables only after grant', async (label, key, permission) => {
+    vi.mocked(ensurePermission).mockResolvedValue(true)
+    const storage = await renderPanel()
+    openTab('Widgets')
+    const toggle = screen.getByLabelText(label) as HTMLButtonElement
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(ensurePermission).toHaveBeenCalledOnce()
+    expect(ensurePermission).toHaveBeenCalledWith(permission)
+    expect((await storage.get('settings')).widgets).toEqual({
+      ...defaults().settings.widgets,
+      [key]: true,
+    })
+  })
+
+  it.each(cases)('keeps %s off with feature-specific copy after denial', async (label, key) => {
+    vi.mocked(ensurePermission).mockResolvedValue(false)
+    const storage = await renderPanel()
+    openTab('Widgets')
+    const toggle = screen.getByLabelText(label) as HTMLButtonElement
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect((await storage.get('settings')).widgets[key]).toBe(false)
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(label)
+    expect(toggle.getAttribute('aria-describedby')).toBe(alert.id)
+  })
+
+  it('keeps the selected browser widget off when the permission request rejects', async () => {
+    vi.mocked(ensurePermission).mockRejectedValueOnce(new Error('permission request failed'))
+    const storage = await renderPanel()
+    openTab('Widgets')
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Downloads'))
+    })
+
+    expect((await storage.get('settings')).widgets).toEqual(defaults().settings.widgets)
+    expect((await screen.findByRole('alert')).textContent).toContain('Downloads')
+  })
+
+  it('turns a browser widget off without requesting permission again', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, tabGroups: true },
+    })
+    await renderPanel(storage)
+    openTab('Widgets')
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Tab Groups'))
+    })
+
+    expect(ensurePermission).not.toHaveBeenCalled()
+    expect((await storage.get('settings')).widgets.tabGroups).toBe(false)
+  })
+})
+
 describe('SettingsPanel Data section (export/import backup)', () => {
+  it('keeps one export operation rendered, busy, described, and duplicate-safe through success', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const snapshotGate = deferred<AuroraData>()
+    const snapshot = vi.spyOn(storage, 'snapshot').mockReturnValue(snapshotGate.promise)
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:backup') as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      await renderPanel(storage)
+      openTab('Data')
+      const exportButton = screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement
+      expectLocalRoutineTarget(exportButton)
+
+      act(() => {
+        fireEvent.click(exportButton)
+        fireEvent.click(exportButton)
+      })
+
+      expect(snapshot).toHaveBeenCalledTimes(1)
+      expect(exportButton.disabled).toBe(true)
+      expect(attr(exportButton, 'aria-busy')).toBe('true')
+      const pendingId = attr(exportButton, 'aria-describedby')
+      expect(pendingId).toBeTruthy()
+      expect(document.getElementById(pendingId!)?.getAttribute('role')).toBe('status')
+      expect(document.getElementById(pendingId!)?.getAttribute('aria-atomic')).toBe('true')
+      expect(document.getElementById(pendingId!)?.textContent).toBe('Creating backup…')
+
+      await act(async () => {
+        snapshotGate.resolve(defaults())
+        await snapshotGate.promise
+        await Promise.resolve()
+      })
+
+      expect(exportButton.disabled).toBe(false)
+      expect(attr(exportButton, 'aria-busy')).toBeNull()
+      expect(screen.getByRole('status').textContent).toBe('Backup downloaded.')
+      expect(screen.queryByRole('alert')).toBeNull()
+    } finally {
+      URL.createObjectURL = originalCreate
+      URL.revokeObjectURL = originalRevoke
+      clickSpy.mockRestore()
+    }
+  })
+
+  it('a held export excludes restore and file selection without replacing its active feedback', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const snapshotGate = deferred<AuroraData>()
+    const snapshot = vi.spyOn(storage, 'snapshot').mockReturnValue(snapshotGate.promise)
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:backup') as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      await renderPanel(storage)
+      openTab('Data')
+      const input = screen.getByLabelText('Import backup') as HTMLInputElement
+      const firstFile = new File([serializeBackup(defaults())], 'first.json', { type: 'application/json' })
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [firstFile] } })
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      const confirm = await screen.findByRole('button', { name: 'Confirm restore' }) as HTMLButtonElement
+      const cancel = screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement
+      const exportButton = screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement
+      const replacement = new File(['not json'], 'replacement.json', { type: 'application/json' })
+
+      act(() => {
+        fireEvent.click(exportButton)
+        fireEvent.click(confirm)
+        fireEvent.change(input, { target: { files: [replacement] } })
+      })
+
+      expect(snapshot).toHaveBeenCalledTimes(1)
+      expect(replaceAll).not.toHaveBeenCalled()
+      expect(exportButton.disabled).toBe(true)
+      expect(confirm.disabled).toBe(true)
+      expect(cancel.disabled).toBe(true)
+      expect(input.disabled).toBe(true)
+      expect(screen.getByRole('status').textContent).toBe('Creating backup…')
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.getByText(/Replace current data\?/)).toBeTruthy()
+
+      await act(async () => {
+        snapshotGate.resolve(defaults())
+        await snapshotGate.promise
+        await Promise.resolve()
+      })
+    } finally {
+      URL.createObjectURL = originalCreate
+      URL.revokeObjectURL = originalRevoke
+      clickSpy.mockRestore()
+    }
+  })
+
+  it('a held restore excludes export and file selection without replacing its active feedback', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const replace = storage.replaceAllWithRollback.bind(storage)
+    const started = deferred<void>()
+    const allow = deferred<void>()
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback').mockImplementation(async <T,>(
+      next: AuroraData,
+      finalize: (previous: AuroraData) => Promise<T>,
+    ) => {
+      started.resolve()
+      await allow.promise
+      return replace(next, finalize)
+    })
+    const snapshot = vi.spyOn(storage, 'snapshot')
+    await renderPanel(storage)
+    openTab('Data')
+    const input = screen.getByLabelText('Import backup') as HTMLInputElement
+    const firstFile = new File([serializeBackup(defaults())], 'first.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [firstFile] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const confirm = await screen.findByRole('button', { name: 'Confirm restore' })
+    const exportButton = screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement
+    const replacement = new File(['not json'], 'replacement.json', { type: 'application/json' })
+
+    act(() => {
+      fireEvent.click(confirm)
+      fireEvent.click(exportButton)
+      fireEvent.change(input, { target: { files: [replacement] } })
+    })
+    await started.promise
+
+    const restoring = screen.getByRole('button', { name: 'Restoring...' }) as HTMLButtonElement
+    const cancel = screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement
+    expect(replaceAll).toHaveBeenCalledTimes(1)
+    expect(snapshot).not.toHaveBeenCalled()
+    expect(restoring.disabled).toBe(true)
+    expect(exportButton.disabled).toBe(true)
+    expect(cancel.disabled).toBe(true)
+    expect(input.disabled).toBe(true)
+    expect(screen.getByRole('status').textContent).toBe('Restoring backup…')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText(/Replace current data\?/)).toBeTruthy()
+
+    await act(async () => {
+      allow.resolve()
+      await Promise.resolve()
+    })
+  })
+
   it('export builds a parseable envelope via a Blob + object URL', async () => {
     let capturedBlob: Blob | null = null
     // jsdom doesn't implement URL.createObjectURL/revokeObjectURL at all
@@ -423,7 +1025,21 @@ describe('SettingsPanel Data section (export/import backup)', () => {
 
     const storage = await renderPanel()
     openTab('Data')
-    await storage.set('links', [{ id: '1', title: 'HN', url: 'https://news.ycombinator.com' }])
+    await act(async () => {
+      await storage.set('links', [{ id: '1', title: 'HN', url: 'https://news.ycombinator.com' }])
+      await storage.set('connectors', {
+        rss: {
+          enabled: true,
+          feeds: ['https://rss.example.com/feed.xml?token=rss-private'],
+          shownCount: 5,
+        },
+        ics: {
+          enabled: true,
+          calendars: [{ name: 'Private', url: 'https://calendar.example.com/private.ics?token=ics-private' }],
+        },
+      })
+    })
+    const snapshot = vi.spyOn(storage, 'snapshot')
 
     const exportButton = await screen.findByRole('button', { name: 'Export' })
     await act(async () => {
@@ -431,7 +1047,13 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     })
 
     expect(capturedBlob).not.toBeNull()
+    expect(snapshot).toHaveBeenCalledTimes(1)
     const text = await (capturedBlob as unknown as Blob).text()
+    expect(text).not.toContain('rss-private')
+    expect(text).not.toContain('ics-private')
+    expect(text).not.toContain('rss.example.com')
+    expect(text).not.toContain('calendar.example.com')
+    expect(text).toContain(BACKUP_REDACTION_NOTICE)
     const result = parseBackup(text)
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -447,7 +1069,10 @@ describe('SettingsPanel Data section (export/import backup)', () => {
   })
 
   it('import happy path: parses, shows a confirm summary, and writes storage on confirm', async () => {
-    const storage = await renderPanel()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
+    await renderPanel(storage)
     openTab('Data')
     const backupData = {
       ...defaults(),
@@ -471,7 +1096,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
       await Promise.resolve()
     })
 
-    const confirmButton = await screen.findByRole('button', { name: 'Confirm' })
+    const confirmButton = await screen.findByRole('button', { name: 'Confirm restore' })
     expect(screen.getByText(/Replace current data\?/)).toBeTruthy()
     expect(screen.getByText(/2026-07-20/)).toBeTruthy()
 
@@ -482,11 +1107,21 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect(await storage.get('links')).toEqual([
       { id: 'a', title: 'Example', url: 'https://example.com' },
     ])
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+    expect(replaceAll).toHaveBeenCalledTimes(1)
+    expect(replaceAll).toHaveBeenCalledWith(expect.objectContaining({
+      links: [{ id: 'a', title: 'Example', url: 'https://example.com' }],
+      connectorSnapshots: {},
+      apodCache: null,
+    }), expect.any(Function))
+    expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Backup restored')
   })
 
   it('malformed import shows the rejection reason inline and writes nothing', async () => {
-    const storage = await renderPanel()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
+    await renderPanel(storage)
     openTab('Data')
     const before = await storage.get('links')
     const file = new File(['not json at all {'], 'broken.json', { type: 'application/json' })
@@ -501,8 +1136,31 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     const error = await screen.findByText("That file isn't valid JSON.")
     expect(error.getAttribute('role')).toBe('alert')
     expect(input.getAttribute('aria-describedby')).toBe(error.id)
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
     expect(await storage.get('links')).toEqual(before)
+    expect(replaceAll).not.toHaveBeenCalled()
+  })
+
+  it('backup file read failure offers no Confirm and calls neither permissions nor storage replacement', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
+    vi.mocked(ensureOrigins).mockClear()
+    await renderPanel(storage)
+    openTab('Data')
+    const file = new File(['private unreadable contents'], 'unreadable.json', { type: 'application/json' })
+    vi.spyOn(file, 'text').mockRejectedValue(new Error('private file boundary'))
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('alert').textContent).toBe('Aurora could not read that backup file. Choose it again or try another file.')
+    expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
+    expect(ensureOrigins).not.toHaveBeenCalled()
+    expect(replaceAll).not.toHaveBeenCalled()
   })
 
   it('a shape-invalid backup (envelope is fine, a key is hand-edited garbage) is rejected before Confirm is offered', async () => {
@@ -533,8 +1191,358 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     })
 
     expect(await screen.findByText('That backup\'s "links" data is invalid.')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
     expect(await storage.get('links')).toEqual(before)
+  })
+
+  it('backup restore denial retains confirmation and exposes a reachable Retry restore that can later succeed', async () => {
+    cleanupHeld.clear()
+    vi.mocked(ensureOrigin).mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const storage = await renderPanel()
+    openTab('Data')
+    const restored = {
+      ...defaults(),
+      photoPrefs: { mode: 'apod', index: 0, lastRotated: '' } as const,
+    }
+    const file = new File([serializeBackup(restored)], 'restore.json', { type: 'application/json' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('This restore needs access to 2 configured sites. Chrome will ask for any missing access when you confirm.')).toBeTruthy()
+    const confirm = await screen.findByRole('button', { name: 'Confirm restore' })
+    await act(async () => {
+      fireEvent.click(confirm)
+    })
+
+    expect(screen.getByRole('alert').textContent).toContain('Chrome did not grant the site access')
+    const retry = screen.getByRole('button', { name: 'Retry restore' })
+    expect(attr(retry, 'aria-describedby')).toBe(screen.getByRole('alert').id)
+    expectLocalRoutineTarget(retry)
+    expect((await storage.get('photoPrefs')).mode).toBe('auto')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry restore' }))
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('apod')
+    expect(screen.getByRole('status').textContent).toContain('Backup restored')
+    expect(screen.queryByRole('button', { name: 'Retry restore' })).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('backup restore exposes disabled Restoring status while the atomic replace is pending', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const replace = storage.replaceAllWithRollback.bind(storage)
+    const started = deferred<void>()
+    const allow = deferred<void>()
+    let replaceAllCalls = 0
+    storage.replaceAllWithRollback = async <T,>(
+      next: AuroraData,
+      finalize: (previous: AuroraData) => Promise<T>,
+    ) => {
+      replaceAllCalls += 1
+      started.resolve()
+      await allow.promise
+      return replace(next, finalize)
+    }
+    await renderPanel(storage)
+    openTab('Data')
+    const file = new File([serializeBackup(defaults())], 'pending.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const confirm = await screen.findByRole('button', { name: 'Confirm restore' })
+    expectLocalRoutineTarget(confirm)
+    expectLocalRoutineTarget(screen.getByRole('button', { name: 'Cancel' }))
+    expectLocalRoutineTarget(screen.getByLabelText('Import backup'))
+    act(() => {
+      fireEvent.click(confirm)
+      fireEvent.click(confirm)
+    })
+    await started.promise
+
+    const pending = screen.getByRole('button', { name: 'Restoring...' }) as HTMLButtonElement
+    expect(pending.disabled).toBe(true)
+    expect(attr(pending, 'aria-busy')).toBe('true')
+    const pendingId = attr(pending, 'aria-describedby')
+    expect(pendingId).toBeTruthy()
+    expect(document.getElementById(pendingId!)?.getAttribute('role')).toBe('status')
+    expect(document.getElementById(pendingId!)?.getAttribute('aria-atomic')).toBe('true')
+    expect(document.getElementById(pendingId!)?.textContent).toBe('Restoring backup…')
+    expect(replaceAllCalls).toBe(1)
+    await act(async () => {
+      allow.resolve()
+      await Promise.resolve()
+    })
+    expect(await screen.findByRole('status')).toBeTruthy()
+  })
+
+  it('backup confirmation uses registry labels for exact re-entry and a generic warning for ambiguous legacy calendars', async () => {
+    await renderPanel()
+    openTab('Data')
+    const exact = new File([JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      exportedAt: '2026-08-14T12:00:00.000Z',
+      redactions: { reentryRequired: ['github'], notice: BACKUP_REDACTION_NOTICE },
+      data: {
+        ...defaults(),
+        connectors: { github: { enabled: true, username: 'untrusted.example/token' } },
+      },
+    })], 'exact.json', { type: 'application/json' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [exact] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('Re-enter connection details after restore: GitHub.')).toBeTruthy()
+    expect(screen.getByText('This restore needs access to 0 configured sites. Chrome will ask for any missing access when you confirm.')).toBeTruthy()
+    expect(screen.queryByText(/untrusted\.example/)).toBeNull()
+
+    const legacy = new File([JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      data: { ...defaults(), connectors: { ics: { enabled: true } } },
+    })], 'legacy.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [legacy] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('This older backup may omit connection details. Review connector settings and re-enter anything missing.')).toBeTruthy()
+    expect(screen.queryByText('Re-enter connection details after restore: Calendar.')).toBeNull()
+  })
+
+  it('backup rollback failure renders distinct fatal recovery copy and retains Retry restore', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    vi.spyOn(storage, 'replaceAllWithRollback').mockRejectedValue(
+      new AtomicRestoreRollbackError(new Error('private primary'), new Error('private rollback')),
+    )
+    await renderPanel(storage)
+    openTab('Data')
+    const file = new File([serializeBackup({
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Imported' },
+    })], 'fatal.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirm restore' }))
+    })
+
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain('could not verify recovery')
+    expect(alert.textContent).not.toContain('left unchanged')
+    expect(alert.textContent).not.toContain('private')
+    expect(screen.getByRole('button', { name: 'Retry restore' })).toBeTruthy()
+  })
+
+  it('backup revoke failure still commits, keeps Settings cleanup across a tab round trip, and Retry rechecks fresh ownership', async () => {
+    const origin = 'https://old-backup-owner.example.com/*'
+    cleanupHeld.clear()
+    holdOrigin(origin)
+    vi.mocked(removeOrigin).mockRejectedValueOnce(new Error('private revoke failure'))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      rss: { enabled: false, feeds: ['https://old-backup-owner.example.com/feed'], shownCount: 5 },
+    })
+    await renderPanel(storage)
+    openTab('Data')
+    const file = new File([serializeBackup({
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Committed restore' },
+    })], 'cleanup.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirm restore' }))
+    })
+
+    expect((await storage.get('settings')).name).toBe('Committed restore')
+    expect(screen.getByRole('status').textContent).toContain('Backup restored')
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('General')
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+    openTab('Data')
+    await act(async () => {
+      await storage.set('connectors', {
+        status: {
+          enabled: false,
+          services: [{ name: 'New owner', url: 'https://old-backup-owner.example.com/status.json' }],
+        },
+      })
+    })
+    vi.mocked(removeOrigin).mockClear()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(vi.mocked(removeOrigin)).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+    expect(cleanupHeld.has(origin)).toBe(true)
+  })
+
+  it.each([
+    ['failed', 'That backup could not be restored'],
+    ['access-lost', 'Chrome site access changed'],
+  ] as const)('keeps %s restore cleanup in the stable Settings alert and Retry rechecks fresh ownership', async (failureMode, expectedCopy) => {
+    const origin = 'https://failed-settings-cleanup.example.com/*'
+    cleanupHeld.clear()
+    vi.mocked(ensureOrigin).mockReset().mockResolvedValue(true)
+    vi.mocked(removeOrigin).mockReset().mockRejectedValue(new Error('private failure-side revoke error'))
+
+    const previous: AuroraData = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Before failed restore' },
+    }
+    let storage: AuroraStorage
+    if (failureMode === 'failed') {
+      const base = memoryDriver({ ...previous })
+      let fullWriteCalls = 0
+      const knownKeys = Object.keys(defaults())
+      const driver: StorageDriver = {
+        read: (keys) => base.read(keys),
+        write: async (patch) => {
+          if (knownKeys.every((key) => key in patch) && ++fullWriteCalls === 1) {
+            throw new Error('injected target write failure')
+          }
+          await base.write(patch)
+        },
+        onChanged: (listener) => base.onChanged(listener),
+      }
+      storage = createStorage(driver, createInProcessStorageAuthority())
+    } else {
+      storage = createStorage(memoryDriver({ ...previous }))
+      vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+        origins.forEach((pattern) => holdOrigin(pattern))
+        origins.forEach((pattern) => cleanupHeld.delete(pattern))
+        cleanupRemovedListeners.forEach((listener) => listener({ origins: [...origins] }))
+        return true
+      })
+    }
+
+    await renderPanel(storage)
+    openTab('Data')
+    const file = new File([serializeBackup({
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Must not commit' },
+      connectors: {
+        status: {
+          enabled: false,
+          services: [{ name: 'Failed restore', url: 'https://failed-settings-cleanup.example.com/status.json' }],
+        },
+      },
+    })], `${failureMode}.json`, { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirm restore' }))
+    })
+
+    expect((await storage.get('settings')).name).toBe('Before failed restore')
+    expect(vi.mocked(removeOrigin)).toHaveBeenCalledWith(origin)
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes(expectedCopy))).toBe(true)
+    expect(screen.getByRole('button', { name: 'Retry restore' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('General')
+    const cleanupAlert = screen.getByRole('alert')
+    expect(cleanupAlert.textContent).toBe('A site permission could not be removed yet. Aurora will keep it only until cleanup succeeds.Retry permission cleanup')
+    await act(async () => {
+      await storage.set('connectors', {
+        status: {
+          enabled: false,
+          services: [{ name: 'Fresh owner', url: 'https://failed-settings-cleanup.example.com/status.json' }],
+        },
+      })
+    })
+    vi.mocked(removeOrigin).mockClear()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(vi.mocked(removeOrigin)).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
+
+  it('backup export failure creates no download and renders one safe inline alert', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    vi.spyOn(storage, 'snapshot').mockRejectedValue(new Error('private export failure'))
+    const originalCreate = URL.createObjectURL
+    URL.createObjectURL = vi.fn() as typeof URL.createObjectURL
+    await renderPanel(storage)
+    openTab('Data')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    })
+
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert').textContent).toBe('Aurora could not create the backup file. Try again.')
+    expect(screen.getByRole('alert').textContent).not.toContain('private')
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+    URL.createObjectURL = originalCreate
+  })
+})
+
+describe('SettingsPanel Background section (bundled photo selection)', () => {
+  it('shows every bundled photo with one accessible selected state', async () => {
+    await renderPanel()
+
+    const gallery = screen.getByRole('group', { name: 'Bundled photos' })
+    const choices = within(gallery).getAllByRole('button')
+    expect(choices).toHaveLength(BUNDLED.length)
+    expect(choices.filter((choice) => attr(choice, 'aria-pressed') === 'true')).toHaveLength(1)
+    expect(screen.getByRole('switch', { name: 'Keep this background' }).getAttribute('aria-checked')).toBe('false')
+    expect(within(gallery).getByText(BUNDLED[0]!.photographer)).toBeTruthy()
+  })
+
+  it('selects and locks a bundled photo, then unlocks without changing it immediately', async () => {
+    const storage = await renderPanel()
+    const selectedIndex = 2
+    const choice = screen.getByRole('button', { name: `Use ${BUNDLED[selectedIndex]!.label}` })
+
+    fireEvent.click(choice)
+    await waitFor(async () => {
+      expect(await storage.get('photoPrefs')).toMatchObject({
+        mode: 'auto',
+        index: selectedIndex,
+        lastRotated: readLocalDay().key,
+        locked: true,
+      })
+    })
+    expect(choice.getAttribute('aria-pressed')).toBe('true')
+    const lock = screen.getByRole('switch', { name: 'Keep this background' })
+    expect(lock.getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.click(lock)
+    await waitFor(async () => {
+      expect(await storage.get('photoPrefs')).toMatchObject({ index: selectedIndex, locked: false })
+    })
   })
 })
 
@@ -577,7 +1585,7 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     await storage.set('photoPrefs', { mode: 'upload', index: 0, lastRotated: '' })
     const { unmount } = render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -611,6 +1619,63 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     expect((await storage.get('photoPrefs')).uploadedAt).toBeTruthy()
   })
 
+  it('an upload completing after another context selects APOD releases the now-unowned NASA grants and reports retryable cleanup', async () => {
+    const restoreLocks = installQueuedLifecycleLocks()
+    const uploadGate = deferred<void>()
+    vi.mocked(addUploads).mockReturnValue(uploadGate.promise)
+    vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+      origins.forEach(holdOrigin)
+      return true
+    })
+    vi.mocked(removeOrigin)
+      .mockReset()
+      .mockRejectedValueOnce(new Error('one-shot remove failure'))
+      .mockImplementation(removeHeldOrigin)
+
+    try {
+      const { storage } = await renderPanelInUploadMode()
+      await storage.set('apodCache', {
+        date: '2026-08-14',
+        photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+      })
+      const file = new File(['a'], 'a.png', { type: 'image/png' })
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Image files'), { target: { files: [file] } })
+      })
+      expect(addUploads).toHaveBeenCalledWith([file])
+
+      await act(async () => {
+        await runOriginTransaction(storage, APOD_ORIGINS, async () => {
+          await storage.update('photoPrefs', (prefs) => ({ ...prefs, mode: 'apod' }))
+          return { ok: true, value: undefined, ownerCommitted: true }
+        })
+      })
+      expect((await storage.get('photoPrefs')).mode).toBe('apod')
+
+      await act(async () => {
+        uploadGate.resolve()
+        await flushAsyncWork()
+      })
+
+      expect((await storage.get('photoPrefs')).mode).toBe('upload')
+      expect(await storage.get('apodCache')).toBeNull()
+      const apodPatterns = APOD_ORIGINS.map(originPattern)
+      expect(cleanupHeld.has(apodPatterns[0]!)).toBe(true)
+      expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+      expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+      })
+
+      expect(apodPatterns.some((pattern) => cleanupHeld.has(pattern))).toBe(false)
+      expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+    } finally {
+      restoreLocks()
+    }
+  })
+
   it('renders one thumbnail per upload from the mocked gallery', async () => {
     vi.mocked(listUploads).mockResolvedValue([
       { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
@@ -628,6 +1693,23 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     // restores the (jsdom-absent) original before RTL's automatic
     // post-test cleanup would otherwise unmount it — see Background.test.tsx.
     unmount()
+  })
+
+  it('keeps each narrow 36px gallery remove endpoint inside its thumbnail instead of protruding past the scrollable drawer edge', async () => {
+    vi.mocked(listUploads).mockResolvedValue([
+      { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
+    ])
+    const { unmount } = await renderPanelInUploadMode()
+    try {
+      const remove = await screen.findByRole('button', { name: 'Remove photo 1' })
+      expect(remove.className).toContain('max-[420px]:size-9')
+      expect(remove.className).toContain('max-[420px]:right-0')
+      expect(remove.className).toContain('max-[420px]:top-0')
+      expect(remove.className).not.toContain('max-[420px]:-right-2')
+      expect(remove.className).not.toContain('max-[420px]:-top-2')
+    } finally {
+      unmount()
+    }
   })
 
   it('a gallery tile renders the THUMB object URL, not the full photo, when a thumb exists', async () => {
@@ -749,14 +1831,23 @@ describe('SettingsPanel Background section (upload gallery)', () => {
   })
 })
 
-describe('SettingsPanel Background section (APOD source — Task 96)', () => {
+describe('SettingsPanel Background section (APOD source — Task 4)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigins).mockReset()
-    vi.mocked(removeOrigin).mockReset().mockResolvedValue(undefined)
+    vi.mocked(removeOrigin).mockReset().mockResolvedValue(false)
   })
 
   function sourceSelect() {
     return screen.getByLabelText('Source') as HTMLSelectElement
+  }
+
+  const apodPatterns = APOD_ORIGINS.map(originPattern)
+
+  function grantRequestedOrigins() {
+    vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+      origins.forEach(holdOrigin)
+      return true
+    })
   }
 
   it('lists "NASA photo of the day" after Gradient', async () => {
@@ -766,28 +1857,52 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     expect(sourceSelect().options[3]!.textContent).toBe('NASA photo of the day')
   })
 
-  it('selecting apod calls ensureOrigins(APOD_ORIGINS) synchronously, before any await settles', async () => {
-    vi.mocked(ensureOrigins).mockResolvedValue(true)
-    await renderPanel()
-    const select = sourceSelect()
-
-    // Deliberately NOT wrapped in `act(async () => {})`: if the handler
-    // awaited anything BEFORE ensureOrigins, this synchronous assertion
-    // would fail, because the mock call wouldn't have landed yet. This is
-    // the gesture-chain discipline Switch.tsx's own doc comment describes
-    // ("do not make this handler async" in spirit — here the handler IS
-    // async, but ensureOrigins must still be the first await in it).
-    act(() => {
-      fireEvent.change(select, { target: { value: 'apod' } })
+  it('queues the lifecycle lock then requests both APOD origins in the initiating change before the lock callback starts', async () => {
+    const order: string[] = []
+    let openLock!: () => void
+    const lockGate = new Promise<void>((resolve) => { openLock = resolve })
+    const originalLocks = navigator.locks
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: (_name: string, _options: unknown, work: () => Promise<unknown>) => {
+          order.push('lock-queued')
+          return lockGate.then(async () => {
+            order.push('lock-callback')
+            return work()
+          })
+        },
+      },
     })
-    expect(ensureOrigins).toHaveBeenCalledWith(APOD_ORIGINS)
+    vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+      order.push('request')
+      origins.forEach(holdOrigin)
+      return true
+    })
 
-    // Flush the pending resolution + save so nothing leaks into the next test.
-    await act(async () => {})
+    try {
+      const storage = await renderPanel()
+      act(() => {
+        fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
+      })
+
+      expect(order).toEqual(['lock-queued', 'request'])
+      expect(ensureOrigins).toHaveBeenCalledWith(apodPatterns)
+
+      await act(async () => {
+        openLock()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect((await storage.get('photoPrefs')).mode).toBe('apod')
+      expect(cleanupHeld).toEqual(new Set(apodPatterns))
+    } finally {
+      Object.defineProperty(navigator, 'locks', { configurable: true, value: originalLocks })
+    }
   })
 
   it('granting the permission saves apod mode and shows no alert', async () => {
-    vi.mocked(ensureOrigins).mockResolvedValue(true)
+    grantRequestedOrigins()
     const storage = await renderPanel()
     const select = sourceSelect()
 
@@ -800,9 +1915,16 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('denying the permission leaves the mode unwritten, the select reverted, and shows the pinned alert', async () => {
+  it('denial leaves the prior mode and APOD cache untouched, with the controlled-select alert', async () => {
     vi.mocked(ensureOrigins).mockResolvedValue(false)
-    const storage = await renderPanel()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const cache = {
+      date: '2026-08-13',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    }
+    await storage.set('apodCache', cache)
+    await renderPanel(storage)
     const select = sourceSelect()
 
     await act(async () => {
@@ -811,6 +1933,7 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
 
     expect(select.value).toBe('auto')
     expect((await storage.get('photoPrefs')).mode).toBe('auto')
+    expect(await storage.get('apodCache')).toEqual(cache)
     const error = await screen.findByRole('alert')
     expect(error.id).toBe('bg-apod-error')
     expect(error.textContent).toBe(
@@ -821,9 +1944,49 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     expect(select.getAttribute('aria-describedby')).toBe('bg-apod-error')
   })
 
-  it('a rejected ensureOrigins (not just an explicit false) is caught and routed to the same alert', async () => {
+  it('reports access changed, not denial, when a queued APOD transaction loses its click-time grants to a release', async () => {
+    const restoreLocks = installQueuedLifecycleLocks()
+    const { started, allow } = deferPermissionRemovals()
+    const apodPatterns = APOD_ORIGINS.map(originPattern)
+    apodPatterns.forEach(holdOrigin)
+    let release: ReturnType<typeof releaseUnownedOrigins> | undefined
+
+    try {
+      const storage = await renderPanel()
+      release = releaseUnownedOrigins(storage, APOD_ORIGINS)
+      await started.promise
+
+      act(() => {
+        fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
+      })
+      expect(ensureOrigins).not.toHaveBeenCalled()
+
+      await act(async () => {
+        allow.resolve()
+        await release
+      })
+
+      expect((await storage.get('photoPrefs')).mode).toBe('auto')
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'Access changed before saving. Please try again.',
+      )
+    } finally {
+      allow.resolve()
+      await release?.catch(() => undefined)
+      restoreLocks()
+    }
+  })
+
+  it('a rejected APOD request leaves the mode and cache untouched', async () => {
     vi.mocked(ensureOrigins).mockRejectedValue(new Error('gesture context lost'))
-    const storage = await renderPanel()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const cache = {
+      date: '2026-08-13',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    }
+    await storage.set('apodCache', cache)
+    await renderPanel(storage)
     const select = sourceSelect()
 
     await act(async () => {
@@ -831,7 +1994,63 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     })
 
     expect((await storage.get('photoPrefs')).mode).toBe('auto')
+    expect(await storage.get('apodCache')).toEqual(cache)
     expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+
+  it('rolls back both newly acquired APOD origins when authoritative photo preference persistence rejects', async () => {
+    const driver = memoryDriver()
+    let rejectPhotoPrefs = false
+    const storage = createStorage({
+      ...driver,
+      write: async (patch) => {
+        if (rejectPhotoPrefs && 'photoPrefs' in patch) throw new Error('photo prefs write failed')
+        await driver.write(patch)
+      },
+    })
+    await storage.init()
+    rejectPhotoPrefs = true
+    grantRequestedOrigins()
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(storage)
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('auto')
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
+  })
+
+  it('keeps the pre-existing APOD API permission while rolling back only the newly acquired image origin after persistence rejects', async () => {
+    const driver = memoryDriver()
+    let rejectPhotoPrefs = false
+    const storage = createStorage({
+      ...driver,
+      write: async (patch) => {
+        if (rejectPhotoPrefs && 'photoPrefs' in patch) throw new Error('photo prefs write failed')
+        await driver.write(patch)
+      },
+    })
+    await storage.init()
+    holdOrigin(apodPatterns[0]!)
+    rejectPhotoPrefs = true
+    grantRequestedOrigins()
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(storage)
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
+    })
+
+    expect(ensureOrigins).toHaveBeenCalledWith([apodPatterns[1]!])
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(true)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(removeOrigin).not.toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
   })
 
   it('a later successful source change clears the apod alert', async () => {
@@ -850,7 +2069,7 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('switching away from apod clears the cache and releases both origins when nothing else holds them', async () => {
+  it('switching away from APOD clears its cache and releases both unowned origins', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
@@ -860,7 +2079,7 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -873,31 +2092,132 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
 
     expect((await storage.get('photoPrefs')).mode).toBe('gradient')
     expect(await storage.get('apodCache')).toBeNull()
-    expect(removeOrigin).toHaveBeenCalledWith('https://api.nasa.gov/')
-    expect(removeOrigin).toHaveBeenCalledWith('https://apod.nasa.gov/')
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
   })
 
-  it('switching away from apod keeps an origin a still-enabled connector holds', async () => {
+  it('uses the authoritative APOD mode for exit cleanup when the rendered source value is stale', async () => {
+    const authoritativeStorage = createStorage(memoryDriver())
+    await authoritativeStorage.init()
+    await authoritativeStorage.set('apodCache', {
+      date: '2026-08-13',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    })
+    const stalePanelStorage: AuroraStorage = {
+      ...authoritativeStorage,
+      subscribe(key, callback) {
+        return key === 'photoPrefs' ? () => {} : authoritativeStorage.subscribe(key, callback)
+      },
+    }
+    apodPatterns.forEach(holdOrigin)
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(stalePanelStorage)
+    expect(sourceSelect().value).toBe('auto')
+
+    await authoritativeStorage.update('photoPrefs', (prefs) => ({ ...prefs, mode: 'apod' }))
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
+    })
+
+    expect((await authoritativeStorage.get('photoPrefs')).mode).toBe('gradient')
+    expect(await authoritativeStorage.get('apodCache')).toBeNull()
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
+  })
+
+  it('leaving APOD preserves an API origin claimed by a disabled configured connector, then releases it after that final owner disappears', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
     await storage.set('connectors', {
-      rss: { enabled: true, feeds: ['https://apod.nasa.gov/rss.xml'], shownCount: 5 },
+      rss: { enabled: false, feeds: ['https://api.nasa.gov/planetary/apod'], shownCount: 5 },
     })
-    render(
-      <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
-      </StorageProvider>,
-    )
-    await screen.findByLabelText('Your name')
-    const select = sourceSelect()
+    apodPatterns.forEach(holdOrigin)
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(storage)
 
     await act(async () => {
-      fireEvent.change(select, { target: { value: 'gradient' } })
+      fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
     })
 
-    expect(removeOrigin).toHaveBeenCalledWith('https://api.nasa.gov/')
-    expect(removeOrigin).not.toHaveBeenCalledWith('https://apod.nasa.gov/')
+    expect((await storage.get('photoPrefs')).mode).toBe('gradient')
+    expect(removeOrigin).not.toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(true)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+
+    await act(async () => {
+      await storage.update('connectors', () => ({}))
+    })
+    await expect(releaseUnownedOrigins(storage, [APOD_ORIGINS[0]])).resolves.toEqual({
+      released: [apodPatterns[0]],
+      pending: [],
+    })
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+  })
+
+  it('commits the selected non-APOD mode when revoke rejects, retains Settings-level retry, and clears it after retry succeeds', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
+    apodPatterns.forEach(holdOrigin)
+    vi.mocked(removeOrigin)
+      .mockRejectedValueOnce(new Error('remove failed'))
+      .mockImplementation(removeHeldOrigin)
+    await renderPanel(storage)
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('gradient')
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(true)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('Data')
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
+
+  it('still releases APOD origins when the ancillary cache clear fails', async () => {
+    const driver = memoryDriver()
+    let rejectCache = false
+    const storage = createStorage({
+      ...driver,
+      write: async (patch) => {
+        if (rejectCache && 'apodCache' in patch) throw new Error('cache write failed')
+        await driver.write(patch)
+      },
+    })
+    await storage.init()
+    await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
+    await storage.set('apodCache', {
+      date: '2026-08-13',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    })
+    rejectCache = true
+    apodPatterns.forEach(holdOrigin)
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(storage)
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('gradient')
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(await storage.get('apodCache')).not.toBeNull()
   })
 
   it('switching between two non-apod modes never touches ensureOrigins/removeOrigin', async () => {
@@ -922,6 +2242,7 @@ describe('SettingsPanel World clocks section', () => {
   it('typing a zone defaults the label to its city segment; submitting persists both and resets the form', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('World clocks')
     const zoneInput = screen.getByLabelText('Time zone') as HTMLInputElement
 
     await act(async () => {
@@ -941,6 +2262,7 @@ describe('SettingsPanel World clocks section', () => {
   it('editing the label field overrides the city-segment default', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('World clocks')
     const zoneInput = screen.getByLabelText('Time zone')
     const labelInput = screen.getByLabelText('Label') as HTMLInputElement
 
@@ -956,6 +2278,7 @@ describe('SettingsPanel World clocks section', () => {
   it('an unrecognized zone shows an inline error and persists nothing', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('World clocks')
     const zoneInput = screen.getByLabelText('Time zone')
 
     await act(async () => {
@@ -979,11 +2302,12 @@ describe('SettingsPanel World clocks section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('World clocks')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove Tokyo' }))
@@ -1003,11 +2327,12 @@ describe('SettingsPanel World clocks section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('World clocks')
 
     expect(await screen.findByText('Australia/Sydney')).toBeTruthy()
     expect(screen.queryByLabelText('Time zone')).toBeNull()
@@ -1022,6 +2347,7 @@ describe('SettingsPanel Countdowns section', () => {
   it('adding a countdown persists it and resets the form', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('Countdowns')
     const nameInput = screen.getByLabelText('New countdown name') as HTMLInputElement
     const dateInput = screen.getByLabelText('New countdown date') as HTMLInputElement
 
@@ -1041,6 +2367,7 @@ describe('SettingsPanel Countdowns section', () => {
   it('a blank name or date is not added', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('Countdowns')
     const dateInput = screen.getByLabelText('New countdown date')
 
     await act(async () => {
@@ -1060,11 +2387,12 @@ describe('SettingsPanel Countdowns section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('Countdowns')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove Launch' }))
@@ -1079,11 +2407,12 @@ describe('SettingsPanel Countdowns section', () => {
     await storage.set('countdowns', [{ id: 'c1', name: 'Launch', date: '2026-08-09' }])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('Countdowns')
 
     const dateInput = screen.getByLabelText('Countdown date')
     await act(async () => {
@@ -1100,8 +2429,8 @@ describe('SettingsPanel Habits section', () => {
   }
 
   it('the Habits label is present on the Widgets tab, off by default', async () => {
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('false')
     // The editor stays absent until the toggle is on — unlike World clocks/
@@ -1111,9 +2440,9 @@ describe('SettingsPanel Habits section', () => {
     expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
   })
 
-  it('turning the toggle on writes widgets.habits and reveals the editor below it', async () => {
+  it('turning the toggle on writes widgets.habits and offers a closed editor below it', async () => {
     const storage = await renderPanel()
-    openTab('Widgets')
+    await openWidgetsTabAndWaitForLayout(storage)
     const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
 
     await act(async () => {
@@ -1122,6 +2451,9 @@ describe('SettingsPanel Habits section', () => {
 
     expect(attr(toggle, 'aria-checked')).toBe('true')
     expect((await storage.get('settings')).widgets.habits).toBe(true)
+    expect(screen.getByRole('button', { name: 'Habits' }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
+    openWidgetEditor('Habits')
     expect(habitsRegion()).toBeTruthy()
 
     await act(async () => {
@@ -1141,11 +2473,12 @@ describe('SettingsPanel Habits section', () => {
     await storage.set('habits', habits)
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openWidgetsTabAndWaitForLayout(storage)
+    openWidgetEditor('Habits')
     return storage
   }
 
@@ -1224,9 +2557,127 @@ describe('SettingsPanel Habits section', () => {
 // Bookmarks toggle's own non-permission assertions, without the permission
 // side-effect.
 describe('SettingsPanel Widgets section (Month calendar toggle)', () => {
-  it('the Month calendar label is present on the Widgets tab, off by default', async () => {
-    await renderPanel()
+  const qualifyingLayouts: LayoutsDocument = {
+    version: 1,
+    activeLayoutId: 'work',
+    layouts: [{
+      id: 'work',
+      name: 'Work',
+      widgets: {
+        ics: { kind: 'free', anchor: 'left', offsetX: 1, offsetY: 2, tier: 'compact', layer: 1 },
+        monthCal: { kind: 'free', anchor: 'right', offsetX: 3, offsetY: 4, tier: 'standard', layer: 2 },
+        publicHolidays: { kind: 'docked', dock: 'bottom', order: 0 },
+      },
+    }],
+  }
+
+  it('offers a plain Settings action only for an active layout with legacy date cards', async () => {
+    const { storage } = await renderPanelWithLayouts(qualifyingLayouts)
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+
+    const region = screen.getByRole('region', { name: 'Calendar' })
+    expect(within(region).getByRole('button', { name: 'Combine into Calendar' })).toBeTruthy()
+    const locations = within(region).getByRole('group', { name: 'Card location to keep' })
+    expect(within(locations).getAllByRole('radio')).toHaveLength(3)
+    for (const label of ['Calendar', 'Month', 'Public Holidays']) {
+      expect(within(locations).getByRole('radio', { name: label })).toBeTruthy()
+    }
+    expect(region.textContent).not.toMatch(/\blayer\b|stack position|storage id|anchor|offset/i)
+    expect(region.textContent).not.toContain('Bring your date widgets together')
+  })
+
+  it('combines through one atomic layouts and preference write from Settings', async () => {
+    const { storage, write } = await renderPanelWithLayouts(qualifyingLayouts)
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    const region = screen.getByRole('region', { name: 'Calendar' })
+    const locations = within(region).getByRole('group', { name: 'Card location to keep' })
+    fireEvent.click(within(locations).getByRole('radio', { name: 'Month' }))
+    fireEvent.change(within(region).getByLabelText('Default view'), { target: { value: 'month' } })
+    fireEvent.click(within(region).getByRole('checkbox', { name: 'Include public holidays' }))
+    fireEvent.click(within(region).getByRole('button', { name: 'Combine into Calendar' }))
+
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
+    expect(Object.keys(write.mock.calls[0]?.[0] ?? {}).sort()).toEqual(['calendarPreferences', 'layouts'])
+    const saved = await storage.get('layouts')
+    expect(saved?.layouts[0]?.widgets.ics).toMatchObject(qualifyingLayouts.layouts[0]!.widgets.monthCal!)
+    expect(saved?.layouts[0]?.widgets.monthCal).toEqual({ kind: 'hidden' })
+    expect(saved?.layouts[0]?.widgets.publicHolidays).toEqual({ kind: 'hidden' })
+    expect((await storage.get('calendarPreferences')).work).toEqual({
+      defaultView: 'month',
+      includePublicHolidays: false,
+    })
+  })
+
+  it('withholds the combine action when the active layout has only one date card', async () => {
+    const { storage } = await renderPanelWithLayouts({
+      ...qualifyingLayouts,
+      layouts: [{ ...qualifyingLayouts.layouts[0]!, widgets: { ics: qualifyingLayouts.layouts[0]!.widgets.ics! } }],
+    })
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    expect(screen.queryByRole('button', { name: 'Combine into Calendar' })).toBeNull()
+  })
+
+  it('withholds consolidation for a resolved layout that has no persisted layouts authority', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel layoutsDocument={qualifyingLayouts} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    expect(screen.queryByRole('button', { name: 'Combine into Calendar' })).toBeNull()
+  })
+
+  it('shows stale-layout rejection without writing from Settings', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    await storage.set('layouts', {
+      ...qualifyingLayouts,
+      layouts: [{ ...qualifyingLayouts.layouts[0]!, name: 'Changed elsewhere' }],
+    })
+    const write = vi.spyOn(driver, 'write')
+    write.mockClear()
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel
+          layoutsDocument={qualifyingLayouts}
+          calendarConsolidationLayout={qualifyingLayouts.layouts[0] ?? null}
+        />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openWidgetsTabAndWaitForLayout(storage)
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    const region = screen.getByRole('region', { name: 'Calendar' })
+    const locations = within(region).getByRole('group', { name: 'Card location to keep' })
+    fireEvent.click(within(locations).getByRole('radio', { name: 'Calendar' }))
+    fireEvent.click(within(region).getByRole('button', { name: 'Combine into Calendar' }))
+
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringMatching(/changed in another tab/i))
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('persists the global Calendar week-start convention separately from widget toggles', async () => {
+    const storage = await renderPanel()
     openTab('Widgets')
+    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
+    const select = screen.getByLabelText('Week starts') as HTMLSelectElement
+    expect(select.value).toBe('locale')
+    await act(async () => { fireEvent.change(select, { target: { value: 'monday' } }) })
+    expect(await storage.get('calendarWeekStart')).toBe('monday')
+    expect((await storage.get('settings')).widgets.monthCal).toBe(false)
+  })
+
+  it('the Month calendar label is present on the Widgets tab, off by default', async () => {
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     const toggle = screen.getByLabelText('Month calendar') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('false')
   })
@@ -1260,8 +2711,8 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
     'Sun times and moon phase use the weather location. Turn on the weather widget and set a location first.'
 
   it('the Sun times and Moon phase labels are present on the Widgets tab, off by default', async () => {
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
     const moon = screen.getByLabelText('Moon phase') as HTMLButtonElement
     expect(attr(sun, 'aria-checked')).toBe('false')
@@ -1306,8 +2757,8 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
     // renderPanel() never sets `location`, so it resolves to defaults()'s own
     // `null` (unset) once storage.init() backfills it — the exact "no
     // location" state SunWidget/MoonWidget gate on.
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
     const moon = screen.getByLabelText('Moon phase') as HTMLButtonElement
 
@@ -1315,7 +2766,7 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
     expect(hints).toHaveLength(1) // renders ONCE, not once per switch
     const hint = hints[0]!
     expect(hint.id).toBe('w-sky-location-hint')
-    expect(hint.className).toBe('text-xs text-fg-muted')
+    expect(hint.className.split(/\s+/)).toEqual(expect.arrayContaining(['text-xs', 'text-fg-muted']))
 
     expect(attr(sun, 'aria-describedby')).toBe(hint.id)
     expect(attr(moon, 'aria-describedby')).toBe(hint.id)
@@ -1327,11 +2778,11 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
     await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openWidgetsTabAndWaitForLayout(storage)
 
     expect(screen.queryByText(HINT_TEXT)).toBeNull()
     const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
@@ -1352,30 +2803,241 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     return screen.getByRole('region', { name: 'Layout' })
   }
 
-  it('Arrange layout calls the onArrangeLayout callback threaded down from App (which closes the drawer, then bumps ArrangeController\'s openSignal nonce)', async () => {
-    const onArrangeLayout = vi.fn()
-    await renderPanel(onArrangeLayout)
-    openTab('Widgets')
+  async function openLayoutTab() {
+    await act(async () => {
+      openTab('Widgets')
+    })
+  }
 
-    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Arrange layout' }))
+  it('keeps Layout to the legacy recovery actions only — no Arrange entry, density, briefing, or profile copy', async () => {
+    // The Arrange artboard and the four-profile guidance died with the
+    // named-layouts rebuild (NL-P2, spec §3); live on-page editing and
+    // layout management arrive in NL-P3.
+    await renderPanel()
+    await openLayoutTab()
 
-    expect(onArrangeLayout).toHaveBeenCalledOnce()
+    const region = within(layoutRegion())
+    expect(region.queryByLabelText('Layout density')).toBeNull()
+    expect(region.queryByLabelText('Show briefing')).toBeNull()
+    expect(region.queryByRole('button', { name: 'Arrange layout' })).toBeNull()
+    expect(region.queryByText('Small, Desktop, Large, and Wide keep independent saved layouts. Arrange a profile, then Save.')).toBeNull()
+    // A fresh store holds a V3 Canvas layout, so the legacy-only Reset is
+    // absent too.
+    expect(region.queryByRole('button', { name: 'Reset layout' })).toBeNull()
   })
 
-  it('Reset layout opens a real confirm dialog; Cancel writes nothing, confirming writes {}', async () => {
+  it('shows truthful information controls on General and persists their existing compatible fields', async () => {
+    const storage = await renderPanel()
+    const size = screen.getByRole('combobox', { name: 'Text size' }) as HTMLSelectElement
+    expect(size.value).toBe('auto')
+    expect(within(size).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Automatic', 'Standard', 'Large',
+    ])
+    expect(screen.getByText('Shows useful upcoming context and recent attention beneath your greeting.')).toBeTruthy()
+    expect(screen.queryByLabelText('Mute sounds')).toBeNull()
+    expect(screen.queryByLabelText('Show briefing')).toBeNull()
+    expect(screen.queryByLabelText('Layout density')).toBeNull()
+
+    await act(async () => {
+      fireEvent.change(size, { target: { value: 'spacious' } })
+    })
+    expect((await storage.get('settings')).layoutDensity).toBe('spacious')
+
+    const sound = screen.getByRole('switch', { name: 'Timer completion sound' })
+    expect(sound.getAttribute('aria-checked')).toBe('true')
+    await act(async () => {
+      fireEvent.click(sound)
+    })
+    expect((await storage.get('settings')).muted).toBe(true)
+
+    const summary = screen.getByRole('switch', { name: 'Greeting helper' })
+    await act(async () => {
+      fireEvent.click(summary)
+    })
+    expect((await storage.get('settings')).briefingEnabled).toBe(true)
+  })
+
+  it('projects legacy Compact to Standard without rewriting Settings', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    const settings = { ...await storage.get('settings'), name: 'Reloaded', layoutDensity: 'compact' as const }
+    await storage.set('settings', settings)
+    const set = vi.spyOn(storage, 'set')
+    const update = vi.spyOn(storage, 'update')
+
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+
+    expect((screen.getByRole('combobox', { name: 'Text size' }) as HTMLSelectElement).value).toBe('balanced')
+    expect(set).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
+    expect(await storage.get('settings')).toEqual(settings)
+  })
+
+  it('treats an absent Greeting helper preference as off and writes it only after the user changes it', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const set = vi.spyOn(storage, 'set')
+
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+
+    const briefing = screen.getByRole('switch', { name: 'Greeting helper' })
+    expect(briefing.getAttribute('aria-checked')).toBe('false')
+    expect((await storage.get('settings')).briefingEnabled).toBeUndefined()
+    expect(set).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(briefing)
+    })
+    expect((await storage.get('settings')).briefingEnabled).toBe(true)
+    expect(set).toHaveBeenCalledOnce()
+  })
+
+  it('shows truthful Greeting helper source controls and preserves sibling choices', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', { ...await storage.get('settings'), briefingEnabled: true })
+    await renderPanel(storage)
+
+    expect(screen.getByText(/newly observed GitHub, GitLab, Jira, and Linear items/i)).toBeTruthy()
+    expect(screen.getByText(/Undated Aurora tasks are not counted/i)).toBeTruthy()
+    for (const name of ['Upcoming calendar', 'Assigned work', 'Deployment failures', 'Rain']) {
+      const source = screen.getByRole('switch', { name })
+      expect(source.getAttribute('aria-checked')).toBe('true')
+      const describedBy = source.getAttribute('aria-describedby')
+      expect(describedBy).toBeTruthy()
+      expect(document.getElementById(describedBy!)?.textContent?.trim()).not.toBe('')
+    }
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('switch', { name: 'Assigned work' }))
+    })
+    expect((await storage.get('settings')).briefingSources).toEqual({
+      calendar: true,
+      assignments: false,
+      deployments: true,
+      rain: true,
+    })
+  })
+
+  it('hides source controls while the Greeting helper master switch is off', async () => {
+    await renderPanel()
+    for (const name of ['Upcoming calendar', 'Assigned work', 'Deployment failures', 'Rain']) {
+      expect(screen.queryByRole('switch', { name })).toBeNull()
+    }
+  })
+
+  it('replaces displayed source states after an external Settings update', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', { ...await storage.get('settings'), briefingEnabled: true })
+    await renderPanel(storage)
+
+    await act(async () => {
+      const current = await storage.get('settings')
+      await storage.set('settings', {
+        ...current,
+        briefingSources: { calendar: false, assignments: true, deployments: false, rain: true },
+      })
+    })
+
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Upcoming calendar' }).getAttribute('aria-checked')).toBe('false'))
+    expect(screen.getByRole('switch', { name: 'Assigned work' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('switch', { name: 'Deployment failures' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('switch', { name: 'Rain' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('keeps Flow ambience separate from the timer chime and persists the selected sound', async () => {
+    const storage = await renderPanel()
+    const completion = screen.getByRole('switch', { name: 'Timer completion sound' })
+    const ambience = screen.getByRole('combobox', { name: 'Flow sound' }) as HTMLSelectElement
+
+    expect(completion.getAttribute('aria-checked')).toBe('true')
+    expect(ambience.value).toBe('off')
+    expect([...ambience.options].map((option) => option.textContent)).toEqual(['Off', 'Creek', 'Rain', 'Ocean', 'Forest'])
+    expect(screen.getByText('Plays your selected local sound only while the Flow timer is running.')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.change(ambience, { target: { value: 'rain' } })
+    })
+    const settings = await storage.get('settings') as ReturnType<typeof defaults>['settings'] & { flowAmbience?: string }
+    expect(settings.flowAmbience).toBe('rain')
+    expect(settings.muted).toBe(false)
+  })
+
+  it('manages named layouts with single validated writes of only the layouts key (NL-P3, spec 2.1)', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const layoutsDocument = {
+      version: 1 as const,
+      activeLayoutId: 'a',
+      layouts: [
+        { id: 'a', name: 'My layout', widgets: {} },
+        { id: 'b', name: 'Laptop', widgets: {} },
+      ],
+    }
+    const set = vi.spyOn(storage, 'set')
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel layoutsDocument={layoutsDocument} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+    const management = document.querySelector('[data-layouts-management]') as HTMLElement
+
+    // Rename with trimming through the pure operation.
+    fireEvent.click(within(management).getAllByRole('button', { name: 'Rename' })[1])
+    fireEvent.change(within(management).getByRole('textbox', { name: 'Rename Laptop' }), { target: { value: '  Travel  ' } })
+    fireEvent.click(within(management).getByRole('button', { name: 'Save name' }))
+    await act(async () => {})
+    expect((await storage.get('layouts'))?.layouts[1].name).toBe('Travel')
+
+    // Delete requires the two-step confirm and moves through deleteLayout.
+    fireEvent.click(within(management).getByRole('button', { name: 'Delete Laptop' }))
+    fireEvent.click(within(management).getByRole('button', { name: 'Confirm delete' }))
+    await act(async () => {})
+    expect((await storage.get('layouts'))?.layouts.map((layout: { id: string }) => layout.id)).toEqual(['a'])
+
+    // Every write touched only the layouts key.
+    expect(set.mock.calls.every(([key]) => key === 'layouts')).toBe(true)
+  })
+
+  // The Arrange artboard entry point was deleted with the named-layouts
+  // rebuild (NL-P2, spec §3); live on-page editing arrives in NL-P3.
+
+  it('legacy Reset layout Cancel writes neither key; confirm clears only the V2 layout and preserves Settings byte-for-byte', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const positioned = layoutV2FromLegacy({ clock: { x: 10, y: 10 } })
+    const settings = {
+      ...await storage.get('settings'),
+      name: 'Preserve all settings',
+      muted: true,
+      layoutDensity: 'spacious' as const,
+    }
+    await storage.set('settings', settings)
+    await storage.set('layout', positioned)
+    const set = vi.spyOn(storage, 'set')
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // opening the dialog never writes
+    expect(await storage.get('layout')).toEqual(positioned) // opening the dialog never writes
     // The dialog portals to document.body, outside the "Layout" region's own
     // subtree — and its confirm button shares the SAME accessible name
     // ("Reset layout") as the section button that opened it, so every
@@ -1385,25 +3047,107 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // Cancel never writes
+    expect(await storage.get('layout')).toEqual(positioned) // Cancel never writes
+    expect(await storage.get('settings')).toEqual(settings)
+    expect(set).not.toHaveBeenCalled()
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
-    expect(await storage.get('layout')).toEqual({})
+    await act(async () => {})
+    expect(await storage.get('layout')).toEqual(emptyLayoutV2())
+    expect(await storage.get('settings')).toEqual(settings)
+    expect(set).toHaveBeenCalledOnce()
+    expect(set).toHaveBeenCalledWith('layout', emptyLayoutV2())
+  })
+
+  it('does not offer the legacy global Reset for Canvas V3 or write the layout on open', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const previous = layoutV2FromLegacy({ clock: { x: 12.25, y: 34.75 } })
+    const canvas = saveCanvasProfile(previous, 'standard', {
+      mode: 'custom',
+      placements: {
+        clock: { kind: 'canvas', x: 50, y: 38, size: 'full', layer: 0 },
+        notes: { kind: 'canvas', x: 84, y: 76, size: 'standard', layer: 1 },
+      },
+    })
+    await storage.set('layout', canvas)
+    const before = JSON.stringify(await storage.get('layout'))
+    const set = vi.spyOn(storage, 'set')
+    const update = vi.spyOn(storage, 'update')
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+
+    expect(within(layoutRegion()).queryByRole('button', { name: 'Reset layout' })).toBeNull()
+    expect(within(layoutRegion()).queryByRole('button', { name: 'Arrange layout' })).toBeNull()
+    expect(within(layoutRegion()).getByRole('button', { name: 'Restore previous layout' })).toBeTruthy()
+    expect(JSON.stringify(await storage.get('layout'))).toBe(before)
+    expect(set.mock.calls.filter(([key]) => key === 'layout')).toEqual([])
+    expect(update.mock.calls.filter(([key]) => key === 'layout')).toEqual([])
+  })
+
+  it('offers exact previous-layout recovery only while V3 recovery exists', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const previous = layoutV2FromLegacy({ clock: { x: 12.25, y: 34.75 } })
+    const saved = saveCanvasProfile(previous, 'standard', {
+      mode: 'custom',
+      placements: {
+        clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 0 },
+      },
+    })
+    await storage.set('layout', saved)
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+
+    const restore = within(layoutRegion()).getByRole('button', { name: 'Restore previous layout' })
+    await act(async () => {
+      fireEvent.click(restore)
+    })
+
+    expect(await storage.get('layout')).toEqual(previous)
+    expect(within(layoutRegion()).queryByRole('button', { name: 'Restore previous layout' })).toBeNull()
+  })
+
+  it('does not show or write recovery for a layout without recovery data', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const update = vi.spyOn(storage, 'update')
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+
+    expect(within(layoutRegion()).queryByRole('button', { name: 'Restore previous layout' })).toBeNull()
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('Escape cancels the confirm dialog without writing anything', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    const positioned = layoutV2FromLegacy({ clock: { x: 10, y: 10 } })
+    await storage.set('layout', positioned)
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openLayoutTab()
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
@@ -1411,23 +3155,23 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } })
+    expect(await storage.get('layout')).toEqual(positioned)
   })
 
   it('an open confirm dialog does not survive the drawer closing, so reopening within the same session shows it closed (review fix)', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    await storage.set('layout', layoutV2FromLegacy({ clock: { x: 10, y: 10 } }))
     function Wrapper({ open }: { open: boolean }) {
       return (
         <StorageProvider storage={storage}>
-          <SettingsPanel onArrangeLayout={() => {}} open={open} />
+          <SettingsPanel open={open} />
         </StorageProvider>
       )
     }
     const { rerender } = render(<Wrapper open={true} />)
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openLayoutTab()
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
@@ -1438,13 +3182,13 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(within(layoutRegion()).getByRole('button', { name: 'Reset layout' })).toBeTruthy()
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
     // And nothing was actually written by the stray open dialog.
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } })
+    expect(await storage.get('layout')).toEqual(layoutV2FromLegacy({ clock: { x: 10, y: 10 } }))
   })
 
   it('both buttons are absent entirely (no dead/disabled buttons) when isPremium() is false', async () => {
     vi.mocked(isPremium).mockReturnValue(false)
     await renderPanel()
-    openTab('Widgets')
+    await openLayoutTab()
 
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Arrange layout' })).toBeNull()
@@ -1465,13 +3209,13 @@ describe('Connectors tab — search and categories', () => {
     vi.mocked(whoamiGithub).mockReset()
   })
 
-  async function renderConnectors(config?: { github?: GithubConfig; ics?: IcsConfig }) {
+  async function renderConnectors(config?: AuroraData['connectors']) {
     const storage = createStorage(memoryDriver())
     await storage.init()
     if (config) await storage.set('connectors', config)
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -1487,7 +3231,7 @@ describe('Connectors tab — search and categories', () => {
   // filter getAllByRole('heading', { level: 4 }) down to JUST the eyebrows,
   // since ConnectorCard's own title is ALSO an <h4> (its label, e.g.
   // 'GitHub') and lives in the very same subtree.
-  const EYEBROW_NAMES = ['On your board', 'Development', 'Calendar & tasks', 'Home', 'News & markets', 'Fun']
+  const EYEBROW_NAMES = ['On canvas', 'Available']
 
   function eyebrowsIn(container: HTMLElement): string[] {
     return within(container)
@@ -1507,52 +3251,45 @@ describe('Connectors tab — search and categories', () => {
       .filter((t): t is string => t !== null && t !== heading.textContent)
   }
 
-  it('default grouping: eyebrows in CATEGORY_ORDER for non-empty categories only; cards in registry order beneath each', async () => {
+  it('default grouping: every shipped connector is Available by registry category', async () => {
     await renderConnectors()
     const region = connectorsRegion()
 
-    // No connector enabled -> no pinned group; Fun has no members yet -> no
-    // eyebrow for it. Home now has one member (homeassistant, Task 101), so
-    // it joins the other three non-empty categories, IN CATEGORY_ORDER.
-    expect(eyebrowsIn(region)).toEqual(['Development', 'Calendar & tasks', 'Home', 'News & markets'])
-
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'Development' }))).toEqual([
+    expect(eyebrowsIn(region)).toEqual(['Available'])
+    expect(within(region).queryByRole('region', { name: 'On canvas' })).toBeNull()
+    const available = within(region).getByRole('region', { name: 'Available' })
+    expect(within(within(available).getByRole('region', { name: 'Development' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual([
       'GitHub',
       'GitLab',
       'Jira',
       'Vercel',
       'Status',
+      'Linear',
+      'Sentry',
     ])
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'Calendar & tasks' }))).toEqual(['Calendar'])
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'Home' }))).toEqual(['Home Assistant'])
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'News & markets' }))).toEqual(['RSS', 'Crypto'])
+    expect(within(within(available).getByRole('region', { name: 'Calendar & tasks' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual([
+      'Calendar',
+      'Todoist',
+    ])
+    expect(within(within(available).getByRole('region', { name: 'Home' })).getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
+    expect(within(within(available).getByRole('region', { name: 'News & markets' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual(['RSS', 'Crypto'])
   })
 
-  it('pinning: enabling github + ics surfaces "On your board" first with exactly those two cards, absent from their categories', async () => {
+  it('configured-visible GitHub and Calendar surface in On canvas and are absent from Available', async () => {
     await renderConnectors({
-      github: { enabled: true, token: '', username: '' },
+      github: { enabled: true, token: 'github_pat_fixture', username: 'octocat' },
       ics: { enabled: true, calendars: [{ name: 'Personal', url: 'https://calendar.example.com/basic.ics' }] },
     })
     const region = connectorsRegion()
 
-    // 'On your board' FIRST, registry order (github before ics).
-    expect(eyebrowsIn(region)).toEqual(['On your board', 'Development', 'Home', 'News & markets'])
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'On your board' }))).toEqual([
+    expect(eyebrowsIn(region)).toEqual(['On canvas', 'Available'])
+    expect(cardsUnder(within(region).getByRole('heading', { name: 'On canvas' }))).toEqual([
       'GitHub',
       'Calendar',
     ])
-
-    // Development keeps its other four, minus the now-pinned github.
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'Development' }))).toEqual([
-      'GitLab',
-      'Jira',
-      'Vercel',
-      'Status',
-    ])
-
-    // Calendar & tasks had ONLY ics -> now empty -> no eyebrow at all (not an
-    // empty group, an ABSENT one).
-    expect(within(region).queryByRole('heading', { name: 'Calendar & tasks' })).toBeNull()
+    const available = within(region).getByRole('region', { name: 'Available' })
+    expect(within(available).queryByRole('heading', { name: 'GitHub' })).toBeNull()
+    expect(within(available).queryByRole('heading', { name: 'Calendar' })).toBeNull()
   })
 
   it('search filters: "git" is a flat list (no eyebrows) with GitHub + GitLab only; "calendar" matches the Calendar card by blurb', async () => {
@@ -1604,7 +3341,7 @@ describe('Connectors tab — search and categories', () => {
     expect(screen.queryByRole('heading', { name: 'Development' })).toBeNull()
 
     fireEvent.change(input, { target: { value: '' } })
-    expect(eyebrowsIn(connectorsRegion())).toEqual(['Development', 'Calendar & tasks', 'Home', 'News & markets'])
+    expect(eyebrowsIn(connectorsRegion())).toEqual(['Available'])
   })
 
   // Behavior preservation: the exact "connect happy path" assertions from
@@ -1617,6 +3354,7 @@ describe('Connectors tab — search and categories', () => {
     const storage = await renderConnectors({ github: { enabled: true, token: '', username: '' } })
 
     fireEvent.change(screen.getByLabelText('Search connectors'), { target: { value: 'github' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Set up GitHub' }))
 
     const input = screen.getByLabelText('Fine-grained personal access token') as HTMLInputElement
     await act(async () => {
@@ -1631,12 +3369,111 @@ describe('Connectors tab — search and categories', () => {
     })
     expect(screen.queryByRole('alert')).toBeNull()
   })
+
+  it('search reaches every shipped connector identity regardless of its current group', async () => {
+    await renderConnectors({
+      github: { enabled: false, token: 'github_pat_fixture', username: 'octocat' },
+      ics: {
+        enabled: true,
+        calendars: [{ name: 'Studio', url: 'https://calendar.example.test/studio.ics' }],
+      },
+    })
+    const search = screen.getByLabelText('Search connectors')
+
+    for (const [query, label] of [
+      ['rss', 'RSS'],
+      ['github', 'GitHub'],
+      ['gitlab', 'GitLab'],
+      ['jira', 'Jira'],
+      ['vercel', 'Vercel'],
+      ['crypto', 'Crypto'],
+      ['calendar', 'Calendar'],
+      ['status', 'Status'],
+      ['home assistant', 'Home Assistant'],
+    ] as const) {
+      fireEvent.change(search, { target: { value: query } })
+      expect(screen.getByRole('heading', { name: label })).toBeTruthy()
+    }
+  })
+
+  it('keeps exactly one setup/edit body open and restores focus after Close editor', async () => {
+    await renderConnectors()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set up RSS' }))
+    expect(screen.getByRole('region', { name: 'RSS setup' })).toBeTruthy()
+    expect(screen.getByLabelText('Add feed URL')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set up GitHub' }))
+    expect(screen.queryByRole('region', { name: 'RSS setup' })).toBeNull()
+    expect(screen.queryByLabelText('Add feed URL')).toBeNull()
+    expect(screen.getByRole('region', { name: 'GitHub setup' })).toBeTruthy()
+    expect(screen.getAllByLabelText('Fine-grained personal access token')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close GitHub editor' }))
+    const setup = screen.getByRole('button', { name: 'Set up GitHub' })
+    expect(screen.queryByRole('region', { name: 'GitHub setup' })).toBeNull()
+    expect(document.activeElement).toBe(setup)
+  })
+
+  it('opens a backup-restored reconnect form immediately without exposing Show on Canvas', async () => {
+    await renderConnectors({ github: { enabled: true, token: '', username: 'octocat' } })
+
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'GitHub reconnect' })).toBeTruthy()
+    expect(screen.getByLabelText('Fine-grained personal access token')).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show GitHub on Canvas' })).toBeNull()
+  })
+
+  it.each([
+    {
+      id: 'rss',
+      label: 'RSS',
+      config: { enabled: true, feeds: ['https://feed.example.test/rss.xml'], shownCount: 6 },
+      field: 'Add feed URL',
+    },
+    {
+      id: 'crypto',
+      label: 'Crypto',
+      config: { enabled: true, coins: ['bitcoin', 'ethereum'] },
+      field: 'Other CoinGecko id (optional)',
+    },
+    {
+      id: 'ics',
+      label: 'Calendar',
+      config: {
+        enabled: true,
+        calendars: [{ name: 'Studio', url: 'https://calendar.example.test/studio.ics' }],
+      },
+      field: 'Secret calendar address (ICS URL)',
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      config: {
+        enabled: true,
+        services: [{ name: 'API', url: 'https://status.example.test/api/v2/status.json' }],
+      },
+      field: 'Add a service',
+    },
+  ] as const)('$label remains configured and editable after hiding it from the Canvas', async ({ id, label, config, field }) => {
+    const storage = await renderConnectors({ [id]: config } as AuroraData['connectors'])
+    const visibility = screen.getByRole('switch', { name: `Show ${label} on Canvas` })
+
+    await act(async () => {
+      fireEvent.click(visibility)
+    })
+
+    expect((await storage.get('connectors'))[id]).toEqual({ ...config, enabled: false })
+    expect(screen.getByRole('switch', { name: `Show ${label} on Canvas` }).getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: `Edit ${label}` }))
+    expect(screen.getByLabelText(field)).toBeTruthy()
+  })
 })
 
 describe('SettingsPanel Connectors section (RSS card)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
   })
 
   async function renderWithConnectors(rss?: { enabled: boolean; feeds: string[]; shownCount: number }) {
@@ -1645,11 +3482,12 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     if (rss) await storage.set('connectors', { rss })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (rss) openConnectorEditor('RSS')
     return storage
   }
 
@@ -1664,16 +3502,13 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     return (await storage.get('connectors')).rss as RssConfig | undefined
   }
 
-  it('enabling the connector writes the default config (enabled, no feeds, shownCount 5)', async () => {
+  it('starts with Set up, no visibility switch, and opening the editor does not create configuration', async () => {
     const storage = await renderWithConnectors()
-    const toggle = screen.getByLabelText('Enable RSS') as HTMLButtonElement
-    expect(attr(toggle, 'aria-checked')).toBe('false')
+    expect(screen.queryByRole('switch', { name: 'Show RSS on Canvas' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Set up RSS' }))
 
-    await act(async () => {
-      fireEvent.click(toggle)
-    })
-
-    expect((await storage.get('connectors')).rss).toEqual({ enabled: true, feeds: [], shownCount: 5 })
+    expect(screen.getByLabelText('Add feed URL')).toBeTruthy()
+    expect((await storage.get('connectors')).rss).toBeUndefined()
   })
 
   it('add-feed happy path: validates https, requests the origin, then persists the feed', async () => {
@@ -1686,7 +3521,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
       fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith('https://news.ycombinator.com/rss')
+    expect(ensureOrigin).toHaveBeenCalledWith('https://news.ycombinator.com/*')
     expect((await readRss(storage))?.feeds).toEqual(['https://news.ycombinator.com/rss'])
     expect(screen.queryByRole('alert')).toBeNull()
     expect(input.value).toBe('') // form resets on success
@@ -1707,6 +3542,111 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBeTruthy()
     expect((await readRss(storage))?.feeds).toEqual([])
+  })
+
+  it('reports access changed, not denial, when a queued RSS add loses its click-time grant to a release', async () => {
+    const restoreLocks = installQueuedLifecycleLocks()
+    const origin = 'https://race-rss.example.com/*'
+    const url = 'https://race-rss.example.com/feed.xml'
+    const { started, allow } = deferPermissionRemovals()
+    holdOrigin(origin)
+    let release: ReturnType<typeof releaseUnownedOrigins> | undefined
+
+    try {
+      const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+      release = releaseUnownedOrigins(storage, [origin])
+      await started.promise
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Add feed URL'), { target: { value: url } })
+        fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+      })
+      expect(ensureOrigin).not.toHaveBeenCalled()
+
+      await act(async () => {
+        allow.resolve()
+        await release
+      })
+
+      expect((await readRss(storage))?.feeds).toEqual([])
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'Access changed before saving. Please try again.',
+      )
+    } finally {
+      allow.resolve()
+      await release?.catch(() => undefined)
+      restoreLocks()
+    }
+  })
+
+  it('rolls back a newly acquired RSS origin when persisting the feed rejects', async () => {
+    const url = 'https://rollback-rss.example.com/feed.xml'
+    const origin = 'https://rollback-rss.example.com/*'
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add feed URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect((await readRss(storage))?.feeds).toEqual([])
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
+  })
+
+  it('preserves a pre-existing RSS grant when its persistence write rejects', async () => {
+    const url = 'https://preexisting-rss.example.com/feed.xml'
+    const origin = 'https://preexisting-rss.example.com/*'
+    holdOrigin(origin)
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add feed URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('aborts a concurrently duplicated RSS add without rolling back the now-configured owner', async () => {
+    const url = 'https://concurrent-rss.example.com/feed.xml'
+    const origin = 'https://concurrent-rss.example.com/*'
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+    const update = storage.update.bind(storage)
+    storage.update = ((_key: unknown, fn: unknown) =>
+      update('connectors', () =>
+        (fn as (value: never) => never)({ rss: { enabled: true, feeds: [url], shownCount: 5 } } as never),
+      )
+    ) as unknown as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add feed URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect((await readRss(storage))?.feeds).toEqual([url])
+    expect((await screen.findByRole('alert')).textContent).toBe('That feed is already in the list.')
   })
 
   it('a non-https URL is rejected with an alert and ensureOrigin is never called (validation is load-bearing)', async () => {
@@ -1751,11 +3691,50 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove https://other.com/feed' }))
     })
-    expect(removeOrigin).toHaveBeenCalledWith('https://other.com/feed')
+    expect(removeOrigin).toHaveBeenCalledWith('https://other.com/*')
     expect((await readRss(storage))?.feeds).toEqual(['https://example.com/feed-b'])
   })
 
-  it('two same-origin removes racing before a re-render still revoke the origin exactly once', async () => {
+  it('rechecks RSS cleanup ownership before Retry and retains an origin a newly configured Status owner claims', async () => {
+    const url = 'https://recoverable-rss.example.com/feed.xml'
+    const origin = 'https://recoverable-rss.example.com/*'
+    holdOrigin(origin)
+    vi.mocked(removeOrigin).mockRejectedValueOnce(new Error('remove failed'))
+    const storage = await renderWithConnectors({ enabled: true, feeds: [url], shownCount: 5 })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: `Remove ${url}` }))
+    })
+
+    expect((await readRss(storage))?.feeds).toEqual([])
+    expect(screen.queryByRole('button', { name: `Remove ${url}` })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+    expect(cleanupHeld.has(origin)).toBe(true)
+
+    // A config changed after the failed revoke must be read freshly by Retry,
+    // not inferred from the old row-removal transaction. Disabled connectors
+    // still own their descriptor origins.
+    await act(async () => {
+      await storage.update('connectors', (prev) => ({
+        ...prev,
+        status: {
+          enabled: false,
+          services: [{ name: 'Shared', url: 'https://recoverable-rss.example.com/api/v2/status.json' }],
+        },
+      }))
+    })
+
+    openTab('Data')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(removeOrigin).toHaveBeenCalledTimes(1)
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
+
+  it('two same-origin removes racing before a re-render leave no grant behind, even when the second remove verifies absence', async () => {
     // The leak this covers: `remaining` used to come from the render-time
     // feeds prop, so two removals clicked before React re-rendered each saw
     // the OTHER feed still present and neither revoked — a permanent grant
@@ -1775,8 +3754,57 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     })
 
     expect((await readRss(storage))?.feeds).toEqual([])
-    expect(removeOrigin).toHaveBeenCalledTimes(1)
-    expect(removeOrigin).toHaveBeenCalledWith('https://example.com/feed-b')
+    expect(removeOrigin).toHaveBeenCalledTimes(2)
+    expect(removeOrigin).toHaveBeenCalledWith('https://example.com/*')
+  })
+
+  it('withholds an RSS revoke while a disabled Status config still owns the same origin', async () => {
+    const url = 'https://shared-rss-status.example.com/feed.xml'
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      rss: { enabled: true, feeds: [url], shownCount: 5 },
+      status: {
+        enabled: false,
+        services: [{ name: 'Shared', url: 'https://shared-rss-status.example.com/api/v2/status.json' }],
+      },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    openConnectorEditor('RSS')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: `Remove ${url}` }))
+    })
+
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('withholds the RSS API origin while APOD owns it', async () => {
+    const url = 'https://api.nasa.gov/planetary/apod'
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { rss: { enabled: true, feeds: [url], shownCount: 5 } })
+    await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    openConnectorEditor('RSS')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: `Remove ${url}` }))
+    })
+
+    expect(removeOrigin).not.toHaveBeenCalled()
   })
 
   it('shownCount is a 3–8 select that persists the chosen value', async () => {
@@ -1834,21 +3862,22 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
 describe('SettingsPanel Connectors section (GitHub card — first token connector)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiGithub).mockReset()
   })
 
-  async function renderWithGithub(github?: GithubConfig) {
+  async function renderWithGithub(github?: GithubConfig, revealEditor = true) {
     const storage = createStorage(memoryDriver())
     await storage.init()
     if (github) await storage.set('connectors', { github })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (github && revealEditor) openConnectorEditor('GitHub')
     return storage
   }
 
@@ -1856,11 +3885,12 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     return (await storage.get('connectors')).github as GithubConfig | undefined
   }
 
-  it('the card shell renders the GitHub descriptor (label, blurb, enable toggle)', async () => {
+  it('the card shell renders the GitHub descriptor with Set up and no premature visibility switch', async () => {
     await renderWithGithub()
     expect(screen.getByRole('heading', { name: 'GitHub' })).toBeTruthy()
     expect(screen.getByText('PRs waiting on you, your issues, notifications')).toBeTruthy()
-    expect(screen.getByLabelText('Enable GitHub')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up GitHub' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show GitHub on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
     // the connector is enabled (the shell gates the body on `enabled`).
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -1881,7 +3911,12 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
 
     expect(ensureOrigin).toHaveBeenCalledWith('https://api.github.com/*')
     expect(whoamiGithub).toHaveBeenCalledWith('github_pat_123')
-    expect(await readGithub(storage)).toEqual({ enabled: true, token: 'github_pat_123', username: 'octocat' })
+    expect(await readGithub(storage)).toEqual({
+      enabled: true,
+      token: 'github_pat_123',
+      username: 'octocat',
+      snapshotEpoch: expect.any(String),
+    })
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -1920,6 +3955,43 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     expect((await readGithub(storage))?.token).toBe('')
   })
 
+  it('reports access changed, not denial, when a queued GitHub connect loses its click-time grant to a release', async () => {
+    const restoreLocks = installQueuedLifecycleLocks()
+    const origin = 'https://api.github.com/*'
+    const { started, allow } = deferPermissionRemovals()
+    holdOrigin(origin)
+    let release: ReturnType<typeof releaseUnownedOrigins> | undefined
+
+    try {
+      const storage = await renderWithGithub({ enabled: true, token: '', username: '' })
+      release = releaseUnownedOrigins(storage, [origin])
+      await started.promise
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Fine-grained personal access token'), {
+          target: { value: 'github_pat_race' },
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+      })
+      expect(ensureOrigin).not.toHaveBeenCalled()
+
+      await act(async () => {
+        allow.resolve()
+        await release
+      })
+
+      expect(whoamiGithub).not.toHaveBeenCalled()
+      expect((await readGithub(storage))?.token).toBe('')
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'Access changed before saving. Please try again.',
+      )
+    } finally {
+      allow.resolve()
+      await release?.catch(() => undefined)
+      restoreLocks()
+    }
+  })
+
   it('connected state renders "Connected as {login}" + Disconnect; disconnecting revokes api.github.com and clears the config', async () => {
     const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
 
@@ -1940,10 +4012,47 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     expect(await readGithub(storage)).toBeUndefined()
   })
 
+  it('keeps GitHub connected and does not release when the shared disconnect lifecycle authority is unavailable', async () => {
+    const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+    const originalLocks = navigator.locks
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
+
+    try {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+      })
+    } finally {
+      Object.defineProperty(navigator, 'locks', { configurable: true, value: originalLocks })
+    }
+
+    expect(await readGithub(storage)).toEqual({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect(screen.getAllByText('Connected as octocat')).toHaveLength(1)
+    expect((await screen.findByRole('alert')).textContent).toMatch(/could not be updated/i)
+  })
+
+  it('keeps GitHub connected and does not release when its authoritative removal write rejects', async () => {
+    const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+    const updateMany = storage.updateMany.bind(storage)
+    storage.updateMany = ((keys, fn) => {
+      if ((keys as readonly string[]).includes('connectors')) return Promise.reject(new Error('storage rejected'))
+      return updateMany(keys, fn)
+    }) as AuroraStorage['updateMany']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect(await readGithub(storage)).toEqual({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect(screen.getAllByText('Connected as octocat')).toHaveLength(1)
+    expect((await screen.findByRole('alert')).textContent).toMatch(/could not be updated/i)
+  })
+
   it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
     await renderWithGithub({ enabled: true, token: '', username: 'octocat' })
     // The card shell flags it, and the body offers the form to re-enter a token.
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.getByLabelText('Fine-grained personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
@@ -1964,7 +4073,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
       username: 'octocat',
       views: seededViews,
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     const input = screen.getByLabelText('Fine-grained personal access token') as HTMLInputElement
     await act(async () => {
@@ -2011,7 +4120,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
 describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s sibling)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiGitlab).mockReset()
   })
 
@@ -2021,11 +4130,12 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
     if (gitlab) await storage.set('connectors', { gitlab })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (gitlab) openConnectorEditor('GitLab')
     return storage
   }
 
@@ -2033,11 +4143,12 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
     return (await storage.get('connectors')).gitlab as GitlabConfig | undefined
   }
 
-  it('the card shell renders the GitLab descriptor (label, blurb, enable toggle)', async () => {
+  it('the card shell renders the GitLab descriptor with Set up and no premature visibility switch', async () => {
     await renderWithGitlab()
     expect(screen.getByRole('heading', { name: 'GitLab' })).toBeTruthy()
     expect(screen.getByText('Assigned MRs and to-dos')).toBeTruthy()
-    expect(screen.getByLabelText('Enable GitLab')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up GitLab' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show GitLab on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
     // the connector is enabled (the shell gates the body on `enabled`).
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -2072,6 +4183,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
       token: 'glpat_123',
       instanceUrl: 'https://gitlab.com',
       username: 'jcooler',
+      snapshotEpoch: expect.any(String),
     })
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -2177,7 +4289,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
 
   it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
     await renderWithGitlab({ enabled: true, token: '', instanceUrl: 'https://gitlab.com', username: 'jcooler' })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
@@ -2231,7 +4343,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
       username: 'jcooler',
       views: seededViews,
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     const input = screen.getByLabelText('Personal access token') as HTMLInputElement
     await act(async () => {
@@ -2278,7 +4390,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
 describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiJira).mockReset()
   })
 
@@ -2288,11 +4400,12 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
     if (jira) await storage.set('connectors', { jira })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (jira) openConnectorEditor('Jira')
     return storage
   }
 
@@ -2300,11 +4413,12 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
     return (await storage.get('connectors')).jira as JiraConfig | undefined
   }
 
-  it('the card shell renders the Jira descriptor (label, blurb, enable toggle)', async () => {
+  it('the card shell renders the Jira descriptor with Set up and no premature visibility switch', async () => {
     await renderWithJira()
     expect(screen.getByRole('heading', { name: 'Jira' })).toBeTruthy()
     expect(screen.getByText('Issues assigned to you')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Jira')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Jira' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Jira on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
     // the connector is enabled (the shell gates the body on `enabled`).
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -2339,6 +4453,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
       apiToken: 'tok_123',
       site: 'yoursite.atlassian.net',
       displayName: 'Jon Cooler',
+      snapshotEpoch: expect.any(String),
     })
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -2444,7 +4559,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
       site: 'yoursite.atlassian.net',
       displayName: 'Jon Cooler',
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.getByLabelText('API token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
@@ -2498,7 +4613,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
       displayName: 'Jon Cooler',
       views: seededViews,
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     // JiraBody's three fields carry NO defaultValue (unlike GitlabBody's
     // instanceUrl), so a reconnect's form starts blank even though the prior
@@ -2520,7 +4635,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
 describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s sibling)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiVercel).mockReset()
   })
 
@@ -2530,11 +4645,12 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     if (vercel) await storage.set('connectors', { vercel })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (vercel) openConnectorEditor('Vercel')
     return storage
   }
 
@@ -2542,11 +4658,12 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     return (await storage.get('connectors')).vercel as VercelConfig | undefined
   }
 
-  it('the card shell renders the Vercel descriptor (label, blurb, enable toggle)', async () => {
+  it('the card shell renders the Vercel descriptor with Set up and no premature visibility switch', async () => {
     await renderWithVercel()
     expect(screen.getByRole('heading', { name: 'Vercel' })).toBeTruthy()
     expect(screen.getByText('Your latest deployments')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Vercel')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Vercel' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Vercel on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
     // the connector is enabled (the shell gates the body on `enabled`).
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -2567,7 +4684,12 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
 
     expect(ensureOrigin).toHaveBeenCalledWith('https://api.vercel.com/*')
     expect(whoamiVercel).toHaveBeenCalledWith('vc_123')
-    expect(await readVercel(storage)).toEqual({ enabled: true, token: 'vc_123', username: 'jon' })
+    expect(await readVercel(storage)).toEqual({
+      enabled: true,
+      token: 'vc_123',
+      username: 'jon',
+      snapshotEpoch: expect.any(String),
+    })
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -2626,7 +4748,7 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
   it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
     await renderWithVercel({ enabled: true, token: '', username: 'jon' })
     // The card shell flags it, and the body offers the form to re-enter a token.
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
@@ -2665,7 +4787,7 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     vi.mocked(whoamiVercel).mockResolvedValue({ ok: true, identity: 'jon' })
     const seededViews = { deployments: false, statusSummary: true }
     const storage = await renderWithVercel({ enabled: true, token: '', username: 'jon', views: seededViews })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     const input = screen.getByLabelText('Personal access token') as HTMLInputElement
     await act(async () => {
@@ -2691,11 +4813,12 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     if (crypto) await storage.set('connectors', { crypto })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (crypto) openConnectorEditor('Crypto')
     return storage
   }
 
@@ -2703,95 +4826,113 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     return (await storage.get('connectors')).crypto as CryptoConfig | undefined
   }
 
-  it('the card shell renders the Crypto descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+  it('the card shell renders the Crypto descriptor with Set up, no switch, and no body until requested', async () => {
     await renderWithCrypto()
     expect(screen.getByRole('heading', { name: 'Crypto' })).toBeTruthy()
     expect(screen.getByText('Prices for the coins you watch')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Crypto')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Crypto' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Crypto on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
-    expect(screen.queryByLabelText('Coins (CoinGecko ids, comma-separated)')).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: 'Bitcoin (BTC)' })).toBeNull()
   })
 
-  it('enabling the connector via the shell toggle writes ONLY { enabled: true } — crypto is not RSS-shaped, so nothing extra is seeded', async () => {
+  it('opening Crypto setup writes nothing and reveals the picklist with nothing checked', async () => {
     const storage = await renderWithCrypto()
-    const toggle = screen.getByLabelText('Enable Crypto') as HTMLButtonElement
-    expect(attr(toggle, 'aria-checked')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Crypto' }))
 
-    await act(async () => {
-      fireEvent.click(toggle)
-    })
-
-    expect(await readCrypto(storage)).toEqual({ enabled: true })
-    // The now-enabled body renders with an EMPTY input (no coins seeded).
-    expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe('')
+    expect(await readCrypto(storage)).toBeUndefined()
+    const bitcoin = screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }) as HTMLInputElement
+    expect(bitcoin.checked).toBe(false)
+    expect(screen.getAllByRole('checkbox').length).toBeGreaterThanOrEqual(20)
   })
 
-  it('save happy path: validates, requests api.coingecko.com, then persists the parsed/normalized ids', async () => {
+  it('save happy path: picked coins persist in SELECTION order after requesting api.coingecko.com', async () => {
     vi.mocked(ensureOrigin).mockResolvedValue(true)
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
 
-    const input = screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement
     await act(async () => {
-      fireEvent.change(input, { target: { value: ' Bitcoin, ETHEREUM ,,dogecoin' } })
+      // Click order is display order — ethereum first on purpose.
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Dogecoin (DOGE)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith('https://api.coingecko.com/api/v3/')
+    expect(ensureOrigin).toHaveBeenCalledWith('https://api.coingecko.com/*')
     expect(await readCrypto(storage)).toEqual({
       enabled: true,
-      coins: ['bitcoin', 'ethereum', 'dogecoin'],
+      coins: ['ethereum', 'bitcoin', 'dogecoin'],
     })
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(input.value).toBe('bitcoin, ethereum, dogecoin') // normalized back into the field
   })
 
-  it('fewer than 2 ids is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
+  it('a SINGLE coin saves (owner 2026-08-18: "sometimes people just want one"); zero picks is rejected', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'bitcoin' },
-      })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
-
     expect(ensureOrigin).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toMatch(/2 to 5/)
-    expect((await readCrypto(storage))?.coins).toEqual([])
-  })
-
-  it('more than 5 ids is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
-    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+    expect((await screen.findByRole('alert')).textContent).toMatch(/1 to 5/)
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'a,b,c,d,e,f' },
-      })
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
-
-    expect(ensureOrigin).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toMatch(/2 to 5/)
-    expect((await readCrypto(storage))?.coins).toEqual([])
+    expect(await readCrypto(storage)).toEqual({ enabled: true, coins: ['bitcoin'] })
   })
 
-  it('an id with an invalid character is rejected with an alert naming the offending id; ensureOrigin is never called', async () => {
+  it('the sixth pick is impossible: at the 5-coin cap every unchecked box is disabled', async () => {
+    await renderWithCrypto({ enabled: true, coins: [] })
+
+    await act(async () => {
+      for (const name of ['Bitcoin (BTC)', 'Ethereum (ETH)', 'Solana (SOL)', 'XRP (XRP)', 'Dogecoin (DOGE)']) {
+        fireEvent.click(screen.getByRole('checkbox', { name }))
+      }
+    })
+
+    const cardano = screen.getByRole('checkbox', { name: 'Cardano (ADA)' }) as HTMLInputElement
+    expect(cardano.disabled).toBe(true)
+    // A CHECKED box stays enabled so the cap can always be undone.
+    expect((screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }) as HTMLInputElement).disabled).toBe(false)
+  })
+
+  it('a custom id with an invalid character is rejected with an alert naming it; nothing is added', async () => {
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'bitcoin, bit_coin' }, // underscore is not in [a-z0-9-]
+      fireEvent.change(screen.getByLabelText('Other CoinGecko id (optional)'), {
+        target: { value: 'bit_coin' }, // underscore is not in [a-z0-9-]
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     })
 
     expect(ensureOrigin).not.toHaveBeenCalled()
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('bit_coin')
+    expect(screen.queryByRole('checkbox', { name: 'bit_coin (custom)' })).toBeNull()
     expect((await readCrypto(storage))?.coins).toEqual([])
+  })
+
+  it('a valid custom id joins the selection as its own checked row', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.change(screen.getByLabelText('Other CoinGecko id (optional)'), {
+        target: { value: 'render-token' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    })
+    expect((screen.getByRole('checkbox', { name: 'render-token (custom)' }) as HTMLInputElement).checked).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+    expect((await readCrypto(storage))?.coins).toEqual(['bitcoin', 'render-token'])
   })
 
   it('a denied origin grant blocks the save: nothing is persisted', async () => {
@@ -2799,9 +4940,8 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'bitcoin, ethereum' },
-      })
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
@@ -2810,11 +4950,57 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     expect((await readCrypto(storage))?.coins).toEqual([])
   })
 
-  it('when already configured, the input shows the current ids joined', async () => {
-    await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
-    expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe(
-      'bitcoin, ethereum',
-    )
+  it('rolls back a newly acquired CoinGecko origin when the crypto save rejects', async () => {
+    const origin = 'https://api.coingecko.com/*'
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(await readCrypto(storage)).toEqual({ enabled: true, coins: [] })
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
+  })
+
+  it('preserves a pre-existing CoinGecko grant when the crypto save rejects', async () => {
+    const origin = 'https://api.coingecko.com/*'
+    holdOrigin(origin)
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('when already configured, the saved coins render checked — a legacy typed id as its own custom row', async () => {
+    await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'render-token'] })
+    expect((screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('checkbox', { name: 'render-token (custom)' }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }) as HTMLInputElement).checked).toBe(false)
   })
 
   it('Clear empties the config entirely and revokes api.coingecko.com', async () => {
@@ -2828,6 +5014,77 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     // origin, claimed by no other enabled connector).
     expect(removeOrigin).toHaveBeenCalledWith('https://api.coingecko.com/*')
     expect(await readCrypto(storage)).toBeUndefined()
+  })
+
+  it('keeps Crypto configured and reports an owner-write error when Clear cannot persist removal', async () => {
+    const storage = await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+    const updateMany = storage.updateMany.bind(storage)
+    storage.updateMany = ((keys, fn) => {
+      if ((keys as readonly string[]).includes('connectors')) return Promise.reject(new Error('disk full'))
+      return updateMany(keys, fn)
+    }) as AuroraStorage['updateMany']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    })
+
+    expect(await readCrypto(storage)).toEqual({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+    expect((screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }) as HTMLInputElement).checked).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't clear crypto.*saved configuration/i)
+  })
+
+  it('withholds Crypto clear revocation while a disabled descriptor config owns CoinGecko', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      crypto: { enabled: true, coins: ['bitcoin', 'ethereum'] },
+      gitlab: {
+        enabled: false,
+        token: 'glpat-live',
+        username: 'octocat',
+        instanceUrl: 'https://api.coingecko.com',
+      },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    openConnectorEditor('Crypto')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    })
+
+    expect((await storage.get('connectors')).crypto).toBeUndefined()
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed Crypto clear release in the Settings-level retry surface after its body unmounts', async () => {
+    const origin = 'https://api.coingecko.com/*'
+    holdOrigin(origin)
+    vi.mocked(removeOrigin).mockRejectedValueOnce(new Error('remove failed'))
+    const storage = await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    })
+
+    expect(await readCrypto(storage)).toBeUndefined()
+    expect(screen.queryByRole('checkbox', { name: 'Bitcoin (BTC)' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('Data')
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
   })
 
   it('the Clear button is absent when no coins are configured yet', async () => {
@@ -2866,11 +5123,12 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     }
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (ics) openConnectorEditor('Calendar')
     return storage
   }
 
@@ -2882,26 +5140,22 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     return (await storage.get('connectors')).ics as IcsConfig | undefined
   }
 
-  it('the card shell renders the Calendar descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+  it('the card shell renders Calendar with Set up, no switch, and no body until requested', async () => {
     await renderWithIcs()
     expect(screen.getByRole('heading', { name: 'Calendar' })).toBeTruthy()
     expect(screen.getByText('Your next events, from any calendar app')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Calendar')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Calendar' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Calendar on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
     expect(screen.queryByLabelText('Secret calendar address (ICS URL)')).toBeNull()
   })
 
-  it('enabling the connector via the shell toggle writes ONLY { enabled: true }; the now-enabled body renders an EMPTY, password-type url field', async () => {
+  it('opening Calendar setup writes nothing and reveals an empty password-type URL field', async () => {
     const storage = await renderWithIcs()
-    const toggle = screen.getByLabelText('Enable Calendar') as HTMLButtonElement
-    expect(attr(toggle, 'aria-checked')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Calendar' }))
 
-    await act(async () => {
-      fireEvent.click(toggle)
-    })
-
-    expect(await readIcs(storage)).toEqual({ enabled: true })
+    expect(await readIcs(storage)).toBeUndefined()
     const input = screen.getByLabelText('Secret calendar address (ICS URL)') as HTMLInputElement
     expect(input.value).toBe('')
     expect(input.type).toBe('password')
@@ -2928,7 +5182,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith('https://p57-caldav.icloud.com/published/2/abc')
+    expect(ensureOrigin).toHaveBeenCalledWith('https://p57-caldav.icloud.com/*')
     expect(await readIcs(storage)).toEqual({
       enabled: true,
       calendars: [{ name: 'Personal', url: 'https://p57-caldav.icloud.com/published/2/abc' }],
@@ -3033,6 +5287,83 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     expect(await readIcs(storage)).toEqual({ enabled: true })
   })
 
+  it('rolls back a newly acquired calendar origin when the list write rejects', async () => {
+    const origin = 'https://rollback-ics.example.com/*'
+    const url = 'https://rollback-ics.example.com/private.ics'
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithIcs({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(await readIcs(storage)).toEqual({ enabled: true })
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
+  })
+
+  it('preserves a pre-existing calendar origin when the list write rejects', async () => {
+    const origin = 'https://preexisting-ics.example.com/*'
+    const url = 'https://preexisting-ics.example.com/private.ics'
+    holdOrigin(origin)
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithIcs({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('aborts a calendar add whose authoritative updater finds a concurrent cap, rolls back its grant, and leaves the snapshot intact', async () => {
+    const url = 'https://concurrent-ics.example.com/private.ics'
+    const origin = 'https://concurrent-ics.example.com/*'
+    const full = Array.from({ length: 5 }, (_, i) => ({
+      name: `Concurrent ${i + 1}`,
+      url: `https://calendar-${i}.example.com/private.ics`,
+    }))
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithIcs({ enabled: true }, true)
+    const update = storage.update.bind(storage)
+    storage.update = ((_key: unknown, fn: unknown) =>
+      update('connectors', () =>
+        (fn as (value: never) => never)({ ics: { enabled: true, calendars: full } } as never),
+      )
+    ) as unknown as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect((await readIcs(storage))?.calendars).toEqual(full)
+    expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Up to 5 calendars/i)
+  })
+
   it('a configured list shows each name, host, a dot colored by list position, and a per-row Remove button', async () => {
     await renderWithIcs({
       enabled: true,
@@ -3054,6 +5385,42 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
 
     expect(within(region).getByRole('button', { name: 'Remove Personal' })).toBeTruthy()
     expect(within(region).getByRole('button', { name: 'Remove Family' })).toBeTruthy()
+  })
+
+  it('persists an explicit feed color without changing its URL, permissions, or snapshot', async () => {
+    const url = 'https://calendar.example.com/personal/basic.ics'
+    const storage = await renderWithIcs({
+      enabled: true,
+      calendars: [{ name: 'Personal', url }],
+    }, true)
+    const beforeSnapshot = (await storage.get('connectorSnapshots')).ics
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Color for Personal' }), { target: { value: 'emerald' } })
+    })
+
+    expect(await readIcs(storage)).toEqual({
+      enabled: true,
+      calendars: [{ name: 'Personal', url, color: 'emerald' }],
+    })
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await storage.get('connectorSnapshots')).ics).toEqual(beforeSnapshot)
+    expect(within(connectorsRegion()).getByRole('listitem').querySelector('.bg-emerald-400')).toBeTruthy()
+  })
+
+  it('ignores a malformed color-control value instead of persisting an open-ended color', async () => {
+    const url = 'https://calendar.example.com/personal/basic.ics'
+    const storage = await renderWithIcs({
+      enabled: true,
+      calendars: [{ name: 'Personal', url, color: 'sky' }],
+    })
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Color for Personal' }), { target: { value: 'not-a-color' } })
+    })
+
+    expect((await readIcs(storage))?.calendars).toEqual([{ name: 'Personal', url, color: 'sky' }])
   })
 
   it('removing a calendar revokes its origin ONLY when no remaining calendar shares that origin', async () => {
@@ -3081,6 +5448,53 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     })
     expect(removeOrigin).toHaveBeenCalledWith('https://calendar.example.com/*')
     expect((await readIcs(storage))?.calendars).toEqual([])
+  })
+
+  it('withholds a Calendar revoke while a disabled Home Assistant config owns the same origin', async () => {
+    const url = 'https://shared-calendar-ha.example.com/private.ics'
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      ics: { enabled: true, calendars: [{ name: 'Shared', url }] },
+      homeassistant: {
+        enabled: false,
+        instanceUrl: 'https://shared-calendar-ha.example.com',
+        token: 'ha-live',
+        locationName: 'House',
+      },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    openConnectorEditor('Calendar')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Shared' }))
+    })
+
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('still attempts final-owner release when clearing the removed calendar snapshot rejects', async () => {
+    const url = 'https://snapshot-failure-ics.example.com/private.ics'
+    const storage = await renderWithIcs({ enabled: true, calendars: [{ name: 'Personal', url }] }, true)
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectorSnapshots') return Promise.reject(new Error('cache write failed'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Personal' }))
+    })
+
+    expect((await readIcs(storage))?.calendars).toEqual([])
+    expect(removeOrigin).toHaveBeenCalledWith('https://snapshot-failure-ics.example.com/*')
+    expect((await screen.findByRole('alert')).textContent).toMatch(/cached events could not be cleared/i)
   })
 
   it('a legacy single-url config (pre-migration) surfaces as one calendar named "Calendar"', async () => {
@@ -3289,11 +5703,12 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     }
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (status) openConnectorEditor('Status')
     return storage
   }
 
@@ -3305,11 +5720,12 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     return (await storage.get('connectors')).status as StatusConfig | undefined
   }
 
-  it('the card shell renders the Status descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+  it('the card shell renders Status with Set up, no switch, and no body until requested', async () => {
     await renderWithStatus()
     expect(screen.getByRole('heading', { name: 'Status' })).toBeTruthy()
     expect(screen.getByText('Green dots for the services you depend on')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Status')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Status' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Status on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
     expect(screen.queryByLabelText('Add a service')).toBeNull()
@@ -3324,7 +5740,7 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
       fireEvent.change(screen.getByLabelText('Add a service'), { target: { value: GITHUB.url } })
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith(GITHUB.url)
+    expect(ensureOrigin).toHaveBeenCalledWith(originPattern(GITHUB.url))
     expect(await readStatus(storage)).toEqual({
       enabled: true,
       services: [{ name: GITHUB.name, url: GITHUB.url }],
@@ -3342,7 +5758,7 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
       fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith(CUSTOM_URL)
+    expect(ensureOrigin).toHaveBeenCalledWith(originPattern(CUSTOM_URL))
     expect(await readStatus(storage)).toEqual({
       enabled: true,
       services: [{ name: 'My API', url: CUSTOM_URL }],
@@ -3375,6 +5791,131 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBe('Enter a status page URL that starts with https://')
     expect(await readStatus(storage)).toEqual({ enabled: true })
+  })
+
+  it('rolls back a newly acquired Status origin when the service list write rejects', async () => {
+    const origin = 'https://rollback-status.example.com/*'
+    const url = 'https://rollback-status.example.com/api/v2/status.json'
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithStatus({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(await readStatus(storage)).toEqual({ enabled: true })
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
+  })
+
+  it('preserves a pre-existing Status origin when the service list write rejects', async () => {
+    const origin = 'https://preexisting-status.example.com/*'
+    const url = 'https://preexisting-status.example.com/api/v2/status.json'
+    holdOrigin(origin)
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithStatus({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('aborts a concurrently duplicated Status add without rolling back the now-configured service', async () => {
+    const url = 'https://concurrent-status.example.com/api/v2/status.json'
+    const origin = 'https://concurrent-status.example.com/*'
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithStatus({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((_key: unknown, fn: unknown) =>
+      update('connectors', () =>
+        (fn as (value: never) => never)({
+          status: { enabled: true, services: [{ name: 'Concurrent', url }] },
+        } as never),
+      )
+    ) as unknown as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect((await readStatus(storage))?.services).toEqual([{ name: 'Concurrent', url }])
+    expect((await screen.findByRole('alert')).textContent).toBe('That service is already in the list.')
+  })
+
+  it('issues permission requests before the lifecycle owner write for both curated and custom Status gestures', async () => {
+    const phases: string[] = []
+    const originalLocks = navigator.locks
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: (_name: string, _options: LockOptions, work: () => Promise<unknown>) => {
+          phases.push('lock queued')
+          return work()
+        },
+      },
+    })
+    const storage = await renderWithStatus({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') phases.push('owner write')
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    try {
+      let resolveCurated!: (granted: boolean) => void
+      vi.mocked(ensureOrigin).mockImplementation((requested) => {
+        phases.push(`request ${requested}`)
+        return new Promise<boolean>((resolve) => { resolveCurated = resolve })
+      })
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Add a service'), { target: { value: GITHUB.url } })
+      })
+      expect(phases).toEqual(['lock queued', `request ${originPattern(GITHUB.url)}`])
+      await act(async () => {
+        resolveCurated(true)
+      })
+
+      phases.length = 0
+      let resolveCustom!: (granted: boolean) => void
+      vi.mocked(ensureOrigin).mockImplementation((requested) => {
+        phases.push(`request ${requested}`)
+        return new Promise<boolean>((resolve) => { resolveCustom = resolve })
+      })
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: CUSTOM_URL } })
+        fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+      })
+      expect(phases).toEqual(['lock queued', `request ${originPattern(CUSTOM_URL)}`])
+      await act(async () => {
+        resolveCustom(true)
+      })
+    } finally {
+      Object.defineProperty(navigator, 'locks', { configurable: true, value: originalLocks })
+    }
   })
 
   it('a custom url matching an already-configured curated entry is rejected as a duplicate (curated/custom collision on url)', async () => {
@@ -3477,6 +6018,24 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     expect((await readStatus(storage))?.services).toEqual([])
   })
 
+  it('still attempts final-owner release when clearing the removed Status snapshot rejects', async () => {
+    const url = 'https://snapshot-failure-status.example.com/api/v2/status.json'
+    const storage = await renderWithStatus({ enabled: true, services: [{ name: 'Personal', url }] }, true)
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectorSnapshots') return Promise.reject(new Error('cache write failed'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Personal' }))
+    })
+
+    expect((await readStatus(storage))?.services).toEqual([])
+    expect(removeOrigin).toHaveBeenCalledWith('https://snapshot-failure-status.example.com/*')
+    expect((await screen.findByRole('alert')).textContent).toMatch(/cached service statuses could not be cleared/i)
+  })
+
   it('adding a service clears the cached status snapshot', async () => {
     vi.mocked(ensureOrigin).mockResolvedValue(true)
     const storage = await renderWithStatus({ enabled: true }, true)
@@ -3546,7 +6105,7 @@ describe('SettingsPanel Connectors section (shell — "Connected to" identityPhr
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -3562,7 +6121,7 @@ describe('SettingsPanel Connectors section (shell — "Connected to" identityPhr
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -3574,12 +6133,14 @@ describe('SettingsPanel Connectors section (shell — "Connected to" identityPhr
 describe('SettingsPanel Connectors section (Home Assistant card — Task 101, connect + entity picker + THE PACT)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiHomeAssistant).mockReset()
     vi.mocked(fetchAllStates).mockReset()
   })
 
-  async function renderWithHa(ha?: HomeAssistantConfig, seedSnapshot = false) {
+  afterEach(() => vi.restoreAllMocks())
+
+  async function renderWithHa(ha?: HomeAssistantConfig, seedSnapshot = false, revealSetup = true) {
     const storage = createStorage(memoryDriver())
     await storage.init()
     if (ha) await storage.set('connectors', { homeassistant: ha })
@@ -3590,11 +6151,12 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     }
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (ha && revealSetup) openConnectorEditor('Home Assistant')
     return storage
   }
 
@@ -3629,13 +6191,15 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     instanceUrl: 'https://home.example.com',
     token: 'eyJ_tok',
     locationName: 'Grand Rapids house',
+    snapshotEpoch: '00000000-0000-4000-8000-000000000100',
   }
 
-  it('the card shell renders the Home Assistant descriptor (label, blurb, enable toggle); no chip/form until enabled', async () => {
+  it('the card shell renders Home Assistant with Set up, no switch, and no form until requested', async () => {
     await renderWithHa()
     expect(screen.getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
     expect(screen.getByText('Your home, at a glance — and three buttons that do things')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Home Assistant')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Home Assistant' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Home Assistant on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected (to|as)/)).toBeNull()
     expect(screen.queryByLabelText('Instance URL')).toBeNull()
   })
@@ -3669,7 +6233,60 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
       instanceUrl: 'https://home.example.com',
       token: 'eyJ_tok',
       locationName: 'Grand Rapids house',
+      snapshotEpoch: expect.any(String),
     })
+  })
+
+  it('keeps fresh Home Assistant credentials hidden until setup is requested', async () => {
+    await renderWithHa({ enabled: true }, false, false)
+    const card = document.querySelector('[data-connector-card="homeassistant"]') as HTMLElement
+    expect(within(card).getByText('Not set up')).toBeTruthy()
+    expect(screen.queryByLabelText('Long-lived access token')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Home Assistant' }))
+    expect(screen.getByLabelText('Long-lived access token')).toBeTruthy()
+  })
+
+  it('disconnecting and reconnecting the identical account rotates the snapshot epoch', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000201')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000202')
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiHomeAssistant).mockResolvedValue({ ok: true, identity: 'Grand Rapids house' })
+    const storage = await renderWithHa({ enabled: true })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), {
+        target: { value: 'https://home.example.com' },
+      })
+      fireEvent.change(screen.getByLabelText('Long-lived access token'), {
+        target: { value: 'eyJ_tok' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+    expect((await readHa(storage))?.snapshotEpoch).toBe(
+      '00000000-0000-4000-8000-000000000201',
+    )
+
+    openConnectorEditor('Home Assistant')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+    expect(await readHa(storage)).toBeUndefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Home Assistant' }))
+    await screen.findByLabelText('Instance URL')
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), {
+        target: { value: 'https://home.example.com' },
+      })
+      fireEvent.change(screen.getByLabelText('Long-lived access token'), {
+        target: { value: 'eyJ_tok' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+    expect((await readHa(storage))?.snapshotEpoch).toBe(
+      '00000000-0000-4000-8000-000000000202',
+    )
   })
 
   it('a non-https instance URL blocks the connect with an inline alert: no permission requested, nothing stored', async () => {
@@ -3691,6 +6308,9 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
   })
 
   it('reconnecting preserves pre-existing entities/actions', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
+      '00000000-0000-4000-8000-000000000301',
+    )
     vi.mocked(ensureOrigin).mockResolvedValue(true)
     vi.mocked(whoamiHomeAssistant).mockResolvedValue({ ok: true, identity: 'Grand Rapids house' })
     const seededEntities: HaEntityRef[] = [{ id: 'light.kitchen', name: 'Kitchen Light' }]
@@ -3700,12 +6320,16 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
       instanceUrl: 'https://home.example.com',
       token: '',
       locationName: 'Grand Rapids house',
+      snapshotEpoch: '00000000-0000-4000-8000-000000000300',
       entities: seededEntities,
       actions: seededActions,
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), {
+        target: { value: 'https://home.example.com' },
+      })
       fireEvent.change(screen.getByLabelText('Long-lived access token'), { target: { value: 'eyJ_new' } })
       fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
     })
@@ -3713,6 +6337,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     const stored = await readHa(storage)
     expect(stored?.entities).toEqual(seededEntities)
     expect(stored?.actions).toEqual(seededActions)
+    expect(stored?.snapshotEpoch).toBe('00000000-0000-4000-8000-000000000301')
   })
 
   it('connected state renders "Connected to {location}" + "No entities picked yet" + a Choose entities button', async () => {
@@ -3720,6 +6345,19 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     expect(screen.getAllByText('Connected to Grand Rapids house')).toHaveLength(1)
     expect(screen.getByText('No entities picked yet')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Choose entities' })).toBeTruthy()
+  })
+
+  it('the Home Assistant card explains picker-only bulk loading and selected-entity dashboard updates without exposing credentials', async () => {
+    await renderWithHa(CONNECTED_HA)
+    const chooseButton = screen.getByRole('button', { name: 'Choose entities' })
+    const pickerGroup = chooseButton.parentElement as HTMLElement
+    const disclosure = within(pickerGroup).getByText(
+      'Choosing entities loads the full entity list from your Home Assistant instance for this picker only. Regular dashboard updates request only your selected entities.',
+    )
+
+    expect(disclosure).toBeTruthy()
+    expect(pickerGroup.textContent).not.toContain(CONNECTED_HA.token!)
+    expect(pickerGroup.textContent).not.toContain(CONNECTED_HA.instanceUrl!)
   })
 
   it('an already-picked config shows the "N chips · M actions" summary line, not the empty-state copy', async () => {
@@ -3758,6 +6396,65 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     expect(screen.getByRole('button', { name: 'Choose entities' })).toBeTruthy()
   })
 
+  it('restores the real Choose entities trigger after async loading loses focus on every picker close path', async () => {
+    await renderWithHa(CONNECTED_HA)
+
+    async function openAfterHeldFetchLosesFocus() {
+      let resolveFetch!: (value: HaState[] | null) => void
+      vi.mocked(fetchAllStates).mockImplementationOnce(
+        () => new Promise((resolve) => {
+          resolveFetch = resolve
+        }),
+      )
+
+      const trigger = screen.getByRole('button', { name: 'Choose entities' }) as HTMLButtonElement
+      trigger.focus()
+      act(() => {
+        fireEvent.click(trigger)
+      })
+
+      const loading = screen.getByRole('button', { name: /Loading/ }) as HTMLButtonElement
+      expect(loading).toBe(trigger)
+      expect(loading.disabled).toBe(true)
+      document.body.tabIndex = -1
+      document.body.focus()
+      document.body.removeAttribute('tabindex')
+      expect(document.activeElement).toBe(document.body)
+
+      await act(async () => {
+        resolveFetch([KITCHEN_LIGHT, OFFICE_SWITCH])
+      })
+      expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search entities' }))
+      return trigger
+    }
+
+    async function expectRestored(trigger: HTMLButtonElement) {
+      await act(async () => {})
+      expect(screen.queryByRole('dialog', { name: 'Pick entities' })).toBeNull()
+      const currentTrigger = screen.getByRole('button', { name: 'Choose entities' })
+      expect(currentTrigger).toBe(trigger)
+      expect(document.body.contains(currentTrigger)).toBe(true)
+      expect(document.activeElement).toBe(currentTrigger)
+    }
+
+    let trigger = await openAfterHeldFetchLosesFocus()
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Pick entities' })).getByRole('button', { name: 'Cancel' }))
+    await expectRestored(trigger)
+
+    trigger = await openAfterHeldFetchLosesFocus()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await expectRestored(trigger)
+
+    trigger = await openAfterHeldFetchLosesFocus()
+    const picker = screen.getByRole('dialog', { name: 'Pick entities' })
+    fireEvent.click(picker.parentElement?.previousElementSibling as HTMLElement)
+    await expectRestored(trigger)
+
+    trigger = await openAfterHeldFetchLosesFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await expectRestored(trigger)
+  })
+
   it('a failed fetch (null) shows the inline alert verbatim and does NOT open the dialog', async () => {
     vi.mocked(fetchAllStates).mockResolvedValue(null)
     await renderWithHa(CONNECTED_HA)
@@ -3781,11 +6478,11 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     })
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Kitchen Light' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Movie Night' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Office Fan' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Movie Night' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Office Fan' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Kitchen Light light.kitchen' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Movie Night scene.movie_night' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Office Fan switch.office_fan' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Movie Night scene.movie_night' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Office Fan switch.office_fan' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
@@ -3799,6 +6496,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
       { id: 'scene.movie_night', name: 'Movie Night', domain: 'scene' },
       { id: 'switch.office_fan', name: 'Office Fan', domain: 'switch' },
     ])
+    expect(stored?.snapshotEpoch).toBe('00000000-0000-4000-8000-000000000100')
     expect((await storage.get('connectorSnapshots')).homeassistant).toBeUndefined()
     expect(screen.getByText('3 chips · 2 actions')).toBeTruthy()
   })
@@ -3823,11 +6521,12 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    openConnectorEditor('Home Assistant')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
@@ -3847,6 +6546,82 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
   function connectorsRegion() {
     return screen.getByRole('region', { name: 'Connectors' })
   }
+})
+
+describe('SettingsPanel permission cleanup recovery', () => {
+  it('retains rollback cleanup across the connector and tab unmount, then clears it only after retry succeeds', async () => {
+    const origin = 'https://api.github.com/*'
+    cleanupHeld.clear()
+    vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+      origins.forEach((pattern) => cleanupHeld.add(pattern))
+      cleanupAddedListeners.forEach((listener) => listener({ origins: [...origins] }))
+      return true
+    })
+    vi.mocked(removeOrigin).mockRejectedValueOnce(new Error('remove failed'))
+    vi.mocked(whoamiGithub).mockResolvedValue({ ok: false, message: 'Bad token' })
+
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { github: { enabled: true, token: '', username: '' } })
+    await renderPanel(storage)
+    openTab('Connectors')
+    openConnectorEditor('GitHub')
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Fine-grained personal access token'), { target: { value: 'ghp_bad' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('Data')
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    vi.mocked(removeOrigin).mockImplementation(async (pattern) => {
+      const removed = cleanupHeld.delete(pattern)
+      if (removed) cleanupRemovedListeners.forEach((listener) => listener({ origins: [pattern] }))
+      return removed
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
+
+  it('retains failed final-owner disconnect cleanup after its card disappears, then retries it from another tab', async () => {
+    const origin = 'https://api.github.com/*'
+    cleanupHeld.clear()
+    cleanupHeld.add(origin)
+    cleanupAddedListeners.forEach((listener) => listener({ origins: [origin] }))
+    vi.mocked(removeOrigin).mockReset().mockRejectedValueOnce(new Error('remove failed'))
+
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { github: { enabled: true, token: 'ghp_live', username: 'octocat' } })
+    await renderPanel(storage)
+    openTab('Connectors')
+    openConnectorEditor('GitHub')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect((await storage.get('connectors')).github).toBeUndefined()
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('Data')
+    vi.mocked(removeOrigin).mockImplementation(async (pattern) => removeHeldOrigin(pattern))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
 })
 
 // Pure unit tests of the extracted auth-state helper — exported from
@@ -3869,6 +6644,7 @@ describe('authState (Connectors.tsx card auth-state helper)', () => {
     secretFields: ['token'],
     identityField: 'username',
     origins: () => [],
+    ownsOrigins: () => false,
   }
 
   it('identity + secret both present -> connected', () => {
@@ -3889,6 +6665,27 @@ describe('authState (Connectors.tsx card auth-state helper)', () => {
     const noneDescriptor: ConnectorDescriptor<GithubConfig> = { ...tokenDescriptor, auth: 'none' }
     const config: GithubConfig = { enabled: true, token: 't', username: 'jon' }
     expect(authState(noneDescriptor as ConnectorDescriptor, config)).toBe('none')
+  })
+
+  it('derives state-first labels without exposing secret values', () => {
+    const connected: GithubConfig = { enabled: true, token: 'never-render-this', username: 'jon' }
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, undefined)).toEqual({
+      state: 'off',
+      label: 'Off',
+    })
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, { enabled: true } as GithubConfig)).toEqual({
+      state: 'setup',
+      label: 'Setup needed',
+    })
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, { ...connected, token: '' })).toEqual({
+      state: 'reconnect',
+      label: 'Reconnect needed',
+    })
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, connected)).toEqual({
+      state: 'connected',
+      label: 'Connected as jon',
+    })
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, connected).label).not.toContain('never-render-this')
   })
 })
 

@@ -61,6 +61,61 @@ describe('HabitsWidget', () => {
     intervalSpy.mockRestore()
   })
 
+  it('renders today habits in the exact Compact ready TierFrame without an internal scroller', async () => {
+    await renderWithHabits([habit('stretch', 'Stretch')])
+    const frame = screen.getByRole('region', { name: 'Habits' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains('tier-frame--compact')).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+    expect(screen.getByRole('button', { name: /Stretch/ })).toBeTruthy()
+    expect(frame.querySelector('[data-habits-progress]')).toBeTruthy()
+  })
+
+  it('uses the approved completion ring with four readable Compact habit controls', async () => {
+    await renderWithHabits([
+      habit('walk', 'Walk'),
+      habit('read', 'Read'),
+      habit('stretch', 'Stretch'),
+      habit('journal', 'Journal'),
+      habit('water', 'Water'),
+      habit('sleep', 'Sleep'),
+    ])
+
+    const frame = screen.getByRole('region', { name: 'Habits' })
+    const grid = frame.querySelector<HTMLElement>('[data-habits-grid]')
+    expect(grid).toBeTruthy()
+    expect(screen.getByLabelText('0 of 6 habits complete today')).toBeTruthy()
+    expect(screen.getByText('today').className).toContain('text-[11px]')
+    expect(frame.querySelectorAll('button')).toHaveLength(4)
+    expect(screen.getByRole('button', { name: 'Walk' }).className).toContain('min-h-[22px]')
+    expect(screen.getByRole('button', { name: 'Journal' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Water' })).toBeNull()
+  })
+
+  it('Docked renders one dense done-today tally and no chips (NL-P5 batch 2)', async () => {
+    const todayKey = localDateKey(new Date())
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, habits: true },
+    })
+    await storage.set('habits', [habit('h1', 'Read', [todayKey]), habit('h2', 'Run')])
+    render(
+      <StorageProvider storage={storage}>
+        <HabitsWidget docked />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    const line = screen.getByLabelText('Habits: 1/2 today')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    // The dense line replaces the chips entirely — no toggle buttons.
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('renders nothing while settings.widgets.habits is off', async () => {
     const { container } = await renderWithHabits([habit('h1', 'Read')], { widgetsOn: false })
     expect(container.firstChild).toBeNull()
@@ -96,10 +151,11 @@ describe('HabitsWidget', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders one chip per habit, capped at 6 by construction — 7 in storage renders only 6 (falsifying)', async () => {
+  it('keeps the Compact list to four controls even when imported storage exceeds the editor cap', async () => {
     const habits = Array.from({ length: 7 }, (_, i) => habit(`h${i}`, `Habit ${i}`))
     await renderWithHabits(habits)
-    expect(screen.getAllByRole('button')).toHaveLength(6)
+    expect(screen.getAllByRole('button')).toHaveLength(4)
+    expect(screen.getByLabelText('0 of 7 habits complete today')).toBeTruthy()
   })
 
   it('a today-marked chip has aria-pressed=true', async () => {
@@ -114,7 +170,7 @@ describe('HabitsWidget', () => {
     expect(chip.getAttribute('aria-pressed')).toBe('false')
     // The interval only exists once the widget actually mounted its inner,
     // ticking half — confirms this test's gate passed through cleanly.
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000)
+    expect(intervalSpy).not.toHaveBeenCalled()
 
     await act(async () => {
       fireEvent.click(chip)
@@ -141,12 +197,13 @@ describe('HabitsWidget', () => {
   it('streak text matches a seeded log with a known streak (12 days ending today)', async () => {
     const todayKey = localDateKey(new Date())
     await renderWithHabits([habit('h1', 'Read', runEndingAt(todayKey, 12))])
-    expect(screen.getByText('🔥 12')).toBeTruthy()
+    expect(screen.getByText('12 day streak')).toBeTruthy()
   })
 
-  it('streak 0 (empty log) hides the flame and shows an unpressed check, no crash', async () => {
+  it('streak 0 (empty log) stays truthful and shows an unpressed check, no crash', async () => {
     await renderWithHabits([habit('h1', 'New habit', [])])
     expect(screen.queryByText(/🔥/)).toBeNull()
+    expect(screen.getByText('0 day streak')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'New habit' }).getAttribute('aria-pressed')).toBe('false')
   })
 

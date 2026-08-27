@@ -1,20 +1,23 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { useNow } from '../../../lib/hooks/useNow'
+import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useStorage } from '../../../lib/storage/context'
-import { localDateKey, streak, toggleDay } from '../../../lib/habits'
+import { streak, toggleDay } from '../../../lib/habits'
 import type { Habit } from '../../../lib/storage/schema'
+import DockLine from '../shared/DockLine'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import TierFrame from '../shared/TierFrame'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 
-// Display cap — mirrors Widgets.tsx's own MAX_HABITS (the editor's write-side
-// cap). Kept as an independent local constant, same as every other capped
-// widget in this app (WorldClocks' MAX_WORLD_CLOCKS, GithubWidget's
-// MAX_PRS/MAX_ISSUES): this is what makes the widget's OWN rendering capped
-// "by construction" rather than merely by whatever the settings editor
-// happens to enforce — a hand-edited backup can legally restore more than 6
-// habits (src/lib/storage/schema.ts's own Habit doc comment says as much),
-// and this slice is what keeps that case from ever rendering a 7th chip.
-const MAX_HABIT_CHIPS = 6
+// The approved Compact frame shows four readable controls in a 2x2 list.
+// Completion and streak calculations still include every stored habit, so an
+// imported over-cap list cannot make the frame overflow or lose its true total.
+const MAX_VISIBLE_HABITS = 4
 
-export default function HabitsWidget() {
+export default function HabitsWidget({
+  docked,
+  canvasSize = 'compact',
+  presentation = 'free',
+}: { docked?: boolean; canvasSize?: CanvasSize; presentation?: WidgetPresentationMode } = {}) {
   // Gate BEFORE the ticking clock exists — same shape as WorldClocks/
   // BookmarksBar/TimerWidget: disabled tabs (the default — settings.widgets
   // .habits starts false) or an enabled-but-empty list never mount
@@ -31,66 +34,87 @@ export default function HabitsWidget() {
   const [settings] = useStoredKey('settings')
   const [habits] = useStoredKey('habits')
   if (!settings?.widgets.habits || !Array.isArray(habits) || habits.length === 0) return null
-  return <HabitsInner habits={habits} />
+  return <HabitsInner habits={habits} docked={docked} canvasSize={canvasSize} presentation={presentation} />
 }
 
-function HabitsInner({ habits }: { habits: Habit[] }) {
+function HabitsInner({
+  habits,
+  docked,
+  canvasSize,
+  presentation,
+}: { habits: Habit[]; docked?: boolean; canvasSize: CanvasSize; presentation: WidgetPresentationMode }) {
   const storage = useStorage()
-  // The ONE impure boundary in this widget (everything habits.ts exports is
-  // pure — see its own top-of-file comment): today's local date key, derived
-  // from a ticking `Date`. useNow(60_000) is the shared ticking hook
-  // (Clock.tsx's own use is the precedent) — a full minute is coarse enough
-  // to cost nothing while still rolling the widget over local midnight
-  // within 60s of it actually happening, the same tradeoff WorldClocks'
-  // useNow(30_000) makes for its own display refresh.
-  const now = useNow(60_000)
-  const todayKey = localDateKey(now)
+  // The ONE impure boundary in this widget: the coherent local-day identity.
+  // The shared scheduler handles midnight, restoration, and timezone changes
+  // without a permanent polling interval.
+  const { key: todayKey } = useLocalDay()
 
   const toggleToday = (habitId: string) =>
     void storage.update('habits', (list) =>
       list.map((h) => (h.id === habitId ? { ...h, log: toggleDay(h.log, todayKey) } : h)),
     )
 
+  // Docked tier (NL-P5 batch 2): the done-today tally as one dense fact —
+  // the SAME log/todayKey membership check each chip renders, no writes.
+  if (docked) {
+    const doneToday = habits.filter((h) => h.log.includes(todayKey)).length
+    return <DockLine label="Habits" facts={[`${doneToday}/${habits.length} today`]} />
+  }
+
+  const visible = habits.slice(0, MAX_VISIBLE_HABITS)
+  const doneToday = habits.filter((habit) => habit.log.includes(todayKey)).length
+  const completion = Math.round((doneToday / habits.length) * 100)
+  const longestStreak = Math.max(0, ...habits.map((habit) => streak(habit.log, todayKey)))
   return (
-    <div className="w-[200px] flex flex-col gap-2 short:gap-1.5 xshort:gap-1">
-      {habits.slice(0, MAX_HABIT_CHIPS).map((h) => {
-        const todayDone = h.log.includes(todayKey)
-        const count = streak(h.log, todayKey)
-        return (
-          // The WHOLE chip is the check control (per the brief) — one tap
-          // marks today, a second tap unmarks it via toggleDay, and the
-          // streak recomputes live off the very same log this write just
-          // produced (no separate "recompute" step: `count` above is
-          // derived fresh every render from `habits`, which useStoredKey
-          // re-delivers the instant this storage.update's echo lands).
-          <button
-            key={h.id}
-            type="button"
-            aria-pressed={todayDone}
-            onClick={() => toggleToday(h.id)}
-            className="flex cursor-pointer items-center gap-2 dense:gap-1.5 rounded-full border border-panel-border bg-panel-solid px-3 dense:px-2 py-1.5 dense:py-1 text-left shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] focus-visible:outline-2 focus-visible:outline-accent"
+    <TierFrame label="Habits" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready" className="gap-1.5 p-3">
+      <header className="flex min-h-4 items-center justify-between">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em]">Habits</h2>
+      </header>
+      <div className="grid min-h-0 flex-1 grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2.5">
+        <span
+          role="img"
+          aria-label={`${doneToday} of ${habits.length} habits complete today`}
+          data-habits-progress={completion}
+          data-habits-presentation={presentation}
+          className="grid size-14 shrink-0 place-items-center rounded-full p-1.5"
+          style={{ background: `conic-gradient(var(--accent) ${completion}%, color-mix(in srgb, var(--fg-muted) 28%, transparent) 0)` }}
+        >
+          <span
+            aria-hidden="true"
+            className="grid size-11 place-content-center rounded-full bg-panel-solid text-center"
           >
-            <span
-              aria-hidden
-              className={`shrink-0 text-sm leading-none ${todayDone ? 'text-accent' : 'text-fg-muted/40'}`}
-            >
-              {todayDone ? '✓' : '○'}
-            </span>
-            {/* min-w-0 is load-bearing: a flex item's automatic minimum size
-                is its content width unless overridden, and `truncate` sets
-                `white-space: nowrap` (whose min-content IS the full string)
-                — without it a long name refuses to shrink and pushes the
-                chip wider than its column instead of truncating (same
-                min-w-0 rationale BookmarksBar's own CHIP class documents). */}
-            <span title={h.name} className="min-w-0 flex-1 truncate text-sm dense:text-xs font-medium text-fg">
-              {h.name}
-            </span>
-            {count > 0 && (
-              <span className="shrink-0 text-xs text-fg-muted">🔥 {count}</span>
-            )}
-          </button>
-        )
-      })}
-    </div>
+            <strong className="font-mono text-xs font-semibold leading-none text-fg">{doneToday}/{habits.length}</strong>
+            <span className="mt-0.5 text-[11px] uppercase tracking-[0.08em] text-fg-muted">today</span>
+          </span>
+        </span>
+        <div className="grid min-w-0 content-center gap-1">
+          <div data-habits-grid="" className="grid min-w-0 grid-cols-2 gap-x-2 gap-y-1">
+            {visible.map((h) => {
+              const todayDone = h.log.includes(todayKey)
+              return (
+                <button
+                  key={h.id}
+                  type="button"
+                  aria-pressed={todayDone}
+                  onClick={() => toggleToday(h.id)}
+                  className="flex min-h-[22px] min-w-0 cursor-pointer items-center gap-1 rounded-sm text-left text-[11px] focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`size-2 shrink-0 rounded-full border ${todayDone ? 'border-accent bg-accent' : 'border-fg-muted'}`}
+                  />
+                  <span title={h.name} className="min-w-0 flex-1 truncate font-medium text-fg">
+                    {h.name}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <span data-stage-text-tier="metadata" className="font-mono text-[11px] text-fg-muted">
+            {longestStreak} day streak
+          </span>
+        </div>
+      </div>
+    </TierFrame>
   )
 }

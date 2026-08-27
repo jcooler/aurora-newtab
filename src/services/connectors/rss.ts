@@ -192,6 +192,8 @@ export const rssDescriptor: ConnectorDescriptor<RssConfig> = {
   auth: 'none',
   ttlMs: 30 * 60_000,
   secretFields: [],
+  redactForBackup: (config) => ({ ...config, feeds: [] }),
+  backupReentryRequired: (config) => config.enabled === true && Array.isArray(config.feeds) && config.feeds.length === 0,
   // Filter, don't throw: backup import validates connector configs only
   // structurally (isConnectorConfig checks `enabled` alone — per-connector
   // field validation is deferred to this service boundary), so a restored
@@ -212,4 +214,15 @@ export const rssDescriptor: ConnectorDescriptor<RssConfig> = {
         return []
       }
     }),
+  ownsOrigins: (config) => {
+    if (!Array.isArray(config.feeds)) return false
+    return config.feeds.some((feed) => {
+      try {
+        originPattern(feed)
+        return true
+      } catch {
+        return false
+      }
+    })
+  },
 }

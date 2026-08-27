@@ -1,7 +1,12 @@
 import type { WeatherSnapshot } from '../../lib/storage/schema'
 
 export interface WeatherProvider {
-  fetchSnapshot(lat: number, lon: number, label: string): Promise<WeatherSnapshot>
+  fetchSnapshot(
+    lat: number,
+    lon: number,
+    label: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<WeatherSnapshot>
 }
 
 export interface GeoMatch {

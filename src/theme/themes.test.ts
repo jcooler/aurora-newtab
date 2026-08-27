@@ -43,6 +43,7 @@ describe('themes.css — one surface (Task 60)', () => {
     expect(root).toMatch(/--fg:\s*#f5f5f4;/)
     expect(root).toMatch(/--fg-muted:\s*rgb\(245 245 244 \/ 0\.68\);/)
     expect(root).toMatch(/--accent:\s*#7dd3fc;/)
+    expect(root).toMatch(/--panel-accent:\s*#f5f5f4;/)
   })
 
   it('still defines the ambient surface tokens every widget consumes', () => {

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
+import type { StorageAuthority } from '../../../lib/storage/authority'
 import { StorageProvider } from '../../../lib/storage/context'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import LocationSetup from './LocationSetup'
@@ -38,12 +39,16 @@ const dallasGA = {
   longitude: -84.8,
 }
 
-async function renderSetup() {
-  const storage = createStorage(memoryDriver())
+async function renderSetup(
+  driver = memoryDriver(),
+  authority?: StorageAuthority,
+  tier: 'compact' | 'standard' | 'full' = 'standard',
+) {
+  const storage = authority ? createStorage(driver, authority) : createStorage(driver)
   await storage.init()
   const utils = render(
     <StorageProvider storage={storage}>
-      <LocationSetup />
+      <LocationSetup tier={tier} />
     </StorageProvider>,
   )
   const input = screen.getByRole('combobox', { name: 'Search for a city' }) as HTMLInputElement
@@ -59,6 +64,59 @@ function DialogWrapper({ onClose }: { onClose: () => void }) {
 }
 
 describe('LocationSetup typeahead', () => {
+  it.each(['compact', 'standard'] as const)('portals %s suggestions beyond the frame, preserves combobox ownership, and selects a result', async (tier) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { storage, input } = await renderSetup(memoryDriver(), undefined, tier)
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    const list = screen.getByRole('listbox')
+    expect(list.parentElement).toBe(document.body)
+    expect(list.className).toContain('fixed')
+    expect(input.getAttribute('aria-controls')).toBe(list.id)
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(input)
+
+    fireEvent.click(screen.getByRole('option', { name: /Dallas/ }))
+    await act(async () => {})
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true })
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('closes the portalled list on an outside pointer without moving input focus', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { input } = await renderSetup()
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('uses tier context for compact adaptation and gives every setup control a 36px target', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { input } = await renderSetup(memoryDriver(), undefined, 'compact')
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    const root = input.closest('[data-location-setup]') as HTMLElement | null
+    expect(root?.dataset.locationTier).toBe('compact')
+    expect(root?.className).not.toContain('xshort:')
+    expect(input.className).toContain('min-h-9')
+    expect(input.className).not.toContain('max-[420px]')
+    expect(screen.getByRole('button', { name: 'Use my location' }).className).toContain('min-h-9')
+    expect(screen.getByRole('option').className).toContain('min-h-9')
+  })
+
   it('does not search below the 2-character minimum, even once the debounce would have elapsed', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
@@ -133,6 +191,12 @@ describe('LocationSetup typeahead', () => {
     expect(options[0].textContent).toContain('Dallas')
     expect(options[0].textContent).toContain('Texas')
     expect(options[0].textContent).toContain('United States')
+    expect(options[0].textContent).not.toContain('—')
+    expect(options[0].textContent).toContain(', Texas, United States')
+    const [name, secondary] = options[0].querySelectorAll('span')
+    expect(name.classList.contains('shrink-0')).toBe(true)
+    expect(secondary.classList.contains('min-w-0')).toBe(true)
+    expect(secondary.classList.contains('flex-1')).toBe(true)
   })
 
   it('a stale response arriving after a newer one does not clobber the newer results (abort/race safety)', async () => {
@@ -202,9 +266,10 @@ describe('LocationSetup typeahead', () => {
     expect(input.getAttribute('aria-activedescendant')).toBe(options[1].id)
 
     fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {})
 
-    expect(await storage.get('location')).toEqual({ lat: 34.0, lon: -84.8, label: 'Dallas', manual: true })
-    expect(input.value).toBe('Dallas')
+    expect(await storage.get('location')).toEqual({ lat: 34.0, lon: -84.8, label: 'Dallas, GA', manual: true })
+    expect(input.value).toBe('Dallas, GA')
     expect(screen.queryByRole('listbox')).toBeNull()
   })
 
@@ -232,8 +297,9 @@ describe('LocationSetup typeahead', () => {
     })
 
     fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {})
 
-    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true })
   })
 
   it('clicking a suggestion selects it the same way as Enter', async () => {
@@ -246,9 +312,80 @@ describe('LocationSetup typeahead', () => {
     })
 
     fireEvent.click(screen.getByRole('option'))
+    await act(async () => {})
 
-    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true })
     expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('commits a manual selection and cache invalidation in one atomic patch', async () => {
+    const driver = memoryDriver()
+    const write = vi.spyOn(driver, 'write')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { storage, input } = await renderSetup(driver)
+    await storage.set('weatherCache', {
+      current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: Date.now(),
+      locationLabel: 'Old place',
+    })
+    write.mockClear()
+
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write).toHaveBeenCalledWith({
+      location: { lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true },
+      weatherCache: null,
+      weatherAlertCache: null,
+    })
+    expect(await storage.get('weatherCache')).toBeNull()
+    expect(await storage.get('weatherAlertCache')).toBeNull()
+  })
+
+  it('keeps the prior state, reports a save failure, and permits retry', async () => {
+    const driver = memoryDriver()
+    const baseWrite = driver.write.bind(driver)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { storage, input } = await renderSetup(driver)
+    const oldLocation = { lat: 1, lon: 2, label: 'Old place', manual: true }
+    await storage.setMany({ location: oldLocation, weatherCache: null })
+
+    let failNext = true
+    driver.write = vi.fn(async (patch) => {
+      if (failNext) {
+        failNext = false
+        throw new Error('disk full')
+      }
+      await baseWrite(patch)
+    })
+
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+
+    expect(await storage.get('location')).toEqual(oldLocation)
+    expect(screen.getByRole('alert').textContent).toContain('Could not save location')
+    expect(screen.getByRole('listbox')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+    expect(await storage.get('location')).toMatchObject({ lat: 32.78, lon: -96.8, manual: true })
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('review fix: selecting mid-debounce cancels the pending timer — no ghost second fetch, no reopened list', async () => {
@@ -273,9 +410,10 @@ describe('LocationSetup typeahead', () => {
     // Select the still-visible suggestion from the FIRST search before that
     // second timer ever fires.
     fireEvent.click(screen.getByRole('option'))
+    await act(async () => {})
 
-    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
-    expect(input.value).toBe('Dallas')
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas, TX', manual: true })
+    expect(input.value).toBe('Dallas, TX')
     expect(screen.queryByRole('listbox')).toBeNull()
 
     // Advance well past where the cancelled "Dal" timer would have fired —
@@ -358,6 +496,7 @@ describe('LocationSetup dropdown edge clamping', () => {
   afterEach(() => {
     rectSpy.mockRestore()
     Object.defineProperty(window, 'innerWidth', { value: originalInnerWidth, configurable: true })
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
   })
 
   it('review fix: a second completed search while the list stays open does not un-clamp it back off-screen', async () => {
@@ -366,6 +505,10 @@ describe('LocationSetup dropdown edge clamping', () => {
       .mockResolvedValueOnce(jsonResponse({ results: [dallasTX] }))
       .mockResolvedValueOnce(jsonResponse({ results: [dallasTX, dallasGA] }))
     vi.stubGlobal('fetch', fetchMock)
+    const inputRectSpy = vi.spyOn(HTMLInputElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 400, right: 560, top: 40, bottom: 76, width: 160, height: 36,
+      x: 400, y: 40, toJSON() {},
+    } as DOMRect)
     const { input } = await renderSetup()
 
     fireEvent.change(input, { target: { value: 'Dal' } })
@@ -373,9 +516,8 @@ describe('LocationSetup dropdown edge clamping', () => {
       await vi.advanceTimersByTimeAsync(300)
     })
     const list = screen.getByRole('listbox')
-    // Right edge (700) clamped back to window.innerWidth(500) - EDGE_MARGIN(8) = 492
-    // by shifting left 208px: 400 - 208 = 192, 700 - 208 = 492.
-    expect(list.style.left).toBe('-208px')
+    // A fixed portal uses the clamped viewport coordinate directly.
+    expect(list.style.left).toBe('192px')
 
     // A second search resolves while the SAME list is still open (results
     // change, list never closes) — re-measuring must land on the same
@@ -386,7 +528,154 @@ describe('LocationSetup dropdown edge clamping', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(list.style.left).toBe('-208px') // still clamped, not un-clamped back to 0
+    expect(list.style.left).toBe('192px')
+    inputRectSpy.mockRestore()
+  })
+
+  it('owns a viewport-derived height, scrolls the active descendant, and converges on resize without shift drift', async () => {
+    const originalInnerHeight = window.innerHeight
+    Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
+    const scrollIntoView = vi.fn()
+    const scrollHeightSpy = vi.spyOn(HTMLUListElement.prototype, 'scrollHeight', 'get').mockReturnValue(162)
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    const inputRectSpy = vi.spyOn(HTMLInputElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 400,
+      right: 560,
+      top: 110,
+      bottom: 146,
+      width: 160,
+      height: 36,
+      x: 400,
+      y: 110,
+      toJSON() {},
+    } as DOMRect)
+    rectSpy.mockImplementation(function (this: HTMLUListElement) {
+      const appliedLeft = parseFloat(this.style.left || '0') || 0
+      const baseLeft = 400
+      const width = 300
+      const height = Math.min(164, parseFloat(this.style.maxHeight || '164'))
+      const top = this.style.bottom && this.style.bottom !== 'auto' ? 110 - 4 - height : 150
+      return {
+        left: baseLeft + appliedLeft,
+        right: baseLeft + width + appliedLeft,
+        width,
+        height,
+        top,
+        bottom: top + height,
+        x: baseLeft + appliedLeft,
+        y: top,
+        toJSON() {},
+      } as DOMRect
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX, dallasGA] })))
+    const { input } = await renderSetup()
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    const list = screen.getByRole('listbox')
+
+    expect(list.classList.contains('overflow-x-hidden')).toBe(true)
+    expect(list.style.left).toBe('192px')
+    expect(list.style.top).toBe('8px')
+    expect(list.style.bottom).toBe('')
+    expect(list.style.maxHeight).toBe('98px')
+    expect(list.style.transform).toBe('')
+
+    input.focus()
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(input)
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+
+    // Reproduce the clean-browser race from the packet aggregate: keyboard
+    // navigation can select an option while the list still owns its old
+    // height, then the queued resize measurement commits a shorter cap. The
+    // active descendant must be scrolled again after that geometry commit;
+    // otherwise the same active id survives while its row falls below the
+    // newly clipped viewport.
+    scrollIntoView.mockClear()
+    Object.defineProperty(window, 'innerHeight', { value: 160, configurable: true })
+    inputRectSpy.mockReturnValue({
+      left: 400,
+      right: 560,
+      top: 90,
+      bottom: 126,
+      width: 160,
+      height: 36,
+      x: 400,
+      y: 90,
+      toJSON() {},
+    } as DOMRect)
+    await act(async () => {
+      fireEvent(window, new Event('resize'))
+      await vi.advanceTimersByTimeAsync(20)
+    })
+    expect(list.style.left).toBe('192px')
+    expect(list.style.top).toBe('8px')
+    expect(list.style.bottom).toBe('')
+    expect(list.style.maxHeight).toBe('78px')
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    inputRectSpy.mockRestore()
+    scrollHeightSpy.mockRestore()
+    Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
+  })
+
+  it('caps the list to available space on one side of the focused input so the composite never self-occludes at 320x180', async () => {
+    const originalInnerHeight = window.innerHeight
+    Object.defineProperty(window, 'innerWidth', { value: 320, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
+    const inputRectSpy = vi.spyOn(HTMLInputElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 16,
+      right: 176,
+      top: 70,
+      bottom: 106,
+      width: 160,
+      height: 36,
+      x: 16,
+      y: 70,
+      toJSON() {},
+    } as DOMRect)
+    rectSpy.mockImplementation(function (this: HTMLUListElement) {
+      const appliedLeft = parseFloat(this.style.left || '0') || 0
+      const height = Math.min(164, parseFloat(this.style.maxHeight || '164'))
+      const top = this.style.bottom && this.style.bottom !== 'auto' ? 70 - 4 - height : 110
+      return {
+        left: 16 + appliedLeft,
+        right: 304 + appliedLeft,
+        width: 288,
+        height,
+        top,
+        bottom: top + height,
+        x: 16 + appliedLeft,
+        y: top,
+        toJSON() {},
+      } as DOMRect
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX, dallasGA] })))
+    const { input } = await renderSetup(memoryDriver(), undefined, 'compact')
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    const list = screen.getByRole('listbox')
+    const compactControlRow = input.parentElement?.parentElement
+    expect(compactControlRow?.className).toContain('location-setup__controls')
+    expect(input.closest('[data-location-setup]')?.getAttribute('data-location-tier')).toBe('compact')
+    expect(input.parentElement?.className).toContain('location-setup__search')
+    expect(screen.getByRole('button', { name: 'Use my location' }).className).toContain('location-setup__device')
+    expect(screen.getByText('Weather needs a location.').className).toContain('location-setup__prompt')
+    expect(document.activeElement).toBe(input)
+    expect(list.style.top).toBe('110px')
+    expect(list.style.bottom).toBe('')
+    expect(list.style.maxHeight).toBe('62px')
+    expect(list.style.transform).toBe('')
+    expect(list.className).toContain('overflow-x-hidden')
+    expect(list.className).not.toContain('max-h-[calc(100dvh-1rem)]')
+
+    inputRectSpy.mockRestore()
+    Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
   })
 })
 
@@ -475,5 +764,172 @@ describe('LocationSetup "Use my location" (geolocation is an install-time permis
       manual: false,
     })
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('a manual selection wins when an older device reverse-geocode finishes late', async () => {
+    let resolvePosition: (pos: unknown) => void = () => {}
+    let resolveReverse: (value: unknown) => void = () => {}
+    getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
+      resolvePosition = success
+    })
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('reverse-geocode-client')) {
+        return new Promise((resolve) => {
+          resolveReverse = resolve
+        })
+      }
+      return Promise.resolve(jsonResponse({ results: [dallasGA] }))
+    }))
+    const { storage, input } = await renderSetup()
+    await storage.set('weatherCache', {
+      current: { tempC: 10, feelsLikeC: 9, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: Date.now(),
+      locationLabel: 'Old place',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    await act(async () => {
+      resolvePosition({ coords: { latitude: 32.7767, longitude: -96.797 } })
+      await Promise.resolve()
+    })
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      resolveReverse(jsonResponse({ city: 'Device Dallas' }))
+      await Promise.resolve()
+    })
+
+    expect(await storage.get('location')).toEqual({
+      lat: 34,
+      lon: -84.8,
+      label: 'Dallas, GA',
+      manual: true,
+    })
+    expect(await storage.get('weatherCache')).toBeNull()
+  })
+
+  it('rechecks device ownership inside a delayed authority entry after a manual save rejects', async () => {
+    let holdNext = false
+    let releaseHeld: () => void = () => {}
+    let announceHeld: () => void = () => {}
+    let held = Promise.resolve()
+    const authority: StorageAuthority = {
+      runExclusive<T>(work: () => Promise<T>): Promise<T> {
+        if (!holdNext) return work()
+        holdNext = false
+        const gate = new Promise<void>((resolve) => {
+          releaseHeld = resolve
+        })
+        held = new Promise<void>((resolve) => {
+          announceHeld = resolve
+        })
+        announceHeld()
+        return gate.then(work)
+      },
+    }
+    let resolvePosition: (pos: unknown) => void = () => {}
+    let resolveReverse: (value: unknown) => void = () => {}
+    getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
+      resolvePosition = success
+    })
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('reverse-geocode-client')) {
+        return new Promise((resolve) => {
+          resolveReverse = resolve
+        })
+      }
+      return Promise.resolve(jsonResponse({ results: [dallasGA] }))
+    }))
+    const driver = memoryDriver()
+    const baseWrite = driver.write.bind(driver)
+    const { storage, input } = await renderSetup(driver, authority)
+    const priorLocation = { lat: 1, lon: 2, label: 'Prior', manual: true }
+    const priorCache = {
+      current: { tempC: 10, feelsLikeC: 9, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: Date.now(),
+      locationLabel: 'Prior',
+    }
+    await storage.setMany({ location: priorLocation, weatherCache: priorCache })
+    let failNext = true
+    driver.write = vi.fn(async (patch) => {
+      if (failNext) {
+        failNext = false
+        throw new Error('disk full')
+      }
+      await baseWrite(patch)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    await act(async () => {
+      resolvePosition({ coords: { latitude: 32.7767, longitude: -96.797 } })
+      await Promise.resolve()
+    })
+    holdNext = true
+    await act(async () => {
+      resolveReverse(jsonResponse({ city: 'Device Dallas' }))
+      await Promise.resolve()
+      await held
+    })
+
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('alert').textContent).toContain('Could not save location')
+
+    await act(async () => {
+      releaseHeld()
+      await Promise.resolve()
+    })
+    expect(await storage.get('location')).toEqual(priorLocation)
+    expect(await storage.get('weatherCache')).toEqual(priorCache)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+    expect(await storage.get('location')).toMatchObject({ lat: 34, lon: -84.8, manual: true })
+    expect(await storage.get('weatherCache')).toBeNull()
+  })
+
+  it('unmounting during reverse geocoding aborts and prevents a late write', async () => {
+    let resolvePosition: (pos: unknown) => void = () => {}
+    let resolveReverse: (value: unknown) => void = () => {}
+    let reverseSignal: AbortSignal | undefined
+    getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
+      resolvePosition = success
+    })
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      reverseSignal = init?.signal ?? undefined
+      return new Promise((resolve) => {
+        resolveReverse = resolve
+      })
+    }))
+    const { storage, unmount } = await renderSetup()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    await act(async () => {
+      resolvePosition({ coords: { latitude: 32.7767, longitude: -96.797 } })
+      await Promise.resolve()
+    })
+    unmount()
+    expect(reverseSignal?.aborted).toBe(true)
+    await act(async () => {
+      resolveReverse(jsonResponse({ city: 'Too late' }))
+      await Promise.resolve()
+    })
+    expect(await storage.get('location')).toBeNull()
   })
 })

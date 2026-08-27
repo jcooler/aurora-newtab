@@ -1,14 +1,60 @@
-import { formatClock } from '../../lib/clock'
+import { formatClock, formatDayContext } from '../../lib/clock'
 import { useNow } from '../../lib/hooks/useNow'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import type { CanvasSize } from '../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../widgetRenderers'
+import TierFrame from '../widgets/shared/TierFrame'
 
-export default function Clock() {
+export default function Clock({
+  canvasSize = 'standard',
+  presentation = 'free',
+  docked = false,
+}: {
+  canvasSize?: CanvasSize
+  presentation?: WidgetPresentationMode
+  docked?: boolean
+} = {}) {
   const [settings] = useStoredKey('settings')
   const now = useNow()
   if (!settings) return null
+  if (docked) {
+    // The Docked tier (named-layouts spec 2.3): one dense text-first line —
+    // time · date, middle dots separating facts. Same clock sample and
+    // accessible <time> value as the free face; no big-glyph block.
+    return (
+      <div data-dock-line="" className="dock-line">
+        <time dateTime={now.toISOString()} data-canvas-type-role="body" className="tabular-nums font-medium">
+          {formatClock(now, settings.use24Hour)}
+        </time>
+        <span aria-hidden className="opacity-[0.68]">·</span>
+        <span data-canvas-type-role="body" className="opacity-[0.68]">
+          {formatDayContext(now, 'compact')}
+        </span>
+      </div>
+    )
+  }
+  if (presentation === 'stack') {
+    const showDate = canvasSize !== 'compact'
+    const showSeconds = canvasSize === 'full'
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time'
+    return (
+      <TierFrame label="Clock" tier={canvasSize} state="ready" className={`core-clock-stack core-clock-stack--${canvasSize}`}>
+        <div className="core-clock-stack__face">
+          <time dateTime={now.toISOString()} className="core-clock-stack__time tabular-nums">
+            {formatClock(now, settings.use24Hour)}
+            {showSeconds ? <small data-testid="clock-seconds">{String(now.getSeconds()).padStart(2, '0')}</small> : null}
+          </time>
+          {showDate ? <span data-testid="clock-date" className="core-clock-stack__date">{formatDayContext(now, 'long')}</span> : null}
+          <span data-testid="clock-zone" className="core-clock-stack__zone">{zone}</span>
+        </div>
+      </TierFrame>
+    )
+  }
   return (
-    <time
-      dateTime={now.toISOString()}
+    <div data-clock-face="" className="clock-face">
+      <time
+        dateTime={now.toISOString()}
+        data-canvas-type-role="clock"
       // The scale term is `min(12vw, 20vh)`, not `12vw` alone — the old
       // width-only clamp() rendered ~160px tall at the owner's ~1420x437
       // short-wide window (12vw already exceeded the 10rem ceiling there) and
@@ -45,9 +91,13 @@ export default function Clock() {
       // an inherited ~12px with `color: var(--clock-font)` quietly doing
       // nothing (an invalid color, dropped) — found by this fix's own
       // measurement probe, not by inspection.
-      className="text-photo text-canvas-fg font-display text-[length:var(--clock-font)] font-medium tabular-nums tracking-[-0.02em]"
-    >
-      {formatClock(now, settings.use24Hour)}
-    </time>
+        className="text-photo text-canvas-fg font-display text-[length:var(--clock-font)] font-medium tabular-nums tracking-[-0.02em]"
+      >
+        {formatClock(now, settings.use24Hour)}
+      </time>
+      <span data-clock-date="" data-canvas-type-role="date" className="text-photo text-canvas-fg-muted">
+        {formatDayContext(now, 'long')}
+      </span>
+    </div>
   )
 }

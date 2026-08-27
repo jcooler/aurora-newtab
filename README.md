@@ -1,7 +1,8 @@
 # Aurora
 
-A calm, local-first new-tab dashboard for Chrome. No accounts, no tracking,
-no backend — everything lives on your machine.
+A calm, local-first new-tab dashboard for Chrome. No Aurora account, no tracking,
+no backend — stored data stays on your machine, with selected features making
+direct provider requests only as disclosed below.
 
 ## Features
 
@@ -15,7 +16,12 @@ no backend — everything lives on your machine.
 - **Quick links** — a small drag-to-reorder tile grid with favicons.
 - **Weather** — current conditions + next-12-hours forecast via Open-Meteo,
   from your device location or a searched city; expand it for feels-like
-  temperature, wind, humidity, and sunrise/sunset. No API key needed.
+  temperature, humidity, rain probability with an unambiguous hour, wind
+  speed with a compass label and matching direction arrow, and distinct
+  sunrise/sunset facts. The expanded briefing also shows current US AQI, UV,
+  and provider-available pollen with visible meaning and source attribution.
+  Forecast remains useful when that optional environmental data is unavailable.
+  No API key needed.
 - **Background photos** — a bundled, hand-curated set of landscape photos
   that rotates daily, or upload your own as a gallery (add several at once,
   remove any one from a thumbnail strip, rotates through the rest), or use
@@ -53,7 +59,11 @@ no backend — everything lives on your machine.
   what it reads (and, for Home Assistant, sends), and how the permission
   model works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
-- **Focus timer** — a Pomodoro-style work/break timer with a chime.
+- **Focus timer & Flow:** A Pomodoro-style work/break timer with a chime.
+  Start Flow to clear the page down to today's focus, the live timer, and the
+  first unfinished task over the current photograph. The same session and
+  absolute deadline stay synchronized across new tabs; Pause and End flow do
+  not alter the active named layout.
 - **Notes** — a small autosaving scratchpad pinned to the corner, for
   jotting anything down; saves locally as you type.
 - **Daily quote** — one quote a day from a small bundled set.
@@ -70,23 +80,21 @@ no backend — everything lives on your machine.
   move and apply the selection, roving tabindex), and every switch is a
   native `<button role="switch">` (Space/Enter, platform focus/disabled
   semantics) rather than a styled checkbox.
-- **Rearrange the layout** — press and hold an empty spot on a widget (its
-  non-interactive surface, not a button/link/input — those keep their own
-  click behavior) to drag it anywhere on the page, with snap guides toward
-  the viewport center and other widgets; or open Settings → Layout →
-  "Arrange layout" to enter the same mode without long-pressing anything.
-  Once a widget is selected, arrow keys nudge it a step at a time (Shift for
-  a finer step) instead of the mouse. The default layout itself reflows to
-  fit whatever size your window is — resize it and everything re-settles,
-  no fixed pixel grid to outgrow. A widget you've dragged is the exception:
-  it stays exactly where you put it, at that spot, regardless of window
-  size, until "Reset layout" puts it back into the flow, with a two-step
-  confirm so it can't happen by accident. Positions are stored locally,
-  same as everything else.
+- **Named layouts & live editing** — create and switch layouts, hover a
+  widget for Move and Settings, drag it anywhere on the live page, choose
+  its Compact/Standard/Full presentation, layer or hide it, and create
+  precisely positioned top or bottom docks. Save commits the draft; Cancel
+  restores the exact stored layout. Aurora never changes layouts or
+  rearranges authored positions on its own.
+- **Widget stacks:** while editing, hold one free widget over another for
+  half a second to create one card with several ordered widgets. Page it with
+  arrows, dots, a horizontal swipe, or Left/Right keys; drag the whole card,
+  reorder or remove members, and Undo or Cancel exactly. Every member keeps
+  its one existing data owner, and the card never auto-rotates or moves itself.
 
 Settings is organized into four tabs: **General** (name/greeting, 24-hour
 clock, widget color, units, mute, background), **Widgets** (per-widget on/off
-toggles, weather location, world clocks, countdowns, and layout/arrange),
+toggles, weather location, world clocks, countdowns, and named layouts),
 **Connectors** (outside data sources — see [Connectors](#connectors) below),
 and **Data** (backup/restore, plus the About footer). Every widget can be
 turned on or off from Settings, and every setting is optional — the
@@ -110,6 +118,7 @@ tab to see it.
 ```bash
 npm run dev              # Vite dev server with HMR; load unpacked the same way as above
 npm test                 # unit tests (Vitest)
+npm run test:information-first-contract # Node-only information-first matrix contract
 npm run build            # type-check (tsc --noEmit) + production build into dist/
 node scripts/preview.mjs # builds nothing itself — run `npm run build` first — then
                           # loads dist/ in real Chromium via Playwright and captures
@@ -146,10 +155,13 @@ to watch the run in a visible browser window instead of headless.
 
 Weather is powered by [Open-Meteo](https://open-meteo.com/), a free service
 that needs no API key and no sign-up. Aurora sends it only a latitude and
-longitude (rounded to ~1km) and, for city search, whatever you've typed into
-the city search box so far — suggestions filter as you type (debounced, so
-it's not a call per keystroke), not only after you press Enter. Your location
-is stored locally and is never sent anywhere else.
+longitude. Device location is rounded to two decimals; a selected city keeps
+Open-Meteo's returned coordinates, and forecast/environment requests normalize
+either source to at most four decimals. City suggestions filter the text you
+type after a short debounce, not on every keystroke. Forecast uses
+`api.open-meteo.com`; current AQI, UV, and available pollen use
+`air-quality-api.open-meteo.com`. Both results are stored in the included local
+Weather cache. Environmental failure never suppresses forecast.
 
 ## Connectors
 
@@ -175,7 +187,10 @@ anything on your board stays pinned on top.
 fetches each feed directly from your browser — there's no Aurora server in
 the middle relaying the request — merges the results newest-first, and
 caches them locally so the widget doesn't refetch on every new tab (about
-once every 30 minutes, or sooner if you refresh).
+once every 30 minutes, or sooner if you refresh). Treat each full feed URL
+as a capability secret: it can contain an unguessable token that grants read
+access, so Aurora redacts it from JSON backups and requires re-entry after
+restore.
 
 The other eight, briefly — what you see, and what Aurora reads (and, for
 one connector, writes) to show it. Every connector card is composable —
@@ -220,9 +235,9 @@ a single request that keeps firing as long as either section is on.
   feed's URL, which Aurora treats as a secret (see [Privacy](#privacy)).
 - **Status** — a quiet dot row for up to 8 services you depend on: green
   and silent on a normal day, with trouble text appearing only for a
-  service that's actually down (worst first). Pick from six curated
-  status pages (GitHub, Cloudflare, OpenAI, npm, Vercel, Discord) or add
-  any statuspage.io-style URL yourself. No account, no token — reads only
+  service that's actually down (worst first). Pick from seven curated
+  status pages (GitHub, Cloudflare, OpenAI, npm, Vercel, Claude, Discord) or
+  add any statuspage.io-style URL yourself. No account, no token — reads only
   the public status endpoint each entry points to.
 - **Home Assistant** — up to 6 state chips (`Kitchen 21.5°C`, `Porch light
   on`, …) and up to 3 one-tap action buttons (a scene, script, or switch),
@@ -235,7 +250,11 @@ a single request that keeps firing as long as either section is on.
   schedule — every other connector on this page, Home Assistant's own
   state poll included, only ever reads. Polled at most once a minute,
   Aurora's shortest interval, since home state goes stale faster than
-  anything else here.
+  anything else here. The bulk `/api/states` request runs only when you open
+  the entity picker; regular refreshes request each selected
+  `/api/states/{entity_id}`. Aurora uses `/api/config` once while connecting,
+  `/api/` only for action health, and posts to the selected service endpoint
+  only on an action click.
 
 **The permission model** is per-site, not all-or-nothing. Aurora's manifest
 lists every `https://` origin as *requestable*, but none is granted until
@@ -314,6 +333,21 @@ back to `null`, restoring the default surface.
 
 ## Adding a widget
 
+Aurora's verified Expansion Platform should be the starting point for new
+identities. It keeps research and starter output deterministic while production
+registries, renderers, storage, permissions, and provider code remain the
+authorities:
+
+```powershell
+npm run test:expansion-contract
+node scripts/expansion/scaffold.mjs --id=<catalog-id> --label="<Label>" --kind=<builtin|connector|provider> --out-dir=.aurora-expansion-<identity>
+```
+
+The scaffold writes only to a new guarded `.aurora-expansion-*` scratch directory. It
+does not install a feature or modify production source. Review
+[`docs/superpowers/catalog/expansion/CATALOG.md`](docs/superpowers/catalog/expansion/CATALOG.md)
+and the generated checklist before following the production steps below.
+
 1. Create a folder under `src/newtab/widgets/<name>/` with a
    `<Name>Widget.tsx` default export. Gate its rendering on
    `settings.widgets.<key>` at the top of the component (return `null` when
@@ -347,10 +381,10 @@ as a single JSON file:
   envelope (`app`, `version`, `exportedAt`, and `data`) containing every
   stored key: settings, quick links, to-do lists, the focus timer config,
   today's focus text, background preferences, weather cache, location,
-  notes, world clocks, countdowns, and connector configuration (e.g. your
-  RSS feed list) — with any field a connector marks as secret (a GitHub/
+  notes, world clocks, countdowns, and connector configuration — with any
+  field a connector marks as secret (a GitHub/
   GitLab/Jira/Vercel/Home Assistant token, or the Calendar connector's
-  saved calendar addresses) stripped out first (see
+  saved calendar addresses, or an RSS feed list) stripped out first (see
   [Connectors](#connectors)).
 - **Background photo uploads are not included**, and neither is connectors'
   cached data (e.g. fetched RSS headlines). Photos live in IndexedDB as a
@@ -378,7 +412,8 @@ The full, standalone privacy policy (Chrome Web Store submission copy,
 audited line-by-line against this codebase) lives in
 [`PRIVACY.md`](PRIVACY.md). Summary:
 
-Aurora has no backend and no accounts. All of your data — settings, quick
+Aurora has no backend and requires no Aurora account. Third-party accounts
+are used only when you choose a credentialed connector. All of your data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
 preferences, weather cache, location, notes, world clocks, countdowns,
 habits, widget layout, and connector configuration (e.g. your RSS feed
@@ -388,27 +423,37 @@ never uploaded anywhere).
 
 
 The **fixed** outbound network calls Aurora makes on its own are to
-Open-Meteo: the forecast endpoint (`api.open-meteo.com`), only once the
-weather widget is enabled and a location is set, and the geocoder
+Open-Meteo: the forecast endpoint (`api.open-meteo.com`) and environmental
+endpoint (`air-quality-api.open-meteo.com`), only once the Weather widget is
+enabled and a location is set, and the geocoder
 (`geocoding-api.open-meteo.com`), only while the widget is enabled and
 you're actively searching for a city — queried as you type (debounced by
 ~300ms, at least 2 characters), not only when you press Enter — plus a
 single keyless reverse-geocode lookup (`api.bigdatacloud.net`) at the
 moment you click "Use my location", so the widget can label your weather
 with a real place name. That lookup happens once, only for device location,
-and sends the same ~1 km-rounded coordinates the forecast call already
-uses. Beyond those fixed calls, the **Connectors** framework lets you point
+and sends the same two-decimal device coordinates. Weather provider requests
+normalize a selected city's returned coordinates to at most four decimals.
+Beyond those fixed calls, the **Connectors** framework lets you point
 Aurora at outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel,
 Crypto, Calendar, Status, and Home Assistant today: every connector fetch
 goes directly from your browser to that connector's own host, with no
 Aurora server in between, only for connectors you've actually configured.
 GitHub/GitLab/Jira/Vercel/Home Assistant send only the token (or, for
 Jira, email + token) you connected with; Crypto, Calendar, and Status need
-no account at all. Home Assistant is the one connector that also writes:
+no third-party account. RSS and Calendar URLs are capability secrets even
+without an account and are redacted from backups. Home Assistant is the one connector that also writes:
 its action buttons send a single command to your own instance, only when
 you click one, never on a schedule (see [Connectors](#connectors) and
 [`PRIVACY.md`](PRIVACY.md) for the full disclosure). There is no
 analytics, no telemetry, and no tracking of any kind.
+
+Connector credentials and RSS/Calendar capability URLs remain local
+plaintext in `chrome.storage.local`, protected by the Chrome/OS profile—not
+encrypted or vault-grade. On a shared or untrusted profile, disconnect
+connectors or clear Aurora's extension data after use. Provider responses are
+cached locally after direct receipt; Aurora never relays them through a
+backend.
 
 The **Bookmarks bar** widget is off by default, and the `bookmarks`
 permission it needs is requested only when you turn it on — not at install.

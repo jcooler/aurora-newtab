@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
@@ -56,29 +56,99 @@ function OverflowMenuList({
   onClearDone,
   onDeleteList,
   hasDone,
+  trigger,
+  owner,
 }: {
   onClose: () => void
   onClearDone: () => void
   onDeleteList: () => void
   hasDone: boolean
+  trigger: HTMLButtonElement
+  owner: HTMLDivElement
 }) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ left: 8, top: 8 })
   useDialogEscape(onClose)
+
+  useLayoutEffect(() => {
+    let frame: number | null = null
+    const measure = () => {
+      frame = null
+      const menu = menuRef.current
+      if (!menu) return
+      const triggerRect = trigger.getBoundingClientRect()
+      const menuRect = menu.getBoundingClientRect()
+      const width = menuRect.width || 160
+      const height = menuRect.height
+      const maxLeft = Math.max(8, window.innerWidth - 8 - width)
+      const viewportLeft = Math.min(Math.max(8, triggerRect.right - width), maxLeft)
+      const below = triggerRect.bottom + 6
+      const viewportTop =
+        height > 0 && below + height > window.innerHeight - 8
+          ? Math.max(8, triggerRect.top - 6 - height)
+          : Math.max(8, Math.min(below, window.innerHeight - 8 - height))
+      const ownerRect = owner.getBoundingClientRect()
+      const left = viewportLeft - ownerRect.left
+      const top = viewportTop - ownerRect.top
+      setPosition((current) =>
+        current.left === left && current.top === top ? current : { left, top },
+      )
+    }
+    const schedule = () => {
+      if (frame !== null) return
+      frame = window.requestAnimationFrame(measure)
+    }
+    measure()
+    window.addEventListener('resize', schedule)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    observer?.observe(trigger)
+    observer?.observe(menuRef.current!)
+    return () => {
+      window.removeEventListener('resize', schedule)
+      observer?.disconnect()
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [owner, trigger])
+
+  useLayoutEffect(() => {
+    menuRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
+  }, [])
+
+  useEffect(() => {
+    const consumeOwnerClick = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node) || !owner.contains(target) || menuRef.current?.contains(target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('click', consumeOwnerClick, true)
+    return () => document.removeEventListener('click', consumeOwnerClick, true)
+  }, [onClose, owner])
+
   return (
     <>
-      {/* Transparent catcher, portalled to <body> so `fixed inset-0` really
-          means the viewport (a transformed ancestor would otherwise shrink it).
-          A first outside click just dismisses — this is a menu, not a modal. */}
+      {/* The whole Tasks dialog is a body-level z-50 owner while this menu is
+          open. Its body-level z-40 catcher therefore owns every point outside
+          Tasks; the capture listener above consumes points inside Tasks but
+          outside this menu, without letting the underlying control activate. */}
       {createPortal(
-        <div aria-hidden onClick={onClose} className="fixed inset-0 z-40" />,
+        <div
+          aria-hidden
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={onClose}
+          className="fixed inset-0 z-40"
+        />,
         document.body,
       )}
-      {/* A labelled group of plain buttons (not role="menu") — Tab reaches
-          them through the panel's own focus trap, so this stays honestly
-          correct without a roving-tabindex/arrow-key menu implementation. */}
+      {/* Keep the actions as real descendants of the Tasks dialog. The parent
+          focus trap then owns one sequential Tab order, including this menu. */}
       <div
+        ref={menuRef}
         id="todo-overflow-menu"
         aria-label="Task list actions"
-        className="absolute right-0 top-full z-50 mt-1.5 min-w-40 overflow-hidden rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+        style={{ position: 'absolute', left: position.left, top: position.top }}
+        className="z-50 max-h-[calc(100dvh-1rem)] min-w-40 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
       >
         <button
           type="button"
@@ -87,7 +157,7 @@ function OverflowMenuList({
             onClearDone()
             onClose()
           }}
-          className="flex w-full cursor-pointer items-center rounded px-2 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-control-bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-fg-muted motion-reduce:transition-none"
+          className="flex w-full cursor-pointer items-center rounded px-2 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-control-bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-fg-muted max-[420px]:min-h-9 motion-reduce:transition-none"
         >
           Clear done
         </button>
@@ -97,7 +167,7 @@ function OverflowMenuList({
             onDeleteList()
             onClose()
           }}
-          className="flex w-full cursor-pointer items-center rounded px-2 py-1.5 text-left text-sm text-red-400 transition-colors hover:bg-control-bg-hover hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          className="flex w-full cursor-pointer items-center rounded px-2 py-1.5 text-left text-sm text-red-400 transition-colors hover:bg-control-bg-hover hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 motion-reduce:transition-none"
         >
           Delete list
         </button>
@@ -110,15 +180,19 @@ function OverflowMenu({
   onClearDone,
   onDeleteList,
   hasDone,
+  owner,
+  onOpenChange,
 }: {
   onClearDone: () => void
   onDeleteList: () => void
   hasDone: boolean
+  owner: HTMLDivElement
+  onOpenChange: (open: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   return (
-    <div className="relative shrink-0">
+    <div className="shrink-0">
       <button
         ref={triggerRef}
         type="button"
@@ -126,18 +200,26 @@ function OverflowMenu({
         aria-haspopup="true"
         aria-expanded={open}
         aria-controls={open ? 'todo-overflow-menu' : undefined}
-        onClick={() => setOpen((o) => !o)}
-        className="grid size-6 cursor-pointer place-items-center rounded text-base leading-none text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        onClick={() =>
+          setOpen((current) => {
+            onOpenChange(!current)
+            return !current
+          })
+        }
+        className="grid size-6 cursor-pointer place-items-center rounded text-base leading-none text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:size-9 motion-reduce:transition-none"
       >
         <span aria-hidden>⋯</span>
       </button>
       {open && (
         <OverflowMenuList
           hasDone={hasDone}
+          trigger={triggerRef.current!}
+          owner={owner}
           onClearDone={onClearDone}
           onDeleteList={onDeleteList}
           onClose={() => {
             setOpen(false)
+            onOpenChange(false)
             triggerRef.current?.focus()
           }}
         />
@@ -149,15 +231,20 @@ function OverflowMenu({
 export default function TodoPanel({
   anchor,
   onClose,
+  viewportRef,
+  embedded = false,
 }: {
-  anchor: PanelPlacement
+  anchor?: PanelPlacement
   onClose: () => void
+  viewportRef?: (node: HTMLDivElement | null) => void
+  embedded?: boolean
 }) {
   const [lists] = useStoredKey('todoLists')
   const storage = useStorage()
   const panelRef = useRef<HTMLDivElement>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [addingList, setAddingList] = useState(false)
+  const [overflowOpen, setOverflowOpen] = useState(false)
   const seeded = useRef(false)
 
   // `active` is gated on readiness (`lists !== undefined`), NOT hardcoded
@@ -173,11 +260,11 @@ export default function TodoPanel({
   // exactly the render where `panelRef.current` first becomes non-null,
   // which is what actually triggers useFocusTrap's initial-focus + Tab-trap
   // + close-time restore. (Same fix as NotesPanel.tsx, Task 27.)
-  useFocusTrap(panelRef, lists !== undefined)
+  useFocusTrap(panelRef, !embedded && lists !== undefined)
 
   // Newest-first shared stack (src/lib/dialogStack.ts): this panel only
   // mounts while open, so it's always active.
-  useDialogEscape(onClose)
+  useDialogEscape(onClose, !embedded)
 
   const dispatch = (action: TodoAction) =>
     void storage.update('todoLists', (current) => todoReducer(current, action))
@@ -221,21 +308,28 @@ export default function TodoPanel({
   const total = activeList?.items.length ?? 0
   const doneCount = activeList?.items.filter((i) => i.done).length ?? 0
 
-  return (
+  const content = (
     <div
-      ref={panelRef}
-      role="dialog"
+      ref={(node) => {
+        panelRef.current = node
+        viewportRef?.(node)
+      }}
+      role={embedded ? 'region' : 'dialog'}
       aria-label="Tasks"
+      data-canvas-tool-panel={embedded ? undefined : ''}
       // `anchor` is `{left,top}` (opens downward) or `{left,bottom}` (opens
       // upward, growing UP so the add-task command line below the list never
       // marches off-screen as it grows past ~5 tasks — review fix I1; see
       // anchor.ts's PanelPlacement doc).
-      style={{
+      style={embedded ? undefined : {
         position: 'fixed',
-        left: anchor.left,
-        ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
+        left: anchor!.left,
+        maxHeight: anchor!.maxHeight,
+        ...('top' in anchor! ? { top: anchor!.top } : { bottom: anchor!.bottom }),
       }}
-      className="z-30 flex w-96 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+      className={embedded
+        ? `${overflowOpen ? 'overflow-visible' : 'overflow-hidden'} flex min-h-0 w-full flex-col text-fg`
+        : `${overflowOpen ? 'z-50 overflow-visible' : 'z-30 overflow-hidden'} flex max-h-[calc(100dvh-1rem)] w-[min(24rem,calc(100vw-1rem))] flex-col rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}
     >
       {/* Header — the active list as a bright uppercase eyebrow, the other
           lists as quieter eyebrows that switch on click (em-dash separated),
@@ -270,7 +364,7 @@ export default function TodoPanel({
                   type="button"
                   aria-current={isActive ? 'true' : undefined}
                   onClick={() => setActiveId(list.id)}
-                  className={`min-w-0 truncate text-[11px] uppercase tracking-[0.08em] transition-colors focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
+                  className={`min-w-0 truncate text-[11px] uppercase tracking-[0.08em] transition-colors focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 motion-reduce:transition-none ${
                     isActive ? 'font-semibold text-fg' : 'font-medium text-fg-muted hover:text-fg'
                   }`}
                 >
@@ -304,7 +398,7 @@ export default function TodoPanel({
                     setAddingList(false)
                   }
                 }}
-                className="w-24 border-b border-control-border bg-transparent text-xs text-fg outline-none transition-colors focus-visible:border-accent motion-reduce:transition-none"
+                className="w-24 border-b border-control-border bg-transparent text-xs text-fg outline-none transition-colors focus-visible:border-accent max-[420px]:h-9 motion-reduce:transition-none"
               />
             </form>
           ) : (
@@ -312,7 +406,7 @@ export default function TodoPanel({
               type="button"
               aria-label="New list"
               onClick={() => setAddingList(true)}
-              className="shrink-0 whitespace-nowrap text-[11px] font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+              className="shrink-0 whitespace-nowrap text-[11px] font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9 motion-reduce:transition-none"
             >
               + list
             </button>
@@ -335,19 +429,21 @@ export default function TodoPanel({
         {activeList && (
           <OverflowMenu
             hasDone={doneCount > 0}
+            owner={panelRef.current!}
+            onOpenChange={setOverflowOpen}
             onClearDone={() => dispatch({ type: 'clearDone', listId: activeList.id })}
             onDeleteList={() => dispatch({ type: 'removeList', listId: activeList.id })}
           />
         )}
 
-        <button
+        {!embedded && <button
           type="button"
           aria-label="Close tasks"
           onClick={onClose}
-          className="grid size-6 shrink-0 cursor-pointer place-items-center rounded text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          className="grid size-6 shrink-0 cursor-pointer place-items-center rounded text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:size-9 motion-reduce:transition-none"
         >
           ✕
-        </button>
+        </button>}
       </div>
 
       <div className="flex-1 overflow-y-auto py-1.5">
@@ -366,7 +462,7 @@ export default function TodoPanel({
             {activeList.items.map((item, index) => (
               <li
                 key={item.id}
-                className="group relative flex h-8 items-center gap-2.5 pl-3.5 pr-2 transition-colors hover:bg-control-bg motion-reduce:transition-none"
+                className="group relative flex h-8 items-center gap-2.5 pl-3.5 pr-2 transition-colors hover:bg-control-bg max-[420px]:h-auto max-[420px]:min-h-9 motion-reduce:transition-none"
               >
                 {/* 2px leading accent bar — lights on hover AND focus-within. */}
                 <span
@@ -388,7 +484,7 @@ export default function TodoPanel({
                     activation, the alt+arrow reorder, focus and <label htmlFor>
                     association are all still the platform's, not hand-rolled;
                     the styled span is a `peer` sibling that reflects its state. */}
-                <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                <label className="relative inline-flex shrink-0 cursor-pointer items-center justify-center max-[420px]:size-9">
                   <input
                     type="checkbox"
                     id={`todo-item-${item.id}`}
@@ -437,7 +533,7 @@ export default function TodoPanel({
                 </label>
                 <label
                   htmlFor={`todo-item-${item.id}`}
-                  className={`min-w-0 flex-1 cursor-pointer truncate text-sm transition-colors motion-reduce:transition-none ${
+                  className={`min-w-0 flex-1 cursor-pointer truncate text-sm transition-colors max-[420px]:inline-flex max-[420px]:min-h-9 max-[420px]:items-center motion-reduce:transition-none ${
                     item.done ? 'text-fg-muted line-through' : 'text-fg'
                   }`}
                 >
@@ -449,7 +545,7 @@ export default function TodoPanel({
                   onClick={() =>
                     dispatch({ type: 'removeItem', listId: activeList.id, itemId: item.id })
                   }
-                  className="shrink-0 cursor-pointer rounded p-0.5 text-fg-muted opacity-0 transition hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                  className="shrink-0 cursor-pointer rounded p-0.5 text-fg-muted opacity-0 transition hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent group-focus-within:opacity-100 group-hover:opacity-100 max-[420px]:grid max-[420px]:size-9 max-[420px]:place-items-center motion-reduce:transition-none"
                 >
                   ✕
                 </button>
@@ -485,12 +581,12 @@ export default function TodoPanel({
             name="text"
             type="text"
             placeholder="Add a task…"
-            className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted"
+            className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted max-[420px]:min-h-9"
           />
           <button
             type="submit"
             aria-label="Add task"
-            className="grid h-5 min-w-6 shrink-0 cursor-pointer place-items-center rounded border border-control-border px-1 text-[11px] leading-none text-fg-muted transition-colors hover:border-accent hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+            className="grid h-5 min-w-6 shrink-0 cursor-pointer place-items-center rounded border border-control-border px-1 text-[11px] leading-none text-fg-muted transition-colors hover:border-accent hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9 motion-reduce:transition-none"
           >
             ↵
           </button>
@@ -498,4 +594,5 @@ export default function TodoPanel({
       )}
     </div>
   )
+  return embedded ? content : createPortal(content, document.body)
 }

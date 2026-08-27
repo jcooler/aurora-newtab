@@ -1,17 +1,27 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
-import type { Headline } from '../../../services/connectors/rss'
+import type { WidgetVariant } from '../../../lib/layout/types'
+vi.mock('../../../services/connectors/rss', async (importActual) => {
+  const actual = await importActual<typeof import('../../../services/connectors/rss')>()
+  return { ...actual, fetchHeadlines: vi.fn(actual.fetchHeadlines) }
+})
+import { fetchHeadlines, type Headline } from '../../../services/connectors/rss'
+import type { RssConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import RssWidget from './RssWidget'
 
 // The snapshot hook's in-flight dedupe map is module-level and survives across
 // cases; reset it so one test's refresh can't dedupe the next (same discipline
 // as useConnectorSnapshot.test.tsx).
-beforeEach(() => __resetInFlight())
+beforeEach(() => {
+  __resetInFlight()
+  vi.mocked(fetchHeadlines).mockReset()
+})
 afterEach(() => __resetInFlight())
 
 const HEADLINES: Headline[] = [
@@ -25,25 +35,127 @@ const HEADLINES: Headline[] = [
  *  the real fetchHeadlines — the widget renders straight from cache, no
  *  network. */
 async function seededStorage(
-  config: { enabled: boolean; feeds: string[]; shownCount: number },
+  config: RssConfig,
   data: Headline[] | null = HEADLINES,
 ): Promise<AuroraStorage> {
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { rss: config })
-  if (data) await storage.set('connectorSnapshots', { rss: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      rss: {
+        scope: await connectorSnapshotScope('rss', config),
+        fetchedAt: Date.now(),
+        data,
+      },
+    })
+  }
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'expanded') {
   return render(
     <StorageProvider storage={storage}>
-      <RssWidget />
+      <RssWidget stageVariant={stageVariant} />
     </StorageProvider>,
   )
 }
 
 describe('RssWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    const config: RssConfig = { enabled: true, feeds: ['https://feeds.example/a'], shownCount: 5 }
+    mount(await seededStorage(config, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Headlines' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
+  it('Docked renders one dense line with the first headline and no card (NL-P5 batch 2)', async () => {
+    const config: RssConfig = { enabled: true, feeds: ['https://feeds.example/a'], shownCount: 5 }
+    const storage = await seededStorage(config)
+    render(
+      <StorageProvider storage={storage}>
+        <RssWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Headlines: First headline about ships')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    // The dense line replaces the card entirely — no other rows, no source labels.
+    expect(screen.queryByText('Second headline about robots')).toBeNull()
+    expect(screen.queryByText('Hacker News')).toBeNull()
+  })
+
+  it.each([
+    ['compact', 'compact', 1],
+    ['standard', 'standard', 4],
+    ['expanded', 'full', 8],
+  ] as const)('uses the exact %s authored frame with bounded linked headlines', async (stageVariant, tier, expectedRows) => {
+    const headlines = Array.from({ length: 10 }, (_, i): Headline => ({
+      source: `Source ${i}`,
+      title: `Framed headline ${i}`,
+      url: `https://example.com/framed-${i}`,
+      publishedAt: 100 - i,
+    }))
+    mount(await seededStorage({ enabled: true, feeds: ['https://example.com/feed'], shownCount: 10 }, headlines), stageVariant)
+    await screen.findByText('Framed headline 0')
+    const frame = screen.getByRole('region', { name: 'Headlines' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.querySelectorAll('li')).toHaveLength(expectedRows)
+    expect(frame.querySelectorAll('li a')).toHaveLength(expectedRows)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelector('[class*="overflow-y-auto"], [class*="overflow-y-scroll"]')).toBeNull()
+  })
+
+  it('drops feed A immediately while a preserved mount waits for feed B', async () => {
+    const configForA: RssConfig = {
+      enabled: true,
+      feeds: ['https://feeds.example/a'],
+      shownCount: 5,
+    }
+    const configForB: RssConfig = {
+      enabled: true,
+      feeds: ['https://feeds.example/b'],
+      shownCount: 5,
+    }
+    const headlineA: Headline = {
+      source: 'Feed A',
+      title: 'Account A headline',
+      url: 'https://news.example/a',
+      publishedAt: 1,
+    }
+    const headlineB: Headline = {
+      source: 'Feed B',
+      title: 'Account B headline',
+      url: 'https://news.example/b',
+      publishedAt: 2,
+    }
+    let resolveB!: (value: Headline[]) => void
+    vi.mocked(fetchHeadlines).mockReturnValue(
+      new Promise((resolve) => {
+        resolveB = resolve
+      }),
+    )
+    const storage = await seededStorage(configForA, [headlineA])
+    mount(storage)
+    await screen.findByText(headlineA.title)
+
+    await act(async () => {
+      await storage.set('connectors', { rss: configForB })
+    })
+
+    expect(screen.queryByText(headlineA.title)).toBeNull()
+    expect(screen.queryByText(headlineB.title)).toBeNull()
+    await waitFor(() => {
+      expect(fetchHeadlines).toHaveBeenCalledWith(configForB.feeds, configForB.shownCount)
+    })
+
+    await act(async () => {
+      resolveB([headlineB])
+    })
+    expect(await screen.findByText(headlineB.title)).toBeTruthy()
+  })
+
   it('renders up to shownCount headlines from the seeded snapshot, newest first', async () => {
     const storage = await seededStorage({ enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 2 })
     mount(storage)
@@ -58,58 +170,48 @@ describe('RssWidget', () => {
     expect(screen.getByText('The Verge')).toBeTruthy()
   })
 
-  it('trims to the first RSS_SHORT_ROWS (4) rows on the short tier: rows past the 4th carry short:hidden, the first four do not (re-derived with the compact card — 4 compact rows clear the Notes pill by 35px at the 451 short floor)', async () => {
-    // Six headlines so there are rows beyond the 4-row short cap. jsdom has no
-    // media queries, so this pins the class WIRING; the live 451h no-overlap +
-    // pill-clickable proof is scripts/preview.mjs's rail probe.
-    const six: Headline[] = [0, 1, 2, 3, 4, 5].map((i) => ({
-      source: `Src ${i}`,
-      title: `Row ${i} headline`,
-      url: `https://example.com/${i}`,
-      publishedAt: 50 - i,
-    }))
-    const storage = await seededStorage(
-      { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
-      six,
-    )
-    const { container } = mount(storage)
-    await screen.findByText('Row 0 headline')
-    const rows = [...container.querySelectorAll('li')]
-    expect(rows.length).toBe(6)
-    // First four always visible; rows 5th+ drop on short (row-level, so the
-    // card CONDENSES rather than disappearing entirely — headlines survive short).
-    expect(rows[0].className).toBe('')
-    expect(rows[3].className).toBe('')
-    expect(rows[4].classList.contains('short:hidden')).toBe(true)
-    expect(rows[5].classList.contains('short:hidden')).toBe(true)
-  })
-
-  it('does NOT trim on the mid tier anymore: the compact (dense) 8-row card fits the 601px mid floor with 41px to spare, so no row carries mid:hidden (RSS_MID_ROWS raised to the display max)', async () => {
-    // Eight headlines (RSS's display max, shownCount:8). jsdom has no media
-    // queries, so this pins the class WIRING; the live 601h no-overlap +
-    // pill-clickable proof is the mid-height and resize-sweep probes in
-    // scripts/preview.mjs.
+  it('progresses from prioritized headlines to a fuller configured feed by allocation variant', async () => {
     const eight: Headline[] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({
       source: `Src ${i}`,
-      title: `Row ${i} headline`,
-      url: `https://example.com/${i}`,
+      title: `Variant ${i} headline`,
+      url: `https://example.com/variant-${i}`,
       publishedAt: 50 - i,
     }))
     const storage = await seededStorage(
       { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
       eight,
     )
-    const { container } = mount(storage)
-    await screen.findByText('Row 0 headline')
-    const rows = [...container.querySelectorAll('li')]
-    expect(rows.length).toBe(8)
-    // NO row carries mid:hidden — the compact card shows every headline on mid
-    // (the deploys card below it yields on dense instead, freeing the room).
-    for (let i = 0; i < 8; i++) expect(rows[i].classList.contains('mid:hidden')).toBe(false)
-    // The short trim still applies to rows past the 4th (a disjoint tier).
-    expect(rows[3].classList.contains('short:hidden')).toBe(false)
-    expect(rows[4].classList.contains('short:hidden')).toBe(true)
-    expect(rows[7].classList.contains('short:hidden')).toBe(true)
+    const view = mount(storage, 'compact')
+    await screen.findByText('Variant 0 headline')
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(1)
+
+    view.rerender(<StorageProvider storage={storage}><RssWidget stageVariant="standard" /></StorageProvider>)
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(4)
+
+    view.rerender(<StorageProvider storage={storage}><RssWidget stageVariant="expanded" /></StorageProvider>)
+    expect([...document.querySelectorAll('section[aria-label="Headlines"] li a')].map((row) => row.getAttribute('href'))).toEqual(
+      eight.map(({ url }) => url),
+    )
+    expect(document.querySelector('[data-rss-headline-grid]')?.className).toContain('grid-cols-2')
+  })
+
+  it('uses the Full frame for eight configured headlines and routes each visible row to its article', async () => {
+    const ten: Headline[] = Array.from({ length: 10 }, (_, i) => ({
+      source: 'Example',
+      title: `Full headline ${i}`,
+      url: `https://example.test/${i}`,
+      publishedAt: 50 - i,
+    }))
+    const storage = await seededStorage(
+      { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 10 },
+      ten,
+    )
+    mount(storage, 'expanded')
+
+    await screen.findByText('Full headline 0')
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(8)
+    expect(screen.getByText('Full headline 7')).toBeTruthy()
+    expect(screen.queryByText('Full headline 8')).toBeNull()
   })
 
   it("each headline is an external link (target=_blank, rel carries noopener + noreferrer)", async () => {
@@ -145,12 +247,11 @@ describe('RssWidget', () => {
     expect((await storage.get('connectorSnapshots')).rss).toBeUndefined()
   })
 
-  it('renders nothing when enabled with feeds but the snapshot has no headlines yet', async () => {
+  it('keeps an empty frame when enabled feeds currently have no headlines', async () => {
     const storage = await seededStorage({ enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 5 }, [])
-    const { container } = mount(storage)
-    await act(async () => {})
-
-    expect(container.firstChild).toBeNull()
+    mount(storage)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Headlines' }).getAttribute('data-tier-frame-state')).toBe('empty'))
+    expect(screen.getByText('No headlines right now.')).toBeTruthy()
   })
 
   it('survives a hand-edited backup restoring { enabled: true } with no feeds array — renders nothing, never throws', async () => {

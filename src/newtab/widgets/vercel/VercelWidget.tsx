@@ -3,6 +3,12 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchVercel, DEFAULT_VERCEL_VIEWS, relAge, type VercelData, type VercelDeployment } from '../../../services/connectors/vercel'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, VercelConfig, VercelViews } from '../../../services/connectors/types'
+import DockLine from '../shared/DockLine'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, attentionSnapshotScope, effectiveVercelViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 const MAX_DEPLOYMENTS = 5
 
@@ -52,39 +58,48 @@ function connectedVercel(config: ConnectorConfig | undefined): VercelConfig | nu
   return vercel
 }
 
-export default function VercelWidget() {
+export default function VercelWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/GitlabWidget/JiraWidget:
   // the one useStoredKey read runs every render (Rules of Hooks stay
   // satisfied), but a disabled/unconnected connector never mounts VercelInner
   // and therefore never runs useConnectorSnapshot's subscribe/refresh.
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const vercel = connectedVercel(connectors?.vercel)
   if (!vercel) return null
-  // Fix wave, Finding I2 — the left column's OWN cross-card read, mirroring
-  // GitlabWidget's `jiraEnabled`/JiraWidget's `gitlabEnabled`: vercel is the
-  // left column's lowest card, stacked below ics and rss, and its
-  // `statusSummary` line only threatens the Notes pill when BOTH of those
-  // siblings actually share the column (see VercelInner's own `summaryTier`
-  // comment for the measured overlap this closes). Same conservative
-  // "enabled, not rendered" read every other cross-card check in this wave
-  // uses — an enabled-but-empty ics/rss still forces the taller reveal,
-  // which fails QUIET/SAFE (the summary waits for a window it did not
-  // strictly need) rather than the reverse (a summary that laps the pill).
-  // Deliberately booleans only (not each sibling's OWN row/calendar count):
-  // this widget has no reason to import ics.ts's calendar-parsing helpers or
-  // replicate rss's shownCount logic just to shave a few safe pixels off an
-  // already-conservative floor.
-  const leftColumnCrowded = connectors?.ics?.enabled === true && connectors?.rss?.enabled === true
+  const views = resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)
+  if (!views.deployments && !views.statusSummary) return null
   return (
     <VercelInner
+      vercel={vercel}
       token={vercel.token}
-      views={resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)}
-      leftColumnCrowded={leftColumnCrowded}
+      views={views}
+      canvasSize={canvasSize}
+      docked={docked}
+      runtime={attentionRuntimeScope(
+        settings.briefingEnabled === true,
+        settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+      )}
     />
   )
 }
 
-function VercelInner({ token, views, leftColumnCrowded }: { token: string; views: VercelViews; leftColumnCrowded: boolean }) {
+function VercelInner({
+  vercel,
+  token,
+  views,
+  canvasSize,
+  docked,
+  runtime,
+}: {
+  vercel: VercelConfig
+  token: string
+  views: VercelViews
+  canvasSize?: CanvasSize
+  docked?: boolean
+  runtime: AttentionRuntimeScope
+}) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchVercel's
   // quiet-failure path keeps it (no ETag round-trip here — see vercel.ts's
@@ -93,8 +108,19 @@ function VercelInner({ token, views, leftColumnCrowded }: { token: string; views
   // every other connector widget. The user's resolved views gate the fetch
   // (fetchVercel skips the request when BOTH sections are off — see its own
   // doc comment) AND this render (below).
-  const { data } = useConnectorSnapshot<VercelData>('vercel', (prev) => fetchVercel(token, views, prev))
-  if (!data) return null
+  const fetchViews = effectiveVercelViews(views, runtime)
+  const { data, state } = useConnectorSnapshot<VercelData>('vercel', vercel, (prev) =>
+    fetchVercel(token, fetchViews, prev),
+    undefined,
+    attentionSnapshotScope(runtime, 'deployments', views.deployments),
+  )
+  const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="Vercel" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
+  const framed = canvasSize !== undefined
 
   // UNSLICED — the status summary below counts EVERY deployment the
   // endpoint returned, not just the MAX_DEPLOYMENTS rows the list displays
@@ -107,11 +133,15 @@ function VercelInner({ token, views, leftColumnCrowded }: { token: string; views
   // order as-is rather than re-sorting, same division of labor as every
   // other connector widget (the service owns ordering, the widget owns
   // display).
-  const deployments = views.deployments ? allDeployments.slice(0, MAX_DEPLOYMENTS) : []
+  const deployments = tier === 'compact'
+    ? []
+    : views.deployments
+      ? allDeployments.slice(0, framed && tier === 'standard' ? 2 : MAX_DEPLOYMENTS)
+      : []
   // The empty-connected copy is gated on the ROWS section being on AND
   // truly empty — same "a disabled section shows neither its rows nor its
   // own empty line" rule github/gitlab/jira apply.
-  const showRowsEmpty = views.deployments && deployments.length === 0
+  const showRowsEmpty = views.deployments && allDeployments.length === 0
 
   const summary = summaryEntries(allDeployments)
   // Renders only when there's something to summarize — "renders only when
@@ -128,67 +158,61 @@ function VercelInner({ token, views, leftColumnCrowded }: { token: string; views
   // (fetchVercel already skips the request for it, but a STALE cached
   // snapshot from before both were turned off must still degrade to null
   // here, not a bare "Vercel" heading).
-  if (!showSummary && deployments.length === 0 && !showRowsEmpty) return null
+  const hasPrimary = views.deployments && allDeployments.length > 0
+  if (!showSummary && !hasPrimary && !showRowsEmpty) return null
 
   // Sole impure boundary in this component: `now` for relAge's age math,
   // read once per render (not per row) so every row in one paint measures
   // against the same instant. relAge itself stays pure and unit-tested at
   // exact second boundaries (vercel.test.ts).
   const now = Date.now()
+  const failedCount = allDeployments.filter((item) => item.state === 'ERROR').length
+  const pendingCount = allDeployments.filter((item) => item.state === 'BUILDING' || item.state === 'QUEUED').length
+  const summaryValue = failedCount > 0
+    ? `${failedCount} ${failedCount === 1 ? 'failure' : 'failures'}`
+    : pendingCount > 0
+      ? `${pendingCount} building`
+      : allDeployments.length > 0
+        ? 'All ready'
+        : 'No deployments'
 
-  // Fix wave, Finding I2: vercel is the left column's LOWEST card, stacked
-  // below ics (up to 132px at ics's own TRUE display max — 5 calendars,
-  // 'per-calendar' view, MAX_CALENDARS, ics.ts) and rss (up to 336px at its
-  // own shownCount ceiling, 8). Neither wave-2 probe (this one, nor the
-  // gitlab/jira "roomy" review above) had ever combined those two OTHER
-  // waves' own true maxes with vercel's — a real, measured gap the whole-plan
-  // review's own I2 finding named and this fix closes. At that combined
-  // worst case (col1 flow: rail-top-left 120 + 132 + 16 + 336 + 16 = vercel
-  // top 620), vercel WITH the summary line (216px — the existing +24px over
-  // rows-only, Task 77) bottoms at 836, and the Notes pill (top = viewportH
-  // − 54, the left rail's own mirror of the right rail's Tasks-pill formula)
-  // clears it by the house 16px floor only at height >= 906 (836+16+54) — at
-  // Jon's own canonical 900h that's a real, measured 10px of clearance, 6px
-  // SHORT of the 16px floor (836 vs pillTop 846 − 16 = 830), and a real
-  // overlap at the 865 dense fencepost (836 vs pillTop 811, −25px).
-  //
-  // The fix: when `statusSummary` is on AND the column is genuinely crowded
-  // (`leftColumnCrowded` — BOTH ics and rss enabled, read one level up),
-  // vercel's OWN hide edge rises — the SAME "an extra section forces a
-  // taller reveal tier" pattern gitlab's `reviewAsksTier`/jira's
-  // `dueSoonTier` establish, except vercel has no rows-vs-extra-section split
-  // to fall back on (unlike gitlab/jira, vercel ALREADY whole-card-hides
-  // under height pressure — `dense:hidden`, App.tsx, Task 65 — so raising ITS
-  // OWN existing edge is the idiom that fits THIS card's own established
-  // pattern, not a new one). Reuses `roomy` (995h) conservatively (the true
-  // floor is 906, 89px inside roomy's margin) — the SAME reused tier C1's own
-  // two-card fix uses, so no sixth CSS variant is minted for a threshold this
-  // close to an existing one.
-  //
-  // `leftColumnCrowded` is LOAD-BEARING, not decoration: without it, EVERY
-  // `statusSummary`-on card would hide below 995h regardless of whether ics/
-  // rss are even enabled — a real regression to the Task 77 "vercel composed"
-  // probe (vercel ALONE, no ics/rss, comfortably clears the pill at 900h with
-  // the summary on) and to any real user who has vercel+statusSummary but no
-  // calendar/rss competing for the column. `statusSummary` OFF (the default)
-  // is COMPLETELY UNCHANGED regardless of `leftColumnCrowded` — still the
-  // plain, unconditional `dense:hidden` App.tsx's wrapper already carries —
-  // preserving the wave's own additive guarantee (default-path geometry
-  // byte-identical). This class lands on the SECTION itself (mirroring
-  // GitlabWidget's own `sectionTier` idiom for a whole-card yield) — a
-  // literal string, not interpolated, so Tailwind's scanner emits it (see
-  // GitlabWidget.tsx's own REVIEW_ASKS_TIER_CLASS comment for why that
-  // distinction matters).
-  const summaryTier = views.statusSummary && leftColumnCrowded ? ' hidden roomy:block' : ''
+  // Docked tier (NL-P5 batch 2, GithubWidget's exemplar shape): the SAME
+  // deployment-health summary the card renders, as one dense line — one data
+  // owner, no second fetch. The no-husk return above covered the no-data case.
+  if (docked) {
+    return (
+      <DockLine
+        label="Vercel"
+        facts={[summaryValue, allDeployments.length > 0 && `${allDeployments.length} deployments`]}
+        tone={failedCount > 0 ? 'critical' : pendingCount > 0 ? 'attention' : 'quiet'}
+      />
+    )
+  }
 
+  // The Adaptive Stage owns collision and Dock allocation. This connector
+  // therefore stays represented at every height; semantic variant work may
+  // reduce detail but cannot hide the entire section.
   return (
     // Floating panel surface — identical shape/elevation to every other
     // connector card (the house rule for floating surfaces): the solid panel
     // token, rounded-2xl/shadow-lg/p-4, w-80 fixed card width. Vercel sits in
     // the LEFT column (not the right rail's Task 55 budget), so its p-4/mb-2
     // chrome stays untouched — see GithubWidget.tsx's own MAX_PRS comment.
-    <section aria-label="Vercel" className={`w-80 rounded-2xl bg-panel-solid p-4 dense:p-2 text-fg shadow-lg${summaryTier}`}>
+    <TierFrame
+      label="Vercel"
+      tier={tier}
+      state={resourceFrameState(state, showRowsEmpty)}
+      data-canvas-size={tier}
+      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
+    >
       <h2 className="mb-2 dense:mb-1 text-sm font-semibold text-fg">Vercel</h2>
+
+      <WorkPulseSummary
+        label="Vercel"
+        value={summaryValue}
+        tone={failedCount > 0 ? 'critical' : pendingCount > 0 ? 'attention' : 'quiet'}
+        metadata={allDeployments.length > 0 ? `${allDeployments.length} deployments` : undefined}
+      />
 
       {/* Status summary — a one-line chips row, order-pinned ABOVE the
           deployment rows (brief: summary line -> rows). Its own mb-2/
@@ -197,7 +221,7 @@ function VercelInner({ token, views, leftColumnCrowded }: { token: string; views
           separating two ROWS lists; this is a compact header-adjacent line,
           not a list, so no divider). */}
       {showSummary && (
-        <p className="mb-2 dense:mb-1 text-xs text-fg-muted">
+        <p data-work-pulse-detail className="mb-2 dense:mb-1 text-xs text-fg-muted">
           {summary.map(([state, count], i) => (
             <span key={state}>
               {i > 0 && (
@@ -217,16 +241,16 @@ function VercelInner({ token, views, leftColumnCrowded }: { token: string; views
         </p>
       )}
 
-      {showRowsEmpty && <p className="text-sm text-fg-muted">No deployments yet.</p>}
+      {showRowsEmpty && <p data-work-pulse-rows className="text-sm text-fg-muted">No deployments yet.</p>}
 
       {deployments.length > 0 && (
-        <ul className="flex flex-col gap-2 dense:gap-1">
+        <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">
           {deployments.map((item) => (
             <DeploymentRow key={item.url} item={item} now={now} />
           ))}
         </ul>
       )}
-    </section>
+    </TierFrame>
   )
 }
 
@@ -256,11 +280,11 @@ function DeploymentRow({ item, now }: { item: VercelDeployment; now: number }) {
         title={item.project}
         className="group flex cursor-pointer items-center gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span className="min-w-0 flex-1 truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.project}
         </span>
         <span className={`shrink-0 text-xs ${stateClass(item.state)}`}>{item.state}</span>
-        <span className="shrink-0 text-xs text-fg-muted">{relAge(now, item.createdAt)}</span>
+        <span data-work-pulse-detail data-stage-text-tier="metadata" className="shrink-0 text-xs text-fg-muted">{relAge(now, item.createdAt)}</span>
       </a>
     </li>
   )

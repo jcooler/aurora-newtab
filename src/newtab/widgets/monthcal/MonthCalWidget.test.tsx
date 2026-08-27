@@ -21,6 +21,11 @@ const TODAY_KEY = '2026-05-15'
 async function renderWithMonthCal({
   widgetsOn = true,
   countdowns = [] as Countdown[],
+  canvasSize,
+}: {
+  widgetsOn?: boolean
+  countdowns?: Countdown[]
+  canvasSize?: 'compact' | 'standard'
 } = {}): Promise<{ storage: AuroraStorage; container: HTMLElement }> {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -31,7 +36,7 @@ async function renderWithMonthCal({
   await storage.set('countdowns', countdowns)
   const { container } = render(
     <StorageProvider storage={storage}>
-      <MonthCalWidget />
+      <MonthCalWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -43,12 +48,35 @@ function cell(container: HTMLElement, key: string): HTMLElement | null {
 }
 
 describe('MonthCalWidget', () => {
+  function spyOnSetInterval() {
+    return vi.spyOn(window, 'setInterval')
+  }
+  let intervalSpy: ReturnType<typeof spyOnSetInterval>
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
+    intervalSpy = spyOnSetInterval()
   })
   afterEach(() => {
+    intervalSpy.mockRestore()
     vi.useRealTimers()
+  })
+
+  it('renders the complete month in the exact Standard TierFrame with no internal scroller', async () => {
+    const { container } = await renderWithMonthCal({ canvasSize: 'standard' })
+    const frame = screen.getByRole('region', { name: 'Month' })
+    const dateCells = Array.from(container.querySelectorAll<HTMLElement>('[data-cell-key]'))
+    expect(frame.getAttribute('data-tier-frame')).toBe('standard')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains('tier-frame--standard')).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+    expect(dateCells).toHaveLength(42)
+    // Six rows of py-0.5 spend 24px on repeated cell padding, which is the
+    // complete measured overflow of the exact 200px frame. Preserve all
+    // date content and reclaim only that non-informational row spacing.
+    expect(dateCells.every((dateCell) => dateCell.classList.contains('py-0'))).toBe(true)
+    expect(dateCells.some((dateCell) => dateCell.classList.contains('py-0.5'))).toBe(false)
   })
 
   it('renders nothing while settings.widgets.monthCal is off', async () => {
@@ -58,6 +86,7 @@ describe('MonthCalWidget', () => {
 
   it('renders the current month\'s matrix (May 2026) with the today cell ringed', async () => {
     const { container } = await renderWithMonthCal()
+    expect(intervalSpy).not.toHaveBeenCalled()
     expect(screen.getByText('May 2026')).toBeTruthy()
     // 6 rows x 7 cols — May 2026 is the 6-row worst case (see monthGrid.test.ts).
     expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(42)
@@ -65,6 +94,49 @@ describe('MonthCalWidget', () => {
     const today = cell(container, TODAY_KEY)
     expect(today).toBeTruthy()
     expect(today!.querySelector('span')!.className).toContain('ring-accent')
+    expect(today!.closest('tr')?.hasAttribute('data-current-week')).toBe(true)
+    expect(container.querySelectorAll('tr[data-current-week]')).toHaveLength(1)
+  })
+
+  it('renders the complete month at EVERY size — the week form is retired (batch-2 owner review)', async () => {
+    // "The compact month is a joke... just remove it." Month declares only
+    // the standard tier now; even a stale 'compact' prop (a legacy stored
+    // tier, or the docked size fallback) must render the complete month,
+    // never a single stretched week.
+    const { container } = await renderWithMonthCal({ canvasSize: 'compact' })
+    expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(42)
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(6)
+    expect(cell(container, TODAY_KEY)).toBeTruthy()
+  })
+
+  it('renders Standard as the complete viewed month, including all six May rows', async () => {
+    const { container } = await renderWithMonthCal({ canvasSize: 'standard' })
+    expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(42)
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(6)
+  })
+
+  it('reserves the metadata tier for weekday headings, not the month label or day values', async () => {
+    const { container } = await renderWithMonthCal()
+    expect(container.querySelectorAll('th[data-stage-text-tier="metadata"]')).toHaveLength(7)
+    const label = container.querySelector('[data-monthcal-label]')
+    expect(label?.getAttribute('data-stage-text-tier')).toBeNull()
+    expect(label?.getAttribute('aria-label')).toBe(label?.textContent)
+    // The compact-only short-label span retired with the compact tier.
+    expect(label?.querySelector('[data-monthcal-label-short]')).toBeNull()
+    expect(container.querySelector('[data-cell-key] span')?.getAttribute('data-stage-text-tier')).toBeNull()
+  })
+
+  it('moves the today identity into June after restoration across midnight', async () => {
+    const { container } = await renderWithMonthCal()
+    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).toContain('ring-accent')
+
+    vi.setSystemTime(new Date(2026, 5, 1, 0, 0, 1))
+    act(() => window.dispatchEvent(new Event('focus')))
+
+    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).not.toContain('ring-accent')
+    expect(screen.getByRole('button', { name: 'Back to today' })).toBeTruthy()
+    act(() => screen.getByRole('button', { name: 'Back to today' }).click())
+    expect(screen.getByText('June 2026')).toBeTruthy()
   })
 
   it('out-of-month leading/trailing cells are styled muted and never ringed', async () => {

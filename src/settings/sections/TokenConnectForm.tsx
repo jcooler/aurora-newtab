@@ -1,19 +1,31 @@
-import { useId, useState, type ReactNode } from 'react'
-import { ensureOrigin } from '../../services/permissions'
-import { control, submitBtn } from './shared'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import type { AuroraStorage } from '../../lib/storage'
+import {
+  releaseUnownedOrigins,
+  runOriginTransaction,
+  type OriginTransactionResult,
+} from '../../services/permissionTransactions'
+import { btnQuiet, control, submitBtn } from './shared'
+import type { ConnectorCardMode } from '../connectors/connectorCardState'
 
 export interface TokenField {
   id: string
   label: string
-  type: 'text' | 'password'
+  type: 'text' | 'password' | 'select'
   placeholder: string
   defaultValue?: string
+  options?: readonly { value: string; label: string }[]
 }
 
-/** The one card body every token connector (Tasks 48-51) renders: a small
- *  form of labelled fields plus a Connect button, OR — once `connectedAs` is
- *  set — a connected row with a Disconnect button in place of the form (the
- *  form does NOT own the enable toggle; that stays the card shell's). House
+export interface TokenDisconnectResult {
+  candidates: string[]
+  transaction: OriginTransactionResult<void>
+}
+
+/** The one card body every token connector (Tasks 48-51) renders: an explicit
+ *  setup/edit disclosure around labelled fields plus a Connect button, OR —
+ *  once `connectedAs` is set — connected extras with Edit and Disconnect
+ *  actions (the form does NOT own the enable toggle; that stays the card shell's). House
  *  styling matches Connectors.tsx's RSS body: `control` for inputs, the
  *  shared `label` class, text-accent for the primary action, and a single
  *  `role="alert"` paragraph for every inline error (validation, denied
@@ -31,9 +43,22 @@ export function TokenConnectForm(props: {
   validate(values: Record<string, string>): Promise<{ ok: true; identity: string } | { ok: false; message: string }>
   /** Persist the validated config (called once, after validate ok). */
   onConnected(values: Record<string, string>, identity: string): Promise<void>
-  /** Present when already connected -> renders Disconnect instead of the form. */
+  /** Present when already connected -> renders Edit/Disconnect instead of the form. */
   connectedAs: string | null
-  onDisconnect(): Promise<void>
+  /** Hide a first-time setup form until the user explicitly asks to configure it.
+   * Reconnect callers leave this false so stripped-secret recovery remains immediate. */
+  initiallyCollapsed?: boolean
+  /** When the connector-card parent owns the active editor, render the form
+   * immediately and route Cancel/success/disconnect back through that owner. */
+  managedMode?: ConnectorCardMode
+  onManagedClose?(): void
+  /** Attempts the authoritative config removal and returns both its lifecycle
+   * outcome and the canonical origins captured from the removed config. */
+  onDisconnect(): Promise<TokenDisconnectResult>
+  /** The real SettingsPanel storage instance, needed for transaction rollback ownership checks. */
+  storage: AuroraStorage
+  /** Durable SettingsPanel-owned cleanup reporter. */
+  reportPendingCleanup(patterns: readonly string[]): void
   /** Connector-specific content slotted into the CONNECTED branch only,
    *  between the connected-as row (owned by the card shell, not this form —
    *  see the comment on that branch below) and the Disconnect row. GithubBody
@@ -42,7 +67,22 @@ export function TokenConnectForm(props: {
    *  to show chips for. */
   connectedExtras?: ReactNode
 }) {
-  const { fields, connectLabel = 'Connect', originsFor, validate, onConnected, connectedAs, onDisconnect, connectedExtras } = props
+  const {
+    fields,
+    connectLabel = 'Connect',
+    originsFor,
+    validate,
+    onConnected,
+    connectedAs,
+    initiallyCollapsed = false,
+    managedMode,
+    onManagedClose,
+    onDisconnect,
+    storage,
+    reportPendingCleanup,
+    connectedExtras,
+  } = props
+  const managed = managedMode !== undefined
 
   // Two token connectors can render on the same Connectors tab at once
   // (GithubConfig and VercelConfig both declare a `token` field, for
@@ -57,8 +97,72 @@ export function TokenConnectForm(props: {
   )
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
+  const [revealed, setRevealed] = useState(() => managed || (connectedAs === null && !initiallyCollapsed))
+  const firstFieldRef = useRef<HTMLInputElement | HTMLSelectElement>(null)
+  const setupButtonRef = useRef<HTMLButtonElement>(null)
+  const editButtonRef = useRef<HTMLButtonElement>(null)
+  const focusFieldAfterRevealRef = useRef(false)
+  const restoreDisclosureFocusRef = useRef(false)
 
-  if (connectedAs !== null) {
+  useEffect(() => {
+    if (revealed && focusFieldAfterRevealRef.current) {
+      focusFieldAfterRevealRef.current = false
+      firstFieldRef.current?.focus()
+    } else if (!revealed && restoreDisclosureFocusRef.current) {
+      restoreDisclosureFocusRef.current = false
+      ;(connectedAs === null ? setupButtonRef.current : editButtonRef.current)?.focus()
+    }
+  }, [connectedAs, revealed])
+
+  function revealCredentials() {
+    focusFieldAfterRevealRef.current = true
+    setRevealed(true)
+  }
+
+  function resetAndCollapse() {
+    setValues(Object.fromEntries(fields.map((field) => [field.id, field.defaultValue ?? ''])))
+    setError(null)
+    setRevealed(false)
+  }
+
+  function cancelAndCollapse() {
+    if (managed) {
+      setValues(Object.fromEntries(fields.map((field) => [field.id, field.defaultValue ?? ''])))
+      setError(null)
+      onManagedClose?.()
+      return
+    }
+    restoreDisclosureFocusRef.current = true
+    resetAndCollapse()
+  }
+
+  async function handleDisconnect() {
+    let result: TokenDisconnectResult
+    try {
+      setError(null)
+      result = await onDisconnect()
+      if ('pendingCleanup' in result.transaction && result.transaction.pendingCleanup.length > 0) {
+        reportPendingCleanup(result.transaction.pendingCleanup)
+      }
+      if (result.transaction.status !== 'committed') {
+        setError("Couldn't disconnect because the saved connection could not be updated. Please try again.")
+        return
+      }
+    } catch {
+      setError("Couldn't disconnect because the saved connection could not be updated. Please try again.")
+      return
+    }
+
+    try {
+      const cleanup = await releaseUnownedOrigins(storage, result.candidates)
+      if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
+    } catch {
+      if (result.candidates.length > 0) reportPendingCleanup(result.candidates)
+    }
+    if (managed) onManagedClose?.()
+  }
+
+  if (!managed && !revealed && connectedAs !== null) {
     // `connectedAs` still SELECTS this connected branch, but the identity itself
     // is shown by the card SHELL's authState-driven chip (Connectors.tsx) — the
     // single source of that indicator, and the only one present in the
@@ -67,12 +171,33 @@ export function TokenConnectForm(props: {
     return (
       <div className="mt-3 flex flex-col gap-3 border-t border-hairline pt-3">
         {connectedExtras}
-        <button
-          type="button"
-          onClick={() => void onDisconnect()}
-          className={`${submitBtn} self-start`}
-        >
-          Disconnect
+        <div className="flex flex-wrap gap-3">
+          <button ref={editButtonRef} type="button" onClick={revealCredentials} className={submitBtn}>
+            Edit connection
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDisconnect()}
+            aria-describedby={error ? `${uid}-error` : undefined}
+            className={submitBtn}
+          >
+            Disconnect
+          </button>
+        </div>
+        {error && (
+          <p id={`${uid}-error`} role="alert" className="text-xs text-fg-muted">
+            {error}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (!managed && !revealed) {
+    return (
+      <div className="mt-3 border-t border-hairline pt-3">
+        <button ref={setupButtonRef} type="button" onClick={revealCredentials} className={submitBtn}>
+          Set up connection
         </button>
       </div>
     )
@@ -82,14 +207,10 @@ export function TokenConnectForm(props: {
     e.preventDefault()
     setError(null)
 
-    // COMPLIANCE-CRITICAL gesture chain, same discipline as Connectors.tsx's
-    // RSS handleAddFeed and permissions.ts's ensureOrigin doc comment:
-    // chrome.permissions.request (inside ensureOrigin below) must be the
-    // FIRST await anywhere in this handler, with ZERO awaits ahead of it —
-    // any earlier await (even a fast one) is an IPC round-trip that can land
-    // outside the user-gesture window and make Chrome refuse to show its
-    // permission prompt. Trimming/required-check and originsFor() are both
-    // synchronous, so they cost the gesture nothing.
+    // COMPLIANCE-CRITICAL gesture chain: trimming and originsFor() are
+    // synchronous, then runOriginTransaction queues lifecycle authority and
+    // invokes chrome.permissions.request before its first await. Do not insert
+    // an await between this validation boundary and that call.
     const trimmed: Record<string, string> = {}
     for (const field of fields) {
       const value = (values[field.id] ?? '').trim()
@@ -120,28 +241,39 @@ export function TokenConnectForm(props: {
 
     setConnecting(true)
     try {
-      // ensureOrigin -> chrome.permissions.request is the first await, per
-      // the comment above. Multi-origin originsFor() results would only ever
-      // request the FIRST origin in-gesture; every token connector this form
-      // serves derives exactly one, so that's also always the whole set.
-      let granted: boolean
-      try {
-        granted = await ensureOrigin(origins[0]!)
-      } catch {
-        granted = false
+      const transaction = await runOriginTransaction(storage, origins, async () => {
+        const result = await validate(trimmed)
+        if (!result.ok) return result
+        await onConnected(trimmed, result.identity)
+        return { ok: true as const, value: undefined, ownerCommitted: true as const }
+      })
+
+      if ('pendingCleanup' in transaction && transaction.pendingCleanup.length > 0) {
+        reportPendingCleanup(transaction.pendingCleanup)
       }
-      if (!granted) {
+      if (transaction.status === 'committed') {
+        if (managed) {
+          setValues(Object.fromEntries(fields.map((field) => [field.id, field.defaultValue ?? ''])))
+          setError(null)
+          onManagedClose?.()
+        } else {
+          resetAndCollapse()
+        }
+        return
+      }
+      if (transaction.status === 'aborted') {
+        setError(transaction.message)
+        return
+      }
+      if (transaction.status === 'denied') {
         setError('Permission to read that site was denied, so nothing was connected.')
         return
       }
-
-      const result = await validate(trimmed)
-      if (!result.ok) {
-        setError(result.message)
+      if (transaction.status === 'access-lost') {
+        setError('Access changed before saving. Please try again.')
         return
       }
-
-      await onConnected(trimmed, result.identity)
+      setError("Couldn't save that connection. Please try again.")
     } finally {
       setConnecting(false)
     }
@@ -149,34 +281,70 @@ export function TokenConnectForm(props: {
 
   return (
     <form
-      className="mt-3 flex flex-col gap-2 border-t border-hairline pt-3"
+      className={managed ? 'flex flex-col gap-2' : 'mt-3 flex flex-col gap-2 border-t border-hairline pt-3'}
       onSubmit={(e) => void handleConnect(e)}
     >
-      {fields.map((field) => (
+      {managed && connectedAs !== null && connectedExtras ? (
+        <div className="mb-1 border-b border-hairline pb-3">{connectedExtras}</div>
+      ) : null}
+      {fields.map((field, index) => {
+        const id = `${uid}-${field.id}`
+        const common = {
+          id,
+          value: values[field.id] ?? '',
+          onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+            const next = event.currentTarget.value
+            setValues((prev) => ({ ...prev, [field.id]: next }))
+            setError(null)
+          },
+          'aria-describedby': error ? `${uid}-error` : undefined,
+          className: `${control} w-full`,
+        }
+        return (
         <div key={field.id}>
           <label htmlFor={`${uid}-${field.id}`} className="sr-only">
             {field.label}
           </label>
-          <input
-            id={`${uid}-${field.id}`}
-            type={field.type}
-            placeholder={field.placeholder}
-            value={values[field.id] ?? ''}
-            autoComplete={field.type === 'password' ? 'off' : undefined}
-            onChange={(e) => {
-              const next = e.currentTarget.value
-              setValues((prev) => ({ ...prev, [field.id]: next }))
-              setError(null)
-            }}
-            aria-describedby={error ? `${uid}-error` : undefined}
-            className={`${control} w-full`}
-          />
+          {field.type === 'select' ? (
+            <select
+              ref={index === 0 ? (node) => { firstFieldRef.current = node } : undefined}
+              {...common}
+            >
+              {(field.options ?? []).map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              ref={index === 0 ? (node) => { firstFieldRef.current = node } : undefined}
+              type={field.type}
+              placeholder={field.placeholder}
+              autoComplete={field.type === 'password' ? 'off' : undefined}
+              {...common}
+            />
+          )}
         </div>
-      ))}
+        )
+      })}
 
-      <button type="submit" disabled={connecting} className={`${submitBtn} self-start`}>
-        {connectLabel}
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button type="submit" disabled={connecting} className={submitBtn}>
+          {connectLabel}
+        </button>
+        <button type="button" disabled={connecting} onClick={cancelAndCollapse} className={btnQuiet}>
+          Cancel
+        </button>
+        {managed && connectedAs !== null ? (
+          <button
+            type="button"
+            disabled={connecting}
+            onClick={() => void handleDisconnect()}
+            className={btnQuiet}
+          >
+            Disconnect
+          </button>
+        ) : null}
+      </div>
 
       {error && (
         <p id={`${uid}-error`} role="alert" className="text-xs text-fg-muted">

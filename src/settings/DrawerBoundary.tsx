@@ -13,6 +13,7 @@ import { Component, type ReactNode } from 'react'
 
 interface Props {
   children: ReactNode
+  open: boolean
 }
 
 interface State {
@@ -21,13 +22,30 @@ interface State {
 
 export default class DrawerBoundary extends Component<Props, State> {
   state: State = { failed: false }
+  private retryOnNextOpen = false
 
   static getDerivedStateFromError() {
     return { failed: true }
   }
 
-  componentDidCatch(error: unknown) {
-    console.error('[aurora] settings drawer crashed:', error)
+  componentDidUpdate(previousProps: Props) {
+    if (this.state.failed && !this.props.open) {
+      this.retryOnNextOpen = true
+    }
+    if (
+      this.state.failed
+      && this.retryOnNextOpen
+      && !previousProps.open
+      && this.props.open
+    ) {
+      this.retryOnNextOpen = false
+      this.setState({ failed: false })
+    }
+  }
+
+  componentDidCatch() {
+    if (!this.props.open) this.retryOnNextOpen = true
+    console.error('[aurora] settings drawer crashed')
   }
 
   render() {

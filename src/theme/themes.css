@@ -12,6 +12,10 @@
   --fg: #f5f5f4;
   --fg-muted: rgb(245 245 244 / 0.68);
   --accent: #7dd3fc;
+  /* Accent text and focus painted inside configurable panels must follow the
+     panel, not the fixed Aurora canvas accent. applyPanelColor replaces this
+     with the higher-contrast standing panel ink for every explicit pick. */
+  --panel-accent: #f5f5f4;
 
   /* Canvas ink — text that sits DIRECTLY on the photograph (clock, greeting,
      the Tokyo/London world-clocks line, focus line + prompt/edit, quote +
@@ -22,8 +26,12 @@
      photo-floating text must keep its light ink (paired with the .text-photo
      shadow) or it goes near-invisible over the image. Surfaced to Tailwind as
      text-canvas-fg / text-canvas-fg-muted (see newtab/index.css's @theme). */
-  --canvas-fg: #f5f5f4;
-  --canvas-fg-muted: rgb(245 245 244 / 0.68);
+  /* Routed through the --photo-ink chain (owner-approved 2026-08-18): the
+     appearance engine (applyInkColors) sets --photo-ink/--photo-ink-muted
+     when the user picks a photo-text color; absent, these fall back to the
+     fixed light ink exactly as before. */
+  --canvas-fg: var(--photo-ink, #f5f5f4);
+  --canvas-fg-muted: var(--photo-ink-muted, rgb(245 245 244 / 0.68));
 
   /* Panel surface — Mono's near-black, verbatim. Flat and high-opacity with no
      border to lean on (--panel-border is transparent), so the opacity is what
@@ -34,6 +42,12 @@
   /* Floating surfaces (popovers/panels/dialogs) need more opacity than --panel
      for legibility over a photo background — Mono's flat near-black at 92%. */
   --panel-solid: rgb(10 10 10 / 0.92);
+  /* The photo legibility wash (CanvasLegibilityLayer). FIXED neutral — it
+     dims the photograph and must NEVER follow settings.panelColor: a red
+     widget pick used to flood the whole image with red gradient washes
+     because the layer borrowed --panel-solid (owner-reported 2026-08-18).
+     applyPanelColor deliberately never touches this token. */
+  --canvas-wash: rgb(10 10 10 / 0.92);
 
   /* Control kit (Task 61) — fg-DERIVED so inputs/selects/switch tracks and
      hairlines read correctly in BOTH schemes by construction. On the dark
@@ -51,6 +65,27 @@
   --control-border: color-mix(in srgb, var(--fg) 14%, transparent);
   --switch-off: color-mix(in srgb, var(--fg) 22%, transparent);
   --hairline: color-mix(in srgb, var(--fg) 9%, transparent);
+
+  /* Observatory visual roles (W5-P4). Regional glance surfaces share one
+     fixed photo-facing vocabulary; active editors/dialogs/trays continue to
+     use --panel-solid. These do not follow panelColor because they belong to
+     the photographic canvas, not to the configurable widget surface. */
+  --glance-border: rgb(255 255 255 / 0.12);
+  --glance-border-strong: rgb(255 255 255 / 0.14);
+  --glance-highlight: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --glance-surface: linear-gradient(145deg, rgb(3 7 18 / 0.34), rgb(3 7 18 / 0.16));
+  --glance-surface-day: linear-gradient(150deg, rgb(3 7 18 / 0.42), rgb(3 7 18 / 0.2));
+  --glance-surface-pulse: linear-gradient(150deg, rgb(3 7 18 / 0.48), rgb(3 7 18 / 0.2));
+  --glance-surface-launcher: linear-gradient(145deg, rgb(3 7 18 / 0.48), rgb(3 7 18 / 0.28));
+
+  /* The empty Focus question is the one photo-floating muted phrase that must
+     remain independent of arbitrary image luminance. Fixed light ink on an
+     opaque fixed near-black local surface guarantees that relationship while
+     leaving --canvas-fg-muted unchanged for every other canvas label. */
+  --focus-prompt-bg: #070b14;
+  --focus-prompt-fg: #f5f5f4;
+  --focus-prompt-border: rgb(255 255 255 / 0.18);
+  --focus-prompt-shadow: 0 2px 14px rgb(0 0 0 / 0.35);
 
   --panel-blur: 14px;
   --radius: 1rem;

@@ -1,0 +1,288 @@
+{
+  "commit": "098dde3a86f20641bcd665c91de446793ff066fa",
+  "consoleErrors": [],
+  "pageErrors": [],
+  "seedState": {
+    "widgets": {
+      "bookmarks": false,
+      "clocks": false,
+      "countdown": false,
+      "downloads": false,
+      "focus": true,
+      "habits": false,
+      "links": true,
+      "monthCal": false,
+      "moon": false,
+      "notes": false,
+      "quote": false,
+      "readingList": false,
+      "recentlyClosed": false,
+      "search": true,
+      "status": true,
+      "sun": false,
+      "tabGroups": false,
+      "timer": false,
+      "todo": false,
+      "weather": false
+    },
+    "layouts": {
+      "activeLayoutId": "canvas-polish",
+      "layouts": [
+        {
+          "id": "canvas-polish",
+          "name": "Canvas polish",
+          "stacks": [],
+          "widgets": {
+            "auroraKp": {
+              "kind": "hidden"
+            },
+            "bookmarks": {
+              "kind": "hidden"
+            },
+            "clock": {
+              "kind": "hidden"
+            },
+            "countdown": {
+              "kind": "hidden"
+            },
+            "crypto": {
+              "kind": "hidden"
+            },
+            "downloads": {
+              "kind": "hidden"
+            },
+            "focus": {
+              "anchor": "center",
+              "kind": "free",
+              "layer": 3,
+              "offsetX": 0,
+              "offsetY": 20,
+              "tier": "standard"
+            },
+            "github": {
+              "kind": "hidden"
+            },
+            "gitlab": {
+              "kind": "hidden"
+            },
+            "greeting": {
+              "kind": "hidden"
+            },
+            "habits": {
+              "kind": "hidden"
+            },
+            "homeassistant": {
+              "kind": "hidden"
+            },
+            "ics": {
+              "kind": "hidden"
+            },
+            "jira": {
+              "kind": "hidden"
+            },
+            "linear": {
+              "kind": "hidden"
+            },
+            "links": {
+              "anchor": "center",
+              "kind": "free",
+              "layer": 2,
+              "offsetX": 0,
+              "offsetY": -4,
+              "tier": "standard"
+            },
+            "monthCal": {
+              "kind": "hidden"
+            },
+            "moon": {
+              "kind": "hidden"
+            },
+            "notes": {
+              "kind": "hidden"
+            },
+            "onThisDay": {
+              "kind": "hidden"
+            },
+            "publicHolidays": {
+              "kind": "hidden"
+            },
+            "quote": {
+              "kind": "hidden"
+            },
+            "readingList": {
+              "kind": "hidden"
+            },
+            "recentlyClosed": {
+              "kind": "hidden"
+            },
+            "rss": {
+              "kind": "hidden"
+            },
+            "search": {
+              "anchor": "center",
+              "kind": "free",
+              "layer": 1,
+              "offsetX": 0,
+              "offsetY": -27,
+              "tier": "standard"
+            },
+            "sentry": {
+              "kind": "hidden"
+            },
+            "status": {
+              "anchor": "center",
+              "kind": "free",
+              "layer": 4,
+              "offsetX": 30,
+              "offsetY": -4,
+              "tier": "compact"
+            },
+            "sun": {
+              "kind": "hidden"
+            },
+            "tabGroups": {
+              "kind": "hidden"
+            },
+            "tasks": {
+              "kind": "hidden"
+            },
+            "timer": {
+              "kind": "hidden"
+            },
+            "todoist": {
+              "kind": "hidden"
+            },
+            "vercel": {
+              "kind": "hidden"
+            },
+            "weather": {
+              "kind": "hidden"
+            },
+            "worldClocks": {
+              "kind": "hidden"
+            }
+          }
+        }
+      ],
+      "version": 1
+    },
+    "links": [
+      {
+        "id": "mail",
+        "title": "Mail",
+        "url": "https://mail.google.com/"
+      },
+      {
+        "id": "github",
+        "title": "GitHub",
+        "url": "https://github.com/"
+      },
+      {
+        "id": "calendar",
+        "title": "Calendar",
+        "url": "https://calendar.google.com/"
+      }
+    ],
+    "focus": null,
+    "searchItems": 1,
+    "searchForms": 1,
+    "canvasItems": [
+      {
+        "id": "canvas-item-search",
+        "empty": null,
+        "text": ""
+      },
+      {
+        "id": "canvas-item-focus",
+        "empty": null,
+        "text": "What’s your main focus today?"
+      },
+      {
+        "id": "canvas-item-links",
+        "empty": null,
+        "text": "Mail×GitHub×Calendar×+"
+      },
+      {
+        "id": "canvas-item-status",
+        "empty": null,
+        "text": "1 service issue, 2 servicesGitHubVercel"
+      }
+    ]
+  },
+  "settingsState": {
+    "location": {
+      "label": "Dallas, GA",
+      "lat": 33.9237,
+      "lon": -84.8408,
+      "manual": true
+    },
+    "text": "Settings✕GeneralWidgetsConnectorsDataWidgetsCoreSearchBookmarksQuick linksFocus timerTasksNotesPersonalWeatherDaily quoteHabitsMonth calendarTime & skyWorld clocksCountdownSun timesMoon phaseBrowserReading ListRecently ClosedDownloadsTab GroupsCalendarWeather locationLocationDallas, GAClearWorld clocksCountdownsLayoutLayoutsCanvas polish(active)RenameDuplicateUpDownNew layout"
+  },
+  "firstView": {
+    "searchStyle": {
+      "backgroundColor": "rgba(0, 0, 0, 0)",
+      "borderRadius": "0px",
+      "borderWidth": "0px",
+      "borderBottomWidth": "0px",
+      "boxShadow": "none"
+    },
+    "searchInputStyle": {
+      "backgroundColor": "rgba(0, 0, 0, 0)",
+      "borderRadius": "0px",
+      "borderWidth": "0px 0px 1px",
+      "borderBottomWidth": "1px",
+      "boxShadow": "none"
+    },
+    "quickLinkStyle": {
+      "backgroundColor": "rgba(0, 0, 0, 0)",
+      "borderRadius": "0px",
+      "borderWidth": "0px",
+      "borderBottomWidth": "0px",
+      "boxShadow": "none"
+    },
+    "addLinkStyle": {
+      "backgroundColor": "rgba(0, 0, 0, 0)",
+      "borderRadius": "0px",
+      "borderWidth": "0px",
+      "borderBottomWidth": "0px",
+      "boxShadow": "none"
+    },
+    "focusState": "completed",
+    "statusTooltip": "Vercel: Partial outage. Elevated build latency"
+  },
+  "stackView": {
+    "reorderViewport": {
+      "width": 1600,
+      "height": 900
+    },
+    "shortViewport": {
+      "width": 1408,
+      "height": 445
+    },
+    "before": {
+      "left": 8,
+      "top": 384,
+      "right": 224,
+      "bottom": 516,
+      "width": 216,
+      "height": 132
+    },
+    "shortRect": {
+      "left": 8,
+      "top": 384,
+      "right": 224,
+      "bottom": 516,
+      "width": 216,
+      "height": 132
+    },
+    "order": [
+      "tasks",
+      "notes"
+    ],
+    "arrowOrder": [
+      "notes",
+      "tasks"
+    ]
+  },
+  "result": "PASS"
+}

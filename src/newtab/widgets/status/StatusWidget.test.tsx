@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { StatusData } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 import StatusWidget from './StatusWidget'
+import indexCss from '../../index.css?raw'
 
 // The snapshot hook's in-flight dedupe map is module-level and survives
 // across cases; reset it so one test's refresh can't dedupe the next — same
@@ -42,19 +46,36 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { status: config })
-  if (data) await storage.set('connectorSnapshots', { status: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      status: { scope: await connectorSnapshotScope('status', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(
+  storage: AuroraStorage,
+  canvasSize: CanvasSize = 'standard',
+  presentation: WidgetPresentationMode = 'stack',
+) {
   return render(
     <StorageProvider storage={storage}>
-      <StatusWidget />
+      <StatusWidget canvasSize={canvasSize} presentation={presentation} />
     </StorageProvider>,
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'Service status' })
+}
+
 describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
+  it('restores real pointer hit testing only for compact service tooltip owners', () => {
+    expect(indexCss).toMatch(/\.canvas-item:not\(\[data-canvas-object-id\^="stack:"\]\)\[data-block-id="status"\] \[data-status-service\]\s*\{[^}]*pointer-events:\s*auto/)
+  })
+
   it('renders nothing — and never runs the snapshot refresh — when the connector is disabled', async () => {
     const storage = await seededStorage({ ...CONNECTED, enabled: false }, null)
     const { container } = mount(storage)
@@ -93,18 +114,158 @@ describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
 })
 
 describe('StatusWidget — DOM contract', () => {
-  it('renders section[aria-label="Service status"] with the crypto strip language (w-88 text-center)', async () => {
+  it('renders free Service status as intrinsic text without a tier card', async () => {
+    mount(await seededStorage(CONNECTED, ALL_GREEN), 'standard', 'free')
+    await screen.findByText('GitHub')
+    const status = await screen.findByRole('region', { name: 'Service status' })
+    expect(status.getAttribute('data-service-status-surface')).toBe('intrinsic')
+    expect(status.closest('[data-tier-frame]')).toBeNull()
+    expect(within(status).getByText('GitHub')).toBeTruthy()
+    expect(within(status).getByText('Cloudflare')).toBeTruthy()
+    expect(within(status).queryByRole('button', { name: 'Service status details' })).toBeNull()
+  })
+
+  it('keeps Service status in an exact frame when it is a stack member', async () => {
+    mount(await seededStorage(CONNECTED, ALL_GREEN), 'standard', 'stack')
+    const status = await screen.findByRole('region', { name: 'Service status' })
+    expect(status.getAttribute('data-tier-frame')).toBe('standard')
+    expect(status.getAttribute('data-tier-surface')).toBe('card')
+  })
+
+  it('keeps free loading and empty states cardless', async () => {
+    const loadingView = mount(await seededStorage(CONNECTED, null), 'standard', 'free')
+    const loading = await screen.findByRole('region', { name: 'Service status' })
+    expect(loading.getAttribute('data-service-status-surface')).toBe('intrinsic')
+    expect(loading.closest('[data-tier-frame]')).toBeNull()
+    loadingView.unmount()
+
+    mount(await seededStorage(CONNECTED, { services: [] }), 'standard', 'free')
+    const empty = await screen.findByRole('region', { name: 'Service status' })
+    expect(empty.getAttribute('data-service-status-surface')).toBe('intrinsic')
+    expect(empty.closest('[data-tier-frame]')).toBeNull()
+  })
+
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Service status' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
+  it.each(['compact', 'standard'] as const)('uses the exact %s frame with named service dots and no card scrollbar', async (tier) => {
+    const storage = await seededStorage(CONNECTED, {
+      services: [
+        { name: 'GitHub', indicator: 'none', description: 'All systems operational' },
+        { name: 'Vercel', indicator: 'minor', description: 'Elevated build latency' },
+      ],
+    })
+    mount(storage, tier)
+    const frame = await readyFrame()
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).toContain(`tier-frame--${tier}`)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.textContent).toContain('GitHub')
+    expect(frame.textContent).toContain('Vercel')
+    if (tier === 'compact') {
+      expect(within(frame).queryByText('Service status')).toBeNull()
+      expect(frame.querySelectorAll('[data-status-service]')).toHaveLength(2)
+    }
+    if (tier === 'standard') {
+      const issue = screen.getByText('Vercel: Elevated build latency')
+      expect(issue.className).not.toContain('hidden')
+    }
+  })
+
+  it('shows compact status and provider context on hover and keyboard focus', async () => {
+    const storage = await seededStorage(CONNECTED, {
+      services: [
+        { name: 'GitHub', indicator: 'none', description: 'All Systems Operational' },
+        { name: 'Vercel', indicator: 'minor', description: 'Elevated build latency' },
+      ],
+    })
+    mount(storage, 'compact')
+    const vercel = await screen.findByText('Vercel')
+    const trigger = vercel.closest('[data-status-service]') as HTMLElement
+    fireEvent.mouseEnter(trigger)
+    expect(await screen.findByRole('tooltip')).toHaveProperty('textContent', 'Vercel: Partial outage. Elevated build latency')
+    fireEvent.mouseLeave(trigger)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(trigger)
+    expect(await screen.findByRole('tooltip')).toHaveProperty('textContent', 'Vercel: Partial outage. Elevated build latency')
+  })
+
+  it('renders Service status as a static readout without a Details control or popup', async () => {
+    const storage = await seededStorage(CONNECTED, ALL_GREEN)
+    mount(storage, 'standard')
+    await screen.findByText('GitHub')
+    expect(screen.queryByRole('button', { name: 'Service status details' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Service status details' })).toBeNull()
+  })
+
+  it('names every service beside its dot so status reads without hovering (batch-2 owner review)', async () => {
+    const storage = await seededStorage(CONNECTED, {
+      services: [
+        { name: 'GitHub', indicator: 'none', description: 'All systems operational' },
+        { name: 'Vercel', indicator: 'minor', description: 'Elevated build latency' },
+      ],
+    })
+    mount(storage, 'standard')
+    const dots = await screen.findByTestId('status-dots')
+    expect(dots.textContent).toContain('GitHub')
+    expect(dots.textContent).toContain('Vercel')
+    // Hover context stays: the dot's title carries state and description.
+    expect(dots.querySelector('[title*="Elevated build latency"]')).toBeTruthy()
+  })
+
+  it('Docked renders static, accessibly named dots without a details interaction', async () => {
+    const storage = await seededStorage(CONNECTED, ALL_GREEN)
+    render(
+      <StorageProvider storage={storage}>
+        <StatusWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByRole('status', { name: 'Service status: All operational, 2 services' })
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.textContent).toBe('')
+    expect(line.querySelectorAll('span[title]')).toHaveLength(2)
+    expect(screen.queryByText('Service status')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('shows named dots at every explicit framed size', async () => {
+    const storage = await seededStorage(CONNECTED, ALL_GREEN)
+    const view = mount(storage, 'compact')
+    const compact = await readyFrame()
+    // Compact still names each service; the exact frame bounds the row.
+    expect(compact.querySelectorAll('[data-status-service]')).toHaveLength(2)
+    expect(compact.textContent).toContain('GitHub')
+    expect(compact.querySelector('[data-status-service]')?.getAttribute('tabindex')).toBe('0')
+
+    view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="standard" presentation="stack" /></StorageProvider>)
+    const standard = await readyFrame()
+    expect(standard.querySelectorAll('span[title]')).toHaveLength(2)
+    expect(standard.textContent).toContain('GitHub')
+
+    view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="full" presentation="stack" /></StorageProvider>)
+    const full = await readyFrame()
+    expect(full.querySelectorAll('span[title]')).toHaveLength(2)
+    expect(full.textContent).toContain('Cloudflare')
+  })
+
+  it('defaults an unqualified board render to the exact Standard frame', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Service status' })
-    expect(section.className).toContain('w-88')
-    expect(section.className).toContain('text-center')
+    const section = await readyFrame()
+    expect(section.getAttribute('data-tier-frame')).toBe('standard')
+    expect(section.className).toContain('tier-frame--standard')
   })
 
   it('renders one dot (span[title]) per service, index-aligned to the snapshot', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Service status' })
+    const section = await readyFrame()
     const dots = section.querySelectorAll('span[title]')
     expect(dots.length).toBe(2)
   })
@@ -112,9 +273,17 @@ describe('StatusWidget — DOM contract', () => {
   it('all-green renders dots only — zero <p> trouble lines', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Service status' })
+    const section = await readyFrame()
     expect(section.querySelectorAll('span[title]').length).toBe(2)
     expect(section.querySelectorAll('p').length).toBe(0)
+    expect(screen.getByText('All operational, 2 services')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-status-tone')).toBe('quiet')
+  })
+
+  it('keeps an empty frame when a configured status poll returns no services', async () => {
+    mount(await seededStorage(CONNECTED, { services: [] }), 'standard')
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-tier-frame-state')).toBe('empty'))
+    expect(screen.getByText('No service results right now.')).toBeTruthy()
   })
 })
 
@@ -137,28 +306,30 @@ describe('StatusWidget — dot color + title per indicator', () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Alpha: All Systems Operational')
-    expect(dot.className).toContain('bg-emerald-400')
+    expect(dot.firstElementChild?.className).toContain('bg-emerald-400')
   })
 
   it('minor -> bg-amber-400, title "{name}: {description}"', async () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Bravo: Degraded Performance')
-    expect(dot.className).toContain('bg-amber-400')
+    expect(dot.firstElementChild?.className).toContain('bg-amber-400')
   })
 
   it('major -> bg-red-400, title "{name}: {description}"', async () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Charlie: Partial Outage')
-    expect(dot.className).toContain('bg-red-400')
+    expect(dot.firstElementChild?.className).toContain('bg-red-400')
   })
 
   it('critical -> bg-red-400, title "{name}: {description}"', async () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Delta: Major Outage')
-    expect(dot.className).toContain('bg-red-400')
+    expect(dot.firstElementChild?.className).toContain('bg-red-400')
+    expect(screen.getByText('3 service issues, 5 services')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-status-tone')).toBe('critical')
   })
 
   // FIX ROUND (post-Task 86, controller-approved): was `bg-fg-muted/40`
@@ -169,7 +340,7 @@ describe('StatusWidget — dot color + title per indicator', () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Echo: unreachable')
-    expect(dot.className).toContain('bg-canvas-fg-muted/40')
+    expect(dot.firstElementChild?.className).toContain('bg-canvas-fg-muted/40')
   })
 })
 
@@ -183,23 +354,14 @@ describe('StatusWidget — trouble lines', () => {
     }
     const storage = await seededStorage(CONNECTED, data)
     mount(storage)
-    const section = await screen.findByRole('region', { name: 'Service status' })
+    const section = await readyFrame()
     expect(section.querySelectorAll('span[title]').length).toBe(2)
     expect(section.querySelectorAll('p').length).toBe(0)
+    expect(screen.getByText('1 unreachable, 2 services')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-status-tone')).toBe('unknown')
   })
 
-  // FIX ROUND (post-Task 86, controller-approved): the trouble line now
-  // ALSO carries `text-photo` (the house photo-floating-text shadow,
-  // index.css's own `@utility text-photo` — this text sits directly on the
-  // background photo, same as every other bottom-band text) and its own
-  // `hidden tallest:block` CSS-visibility gate (the strip's outer
-  // PositionedBlock reveals at the much-lower `ampler` floor now; the text
-  // itself still needs `tallest`'s taller floor to have room — see
-  // App.tsx/index.css). jsdom never evaluates the height media query behind
-  // `tallest:block` (no real layout), so this only pins the CLASS NAMES
-  // being present — scripts/preview.mjs's own real-browser fenceposts are
-  // what prove the actual reveal-at-height behavior.
-  it('exact trouble text "{name} — {description}" in the danger tone (text-red-400), with the photo shadow and its own tallest-gated visibility class', async () => {
+  it('keeps free trouble text visible at the owner witness size with photo shadow and danger tone', async () => {
     const data: StatusData = {
       services: [{ name: 'Bravo', indicator: 'critical', description: 'Major Outage' }],
     }
@@ -207,13 +369,13 @@ describe('StatusWidget — trouble lines', () => {
       { enabled: true, services: [{ name: 'Bravo', url: 'https://example.com/b.json' }] },
       data,
     )
-    mount(storage)
-    const line = await screen.findByText('Bravo — Major Outage')
+    mount(storage, 'standard', 'free')
+    const line = await screen.findByText('Bravo: Major Outage')
     expect(line.tagName).toBe('P')
     expect(line.className).toContain('text-red-400')
     expect(line.className).toContain('text-photo')
-    expect(line.className).toContain('hidden')
-    expect(line.className).toContain('tallest:block')
+    expect(line.className).not.toContain('hidden')
+    expect(line.className).not.toContain('tallest:block')
   })
 
   it('worst-first ordering: critical > major > minor, regardless of configured order', async () => {
@@ -232,10 +394,10 @@ describe('StatusWidget — trouble lines', () => {
       data,
     )
     mount(storage)
-    await screen.findByText('Bravo — Major Outage')
+    await screen.findByText('Bravo: Major Outage')
     const section = document.querySelector('section[aria-label="Service status"]')!
     const lines = [...section.querySelectorAll('p')].map((p) => p.textContent)
-    expect(lines).toEqual(['Bravo — Major Outage', 'Charlie — Partial Outage', 'Alpha — Degraded Performance'])
+    expect(lines).toEqual(['Bravo: Major Outage', 'Charlie: Partial Outage', 'Alpha: Degraded Performance'])
   })
 
   it('caps trouble lines at 3 with a 4-affected fixture, worst-first, ties keep configured order', async () => {
@@ -255,12 +417,12 @@ describe('StatusWidget — trouble lines', () => {
       data,
     )
     mount(storage)
-    await screen.findByText('Three — d3')
+    await screen.findByText('Three: d3')
     const section = document.querySelector('section[aria-label="Service status"]')!
     const lines = [...section.querySelectorAll('p')].map((p) => p.textContent)
     // Three and Four both critical (tie -> configured order), Two is major,
     // One (minor) is dropped by the MAX_TROUBLE_LINES=3 cap.
-    expect(lines).toEqual(['Three — d3', 'Four — d4', 'Two — d2'])
-    expect(screen.queryByText('One — d1')).toBeNull()
+    expect(lines).toEqual(['Three: d3', 'Four: d4', 'Two: d2'])
+    expect(screen.queryByText('One: d1')).toBeNull()
   })
 })

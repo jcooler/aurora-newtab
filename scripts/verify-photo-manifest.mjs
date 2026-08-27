@@ -2,7 +2,7 @@
 // photo manifest and its on-disk AVIF assets are consistent: every kept
 // candidate in photo-candidates.json (i.e. everything without an
 // `excluded` reason) has exactly one runtime manifest entry, each with both
-// resolution tiers present as real files under public/photos/. Run after
+// an untouched original or both legacy resolution tiers present as real files under public/photos/. Run after
 // encode-photos.mjs, or any time as a standalone sanity check:
 //   node scripts/verify-photo-manifest.mjs
 import { readFile } from 'node:fs/promises'
@@ -37,24 +37,29 @@ check(
   'no excluded candidate id appears in the manifest',
 )
 
-let allTiersOk = true
+let allSourcesOk = true
 let allFilesExist = true
+let assetCount = 0
 for (const photo of manifest) {
   const tierNames = Object.keys(photo.tiers ?? {})
-  if (tierNames.length !== 2 || !TIER_NAMES.every((t) => tierNames.includes(t))) {
-    allTiersOk = false
-    console.log(`  - ${photo.id}: expected tiers [${TIER_NAMES.join(', ')}], got [${tierNames.join(', ')}]`)
+  const hasOriginal = typeof photo.original === 'string' && photo.original.length > 0
+  const hasLegacyTiers = tierNames.length === 2 && TIER_NAMES.every((t) => tierNames.includes(t))
+  if (hasOriginal === hasLegacyTiers) {
+    allSourcesOk = false
+    console.log(`  - ${photo.id}: expected exactly one original or the legacy tier pair`)
   }
-  for (const tier of TIER_NAMES) {
-    const file = photo.tiers?.[tier]
+  const files = hasOriginal ? [photo.original] : TIER_NAMES.map((tier) => photo.tiers?.[tier])
+  files.push(photo.preview)
+  assetCount += files.length
+  for (const file of files) {
     if (!file || !existsSync(`public/photos/${file}`)) {
       allFilesExist = false
-      console.log(`  - ${photo.id} (${tier}): file missing on disk — ${file ?? '<no entry>'}`)
+      console.log(`  - ${photo.id}: file missing on disk: ${file ?? '<no entry>'}`)
     }
   }
 }
-check(allTiersOk, 'every manifest entry has exactly the 2560x1600 and 3840x2400 tiers')
-check(allFilesExist, 'every tier file exists under public/photos/')
+check(allSourcesOk, 'every manifest entry has exactly one original or the legacy tier pair')
+check(allFilesExist, 'every manifest photo file exists under public/photos/')
 
 check(
   manifest.every((p) => typeof p.photographer === 'string' && p.photographer.length > 0),
@@ -94,5 +99,5 @@ check(
   `the whole lqip set fits the bundle budget (${(lqipBytes / 1024).toFixed(1)}KB of ${LQIP_BUDGET / 1024}KB)`,
 )
 
-console.log(failed ? '\nFAIL: photo manifest verification failed' : `\nPASS: photo manifest verification passed (${manifest.length} photos, ${manifest.length * 2} tier files)`)
+console.log(failed ? '\nFAIL: photo manifest verification failed' : `\nPASS: photo manifest verification passed (${manifest.length} photos, ${assetCount} files)`)
 process.exit(failed ? 1 : 0)

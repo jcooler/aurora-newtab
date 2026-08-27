@@ -1,11 +1,53 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
 import { defaults } from '../../lib/storage/schema'
 import Greeting from './Greeting'
+
+describe('Greeting restoration sampling', () => {
+  it('changes daypart immediately when a sleeping tab regains focus', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 6, 26, 11, 59, 0))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', defaults().settings)
+    const { container } = render(<StorageProvider storage={storage}><Greeting /></StorageProvider>)
+    await act(async () => {})
+    expect(container.querySelector('p')!.textContent).toContain('morning')
+
+    vi.setSystemTime(new Date(2026, 6, 26, 12, 1, 0))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(container.querySelector('p')!.textContent).toContain('afternoon')
+    vi.useRealTimers()
+  })
+})
+
+describe('Greeting presentation surface', () => {
+  it('keeps the established intrinsic Greeting instead of imposing a tier frame', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 23, 15, 0, 0))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', { ...defaults().settings, name: 'Jon' })
+    const { container } = render(
+      <StorageProvider storage={storage}>
+        <Greeting />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    const greeting = container.firstElementChild
+    const text = greeting?.querySelector('[data-canvas-type-role="greeting"]')
+    expect(greeting?.tagName).toBe('DIV')
+    expect(greeting?.classList.contains('aurora-greeting')).toBe(true)
+    expect(greeting?.hasAttribute('data-tier-frame')).toBe(false)
+    expect(text?.textContent).toBe('Good afternoon, Jon.')
+    expect(text?.getAttribute('title')).toBe('Good afternoon, Jon.')
+    vi.useRealTimers()
+  })
+})
 
 // Task 60 fix round: text that sits directly on the photograph paints with the
 // FIXED canvas ink (text-canvas-fg / text-canvas-fg-muted → var(--canvas-fg*)),
@@ -29,6 +71,7 @@ describe('Greeting — canvas ink (fixed over the photo)', () => {
 
     const p = container.querySelector('p')
     expect(p).toBeTruthy()
+    expect(p?.getAttribute('data-canvas-type-role')).toBe('greeting')
     expect(p?.classList.contains('text-canvas-fg')).toBe(true)
     // NOT the adaptive panel ink: a light panelColor pick must leave it light.
     // (Panel/card text keeps text-fg and DOES adapt — proven at the token level

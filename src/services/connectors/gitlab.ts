@@ -68,6 +68,7 @@ function authHeaders(token: string): Record<string, string> {
 }
 
 export interface GitlabMr {
+  id: string
   title: string
   url: string
   project: string // from the MR's references.full (minus the '!123' suffix), or derived from web_url's path when absent
@@ -94,9 +95,15 @@ export interface GitlabData {
 }
 
 interface MrItem {
+  id?: unknown
   title?: unknown
   web_url?: unknown
   references?: { full?: unknown }
+}
+
+function stableMrId(value: unknown): string {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value)
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : ''
 }
 
 /** 'group/subproject' from a merge request's `references.full`
@@ -136,15 +143,16 @@ function parseMrs(body: unknown): GitlabMr[] {
   for (const raw of items) {
     if (typeof raw !== 'object' || raw === null) continue
     const item = raw as MrItem
+    const id = stableMrId(item.id)
     const title = typeof item.title === 'string' ? item.title : ''
     const url = typeof item.web_url === 'string' ? item.web_url : ''
-    if (!title || !url) continue
+    if (!id || !title || !url) continue
     const referencesFull =
       typeof item.references === 'object' && item.references !== null && typeof item.references.full === 'string'
         ? item.references.full
         : ''
     const project = referencesFull ? projectFromReferences(referencesFull) : projectFromWebUrl(url)
-    out.push({ title, url, project })
+    out.push({ id, title, url, project })
   }
   return out
 }
@@ -356,6 +364,19 @@ export const gitlabDescriptor: ConnectorDescriptor<GitlabConfig> = {
       return [originPattern(config.instanceUrl)]
     } catch {
       return []
+    }
+  },
+  ownsOrigins: (config) => {
+    if (
+      typeof config.token !== 'string' || config.token.length === 0 ||
+      typeof config.username !== 'string' || config.username.length === 0 ||
+      typeof config.instanceUrl !== 'string' || config.instanceUrl.length === 0
+    ) return false
+    try {
+      originPattern(config.instanceUrl)
+      return true
+    } catch {
+      return false
     }
   },
 }

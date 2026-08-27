@@ -14,23 +14,17 @@ const INTERACTIVE_SELECTOR = 'button, a, input, textarea, select, [role="button"
  *  never activates whatever's under the pointer (a button, a link, …).
  *
  *  Interactive elements — anything matching `INTERACTIVE_SELECTOR` below —
- *  never arm the timer at all (checked at pointerdown, inside the
- *  `[data-block-id]` lookup, so a press elsewhere on the SAME block still
- *  arms normally). Jon's bug report: holding a focus-timer minute
+ *  do not arm the timer unless they are the marked block's direct launcher
+ *  button. That narrow exception lets button-only launchers enter Arrange
+ *  without exposing nested controls. Jon's bug report: holding a focus-timer minute
  *  `<input type="number">`'s native spin buttons to run the value up/down
  *  fast was ALSO arming this timer — 500ms into the hold it fired, entered
  *  arrange mode, and the one-shot click suppressor ate the click that would
  *  have committed the input's value. More generally, press-and-HOLD is the
- *  wrong gesture to share with any control that already has its own
- *  hold-to-repeat or click semantics (buttons, links, native number-input
- *  spinners, …) — there's no reliable way to tell "the user is holding this
- *  control to use IT" from "the user is holding this control to move the
- *  WIDGET". Trade-off accepted (Jon, MVP fix — a hover-drag-handle model is
- *  the planned real replacement, post-launch): the pill buttons themselves
- *  (Tasks/Notes/Timer, and Search's input) ARE interactive, so those blocks
- *  lose long-press entry entirely while idle — arrange mode stays reachable
- *  for them via any OTHER block's non-interactive surface, or Settings ->
- *  Layout -> Arrange layout, which is unconditionally available regardless.
+ *  wrong gesture to share with a nested control that already has its own
+ *  hold-to-repeat or click semantics (links, native number-input spinners,
+ *  and panel buttons). Direct launchers deliberately suppress their eventual
+ *  click after the hold engages, while a short press behaves normally.
  *
  *  No-ops entirely when `isPremium()` is false — checked once, when this
  *  effect (re-)runs, not per event; arrange mode has exactly one entry
@@ -126,11 +120,16 @@ export function useLongPress(
       const target = e.target
       const blockEl = target instanceof Element ? target.closest('[data-block-id]') : null
       if (!blockEl) return
-      // Interactive elements never arm the timer — see the doc comment
-      // above for why. Checked here (not before the block lookup) so this
-      // stays scoped to "is the PRESS TARGET itself interactive", not
-      // "is there an interactive element somewhere on the page".
-      if (target instanceof Element && target.closest(INTERACTIVE_SELECTOR)) return
+      // Nested controls never arm the timer. A marked direct launcher button
+      // is the only interactive exception, so button-only blocks can still
+      // enter Arrange without reviving the timer-input hold regression.
+      const interactive = target instanceof Element ? target.closest(INTERACTIVE_SELECTOR) : null
+      if (interactive) {
+        const directLauncher = blockEl.getAttribute('data-arrange-long-press-controls') === 'true'
+          && interactive.matches('button, [role="button"]')
+          && interactive.parentElement === blockEl
+        if (!directLauncher) return
+      }
       const id = blockEl.getAttribute('data-block-id') as BlockId | null
       if (!id) return
 

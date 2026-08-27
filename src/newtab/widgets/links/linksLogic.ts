@@ -1,18 +1,9 @@
 import type { QuickLink } from '../../../lib/storage/schema'
+import { normalizeQuickLinkUrl } from '../../../lib/quickLinkUrl'
 
 /** Normalize to an http(s) URL, or null when the input can't be one. */
 export function normalizeUrl(raw: string): string | null {
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  const candidate = /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-  try {
-    const parsed = new URL(candidate)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
-    if (!parsed.hostname.includes('.') && parsed.hostname !== 'localhost') return null
-    return candidate
-  } catch {
-    return null
-  }
+  return normalizeQuickLinkUrl(raw)
 }
 
 export function addLink(links: QuickLink[], title: string, url: string): QuickLink[] {

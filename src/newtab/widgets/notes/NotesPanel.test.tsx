@@ -48,6 +48,14 @@ describe('NotesPanel', () => {
     expect(dialog.classList.contains('bg-[#17171c]/95')).toBe(false)
   })
 
+  it('uses the shared 8px viewport fit and keeps the narrow textarea and recovery action reachable', async () => {
+    await renderPanel()
+    const dialog = screen.getByRole('dialog', { name: 'Notes' })
+    expect(dialog.classList.contains('w-[min(20rem,calc(100vw-1rem))]')).toBe(true)
+    expect(dialog.classList.contains('h-[min(16rem,calc(100dvh-1rem))]')).toBe(true)
+    expect(screen.getByRole('textbox').classList.contains('min-h-9')).toBe(true)
+  })
+
   it("anchors via `bottom` (grow-up) instead of `top` when given a bottom-anchored placement — review fix I1, the shape Notes actually gets at its default (bottom-half) pill position", async () => {
     await renderPanel({ left: 16, bottom: 64 })
     const dialog = screen.getByRole('dialog', { name: 'Notes' })
@@ -142,7 +150,7 @@ describe('NotesPanel', () => {
       write: (patch) => base.write(patch),
       onChanged: (cb) => base.onChanged(cb),
     }
-    const storage = createStorage(driver)
+    const storage = createStorage(driver, base.authority)
     await storage.init()
     driver.read = async (keys) => {
       await gate
@@ -175,8 +183,179 @@ describe('NotesPanel', () => {
     releaseNotesRead()
     await act(async () => {}) // notes resolves; NotesPanel now registers
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' })
+      await Promise.resolve()
+    })
     expect(notesOnClose).toHaveBeenCalledOnce()
     expect(belowOnClose).toHaveBeenCalledOnce() // unchanged — this press was Notes'
+  })
+
+  it('reports Saving through a deferred authority write and Saved only after it fulfills', async () => {
+    const base = memoryDriver()
+    let releaseWrite: () => Promise<void> = async () => {}
+    let deferNotes = false
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      write: async (patch) => {
+        if (!deferNotes || !Object.prototype.hasOwnProperty.call(patch, 'notes')) {
+          await base.write(patch)
+          return
+        }
+        deferNotes = false
+        await new Promise<void>((resolve) => {
+          releaseWrite = async () => {
+            await base.write(patch)
+            resolve()
+          }
+        })
+      },
+      onChanged: (cb) => base.onChanged(cb),
+    }
+    const storage = createStorage(driver, base.authority)
+    await storage.init()
+    deferNotes = true
+
+    render(
+      <StorageProvider storage={storage}>
+        <NotesPanel anchor={{ left: 16, top: 582 }} onClose={vi.fn()} />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Await the real write' } })
+    const status = screen.getByRole('status')
+    expect(status.getAttribute('aria-live')).toBe('polite')
+    expect(status.getAttribute('aria-atomic')).toBe('true')
+    expect(status.textContent).toBe('Saving…')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('Saving…')
+    expect((await storage.get('notes')).text).toBe('')
+
+    await act(async () => {
+      await releaseWrite()
+    })
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('Saved')
+    expect((await storage.get('notes')).text).toBe('Await the real write')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_400)
+    })
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('retains one atomic failure alert and its stable described Retry while a deferred retry is pending', async () => {
+    const base = memoryDriver()
+    let mode: 'pass' | 'reject' | 'defer' = 'pass'
+    const heldWrites: Array<() => Promise<void>> = []
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      write: async (patch) => {
+        if (!Object.prototype.hasOwnProperty.call(patch, 'notes') || mode === 'pass') {
+          await base.write(patch)
+          return
+        }
+        const writeMode = mode
+        mode = 'pass'
+        if (writeMode === 'reject') throw new Error('configured notes write failure')
+        await new Promise<void>((resolve) => {
+          heldWrites.push(async () => {
+            await base.write(patch)
+            resolve()
+          })
+        })
+      },
+      onChanged: (cb) => base.onChanged(cb),
+    }
+    const storage = createStorage(driver, base.authority)
+    await storage.init()
+    mode = 'reject'
+    const view = render(
+      <StorageProvider storage={storage}>
+        <NotesPanel anchor={{ left: 16, top: 582 }} onClose={vi.fn()} />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep this draft' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+
+    const status = screen.getByRole('status')
+    const alert = screen.getByRole('alert')
+    const retry = screen.getByRole('button', { name: 'Retry save' }) as HTMLButtonElement
+    const descriptionId = retry.getAttribute('aria-describedby')
+    const description = descriptionId ? document.getElementById(descriptionId) : null
+    expect(screen.queryAllByRole('status')).toHaveLength(1)
+    expect(screen.queryAllByRole('alert')).toHaveLength(1)
+    expect(status.textContent).toBe('')
+    expect(status.textContent).not.toContain('Couldn’t save')
+    expect(alert.getAttribute('aria-atomic')).toBe('true')
+    expect(description?.textContent).toBe('Couldn’t save. Your note is still here.')
+    expect(retry.textContent).toBe('Retry save')
+    expect(retry.classList.contains('min-h-9')).toBe(true)
+    expect(retry.disabled).toBe(false)
+    retry.focus()
+    expect(document.activeElement).toBe(retry)
+
+    mode = 'defer'
+    fireEvent.click(retry)
+    expect(screen.getByRole('alert')).toBe(alert)
+    expect(screen.getByRole('button', { name: 'Retry save' })).toBe(retry)
+    expect(retry.disabled).toBe(true)
+    expect(retry.getAttribute('aria-busy')).toBe('true')
+    expect(retry.getAttribute('aria-describedby')).toBe(descriptionId)
+    expect(document.getElementById(descriptionId ?? '')).toBe(description)
+    expect(status.textContent).toBe('Saving…')
+
+    await act(async () => {
+      for (let attempts = 0; heldWrites.length === 0 && attempts < 10; attempts += 1) {
+        await Promise.resolve()
+      }
+    })
+    expect(heldWrites).toHaveLength(1)
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Latest while retry is held' } })
+    expect(screen.getByRole('alert')).toBe(alert)
+    expect(screen.getByRole('button', { name: 'Retry save' })).toBe(retry)
+    expect(retry.disabled).toBe(true)
+    expect(retry.getAttribute('aria-busy')).toBe('true')
+    expect(retry.getAttribute('aria-describedby')).toBe(descriptionId)
+    expect(status.textContent).toBe('Saving…')
+
+    mode = 'defer'
+    await act(async () => {
+      expect(heldWrites).toHaveLength(1)
+      await heldWrites.shift()!()
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('alert')).toBe(alert)
+    expect(screen.getByRole('button', { name: 'Retry save' })).toBe(retry)
+    expect(retry.disabled).toBe(true)
+    expect(retry.getAttribute('aria-busy')).toBe('true')
+    expect(status.textContent).toBe('Saving…')
+
+    await act(async () => {
+      for (let attempts = 0; heldWrites.length === 0 && attempts < 10; attempts += 1) {
+        await Promise.resolve()
+      }
+      expect(heldWrites).toHaveLength(1)
+      await heldWrites.shift()!()
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('Saved')
+
+    view.unmount()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

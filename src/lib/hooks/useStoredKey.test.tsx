@@ -61,6 +61,11 @@ describe('useStoredKey', () => {
     // Setup: track when hook's get() is called and delay it.
     let resolveHookGet: ((v: Record<string, unknown>) => void) | null = null
     const base = memoryDriver()
+    // Initialize the backing store before delaying keyed reads. Storage init
+    // now verifies its own writes with keyed reads; delaying every keyed read
+    // from an empty store would block init rather than the hook read this test
+    // is meant to control.
+    await createStorage(base).init()
     const delayedDriver = {
       ...base,
       read: (keys: string[] | null) => {

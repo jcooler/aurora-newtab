@@ -12,16 +12,17 @@
 // the secret is the URL itself (an ICS "private address" grants read access to
 // the whole calendar). So secretFields:['url'] and there is no identityField.
 // backup.test.ts's ics case is the first auth-'none' connector that DOES strip
-// a secret (crypto/rss strip nothing) — see that file.
+// a secret through `secretFields` (RSS uses `redactForBackup` for its feed
+// list instead; Crypto strips nothing) — see that file.
 //
 // TZID STRATEGY (decided up front): to convert a TZID-stamped local wall time
 // to an epoch we use the JS runtime's own IANA zone database via Intl, NOT the
 // VTIMEZONE block in the file. VTIMEZONE bodies are SKIPPED entirely (their
 // DTSTART/RRULE lines describe the zone's own transitions, not events). The
-// conversion is the well-known two-pass offset trick (see wallToEpochInZone):
-// format a UTC guess in the target zone to read its offset, correct by that
-// offset, then re-read once to settle DST transitions to the minute. If the
-// runtime doesn't know the zone id, the event is treated as floating local and,
+// conversion uses dates.ts's bounded, round-trip-validated IANA wall-time
+// inverse, including skipped/duplicated midnight transitions. If the
+// runtime doesn't know the zone id, the event is treated as floating in the
+// explicitly supplied runtime zone and,
 // for an RRULE, only its base occurrence is rendered (we can't safely expand a
 // recurrence whose wall-time-to-instant mapping we don't know).
 //
@@ -32,11 +33,14 @@
 // occurrence ONLY. Malformed input → [].
 import type { ConnectorDescriptor, IcsCalendar, IcsConfig } from './types'
 import { originPattern } from '../permissions'
+import { zonedWallTimeToEpoch } from '../../lib/dates'
+import { CALENDAR_COLORS, calendarColorClass, isCalendarColor } from './calendarColors'
 
 export interface IcsEvent {
   summary: string
   start: number // epoch ms — an expanded occurrence's start instant
   end: number // epoch ms
+  allDay: boolean
   // First matched video-conferencing provider link found in LOCATION/
   // DESCRIPTION (Task 88) — see extractMeetUrl. ABSENT (the key itself, not
   // an undefined-valued one — expand() uses a conditional spread) when
@@ -49,6 +53,26 @@ export interface IcsEvent {
 
 export interface IcsData {
   events: IcsEvent[] // sorted by start ascending
+}
+
+export function isIcsData(value: unknown): value is IcsData {
+  if (!value || typeof value !== 'object' || !Array.isArray((value as { events?: unknown }).events)) return false
+  return (value as { events: unknown[] }).events.every((event) => {
+    if (!event || typeof event !== 'object') return false
+    const candidate = event as Partial<IcsEvent>
+    return (
+      typeof candidate.summary === 'string' &&
+      typeof candidate.start === 'number' &&
+      Number.isFinite(candidate.start) &&
+      typeof candidate.end === 'number' &&
+      Number.isFinite(candidate.end) &&
+      typeof candidate.cal === 'number' &&
+      Number.isFinite(candidate.cal) &&
+      Number.isInteger(candidate.cal) &&
+      typeof candidate.allDay === 'boolean' &&
+      (candidate.meetUrl === undefined || typeof candidate.meetUrl === 'string')
+    )
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -68,8 +92,8 @@ interface Wall {
 
 type Zone =
   | { kind: 'utc' }
-  | { kind: 'floating' } // runtime local time
-  | { kind: 'date' } // all-day (VALUE=DATE) — floating local midnight, 1-day default span
+  | { kind: 'floating' } // wall time in the explicitly supplied runtime zone
+  | { kind: 'date' } // all-day (VALUE=DATE) in the runtime zone
   | { kind: 'zoned'; tz: string } // named IANA zone via TZID
 
 interface DateSpec {
@@ -260,7 +284,14 @@ function parseDateSpec(value: string, params: Map<string, string>): DateSpec {
   const m = value.trim().match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?(Z)?$/)
   if (!m) throw new Error(`ics: unparseable date value ${JSON.stringify(value)}`)
   const hasTime = m[4] !== undefined
-  const wall: Wall = { y: +m[1]!, mo: +m[2]!, d: +m[3]!, h: +(m[4] ?? 0), mi: +(m[5] ?? 0), s: +(m[6] ?? 0) }
+  const wall: Wall = {
+    y: +m[1]!,
+    mo: +m[2]!,
+    d: +m[3]!,
+    h: +(m[4] ?? 0),
+    mi: +(m[5] ?? 0),
+    s: +(m[6] ?? 0),
+  }
   const allDay = (params.get('VALUE') === 'DATE' || !hasTime) && !m[7]
   const tzid = params.get('TZID')
   let zone: Zone
@@ -276,11 +307,23 @@ function parseDuration(value: string): number | null {
   const m = value.trim().match(/^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/)
   if (!m || (!m[2] && !m[3] && !m[4] && !m[5] && !m[6])) return null
   const sign = m[1] === '-' ? -1 : 1
-  const ms = (+(m[2] ?? 0) * 7 + +(m[3] ?? 0)) * 86_400_000 + +(m[4] ?? 0) * 3_600_000 + +(m[5] ?? 0) * 60_000 + +(m[6] ?? 0) * 1000
+  const ms =
+    (+(m[2] ?? 0) * 7 + +(m[3] ?? 0)) * 86_400_000 +
+    +(m[4] ?? 0) * 3_600_000 +
+    +(m[5] ?? 0) * 60_000 +
+    +(m[6] ?? 0) * 1000
   return sign * ms
 }
 
-const WEEKDAYS: Record<string, number> = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 }
+const WEEKDAYS: Record<string, number> = {
+  SU: 0,
+  MO: 1,
+  TU: 2,
+  WE: 3,
+  TH: 4,
+  FR: 5,
+  SA: 6,
+}
 
 /** Parses an RRULE value, flagging `supported: false` for anything outside the
  *  bounded promise so the expander falls back to a single base occurrence. */
@@ -411,7 +454,16 @@ function buildEvent(props: Map<string, ContentLine[]>): ParsedEvent | null {
     }
   }
 
-  return { summary, start, end, duration, rrule, exdates, location, description }
+  return {
+    summary,
+    start,
+    end,
+    duration,
+    rrule,
+    exdates,
+    location,
+    description,
+  }
 }
 
 // ===================== EXPANDER (counts toward the STOP budget) ==============
@@ -434,56 +486,33 @@ function isKnownZone(tz: string): boolean {
   }
 }
 
-/** The wall-clock components `t` (epoch ms) displays in `tz`. */
-function zonePartsAt(t: number, tz: string): Wall {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-  const p: Record<string, string> = {}
-  for (const part of fmt.formatToParts(new Date(t))) p[part.type] = part.value
-  let h = +p.hour!
-  if (h === 24) h = 0 // some engines render midnight as '24' under hour12:false
-  return { y: +p.year!, mo: +p.month!, d: +p.day!, h, mi: +p.minute!, s: +p.second! }
-}
-
-/** `tz`'s UTC offset (ms east of UTC) at instant `t`. */
-function offsetAt(t: number, tz: string): number {
-  const p = zonePartsAt(t, tz)
-  return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - t
-}
-
-/** The two-pass inverse: the epoch at which `wall` is the local time in `tz`.
- *  Guess the instant as if the wall time were UTC, correct by the offset there,
- *  then re-read the offset once at the corrected instant to settle DST
- *  transitions (the offset can differ across the shift). Correct to the minute
- *  for spring-forward/fall-back boundaries. */
 function wallToEpochInZone(wall: Wall, tz: string): number {
-  const guess = Date.UTC(wall.y, wall.mo - 1, wall.d, wall.h, wall.mi, wall.s)
-  const t1 = guess - offsetAt(guess, tz)
-  return guess - offsetAt(t1, tz)
+  return zonedWallTimeToEpoch(
+    {
+      year: wall.y,
+      month: wall.mo,
+      day: wall.d,
+      hour: wall.h,
+      minute: wall.mi,
+      second: wall.s,
+    },
+    tz,
+  )
 }
 
 /** A wall time + its zone → an absolute epoch instant. A zoned event whose id
  *  the runtime doesn't know falls back to floating local (matched by the
  *  base-occurrence-only rule in expand). */
-function toEpoch(wall: Wall, zone: Zone): number {
+function toEpoch(wall: Wall, zone: Zone, runtimeTimeZone: string): number {
   switch (zone.kind) {
     case 'utc':
       return Date.UTC(wall.y, wall.mo - 1, wall.d, wall.h, wall.mi, wall.s)
     case 'floating':
     case 'date':
-      return new Date(wall.y, wall.mo - 1, wall.d, wall.h, wall.mi, wall.s).getTime()
+      if (!isKnownZone(runtimeTimeZone)) throw new Error(`ics: unknown runtime timezone ${runtimeTimeZone}`)
+      return wallToEpochInZone(wall, runtimeTimeZone)
     case 'zoned':
-      return isKnownZone(zone.tz)
-        ? wallToEpochInZone(wall, zone.tz)
-        : new Date(wall.y, wall.mo - 1, wall.d, wall.h, wall.mi, wall.s).getTime()
+      return isKnownZone(zone.tz) ? wallToEpochInZone(wall, zone.tz) : wallToEpochInZone(wall, runtimeTimeZone)
   }
 }
 
@@ -491,7 +520,14 @@ function toEpoch(wall: Wall, zone: Zone): number {
  *  time-of-day preserved. UTC math rolls months/years over correctly. */
 function addDays(wall: Wall, n: number): Wall {
   const d = new Date(Date.UTC(wall.y, wall.mo - 1, wall.d + n))
-  return { y: d.getUTCFullYear(), mo: d.getUTCMonth() + 1, d: d.getUTCDate(), h: wall.h, mi: wall.mi, s: wall.s }
+  return {
+    y: d.getUTCFullYear(),
+    mo: d.getUTCMonth() + 1,
+    d: d.getUTCDate(),
+    h: wall.h,
+    mi: wall.mi,
+    s: wall.s,
+  }
 }
 
 /** Weekday of a wall date, 0=Sunday..6=Saturday. */
@@ -510,50 +546,75 @@ function compareWall(a: Wall, b: Wall): number {
 }
 
 /** Expands one parsed event into its in-window occurrences. */
-function expand(pe: ParsedEvent, windowStart: number, windowDays: number): Omit<IcsEvent, 'cal'>[] {
+function expand(
+  pe: ParsedEvent,
+  windowStart: number,
+  windowDays: number,
+  runtimeTimeZone: string,
+): Omit<IcsEvent, 'cal'>[] {
   const winEnd = windowStart + windowDays * DAY_MS
   const zone = pe.start.zone
-  const startEpoch = toEpoch(pe.start.wall, zone)
-  const endEpoch = pe.end ? toEpoch(pe.end.wall, pe.end.zone) : null
+  const startEpoch = toEpoch(pe.start.wall, zone, runtimeTimeZone)
+  const endEpoch = pe.end ? toEpoch(pe.end.wall, pe.end.zone, runtimeTimeZone) : null
   const durationMs =
-    endEpoch !== null ? Math.max(0, endEpoch - startEpoch) : pe.duration ?? (pe.start.allDay ? DAY_MS : 0)
-  const exSet = new Set(pe.exdates.map((x) => toEpoch(x.wall, x.zone)))
+    endEpoch !== null ? Math.max(0, endEpoch - startEpoch) : (pe.duration ?? (pe.start.allDay ? DAY_MS : 0))
+  const allDaySpan = pe.start.allDay
+    ? Math.max(
+        0,
+        pe.end
+          ? Math.round(
+              (Date.UTC(pe.end.wall.y, pe.end.wall.mo - 1, pe.end.wall.d) -
+                Date.UTC(pe.start.wall.y, pe.start.wall.mo - 1, pe.start.wall.d)) /
+                DAY_MS,
+            )
+          : pe.duration !== null
+            ? Math.round(pe.duration / DAY_MS)
+            : 1,
+      )
+    : 0
+  const exSet = new Set(pe.exdates.map((x) => toEpoch(x.wall, x.zone, runtimeTimeZone)))
   // Computed ONCE per event (not per occurrence) — LOCATION/DESCRIPTION don't
   // vary across an RRULE's expanded instances, so every occurrence below
   // shares this same value via the conditional spread.
   const meetUrl = extractMeetUrl(pe.location, pe.description)
 
   const out: Omit<IcsEvent, 'cal'>[] = []
-  const push = (start: number): void => {
+  const push = (wall: Wall, start: number): void => {
     if (exSet.has(start)) return
-    const end = start + durationMs
+    const end = pe.start.allDay ? toEpoch(addDays(wall, allDaySpan), zone, runtimeTimeZone) : start + durationMs
     // Include when [start,end) intersects the window — an event that began
     // before windowStart but ends inside it still counts (controller ruling).
     // meetUrl is spread in conditionally so a no-match event gets NO key at
     // all (never a `meetUrl: undefined` property) — keeps the JSON shape of
     // an unlinked event identical to before Task 88.
     if (start < winEnd && end > windowStart)
-      out.push({ summary: pe.summary, start, end, ...(meetUrl ? { meetUrl } : {}) })
+      out.push({
+        summary: pe.summary,
+        start,
+        end,
+        allDay: pe.start.allDay,
+        ...(meetUrl ? { meetUrl } : {}),
+      })
   }
 
   const rr = pe.rrule
   const zonedUnknown = zone.kind === 'zoned' && !isKnownZone(zone.tz)
   if (!rr || !rr.supported || zonedUnknown) {
-    push(startEpoch) // base occurrence only
+    push(pe.start.wall, startEpoch) // base occurrence only
     return out
   }
 
-  const until = rr.until ? toEpoch(rr.until.wall, rr.until.zone) : null
+  const until = rr.until ? toEpoch(rr.until.wall, rr.until.zone, runtimeTimeZone) : null
   let counted = 0
   // Feeds one candidate wall time through the shared stop logic; returns false
   // to halt the driving loop. COUNT is measured on the FULL recurrence set
   // (before EXDATE/window filtering), and UNTIL is inclusive.
   const consume = (wall: Wall): boolean => {
-    const start = toEpoch(wall, zone)
+    const start = toEpoch(wall, zone, runtimeTimeZone)
     if (until !== null && start > until) return false
     if (rr.count !== null && counted >= rr.count) return false
     counted++
-    push(start)
+    push(wall, start)
     if (rr.count === null && start >= winEnd) return false // infinite rule: stop past the window
     return true
   }
@@ -586,7 +647,14 @@ function expand(pe: ParsedEvent, windowStart: number, windowDays: number): Omit<
       const y = pe.start.wall.y + Math.floor(monthIndex / 12)
       const mo = (monthIndex % 12) + 1
       if (day > daysInMonth(y, mo)) continue // e.g. no 31st in Feb — skip, consumes no COUNT slot
-      const wall: Wall = { y, mo, d: day, h: pe.start.wall.h, mi: pe.start.wall.mi, s: pe.start.wall.s }
+      const wall: Wall = {
+        y,
+        mo,
+        d: day,
+        h: pe.start.wall.h,
+        mi: pe.start.wall.mi,
+        s: pe.start.wall.s,
+      }
       if (compareWall(wall, pe.start.wall) < 0) continue
       if (!consume(wall)) break
     }
@@ -600,12 +668,17 @@ function expand(pe: ParsedEvent, windowStart: number, windowDays: number): Omit<
 /** Parses a VCALENDAR and expands recurrences across [windowStart,
  *  windowStart + windowDays). PURE — no Date.now(). Malformed input → []. A
  *  single un-expandable event is dropped rather than poisoning the rest. */
-export function parseIcs(text: string, windowStart: number, windowDays: number): Omit<IcsEvent, 'cal'>[] {
+export function parseIcs(
+  text: string,
+  windowStart: number,
+  windowDays: number,
+  runtimeTimeZone: string,
+): Omit<IcsEvent, 'cal'>[] {
   try {
     const out: Omit<IcsEvent, 'cal'>[] = []
     for (const pe of parseCalendar(text)) {
       try {
-        out.push(...expand(pe, windowStart, windowDays))
+        out.push(...expand(pe, windowStart, windowDays, runtimeTimeZone))
       } catch {
         // One event's expansion failing must not blank the others.
       }
@@ -631,6 +704,7 @@ export async function fetchIcs(
   calendars: IcsCalendar[],
   windowStart: number,
   prev: IcsData | null,
+  runtimeTimeZone: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<IcsData> {
   if (calendars.length === 0) return prev ?? { events: [] }
@@ -642,7 +716,7 @@ export async function fetchIcs(
         const res = await fetchFn(c.url, { signal: controller.signal })
         if (!res.ok) return null
         const text = await res.text()
-        return parseIcs(text, windowStart, WINDOW_DAYS).map((ev) => ({ ...ev, cal: i }))
+        return parseIcs(text, windowStart, WINDOW_DAYS, runtimeTimeZone).map((ev) => ({ ...ev, cal: i }))
       } catch {
         return null
       } finally {
@@ -681,6 +755,11 @@ export function icsCalendarsOf(config: IcsConfig | undefined): IcsCalendar[] {
           !!c && typeof c === 'object' && typeof c.name === 'string' && typeof c.url === 'string' && c.url.length > 0,
       )
       .slice(0, MAX_CALENDARS)
+      .map((calendar) =>
+        isCalendarColor(calendar.color)
+          ? calendar
+          : { name: calendar.name, url: calendar.url },
+      )
   }
   if (typeof config.url === 'string' && config.url.length > 0) return [{ name: 'Calendar', url: config.url }]
   return []
@@ -711,13 +790,7 @@ export function icsViewOf(config: IcsConfig | undefined): {
  *  1 is the theme accent; 2–5 are stock Tailwind hues checked against both
  *  themes at the visual gate. Lives here (not in a component) because both
  *  the widget rows and the settings legend render the same dot. */
-export const CALENDAR_DOT_CLASSES: readonly string[] = [
-  'bg-accent',
-  'bg-sky-400',
-  'bg-emerald-400',
-  'bg-amber-400',
-  'bg-fuchsia-400',
-]
+export const CALENDAR_DOT_CLASSES: readonly string[] = CALENDAR_COLORS.map(calendarColorClass)
 
 export const icsDescriptor: ConnectorDescriptor<IcsConfig> = {
   id: 'ics',
@@ -733,6 +806,8 @@ export const icsDescriptor: ConnectorDescriptor<IcsConfig> = {
   auth: 'none',
   ttlMs: 15 * 60_000,
   secretFields: ['url', 'calendars'],
+  redactForBackup: (config) => ({ ...config, calendars: [] }),
+  backupReentryRequired: (config) => config.enabled === true && icsCalendarsOf(config).length === 0,
   // One origin per calendar, filtered not thrown — same contract rss/crypto
   // document: a restored config can hold a non-https or unparseable url per
   // entry (import validates only `enabled` structurally), and origins() must
@@ -743,16 +818,24 @@ export const icsDescriptor: ConnectorDescriptor<IcsConfig> = {
   // config that hasn't been re-saved through the new card still grants its
   // one origin. De-duped via Set (two calendars sharing a host — e.g. two
   // paths under the same iCloud account — collapse to one origin pattern).
-  origins: (config) =>
-    [
-      ...new Set(
-        icsCalendarsOf(config).flatMap((c) => {
-          try {
-            return [originPattern(c.url)]
-          } catch {
-            return []
-          }
-        }),
-      ),
-    ],
+  origins: (config) => [
+    ...new Set(
+      icsCalendarsOf(config).flatMap((c) => {
+        try {
+          return [originPattern(c.url)]
+        } catch {
+          return []
+        }
+      }),
+    ),
+  ],
+  ownsOrigins: (config) =>
+    icsCalendarsOf(config).some((calendar) => {
+      try {
+        originPattern(calendar.url)
+        return true
+      } catch {
+        return false
+      }
+    }),
 }

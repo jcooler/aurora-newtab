@@ -1,959 +1,871 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
-import { applyPanelColor } from '../theme/index'
-import type { Layout } from '../lib/layout/types'
-import Background from './components/Background'
-import Clock from './components/Clock'
-import Greeting from './components/Greeting'
-import FocusLine from './components/FocusLine'
-import PositionedBlock from './components/PositionedBlock'
-import SearchBar from './components/SearchBar'
-import WidgetBoundary from './components/WidgetBoundary'
+import { adaptStoredLayout } from '../lib/layout/canvasAdapter'
+import type { CanvasSize, StoredLayout } from '../lib/layout/canvasTypes'
+import { migrationSourceProfile, resolveLayoutsDocument } from '../lib/layout/myLayoutAdapter'
+import {
+  activeDraftLayout,
+  applyBulkTier,
+  beginEditSession,
+  createStackFromDrop,
+  detachSelectedStackMember,
+  dockSelected,
+  dockSelectedLive,
+  hideSelected,
+  moveSelected,
+  moveSelectedLive,
+  nudgeSelected,
+  resetSession,
+  removeSelectedStackMember,
+  reorderSelectedStackMember,
+  restoreSelectedDefaults,
+  selectStack,
+  selectWidget,
+  setSelectedStackFacing,
+  setSelectedTier,
+  stepSelectedLayer,
+  type DockGestureMemory,
+  type EditSession,
+  undo,
+  undockSelected,
+  undockSelectedLive,
+} from '../lib/layout/editSession'
+import type { DockEdge } from '../lib/layout/namedLayouts'
+import WidgetInspector from './edit/WidgetInspector'
+import StackInspector from './edit/StackInspector'
+import { canJoinStackAtTier } from './canvas/stackPresentation'
+import { useCanvasDrag, type CanvasDragSubject } from './edit/useCanvasDrag'
+import { useLongPress } from './arrange/useLongPress'
+import {
+  createLayout,
+  saveLayoutsDocument,
+  switchActiveLayout,
+  updateStoredStackFacing,
+} from '../lib/layout/layoutOperations'
+import LayoutBadge from './edit/LayoutBadge'
+import { canvasKeyboardDelta } from './arrange/canvasSnap'
+import { fallbackDockBandRect, nudgeDockPoint } from './edit/dockGeometry'
+import { enforceDockEligibility, NARROW_FLOOR_WIDTH } from '../lib/layout/renderLayout'
+import { restoreHiddenWidget } from '../lib/layout/editSession'
+import { useDialogEscape } from '../lib/dialogStack'
+import { isPremium } from '../lib/premium'
+import { useStorage } from '../lib/storage/context'
+import EditToolbar from './edit/EditToolbar'
+import { useEditMode } from './edit/useEditMode'
+import { BLOCK_IDS, type BlockId } from '../lib/layout/types'
+import { applyInkColors, applyPanelColor } from '../theme/index'
 import Drawer from '../settings/Drawer'
 import DrawerBoundary from '../settings/DrawerBoundary'
 import SettingsPanel from '../settings/SettingsPanel'
-import WeatherWidget from './widgets/weather/WeatherWidget'
-import LinksWidget from './widgets/links/LinksWidget'
-import TodoWidget from './widgets/todo/TodoWidget'
-import TimerWidget from './widgets/timer/TimerWidget'
-import NotesWidget from './widgets/notes/NotesWidget'
-import QuoteWidget from './widgets/quote/QuoteWidget'
+import { haActionsOf, type HomeAssistantConfig } from '../services/connectors/homeassistant'
+import Background from './components/Background'
+import UtilityTray from './components/UtilityTray'
+import type { UtilityCloseGuard, UtilityToolId, UtilityTrayBridge } from './components/utilityTrayBridge'
+import WidgetBoundary from './components/WidgetBoundary'
+import CanvasSurface from './canvas/CanvasSurface'
 import PaletteHost from './widgets/palette/PaletteHost'
-import BookmarksBar from './widgets/bookmarks/BookmarksBar'
-import WorldClocks from './widgets/clocks/WorldClocks'
-import CountdownLine from './widgets/countdown/CountdownLine'
-import RssWidget from './widgets/rss/RssWidget'
-import GithubWidget from './widgets/github/GithubWidget'
-import GitlabWidget from './widgets/gitlab/GitlabWidget'
-import JiraWidget from './widgets/jira/JiraWidget'
-import VercelWidget from './widgets/vercel/VercelWidget'
-import CryptoWidget from './widgets/crypto/CryptoWidget'
-import StatusWidget from './widgets/status/StatusWidget'
-import CalendarWidget from './widgets/calendar/CalendarWidget'
-import HabitsWidget from './widgets/habits/HabitsWidget'
-import MonthCalWidget from './widgets/monthcal/MonthCalWidget'
-import SunWidget from './widgets/sun/SunWidget'
-import MoonWidget from './widgets/moon/MoonWidget'
-import HomeAssistantWidget from './widgets/homeassistant/HomeAssistantWidget'
-import ArrangeController from './arrange/ArrangeController'
-import { DraftLayoutContext } from './arrange/draftLayout'
+import { includeExplicitLayoutCalendar, selectActiveWidgetRegistry } from './widgetRegistry'
+import { resolveWidgetRenderer, type WidgetPresentationMode, type WidgetRendererProps } from './widgetRenderers'
+import { useCanvasViewport } from './useCanvasViewport'
+import { projectTextScale } from './canvas/canvasTextScale'
+import { TimerSessionProvider, useTimerFlowState } from './widgets/timer/TimerSessionProvider'
+import FlowScreen from './flow/FlowScreen'
+import { calendarPreferenceFor, updateCalendarLayoutPreference } from '../lib/layout/calendarConsolidation'
 
-export default function App() {
+const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function usableStoredLayout(value: StoredLayout | null | undefined): StoredLayout | null {
+  if (!value) return null
+  try {
+    adaptStoredLayout(value)
+    return value
+  } catch {
+    return null
+  }
+}
+
+function AuroraApp() {
+  const timerFlow = useTimerFlowState()
   const [settings] = useStoredKey('settings')
-  const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
+  const [photoPrefs] = useStoredKey('photoPrefs')
   const [layout] = useStoredKey('layout')
+  const [layouts] = useStoredKey('layouts')
+  const [connectors] = useStoredKey('connectors')
+  const [calendarPreferences] = useStoredKey('calendarPreferences')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  // Arrange mode's live-drag override (Task 36) — see draftLayout.ts. Owned
-  // here, not inside ArrangeController: it must be readable by EVERY
-  // PositionedBlock below, which are ArrangeController's SIBLINGS (it's
-  // rendered last in <main>, not as a wrapper), so the Provider has to live
-  // above all of them, with ArrangeController only ever writing to it via
-  // this setter (passed down as `onDraftChange`).
-  const [draft, setDraft] = useState<Layout>({})
-  // True while arrange mode is on (Task 36 review fix) — mirrors
-  // ArrangeController's own internal `mode` via its `onModeChange` callback.
-  // Drives `inert` on the wrapper below, the same idiom Drawer.tsx already
-  // uses (`inert={!open}`): with the overlay covering everything, the rest
-  // of the page was previously only POINTER-blocked (by the overlay sitting
-  // on top of it) — Tab still walked straight through it to the settings
-  // gear, search, links, and any already-open Notes/Todo/Timer panel.
-  const [arranging, setArranging] = useState(false)
-  // Bump-to-enter nonce for the Settings "Arrange layout" button (Task 37) —
-  // any CHANGE (ArrangeController compares against the previous value, not
-  // just truthiness) enters arrange mode with no block pre-selected. Starts
-  // at 0 so the very first bump (1) is always a real change.
-  const [arrangeSignal, setArrangeSignal] = useState(0)
-  // Bookmarks-stacking bug fix, part 2 — mirrors BookmarksBar's own
-  // openId-derived open/closed state (via onPopoverOpenChange) so THIS
-  // wrapper's className can react to it. Needed because `position: fixed`
-  // (the bookmarks PositionedBlock below is unavoidably `fixed` — that's
-  // what anchors the bar to the viewport) unconditionally creates a new
-  // stacking context: BookmarksBar's own z-20/z-50 (on its `nav`) only
-  // wins LOCALLY, inside that stacking context, never against
-  // FolderPopover's body-portaled z-40 click-outside catcher, which lives
-  // OUTSIDE it. See the long comment on the bookmarks PositionedBlock
-  // below for the full writeup, including the minimal-repro measurements
-  // that found this (a real-Chromium preview-probe FAIL, not something
-  // caught by inspection or by jsdom).
+  const [settingsFocusAnchor, setSettingsFocusAnchor] = useState<
+    { tab: 'widgets' | 'connectors'; anchor: string; nonce: number } | null
+  >(null)
+  const [utilityTrayOpen, setUtilityTrayOpen] = useState(false)
+  const [activeUtilityTool, setActiveUtilityTool] = useState<UtilityToolId | null>(null)
+  const [utilityTrayHost, setUtilityTrayHost] = useState<HTMLDivElement | null>(null)
   const [bookmarksPopoverOpen, setBookmarksPopoverOpen] = useState(false)
-  // Task 55 (combined-defaults gate) — same mirrored-state idiom as
-  // `bookmarksPopoverOpen` above, one paragraph up, for the identical
-  // structural reason: WeatherWidget's own expanded panel is `fixed`
-  // (via this wrapper), which unconditionally opens a new stacking
-  // context, so WeatherWidget's internal z-index can never win against a
-  // SIBLING PositionedBlock's own stacking context — only this wrapper's
-  // own class can. Every connector widget mounts LATER in this file than
-  // weather does, so at matched (auto) stacking a connector card that the
-  // expanded panel geometrically covers would paint on top of it — the
-  // gate caught exactly that (github ended up `onTop: false` under the
-  // expanded panel at 1600x900). See WeatherWidget's own comment on
-  // `onExpandedChange` for the full writeup.
-  const [weatherExpanded, setWeatherExpanded] = useState(false)
-  // Final-review fix wave, Fix 1 — same mirrored-state idiom as
-  // `weatherExpanded` above, one paragraph up, for the identical structural
-  // reason, for the three ALWAYS-AVAILABLE panels rather than a toggle-
-  // gated connector-adjacent one: NotesWidget/TodoWidget/TimerWidget's own
-  // open panels are each rendered inside a `fixed` PositionedBlock wrapper
-  // (an unconditional new stacking context), and every connector
-  // PositionedBlock mounts LATER in this file than notes/tasks/timer do, so
-  // at matched (auto) stacking a connector card an open panel geometrically
-  // covers would paint ON TOP of it — confirmed by a real-Chromium
-  // whole-plan-review probe against the actual overlapping connectors
-  // (Notes under Vercel's card, Tasks under Jira's, Focus-timer under
-  // Calendar's). See each widget's own `onOpenChange` comment for the full
-  // writeup.
-  const [notesOpen, setNotesOpen] = useState(false)
-  const [tasksOpen, setTasksOpen] = useState(false)
-  const [timerOpen, setTimerOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
-  // Tracks whether the PREVIOUS render had `arranging` true, so the
-  // focus-restore effect below only fires on a real on->off transition, never
-  // on mount (where `arranging` already starts false and body legitimately
-  // has focus on a fresh page load).
-  const wasArrangingRef = useRef(false)
+  const utilityTrayInvokerRef = useRef<HTMLButtonElement>(null)
+  const utilityCloseGuardRef = useRef<{ tool: UtilityToolId; guard: UtilityCloseGuard } | null>(null)
+  const effectiveUtilityToolRef = useRef<UtilityToolId | null>(null)
+  const clickSuppressorCleanupsRef = useRef(new Set<() => void>())
 
-  // Re-tint every widget surface whenever the stored panelColor changes (Task
-  // 60 — themes collapsed into this one live customizer). null restores the
-  // themes.css :root default; see applyPanelColor for the derived fg/scheme.
-  useEffect(() => {
-    if (settings) applyPanelColor(document.documentElement, settings.panelColor)
-  }, [settings?.panelColor])
-
-  // Focus management on arrange-mode EXIT (Task 37): ArrangeController's
-  // overlay — and whichever Move button was focused inside it, per its own
-  // entry-side focus management — unmounts the instant `mode` flips off, so
-  // by the time `arranging` reaches here as false, the browser has already
-  // reverted `document.activeElement` to <body> (nothing else claimed it).
-  // Left alone, that stops keyboard use cold: no visible focus ring
-  // anywhere. Restoring it to the settings gear (always present, and
-  // conceptually where the Settings-triggered "Arrange layout" entry point
-  // returns to) fixes that for BOTH exit paths — the brief only requires it
-  // for the Settings-button path, but this single activeElement-driven
-  // heuristic needs no separate "how did we get here" bookkeeping and is a
-  // strict improvement (never a regression) for the long-press path too.
-  useEffect(() => {
-    const wasArranging = wasArrangingRef.current
-    wasArrangingRef.current = arranging
-    if (wasArranging && !arranging && document.activeElement === document.body) {
-      settingsButtonRef.current?.focus()
-    }
-  }, [arranging])
-
-  // Settings' "Arrange layout" button composes to this: close the drawer
-  // FIRST (so the arranged page is actually visible once the overlay
-  // appears — the drawer covers the right third of the screen while open),
-  // then bump the nonce ArrangeController watches.
-  const requestArrange = useCallback(() => {
-    setSettingsOpen(false)
-    setArrangeSignal((n) => n + 1)
+  useEffect(() => () => {
+    for (const cleanup of clickSuppressorCleanupsRef.current) cleanup()
+    clickSuppressorCleanupsRef.current.clear()
   }, [])
 
-  if (!settings || !photoPrefs || !layout) return null
+  const storedLayout = useMemo(() => usableStoredLayout(layout), [layout])
+  const viewport = useCanvasViewport()
 
+  useEffect(() => {
+    if (!settings) return
+    // Order matters: the panel derivation first, then the ink overrides —
+    // a custom widget ink beats the derived pair; clearing it re-derives.
+    applyPanelColor(document.documentElement, settings.panelColor)
+    applyInkColors(document.documentElement, {
+      widgetText: settings.widgetTextColor,
+      photoText: settings.photoTextColor,
+      clock: settings.photoClockColor,
+      greeting: settings.photoGreetingColor,
+      quote: settings.photoQuoteColor,
+    })
+  }, [
+    settings?.panelColor,
+    settings?.widgetTextColor,
+    settings?.photoTextColor,
+    settings?.photoClockColor,
+    settings?.photoGreetingColor,
+    settings?.photoQuoteColor,
+  ])
+
+  const registerUtilityCloseGuard = useCallback((tool: UtilityToolId, guard: UtilityCloseGuard | null) => {
+    if (guard) utilityCloseGuardRef.current = { tool, guard }
+    else if (utilityCloseGuardRef.current?.tool === tool) utilityCloseGuardRef.current = null
+  }, [])
+
+  const passUtilityGuard = useCallback(async () => {
+    const registered = utilityCloseGuardRef.current
+    if (!registered || registered.tool !== effectiveUtilityToolRef.current) return true
+    return registered.guard()
+  }, [])
+
+  const requestUtilityTrayClose = useCallback(() => {
+    const registered = utilityCloseGuardRef.current
+    if (!registered || registered.tool !== effectiveUtilityToolRef.current) {
+      setUtilityTrayOpen(false)
+      return
+    }
+    void (async () => {
+      if (await passUtilityGuard()) setUtilityTrayOpen(false)
+    })()
+  }, [passUtilityGuard])
+
+  const requestUtilityTool = useCallback((tool: UtilityToolId, invoker: HTMLButtonElement) => {
+    const openTool = () => {
+      utilityTrayInvokerRef.current = invoker
+      setActiveUtilityTool(tool)
+      setUtilityTrayOpen(true)
+    }
+    const registered = utilityCloseGuardRef.current
+    if (!utilityTrayOpen || tool === effectiveUtilityToolRef.current || !registered || registered.tool !== effectiveUtilityToolRef.current) {
+      openTool()
+      return
+    }
+    void (async () => {
+      if (await passUtilityGuard()) openTool()
+    })()
+  }, [passUtilityGuard, utilityTrayOpen])
+
+  const requestUtilityToolChange = useCallback((tool: UtilityToolId) => {
+    void (async () => {
+      if (tool === effectiveUtilityToolRef.current || await passUtilityGuard()) setActiveUtilityTool(tool)
+    })()
+  }, [passUtilityGuard])
+
+  const requestSettingsOpen = useCallback(() => {
+    const open = () => {
+      setUtilityTrayOpen(false)
+      setSettingsOpen(true)
+    }
+    const registered = utilityCloseGuardRef.current
+    if (!registered || registered.tool !== effectiveUtilityToolRef.current) {
+      open()
+      return
+    }
+    void (async () => {
+      if (await passUtilityGuard()) open()
+    })()
+  }, [passUtilityGuard])
+
+  const inputsReady = Boolean(
+    settings && isRecord(settings.widgets) && DENSITY_PREFERENCES.has(settings.layoutDensity)
+      && storedLayout && connectors && isRecord(connectors),
+  )
+  const sourceEntries = useMemo(
+    () => inputsReady && settings && connectors ? selectActiveWidgetRegistry(settings, connectors) : [],
+    [connectors, inputsReady, settings],
+  )
+  const activeEntries = useMemo(
+    () => includeExplicitLayoutCalendar(sourceEntries, layouts),
+    [layouts, sourceEntries],
+  )
+  const enabledBlockIds = useMemo(() => activeEntries.map((entry) => entry.id), [activeEntries])
+
+  // The gear on a widget's hover chrome (named-layouts spec 2.5): Settings
+  // opens focused on that widget's own section. Connector-backed widgets
+  // land on their Connectors card; toggle-backed widgets on their Widgets
+  // row; always-on widgets on the Widgets group.
+  const openSettingsForWidget = useCallback((id: BlockId) => {
+    const entry = activeEntries.find((candidate) => candidate.id === id)
+    const availability = entry?.availability
+    // A connector card only exists on the premium Connectors tab; without it
+    // the group anchor is the honest fallback (review fix M8).
+    const target = availability?.kind === 'connector' && isPremium()
+      ? { tab: 'connectors' as const, anchor: availability.id }
+      : availability?.kind === 'widget'
+        ? { tab: 'widgets' as const, anchor: availability.key }
+        : { tab: 'widgets' as const, anchor: 'widgets' }
+    setSettingsFocusAnchor((previous) => ({ ...target, nonce: (previous?.nonce ?? 0) + 1 }))
+    requestSettingsOpen()
+  }, [activeEntries, requestSettingsOpen])
+
+  const storage = useStorage()
+  // The resolved named-layouts document: a valid stored document wins; until
+  // the first explicit save (NL-P3 switcher) the in-memory "My layout" is
+  // derived from the legacy stored layout through the frozen migration
+  // profile rule. Nothing here ever writes storage.
+  const layoutsDocument = useMemo(() => {
+    if (!inputsReady || !storedLayout || layouts === undefined) return null
+    const resolved = resolveLayoutsDocument(layouts, storedLayout, migrationSourceProfile(viewport), enabledBlockIds)
+    // Dock eligibility (spec 2.3, owner-reported 2026-08-18): an invalid
+    // docked placement is corrected to the free default slot HERE, so
+    // rendering, edit sessions, and the inspector all see one truthful
+    // placement. Pure — persists only through the user's own explicit Save.
+    return enforceDockEligibility(
+      resolved,
+      new Set(activeEntries.filter((entry) => entry.supportsDocked).map((entry) => entry.id)),
+    )
+  }, [activeEntries, enabledBlockIds, inputsReady, layouts, storedLayout, viewport.width, viewport.height])
+  const activeLayout = layoutsDocument
+    ? layoutsDocument.layouts.find((candidate) => candidate.id === layoutsDocument.activeLayoutId) ?? null
+    : null
+
+  const editMode = useEditMode({ document: layoutsDocument, enabledIds: enabledBlockIds, storage })
+  const session = editMode.session
+  const sessionLiveRef = useRef(false)
+  sessionLiveRef.current = session !== null
+
+  const itemRectsRef = useRef(new Map<string, DOMRectReadOnly>())
+  const [, setGeometryRevision] = useState(0)
+  const onItemGeometryChange = useCallback((id: BlockId, rect: DOMRectReadOnly | null) => {
+    if (rect) itemRectsRef.current.set(id, rect)
+    else itemRectsRef.current.delete(id)
+    setGeometryRevision((current) => current + 1)
+  }, [])
+  const onStackGeometryChange = useCallback((id: string, rect: DOMRectReadOnly | null) => {
+    if (rect) itemRectsRef.current.set(id, rect)
+    else itemRectsRef.current.delete(id)
+    setGeometryRevision((current) => current + 1)
+  }, [])
+
+  const [dragZone, setDragZone] = useState<DockEdge | null>(null)
+  const draggingSubjectRef = useRef<CanvasDragSubject | null>(null)
+  const dragOriginSessionRef = useRef<EditSession | null>(null)
+  const dragTierMemoryRef = useRef<DockGestureMemory | null>(null)
+  const rememberDragTier = (subject: CanvasDragSubject) => {
+    if (subject.kind !== 'widget') {
+      dragTierMemoryRef.current = null
+      return
+    }
+    const layout = session ? activeDraftLayout(session) : activeLayout
+    const placement = layout?.widgets[subject.id]
+    dragTierMemoryRef.current = placement?.kind === 'free'
+      ? { returnTier: placement.tier }
+      : placement?.kind === 'docked'
+        ? { dockTier: placement.tier, returnTier: placement.returnTier }
+        : null
+  }
+  const drag = useCanvasDrag({
+    getSurface: () => document.querySelector<HTMLElement>('[data-canvas-surface]'),
+    getItemRects: () => itemRectsRef.current,
+    // Live dock mechanics (owner-reported 2026-08-18: a docked item popped
+    // out of the strip on its first move, so in-strip reordering felt broken
+    // and re-docking was a fight). The widget follows the gesture: pointer
+    // in a dock band docks/reorders LIVE, leaving the band undocks, and the
+    // whole gesture stays one undo entry (the first operation pushes it).
+    onPreviewMove: (subject, placement, first) => {
+      draggingSubjectRef.current = subject
+      if (subject.kind === 'stack-member') return
+      editMode.dispatch((current) => {
+        if (dragOriginSessionRef.current === null) dragOriginSessionRef.current = current
+        const selected = subject.kind === 'widget'
+          ? selectWidget(current, subject.id)
+          : selectStack(current, subject.id)
+        const layout = activeDraftLayout(selected)
+        if (subject.kind === 'widget' && placement.kind === 'dock') {
+          return first
+            ? dockSelected(selected, placement.dock, placement.point, dragTierMemoryRef.current ?? undefined)
+            : dockSelectedLive(selected, placement.dock, placement.point, dragTierMemoryRef.current ?? undefined)
+        }
+        if (placement.kind !== 'canvas') return selected
+        if (subject.kind === 'widget' && layout.widgets[subject.id]?.kind === 'docked') {
+          return first
+            ? undockSelected(selected, placement.point)
+            : undockSelectedLive(selected, placement.point)
+        }
+        return first
+          ? moveSelected(selected, placement.point)
+          : moveSelectedLive(selected, placement.point)
+      })
+    },
+    onZoneChange: setDragZone,
+    onCancel: () => {
+      draggingSubjectRef.current = null
+      const origin = dragOriginSessionRef.current
+      dragOriginSessionRef.current = null
+      dragTierMemoryRef.current = null
+      if (origin) editMode.dispatch(() => origin)
+    },
+    // Dock eligibility (spec 2.3, owner-reported 2026-08-18): a widget with
+    // no Docked tier is never offered a dock zone — its edge drop is an
+    // ordinary free placement.
+    canDock: (id) => activeEntries.some((entry) => entry.id === id && entry.supportsDocked),
+    isDockPeer: (id, dock) => {
+      if (!BLOCK_IDS.includes(id as BlockId)) return false
+      const layout = session ? activeDraftLayout(session) : activeLayout
+      const placement = layout?.widgets[id as BlockId]
+      return placement?.kind === 'docked' && placement.dock === dock
+    },
+    canStackTarget: (sourceId, target) => {
+      const layout = session ? activeDraftLayout(session) : activeLayout
+      if (!layout) return false
+      if (layout.widgets[sourceId]?.kind !== 'free') return false
+      if (target.kind === 'widget') {
+        const placement = layout.widgets[target.id]
+        return target.id !== sourceId
+          && placement?.kind === 'free'
+          && canJoinStackAtTier(sourceId, [target.id], placement.tier)
+      }
+      const stack = layout.stacks?.find((candidate) => candidate.id === target.id)
+      return Boolean(stack
+        && !stack.members.includes(sourceId)
+        && canJoinStackAtTier(sourceId, stack.members, stack.tier))
+    },
+    onDrop: ({ placement, stackTarget }) => {
+      const subject = draggingSubjectRef.current
+      const memory = dragTierMemoryRef.current ?? undefined
+      draggingSubjectRef.current = null
+      dragOriginSessionRef.current = null
+      dragTierMemoryRef.current = null
+      if (!subject) return
+      editMode.dispatch((current) => {
+        if (subject.kind === 'stack-member') {
+          return placement.kind === 'canvas'
+            ? detachSelectedStackMember(selectStack(current, subject.stackId), subject.id, placement.point)
+            : current
+        }
+        if (subject.kind === 'stack') {
+          return placement.kind === 'canvas'
+            ? moveSelectedLive(selectStack(current, subject.id), placement.point)
+            : current
+        }
+        const selected = selectWidget(current, subject.id)
+        if (stackTarget) {
+          // The first live move already owns this gesture's undo snapshot.
+          return createStackFromDrop(selected, subject.id, stackTarget, crypto.randomUUID(), false)
+        }
+        if (placement.kind === 'dock') {
+          return dockSelectedLive(selected, placement.dock, placement.point, memory)
+        }
+        return activeDraftLayout(selected).widgets[subject.id]?.kind === 'docked'
+          ? undockSelectedLive(selected, placement.point)
+          : moveSelectedLive(selected, placement.point)
+      })
+    },
+  })
+
+  const startCanvasObjectDrag = (
+    subject: CanvasDragSubject,
+    objectId: string,
+    event: ReactPointerEvent,
+  ) => {
+    event.preventDefault()
+    dragOriginSessionRef.current = null
+    draggingSubjectRef.current = subject
+    rememberDragTier(subject)
+    // Starting edit mode unmounts the normal hover grip under the pointer.
+    // Swallow only the release click that lands back on the grabbed object.
+    let timeoutId: number | undefined
+    const cleanupSuppressor = () => {
+      document.removeEventListener('click', swallowClick, { capture: true })
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+      clickSuppressorCleanupsRef.current.delete(cleanupSuppressor)
+    }
+    const swallowClick = (clickEvent: MouseEvent) => {
+      cleanupSuppressor()
+      const object = clickEvent.target instanceof Element
+        ? clickEvent.target.closest('[data-canvas-object-id]')
+        : null
+      if (object?.getAttribute('data-canvas-object-id') === objectId) {
+        clickEvent.preventDefault()
+        clickEvent.stopPropagation()
+      }
+    }
+    document.addEventListener('click', swallowClick, { capture: true })
+    timeoutId = window.setTimeout(cleanupSuppressor, 500)
+    clickSuppressorCleanupsRef.current.add(cleanupSuppressor)
+    if (!session) editMode.begin(event.currentTarget as HTMLElement)
+    editMode.select(subject.kind === 'stack-member'
+      ? { kind: 'stack', id: subject.stackId }
+      : subject)
+    drag.startDrag(subject, {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerId: event.pointerId,
+    })
+  }
+
+  // Long-press enters edit mode on TOUCH ONLY (spec 2.5, review fix I3) —
+  // the retained document-level detector stays untouched; the filter lives
+  // here. Below the narrow floor the stack renders no anchored geometry, so
+  // a drag would mutate positions invisibly — suppressed (review fix M7).
+  useLongPress((blockId, event) => {
+    if (event.pointerType !== 'touch') return
+    if (window.innerWidth < NARROW_FLOOR_WIDTH) return
+    if (!sessionLiveRef.current) editMode.begin(null)
+    editMode.select({ kind: 'widget', id: blockId })
+    const subject = { kind: 'widget' as const, id: blockId }
+    draggingSubjectRef.current = subject
+    rememberDragTier(subject)
+    drag.startDrag(subject, event)
+  })
+
+  // Escape cancels the edit session exactly (spec 2.5), through the shared
+  // dialog stack so it composes with every other Escape consumer.
+  useDialogEscape(() => {
+    drag.cancelDrag()
+    editMode.cancel()
+  }, session !== null)
+
+  // The keyboard command entry (scope decision 4): Ctrl/Cmd+Shift+E.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'e') return
+      if (!isPremium()) return
+      // A live session ignores the chord entirely — re-entry would discard
+      // the draft (review fix C1; begin is also identity-guarded).
+      if (sessionLiveRef.current) return
+      // Flow is mutually exclusive with every Canvas editing surface. The
+      // hidden dashboard never accepts edit commands while the timer owns
+      // the viewport.
+      if (timerFlow.flow) return
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+      event.preventDefault()
+      editMode.begin(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editMode, timerFlow.flow])
+
+  // Arrow keys move the selection by 8px, Shift+Arrow by 1px (spec 2.5),
+  // converted to percent against the live viewport span.
+  useEffect(() => {
+    if (!session) return
+    function onKey(event: KeyboardEvent) {
+      const delta = canvasKeyboardDelta(event.key, event.shiftKey)
+      if (!delta) return
+      if (event.target instanceof Element && event.target.closest('input, textarea, select')) return
+      event.preventDefault()
+      editMode.dispatch((current) => {
+        const selection = current.selection
+        const placement = selection?.kind === 'widget'
+          ? activeDraftLayout(current).widgets[selection.id]
+          : undefined
+        if (selection?.kind === 'widget' && placement?.kind === 'docked') {
+          const memberRect = itemRectsRef.current.get(selection.id)
+          if (!memberRect) return current
+          const bar = document.querySelector<HTMLElement>(
+            placement.dock === 'top' ? '.canvas-top-bar' : '.canvas-bottom-bar',
+          )
+          const measured = bar?.getBoundingClientRect()
+          const fallback = fallbackDockBandRect(placement.dock, {
+            width: window.innerWidth,
+            height: window.innerHeight,
+          })
+          const band = measured && measured.width > 0 && measured.height > 0
+            ? measured
+            : fallback
+          return dockSelected(current, placement.dock, nudgeDockPoint({
+            memberRect,
+            band,
+            delta,
+          }), {
+            dockTier: placement.tier,
+            returnTier: placement.returnTier,
+          })
+        }
+        return nudgeSelected(current, {
+          xPct: delta.x / window.innerWidth * 100,
+          yPct: delta.y / window.innerHeight * 100,
+        })
+      })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editMode, session])
+
+  if (!settings || !photoPrefs || !timerFlow.hydrated) return null
+
+  if (timerFlow.flow) {
+    return (
+      <main data-aurora-flow="" className="aurora-canvas text-fg">
+        <Background prefs={photoPrefs} showControls={false} />
+        <FlowScreen />
+      </main>
+    )
+  }
+
+  if (!inputsReady || !storedLayout || !connectors || !activeLayout) return null
+
+  const homeAssistant = connectors.homeassistant as HomeAssistantConfig | undefined
+  const utilityTools: { id: UtilityToolId; label: string }[] = [
+    ...(homeAssistant?.enabled && typeof homeAssistant.instanceUrl === 'string' && homeAssistant.instanceUrl.length > 0
+      && typeof homeAssistant.token === 'string' && homeAssistant.token.length > 0 && haActionsOf(homeAssistant).length > 0
+      ? [{ id: 'homeassistant' as const, label: 'Home Assistant' }]
+      : []),
+    { id: 'refresh', label: 'Refresh' },
+  ]
+  // The tray trigger renders only when the tray offers something its
+  // visible siblings do not: Home Assistant actions (Refresh duplicates
+  // the corner photo button). The layout badge's position follows.
+  const trayTriggerVisible = utilityTools.some(({ id }) => id !== 'refresh')
+  const selectedUtilityTool = utilityTrayOpen && activeUtilityTool
+    ? activeUtilityTool
+    : utilityTools.some(({ id }) => id === activeUtilityTool)
+      ? activeUtilityTool
+      : utilityTools[0]!.id
+  effectiveUtilityToolRef.current = selectedUtilityTool
+  const utilityTray: UtilityTrayBridge = {
+    activeTool: utilityTrayOpen ? selectedUtilityTool : null,
+    host: utilityTrayHost,
+    requestTool: requestUtilityTool,
+    close: requestUtilityTrayClose,
+    registerCloseGuard: registerUtilityCloseGuard,
+  }
+  const rendererProps: WidgetRendererProps = {
+    onBookmarksPopoverOpenChange: setBookmarksPopoverOpen,
+    utilityTray,
+    // A legacy Calendar placement stays on its compatibility face until the
+    // user explicitly saves consolidation. The atomic save creates this
+    // companion preference entry, which is the durable opt-in marker.
+    layoutId: calendarPreferences?.[activeLayout.id] ? activeLayout.id : undefined,
+  }
+  const elevatedIds = new Set<BlockId>([
+    ...(bookmarksPopoverOpen ? ['bookmarks' as const] : []),
+  ])
+  const renderWidget = (
+    entry: (typeof activeEntries)[number],
+    size: CanvasSize,
+    presentation: WidgetPresentationMode,
+  ) => {
+    const Renderer = resolveWidgetRenderer(entry.rendererKey)
+    return (
+      <Renderer
+        {...rendererProps}
+        canvasSize={size}
+        presentation={presentation}
+        docked={presentation === 'docked'}
+      />
+    )
+  }
+  const textScale = projectTextScale(settings.layoutDensity, viewport)
+  // The pre-existing narrow Settings/Tray modality boundary (unrelated to the
+  // 600px narrow floor): below 900 CSS px the tray is modal.
+  const narrowModality = viewport.width < 900
+
+  const renderedLayout = session ? activeDraftLayout(session) : activeLayout
+  // The fixed toolbar clears a rendered top dock so its members stay
+  // reachable during the session (owner-reported 2026-08-18: the toolbar
+  // sat over the top-docked Bookmarks). Any enabled widget docked top in
+  // the rendered draft means the strip is painted at the page top.
+  const hasTopDock = activeEntries.some((entry) => {
+    const widgetPlacement = renderedLayout.widgets[entry.id]
+    return widgetPlacement?.kind === 'docked' && widgetPlacement.dock === 'top'
+  })
+  const toolbarTopOffset = session && hasTopDock
+    ? (() => {
+        const band = fallbackDockBandRect('top', viewport)
+        return band.top + band.height + 8
+      })()
+    : undefined
   return (
-    <main className="relative h-screen overflow-hidden text-fg">
-      <DraftLayoutContext.Provider value={draft}>
-        {/* display:contents — a plain wrapping div would become a NEW
-            containing block the instant any transform/filter is ever added
-            to it, silently breaking every `position: fixed` descendant below
-            (PositionedBlock's own containing-block fix, this same task,
-            exists precisely because of that hazard). `contents` keeps this
-            div's only effect being the `inert` it carries: zero box, zero
-            layout footprint. `inert` itself (not just the overlay sitting on
-            top) is what makes the rest of the page truly unreachable — both
-            by pointer AND by keyboard — while arrange mode is on. */}
-        <div className="contents" inert={arranging}>
-          {/* The centred column is now bounded to the reserved central strip
-              (`--center-reserve` — index.css, the widest default centred
-              member + breathing, the forced-wide clock governing at 425px) and
-              auto-centred, so the flowing rails on either side (below) have a
-              guaranteed clear strip to stop against. It stayed viewport-centred
-              (symmetric bound, `mx-auto`) — canvas identity untouched — and
-              this is also what retired Greeting's old min-[1593px] width cap:
-              the column bounds the greeting directly now. */}
-          <div className="mx-auto flex h-full max-w-[var(--center-reserve)] flex-col items-center justify-center narrow:px-4">
-            <WidgetBoundary name="clock">
-              <PositionedBlock id="clock" pos={layout?.clock}>
-                <Clock />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="greeting">
-              {/* `min-w-0 max-w-full` on this flex-item wrapper is load-bearing
-                  for the greeting's column bound: a flex item's default
-                  min-width:auto (min-content of the greeting's nowrap text)
-                  otherwise grows THIS wrapper to the full text width, and the
-                  greeting's own `max-w-full` then resolves against the wrapper
-                  (wide) instead of the centred column (457px). Constraining the
-                  wrapper to the column makes the greeting's cap bind — see
-                  Greeting.tsx's own min-w-0 note. Dropped on the arranged branch
-                  (a stored pos is the user's own). */}
-              <PositionedBlock id="greeting" pos={layout?.greeting} className="min-w-0 max-w-full">
-                <Greeting />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="clocks">
-              <PositionedBlock id="worldClocks" pos={layout?.worldClocks}>
-                <WorldClocks />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="countdown">
-              <PositionedBlock id="countdown" pos={layout?.countdown}>
-                <CountdownLine />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="search">
-              <PositionedBlock id="search" pos={layout?.search}>
-                <SearchBar />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="focus">
-              <PositionedBlock id="focus" pos={layout?.focus}>
-                <FocusLine />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="links">
-              <PositionedBlock id="links" pos={layout?.links}>
-                <LinksWidget />
-              </PositionedBlock>
-            </WidgetBoundary>
-          </div>
-
-          {/*
-            Background mounts here — after the centered column — purely for tab
-            order: its refresh button (the only focusable thing it renders) must
-            come after search/focus-line/links but before Tasks/gear. The
-            aria-hidden photo layer's `-z-10` pins it behind everything in the
-            paint order regardless of where it sits in the DOM, so moving it here
-            doesn't change what's visible or what's hit-testable on top of it.
-          */}
-          <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
-
-          {/*
-            Weather, the bookmarks bar, timer, and notes mount here — after
-            Background's refresh button but before Tasks/gear — purely for tab
-            order (all four are `fixed`-positioned, so this has no effect on
-            layout): search -> focus -> links -> photo refresh -> weather
-            controls -> bookmarks chips -> timer pill -> notes pill -> Tasks ->
-            gear.
-          */}
-          <WidgetBoundary name="weather">
-            {/*
-              DEFAULT placement only (`pos` — a stored arrange-mode layout —
-              still wins whenever the user has one; PositionedBlock drops
-              this className entirely on that branch).
-
-              `top-[var(--top-band)]`, not `top-4`: the top of the page
-              belongs to the bookmarks bar alone, so this chip and the timer
-              pill both start at the first pixel BELOW the band the bar
-              owns. See index.css's `--top-band` for the derivation (the
-              band's gap + one chip row + that same gap again) and why the
-              band is reserved unconditionally rather than sized to whether
-              the bar happens to be rendering. `right-4` is unchanged — the horizontal
-              anchor is what makes this "the weather corner", and the timer
-              keeps `left-4` for the same reason: the two share one row, one
-              top edge, opposite ends.
-
-              `weatherExpanded`-gated `z-30` (Task 55) — ONLY while the
-              panel is open, same conditional shape as the bookmarks
-              wrapper's own `bookmarksPopoverOpen`-gated `z-50` above, and
-              the same z-30 value TodoPanel/NotesPanel/TimerWidget's own
-              expanded-state panels already use. Idle, this wrapper stays
-              at z-index:auto — unchanged from before this fix, and no
-              different from any other connector card's own wrapper.
-            */}
-            <PositionedBlock
-              id="weather"
-              pos={layout?.weather}
-              className={`fixed right-4 top-[var(--top-band)]${weatherExpanded ? ' z-30' : ''}`}
-            >
-              <WeatherWidget onExpandedChange={setWeatherExpanded} />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="bookmarks">
-            {/*
-              PLACEMENT — the top of the band, and nothing else defaults
-              beside it. This bar owns the band outright; the timer pill and
-              weather chip (above/below in this file) start at
-              `top-[var(--top-band)]`, the first pixel below it.
-              `--top-band-gap` is the SAME token the band's own height is
-              built from (index.css), so the air above the bar and the air
-              below it stay equal by construction — including where that
-              measure compresses on short viewports. Two consequences worth
-              naming here, because they only make sense as a pair:
-                · the bar no longer has to leave room for peripherals at its
-                  own elevation, so its width cap is now bounded by the
-                  VIEWPORT rather than by whatever the neighbours needed —
-                  see BookmarksBar.tsx's own max-width comment;
-                · that reclaimed width is what lets the chip row shrink to
-                  fit instead of wrapping to a second row (which would grow
-                  the band under the peripherals and reintroduce the very
-                  overlap the offset exists to prevent).
-
-              Bug fix (bookmarks popover stacking) — bookmark folder popovers
-              opened, but nothing inside them was clickable. Two independent
-              causes, both rooted in this wrapper, both fixed here + in
-              BookmarksBar.tsx:
-
-              CAUSE 1 — this wrapper used to carry `left-1/2
-              -translate-x-1/2` for centering. Any `translate`/`transform`
-              on an element makes it a new CONTAINING BLOCK for `position:
-              fixed` DESCENDANTS (CSS Transforms spec) — harmless for the
-              nav's own children (FolderPopover's panel is `absolute`,
-              anchored to its chip), but it *also* makes the element a new
-              STACKING CONTEXT, painting atomically wherever it falls in the
-              parent's paint order. FolderPopover's click-outside catcher
-              portals to <body> specifically to escape being trapped INSIDE
-              that containing block (see FolderPopover's own comment) — but
-              portaling to <body> does nothing for the stacking-context
-              problem: the transformed wrapper (with every z-50 thing
-              inside it) still paints as one atomic unit, and in this app
-              that unit sits BELOW the body-level catcher's explicit z-40.
-              Fix: transform-free centering — `inset-x-0 mx-auto w-fit`
-              reproduces the same centered, shrink-to-fit box (verified
-              against BookmarksBar's own capped, `flex-nowrap` chip row —
-              `w-fit` resolves to that row's own width, clamped by the
-              nav's max-width) without ever creating a containing block.
-
-              CAUSE 2 — found AFTER shipping fix 1, by the mandated
-              real-Chromium preview probe (a real `page.click` on a link
-              inside an open popover still timed out, Playwright reporting
-              the click-outside catcher as the interceptor): removing the
-              transform does NOT remove the stacking context, because
-              `position: fixed` — which this wrapper still needs, to stay
-              viewport-anchored at all — ALSO unconditionally creates one,
-              regardless of z-index (CSS Position spec: `fixed`/`sticky`
-              always establish a stacking context; `relative`/`absolute`
-              only do when z-index isn't `auto`, which is why the OTHER
-              half of this fix, `relative` on BookmarksBar's own `nav` —
-              see BookmarksBar.tsx — was necessary but not sufficient by
-              itself). With no explicit z-index of its own, this wrapper
-              paints as an atomic z-index:auto (effectively 0) layer at the
-              top level — ALWAYS below the catcher's explicit z-40, no
-              matter what z-index anything inside it (the nav's z-20/z-50
-              included) carries; that inner z-index only ever wins LOCAL
-              comparisons against the wrapper's own other descendants.
-              Confirmed with a minimal transform-free repro outside this
-              app (a `position:fixed` wrapper with a `position:relative
-              z-index:50` child, next to a sibling `position:fixed
-              z-index:40` catcher): `elementFromPoint` on the child resolved
-              to the catcher every time, until the WRAPPER itself also got
-              an explicit z-index — then it resolved to the child.
-              Fix: `bookmarksPopoverOpen` (state above, set via
-              BookmarksBar's `onPopoverOpenChange`) drives `z-50` on this
-              wrapper — matching the nav's own open-state z-50 — ONLY while
-              a popover is actually open, exactly mirroring BookmarksBar's
-              existing "z-20 idle / z-50 open" rationale (see its own
-              comment) rather than introducing a NEW permanent-elevation
-              regression against TodoPanel/TimerWidget: idle, this wrapper
-              stays at z-index:auto, unchanged from before this whole fix.
-            */}
-            <PositionedBlock
-              id="bookmarks"
-              pos={layout?.bookmarks}
-              className={`fixed inset-x-0 top-[var(--top-band-gap)] mx-auto w-fit${bookmarksPopoverOpen ? ' z-50' : ''}`}
-            >
-              <BookmarksBar onPopoverOpenChange={setBookmarksPopoverOpen} />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="timer">
-            {/* Same move as weather above, mirrored: DEFAULT placement drops
-                out of the bookmarks bar's band to `top-[var(--top-band)]`,
-                keeping its `left-4` anchor so the two peripherals bookend
-                one row under the bar. See index.css's `--top-band`.
-
-                `timerOpen`-gated `z-30` (final-review fix wave, Fix 1) —
-                ONLY while the panel is open, same conditional shape as
-                weather's own `weatherExpanded`-gated `z-30` above. Idle,
-                this wrapper stays at z-index:auto — unchanged from before
-                this fix. */}
-            <PositionedBlock
-              id="timer"
-              pos={layout?.timer}
-              className={`fixed left-4 top-[var(--top-band)]${timerOpen ? ' z-30' : ''}`}
-            >
-              <TimerWidget onOpenChange={setTimerOpen} />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="notes">
-            {/* `notesOpen`-gated `z-30` (final-review fix wave, Fix 1) — see
-                the timer PositionedBlock's own comment just above for the
-                shared rationale; this is the pair the reviewer's own probe
-                found first (Notes panel painting under Vercel's card). */}
-            <PositionedBlock
-              id="notes"
-              pos={layout?.notes}
-              className={`fixed bottom-4 left-16${notesOpen ? ' z-30' : ''}`}
-            >
-              <NotesWidget onOpenChange={setNotesOpen} />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="todo">
-            {/* `tasksOpen`-gated `z-30` (final-review fix wave, Fix 1) — see
-                the timer PositionedBlock's own comment above for the shared
-                rationale; this is the pair the reviewer's own probe found
-                (Tasks panel painting under Jira's card). */}
-            <PositionedBlock
-              id="tasks"
-              pos={layout?.tasks}
-              className={`fixed bottom-4 right-16${tasksOpen ? ' z-30' : ''}`}
-            >
-              <TodoWidget onOpenChange={setTasksOpen} />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          {/* ── LEFT RAIL ──────────────────────────────────────────────────
-              Task 64. The left-hand data widgets stopped being individually
-              pinned (`fixed left-8 top-[NNvh]`) and became a flowing two-column
-              rail: a `fixed` <aside> pinned to the left edge, `--rail-w` wide
-              (index.css — stops exactly on the center-reserve boundary), its
-              cards stacked by flex flow so the board reflows at every window
-              size. Column 1 (priority top->bottom): calendar, headlines,
-              deploys. Column 2 (month grid + habits) appears only when the rail
-              is wide enough for a second column — the `.rail-col2` container
-              query (index.css) is the STRUCTURAL replacement for the old
-              `max-[1593px]:hidden`; it reaches its 536px threshold at exactly
-              100vw=1593, so the boundary still lands there with no magic number
-              in source. Height pressure is relieved by whole-widget hides, not
-              clipping (`short:`/`xshort:` — no scroll regions, no mid-card cut),
-              so a card is either wholly shown or wholly gone. Each block still
-              routes through PositionedBlock: a stored arrange-mode `pos` renders
-              it `position: fixed` (leaving the flex flow, pinned to the user's
-              own coords — "arranged pixels stay yours"), and the visibility
-              classes here are DROPPED on that branch so an arranged widget is
-              never hidden by width/height. The `@container` lives on this
-              <aside>; `container-type: inline-size` does NOT trap
-              `position: fixed` descendants — the CSSWG formally resolved that
-              container-type does not impose layout containment's
-              containing-block rule on positioned descendants (csswg-drafts#10544,
-              2024-07-24; Chrome 129+ ships it intentionally, spec prose lags,
-              MDN correction in mdn/content#43405), so an arranged col-2 widget
-              nested here still positions against the viewport (verified with a
-              real-Chromium probe). LAW: never add `contain: layout` / transform
-              / filter / will-change to a zone — any of those WOULD trap the
-              fixed arranged widgets and corrupt every user's saved layout (full
-              writeup on index.css's `.rail-col2` rule; Task 65 owes a dedicated
-              pinned probe "arranged widget inside a zone renders at true
-              viewport percent").
-
-              HEIGHT PRIORITY (per-widget, MEASURED at each tier's INTERIOR
-              WORST CASE — its MINIMUM height, because the bottom pills/quote are
-              bottom-anchored and rise as the window shrinks; the MECHANISM +
-              this priority are binding, pinned by scripts/preview.mjs's rail +
-              resize-sweep probes): col1 keeps CALENDAR at every height (worst
-              ~132px — p-2.5 padding (20px) + the text-sm headline row (20px)
-              + the list's mt-1 (4px) + up to 5 text-xs rows at 16px each
-              with gap-0.5 between them (5*16 + 4*2 = 88px); the
-              2026-08-10 ics-multi-calendar wave's 'per-calendar' view can
-              show one row per configured calendar, up to MAX_CALENDARS=5
-              (ics.ts) — the feature's true display max (CalendarWidget.tsx /
-              scripts/preview.mjs's own true-max fixture), up from the old
-              2-row MAX_AGENDA_ROWS cap this comment used to cite at ~78px —
-              always clears); HEADLINES trims to its first RSS_MID_ROWS
-              rows on mid and its first RSS_SHORT_ROWS on short so the card can't
-              grow over the Notes pill at either tier's floor (see RssWidget's
-              math) and drops entirely on xshort; DEPLOYS drops on mid AND short
-              (Task 65: at display max vercel's bottom is 758, which laps the
-              Notes pill — top height-54 — below ~812h and fails the 16px floor
-              below 828h, so it drops across the whole 601-864 mid band — a
-              documented simplification, since above 828h it would clear unaided;
-              it was already gone on short).
-              col2 (month + habits, 627px worst stack) drops below 740h so it
-              clears the bottom quote by >=16px at the gate's own minimum — see
-              the .rail-col2 height gate in index.css. Right rail states its own.
-
-              WIDTH DISCIPLINE (the narrow-window board): the height tiers relieve
-              vertical pressure; the WIDTH counterpart is `.rail-primary` (on col1
-              here — ics/rss/vercel — and on the whole right column). When
-              `--rail-w` drops below the widest primary card + 16px clearance
-              (w-80 = 320 + 16 = 336px, at exactly 100vw = 1193 by the rail-w
-              relation), the fixed-width card would overflow its zone toward the
-              centred clock, so the whole primary column steps aside CSS-only via
-              a container query (index.css) — the centred column alone is the
-              board below 1193. Dropped on the arranged branch like every other
-              rail class, so an arranged card is never width-hidden.
-
-              TASK 65 — the 601-848h mid-height residual Task 64 ledgered is
-              CLOSED by the `mid` tier (index.css, 601-864px): at the band's 601px
-              interior worst the Notes pill top sits at 547 and, with vercel hidden
-              + rss trimmed to RSS_MID_ROWS (bottom 510), the left column clears it
-              by 37px; the right column (below) clears its Tasks pill likewise.
-              MEASURED honestly (scripts/preview.mjs's mid-tier fencepost probe,
-              which asserts BOTH edges 600/601 and 864/865 live): row trims alone
-              could NOT save vercel (its 758 bottom overruns the pill even with rss
-              fully hidden above it), so vercel WHOLE-widget-hides on mid, per the
-              documented priority. */}
-          <aside data-zone="left" aria-label="Left widget rail" className="fixed left-8 top-[var(--rail-top-left)] w-[var(--rail-w)]">
-            <div className="flex flex-row items-start gap-4">
-              <div className="flex flex-col gap-4">
-                <WidgetBoundary name="ics">
-                  <PositionedBlock id="ics" pos={layout?.ics} className="rail-primary tier-fade">
-                    <CalendarWidget />
-                  </PositionedBlock>
-                </WidgetBoundary>
-                <WidgetBoundary name="rss">
-                  <PositionedBlock id="rss" pos={layout?.rss} className="rail-primary tier-fade xshort:hidden xshort:opacity-0">
-                    <RssWidget />
-                  </PositionedBlock>
-                </WidgetBoundary>
-                <WidgetBoundary name="vercel">
-                  <PositionedBlock id="vercel" pos={layout?.vercel} className="rail-primary tier-fade dense:hidden dense:opacity-0">
-                    <VercelWidget />
-                  </PositionedBlock>
-                </WidgetBoundary>
-                {/* TASK 102 (W3-SP5) — homeassistant joins col1 as its FOURTH
-                    and newest card, below vercel. MEASURED (a standalone
-                    Playwright pass against `npm run build:preview`'s dist/,
-                    the same chrome://newtab/ + --load-extension technique
-                    scripts/preview.mjs itself uses, since Task 103 owns that
-                    file's own probe suite, NOT run here): with col1's OWN
-                    already-established combined worst case (ics at
-                    MAX_CALENDARS=5 'per-calendar' 132px, rss at shownCount=8
-                    336px, vercel at its DEFAULT views — deployments only,
-                    NOT statusSummary, since that field is what's actually
-                    stacked alongside homeassistant at Jon's canonical 900h;
-                    statusSummary's own `roomy` gate keeps IT out of this
-                    composition — 192px) PLUS homeassistant at its own true
-                    display max (MAX_CHIP_ENTITIES=6 wrapped chips +
-                    MAX_ACTIONS=3 buttons, a measured 102px), the FOUR-card
-                    stack's bottom is a CONSTANT 930px (top-anchored from
-                    rail-top-left=120, every card's own height is
-                    content-driven, not viewport-driven) while the
-                    bottom-anchored Notes pill's top RISES as the window
-                    shrinks (viewportH − 54) — so the >=16px floor
-                    (pillTop − 930 >= 16) solves to viewportH >= 1000
-                    exactly (measured directly, not just algebra: 999h ->
-                    15px [FAIL], 1000h -> 16px [the true boundary]). REAL
-                    overlap confirmed at both `dense`'s own 865px floor
-                    (vercel's own threshold: −119px) and at Jon's canonical
-                    1600x900 (−84px) before this fix — reusing vercel's
-                    `dense:hidden` verbatim, the first-pass guess, was
-                    WRONG; measurement corrected it.
-                    `tallest` (index.css, >=1042h — already shipped for the
-                    status trouble text, Task 86) is the SMALLEST EXISTING
-                    tier that safely covers the true 1000px floor (58px of
-                    honest margin at its own 1042 boundary — `roomy`, 995h,
-                    is 5px SHORT and genuinely unsafe here; `roomier`,
-                    1124h, would waste 124px versus tallest's 42px) — reused
-                    rather than minting a dedicated new one, the same
-                    "reuse an existing tier that's already proven safe"
-                    discipline the fix-wave's own Finding C1 established for
-                    `roomy` on the right rail (see index.css's own `tallest`
-                    comment for this file's SECOND call site note). At Jon's
-                    own 1600x900 (900 < 1042) homeassistant is therefore
-                    HIDDEN under this crowded composition — the newest
-                    member yields first, the sun/moon precedent, and the
-                    SAME trade-off every other lower-priority connector card
-                    already accepts (gitlab/jira hide below 865h, vercel's
-                    statusSummary line below 995h, the status trouble text
-                    below 1042h) — a static CSS tier can't see today's
-                    actual composition, so it holds for the worst one; a
-                    less-crowded col1 (fewer/no other connectors) clears far
-                    lower, just not provably so from CSS alone. No new
-                    index.css tier was needed. */}
-                <WidgetBoundary name="homeassistant">
-                  <PositionedBlock
-                    id="homeassistant"
-                    pos={layout?.homeassistant}
-                    className="rail-primary tier-fade hidden opacity-0 tallest:block tallest:opacity-100"
-                  >
-                    <HomeAssistantWidget />
-                  </PositionedBlock>
-                </WidgetBoundary>
-              </div>
-              <div className="flex flex-col gap-4">
-                <WidgetBoundary name="monthCal">
-                  <PositionedBlock id="monthCal" pos={layout?.monthCal} className="rail-col2 tier-fade">
-                    <MonthCalWidget />
-                  </PositionedBlock>
-                </WidgetBoundary>
-                <WidgetBoundary name="habits">
-                  <PositionedBlock id="habits" pos={layout?.habits} className="rail-col2 tier-fade">
-                    <HabitsWidget />
-                  </PositionedBlock>
-                </WidgetBoundary>
-                <WidgetBoundary name="sun">
-                  <PositionedBlock id="sun" pos={layout?.sun} className="rail-col2 tier-fade">
-                    <SunWidget />
-                  </PositionedBlock>
-                </WidgetBoundary>
-                <WidgetBoundary name="moon">
-                  <PositionedBlock id="moon" pos={layout?.moon} className="rail-col2 tier-fade">
-                    <MoonWidget />
-                  </PositionedBlock>
-                </WidgetBoundary>
-              </div>
-            </div>
-          </aside>
-
-          {/* ── RIGHT RAIL ─────────────────────────────────────────────────
-              The mirror of the left rail: a single flowing column of the three
-              code-forge connectors, pinned to the right edge (`right-8`) and
-              right-aligned (`items-end`) so the cards hug the margin exactly as
-              their old `right-8` pins did. Same PositionedBlock/arrange contract
-              as the left rail.
-
-              HEIGHT PRIORITY (per-widget, MEASURED — Task 70, scripts/preview.mjs,
-              rebuilt bundle — at each tier's INTERIOR WORST CASE: its MINIMUM
-              height, since the Tasks pill is bottom-anchored at pill.top =
-              viewportH − 54 and RISES as the window shrinks, not the tier
-              boundary). rail-top-right = 180px (index.css, a fixed px so it never
-              rises into the content-height weather chip). Card heights at 1600w,
-              every section at its DEFAULT-VIEWS display max (github 2 PR + 2
-              issue + unread; gitlab 3 MR + todos, reviewAsks/activityGraph OFF by
-              default; jira 3 issue + counts, dueSoon OFF by default — Task 74/75's
-              wave-2 additions, both opt-in):
-                · github  — 235px full / 193px dense-condensed (<=864), rows-only;
-                            411px full / 361px dense WITH the commit graph (the
-                            graph block adds 176px full, 168px dense).
-                · gitlab  — 174px rows-only default; +129.5px (-> 303.5px) with
-                            `reviewAsks` ALSO on (2 rows) — see the TASK 77 note
-                            below.
-                · jira    — 174px rows-only default (the LOWEST card; its bottom is
-                            what must clear the pill); +129.5px (-> 303.5px) with
-                            `dueSoon` ALSO on (2 rows) — same note.
-              Stacked rows-only DEFAULT, top-anchored from 180 with gap-4 (16px):
-              github[180-415] gitlab[431-605] jira[621-795]. jira.bottom 795 clears
-              the pill by the 16px floor only at height >= 865 (795 = 811 − 16,
-              811 = 865 − 54) — so gitlab and jira WHOLE-WIDGET-HIDE on `dense`
-              (<=864, index.css); at 865+ all three flow at full height and clear
-              the pill unaided (51px at Jon's 900).
-
-              TASK 77 — gitlab's `reviewAsks` and jira's `dueSoon` (Task 74/75,
-              both OFF by default, so the numbers directly above are UNCHANGED and
-              this whole file's default-path geometry stays byte-identical —
-              scripts/preview.mjs's own default-path regression probe asserts
-              this) each add a MEASURED +129.5px when turned on. Because jira is
-              this column's LOWEST card, turning EITHER one on (with gitlab AND
-              jira both enabled) pushed jira's bottom PAST the Tasks pill at
-              heights ABOVE the 865 floor above — including Jon's own canonical
-              1600x900 (screenshotted: jira.bottom 924.5 vs pillTop 846, a real,
-              shipped overlap this task closed). Fix: `reviewAsks`/`dueSoon` now
-              yield under height pressure the SAME way the commit graph already
-              does — "the SECTION yields before the whole card" (this file's own
-              GRAPH YIELDS note just below), extended from "the graph" to "the
-              second row-section". Four measured thresholds
-              (`roomy`/`roomier`/`grand`/`roomiest`, index.css) cover the
-              THREE-CARD composition space (neither section is gated at all
-              when its sibling forge card isn't enabled AND github's own graph
-              is off too — measured safe at every height in that case).
-              FIX WAVE, FINDING C1: that "sibling forge card isn't enabled"
-              branch was UNMEASURED for the case github's OWN graph is on with
-              no jira/gitlab needed — github alone reaches its taller 411px
-              graph card at `taller` (890h) with just ONE sibling, and the
-              other new-section-bearing sibling then becomes the right rail's
-              SECOND card, right below it: a real, measured overlap at Jon's
-              own 1600x900 (github+graph bottom 591 + 16 + a 129.5px-taller
-              sibling 303.5 = 910.5 vs pillTop 846). This TWO-CARD composition
-              now reuses `roomy` too (conservative — its true floor is only
-              980.5, 14.5px inside roomy's 995); full derivation, every
-              fencepost, and the screenshotted before/after live in
-              index.css's `roomy`/`roomier`/`roomiest` comment and each
-              widget's own `reviewAsksTierName`/`dueSoonTierName`.
-
-              GITHUB SURVIVES the compact band. It dense-condenses to 193px (bottom
-              373) and clears the pill down to the SHORT floor (451px, pill top 397)
-              by 24px; it hides only on `xshort` (<=450, `xshort:hidden` below). On
-              `mid` (601-864) gitlab/jira are gone (dense) and github stands alone,
-              rows-only, bottom 373 vs the 601-floor pill top 547 — 174px clear.
-
-              THE GRAPH YIELDS BEFORE ANY WHOLE CARD, AND YIELDS TO ITS SIBLINGS
-              (Task 70's rule). The commit-graph section (GithubWidget.tsx) reveals
-              at a tier chosen from BOTH the sibling count AND github's OWN
-              composition — the graph fits above the bottom-anchored pill once the
-              WHOLE stack does, and a rows-bearing card is far taller than a
-              graph-only one:
-                · SOLE CARD or ONE sibling → `taller` (>=890h), any composition.
-                  github alone + graph (bottom 591) clears the 890-floor pill (836)
-                  by 245px, 255px at Jon's 900; one 174px sibling puts the stack
-                  bottom at 781, still 55px clear. It cannot ride lower: alone on
-                  `mid`, github+graph (361, bottom 541) clears the 601-floor pill
-                  (547) by only 6px, and at 889 (graph hidden) fit is restored.
-                · TWO siblings WITH a rows section (pulls or issues on) → `grand`
-                  (>=1171h, RE-DERIVED Task 77 from the original 1041 — full
-                  writeup in index.css's `grand` comment). At gitlab's own
-                  reviewAsks-OFF default, github+graph+rows+gitlab+jira put jira
-                  at [797-971], which clears the pill (h−54) by 16px already at
-                  >=1041h — but `grand` now conservatively assumes gitlab's
-                  reviewAsks MAY also be on (it adds a measured +129.5px
-                  regardless of which card, github's or gitlab's, carries the
-                  graph — see App.tsx's TASK 77 paragraph above), which pushes
-                  jira to [797-1100.5] and needs >=1171h to clear. Costs nothing
-                  below 900h (900 < 1041 < 1171: hidden at Jon's board either way).
-                  Without this the three-connector board would lap the pill at
-                  Jon's 900 (jira.bottom 971 vs pill.top 846, reviewAsks off) —
-                  the collision the sweep now catches, GITHUB_FIXTURE seeded to
-                  true display max. (One rows-section is a 306px card clearing at
-                  >=936h at reviewAsks-off, but it reveals on `grand` too — one
-                  fewer tier for a ~105-230px window depending on reviewAsks.)
-                · TWO siblings and GRAPH-ONLY (no pulls, no issues — Jon's "just my
-                  commit graph"; notifications is a header chip, no height) →
-                  `taller` (>=890h). The 201px graph-only card + gitlab + jira put
-                  jira at [587-761], clearing the 890-floor pill (836) by 75px.
-                  Composition-blind gating would `grand`-hide this SHORT card and
-                  render a header-only HUSK at 890-1040h (Jon's 1600x900 included) —
-                  the very card the feature exists to show.
-              Each is monotonic by construction (one boundary per config shape); the
-              descent never re-shows the graph. Zero pairwise overlaps survive.
-
-              WIDTH: all three carry `.rail-primary` too (widest here is github's
-              w-80), so the whole right column steps aside below 100vw = 1193 —
-              see the left rail's WIDTH DISCIPLINE note and index.css. */}
-          <aside data-zone="right" aria-label="Right widget rail" className="fixed right-8 top-[var(--rail-top-right)] flex w-[var(--rail-w)] flex-col items-end gap-4">
-            <WidgetBoundary name="github">
-              <PositionedBlock id="github" pos={layout?.github} className="rail-primary tier-fade xshort:hidden xshort:opacity-0">
-                <GithubWidget />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="gitlab">
-              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="rail-primary tier-fade dense:hidden dense:opacity-0">
-                <GitlabWidget />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="jira">
-              <PositionedBlock id="jira" pos={layout?.jira} className="rail-primary tier-fade dense:hidden dense:opacity-0">
-                <JiraWidget />
-              </PositionedBlock>
-            </WidgetBoundary>
-          </aside>
-
-          {/* ── BOTTOM BAND ────────────────────────────────────────────────
-              The rails idiom (Task 64/65), applied to the bottom of the page —
-              the LAST piece of the retired pinned-coordinate layout. The crypto
-              strip and the quote were three coordinate systems fighting in one
-              band: the links row FLOWED down from the centered column (its bottom
-              moving with whatever widgets are enabled above), crypto was
-              vh-PINNED (`fixed top-[86vh]`), and the quote was BOTTOM-anchored
-              (`bottom-6`). At short heights the vh-pinned crypto printed straight
-              OVER the links labels and the quote (text-on-text below ~849h with
-              crypto+links+quote all on). Same disease the rails cured, same cure:
-              a `fixed`, BOTTOM-anchored flow container.
-
-              This <aside data-zone="bottom"> holds, top-to-bottom, the status
-              strip, the crypto strip, then the quote, stacked by `flex
-              flex-col items-center gap-2`.
-              The gap is gap-2 (8px), not gap-4 — the SAME deliberate, reasoned
-              exception this band has carried since SP2 (HALF this file's usual
-              16px convention): this is the TIGHTEST vertical band on the page,
-              only ~40px total between two FIXED-HEIGHT, SINGLE-LINE neighbours
-              (the links row never wraps, the quote's figure is a fixed block),
-              against this strip's own ~20px single-line height — so there is no
-              "worst case" growth to defend against the way RSS's shownCount or
-              vercel's deployment count need, and arrange mode lets a user who
-              dislikes the tight default simply drag it elsewhere. This default
-              only has to be SAFE, not spacious — and keeping it gap-2 is what
-              keeps the strip's top low enough to clear the links (and therefore
-              SHOW) at Jon's canonical 1600x900, its daily board.
-              Two structural consequences:
-                · THE vh-PIN DIES. crypto is no longer `top-[86vh]`; it sits
-                  gap-2 (8px) ABOVE the quote BY CONSTRUCTION, so crypto x quote
-                  overlap is now impossible — there is no coordinate to drift.
-                · THE QUOTE DOES NOT MOVE. The container is `bottom-6`
-                  (short:bottom-2 xshort:bottom-1 — the quote's OWN old responsive
-                  bottom offsets, moved up here intact), and the quote is the LAST
-                  flex child, so the quote's bottom sits at the container's bottom
-                  = viewport bottom − 24px, pixel-identical to its old single
-                  `bottom-6` anchor. Its bottom-center canvas identity is preserved
-                  at every healthy size whether crypto is shown or hidden (a hidden
-                  crypto leaves the flex flow entirely — see the height tier and
-                  the `:empty` rule in index.css — so the quote stays put). The
-                  preview harness MEASURES this directly at the canonical
-                  1600x900 — quote.bottom === viewport height − 24px (±1px),
-                  the live number logged verbatim — rather than only reasoning
-                  it from construction (scripts/preview.mjs, the bottom-band
-                  probe's Probe 3, right after the canonical crypto-clearance
-                  check).
-
-              CRYPTO HEIGHT DISCIPLINE (vs the links row ABOVE). The band's top is
-              crypto.top; the links row is the FLOWING bottom of the centered
-              column and rises/falls with it (worldClocks+countdown on is the
-              tallest, worst case — the harness's standard seed). Below the
-              MEASURED height where `crypto.top >= links.bottom + 8` fails, crypto
-              WHOLE-widget-hides (`hidden taller:block` — a measured height tier in
-              index.css; DROPPED on the arranged branch like every rail class, so a
-              dragged crypto is never height-hidden). The +8 is the band's SAME
-              reasoned exception as the gap-2 above (tightest band, fixed-height
-              single-line neighbours, arrange-mode escape) — and it is precisely
-              what keeps the reveal threshold BELOW 900 so the strip SHOWS at Jon's
-              canonical 1600x900 (measured ~890h; scripts/preview.mjs pins the
-              900h clearance as its own probe). The quote survives every
-              height (it's short and its own top clears the links row far lower than
-              crypto's does — measured; it only ever shrinks its type + tightens its
-              bottom via short/xshort, never hides), so at the sizes where crypto
-              hides the band is just the quote, cleanly clear of the links.
-              INTERIOR-WORST-CASE LAW: the tier is asserted at its own minimum, both
-              fenceposts, by scripts/preview.mjs.
-
-              STATUS (Task 84 shipped it PROVISIONAL; Task 86 measured it;
-              this fix round SPLITS it). Task 86's own harness caught a real
-              defect the controller confirmed as Important: gating the WHOLE
-              strip — dots AND trouble text together — behind one tall floor
-              (`tallest`, >=1042h) meant the dot row's entire glance value
-              (the feature's whole point: a quiet day is nearly invisible,
-              one look tells you everything's fine) died at Jon's canonical
-              1600x900 right along with the trouble text it never actually
-              needed room for. The fix is TWO independent floors, one per
-              concern:
-                · THE DOT ROW (this PositionedBlock's own reveal, below) now
-                  gates on `ampler` (>=922h, index.css's own doc comment) —
-                  its OWN measured floor, sized for the dot row ALONE
-                  (~8px content, not 68px), which is why it's so much lower
-                  than `tallest`. `taller:block taller:opacity-100` (crypto's
-                  own class, unaffected) is now `ampler:block
-                  ampler:opacity-100` here.
-                · THE TROUBLE TEXT (StatusWidget.tsx's own `<p>` elements)
-                  stays gated behind `tallest` (>=1042h, Task 86's original
-                  number, UNCHANGED) via its own `hidden tallest:block` —
-                  see StatusWidget.tsx's doc comment on that class and
-                  index.css's `tallest` variant, now re-scoped from "the
-                  whole strip's floor" to "the trouble text's own floor
-                  within an already-visible strip."
-              Both numbers were independently re-measured for this fix round,
-              not just reasoned: `ampler`'s low boundary needed its own
-              cryptoClear arithmetic re-run with the dot-row's real 8px
-              height (not 68px) — see index.css's own doc comment for the
-              full derivation, including why `tallest` stays EXACTLY 1042
-              even though the dot row's own top position shifts once the
-              trouble text also appears (the shift is fully absorbed by the
-              flex column's bottom anchoring; crypto's 890 clearance is
-              STILL unaffected either way, re-confirmed by measurement).
-              Net effect at Jon's canonical 1600x900 — see index.css's
-              `ampler` doc comment for the honest verdict at exactly this
-              height, numbers included, rather than restated here.
-
-              CONTAINMENT LAW binds here too (see index.css's .rail-col2 rule): this
-              zone needs NO container query — a height media tier suffices for the
-              crypto hide — but it still hosts arranged (`position: fixed`)
-              crypto/quote when a user drags them, so NEVER add
-              contain:layout / transform / filter / will-change to it: any would
-              establish a containing block and trap the fixed arranged widget
-              against the zone box instead of the viewport. `flex` + `w-fit` +
-              auto-margin centering create no containing block (transform-free per
-              the house rule — the same `inset-x-0 mx-auto w-fit` centering the
-              bookmarks/quote wrappers use). Arrange interop: a dragged crypto/quote
-              keeps its pixels (PositionedBlock renders it fixed, className dropped)
-              and the band reflows around the gap — the standard rail contract,
-              probed in scripts/preview.mjs. */}
-          <aside
-            data-zone="bottom"
-            aria-label="Bottom widget band"
-            className="fixed inset-x-0 bottom-6 short:bottom-2 xshort:bottom-1 mx-auto flex w-fit flex-col items-center gap-2"
-          >
-            <WidgetBoundary name="status">
-              {/* DEFAULT placement — the band's FIRST child, above crypto.
-                  StatusWidget self-gates on the connector's enabled+services
-                  state (statusServicesOf) and renders a centered dot row (one
-                  span[title] per configured service) plus up to
-                  MAX_TROUBLE_LINES=3 worst-first red lines when something
-                  isn't `none` — an empty box until configured, dropped from
-                  the flex flow by index.css's `[data-zone] [data-block-id]:empty`
-                  rule, same as every other rail/band widget. A stored
-                  arrange-mode `pos` still wins (PositionedBlock drops this
-                  className on that branch). MEASURED height tier, SPLIT
-                  (Task 86 measured `tallest`; this fix round split the
-                  reveal in two) — see this comment block's own "STATUS"
-                  paragraph above and index.css's `ampler`/`tallest` variants
-                  for the full derivation. THIS wrapper gates the dot row
-                  alone — `ampler` (its own, much lower, measured floor,
-                  sized for ~8px of content instead of 68px) — so the
-                  strip's glance value survives far more of the height range
-                  than the old all-or-nothing `tallest` gate did; the trouble
-                  TEXT gets its own separate, still-`tallest`-gated reveal
-                  inside StatusWidget.tsx itself (each `<p>` carries its own
-                  `hidden tallest:block`), not this wrapper. */}
-              <PositionedBlock id="status" pos={layout?.status} className="tier-fade hidden opacity-0 ampler:block ampler:opacity-100">
-                <StatusWidget />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="crypto">
-              {/* DEFAULT placement — flows in the bottom band, centered by the
-                  aside's `items-center`, hidden below the measured `taller`
-                  height where it would lap the links row. CryptoWidget renders a
-                  single row capped at MAX_COINS=5 cells and self-gates on the
-                  connector's enabled+coins state (an empty box until configured,
-                  dropped from the flex flow by index.css's `[data-zone]
-                  [data-block-id]:empty` rule — same as every rail widget). A
-                  stored arrange-mode `pos` still wins (PositionedBlock drops this
-                  className on that branch). Hidden by default, REVEALED only
-                  when the viewport is `taller` than the measured floor (a hidden
-                  crypto sets display:none and drops out of the flex flow — no
-                  phantom gap above the quote). */}
-              <PositionedBlock id="crypto" pos={layout?.crypto} className="tier-fade hidden opacity-0 taller:block taller:opacity-100">
-                <CryptoWidget />
-              </PositionedBlock>
-            </WidgetBoundary>
-            <WidgetBoundary name="quote">
-              {/* DEFAULT placement — flows at the BOTTOM of the band (last flex
-                  child), so its bottom sits at the container's `bottom-6` and its
-                  bottom-center canvas identity is unchanged from its old single
-                  `fixed inset-x-0 bottom-6 mx-auto w-fit` anchor. The centering
-                  and the bottom offset now live on the aside. This wrapper carries
-                  `quote-gate tier-fade` (resize-continuity task). The quote's OLD
-                  `mid:hidden` — gone across 601-864, BACK below 600 — was the
-                  non-monotonic blink Jon reported ("the quote ... disappear ...
-                  then reappear and disappear"). It is DEAD. The quote now SCALES
-                  DOWN under height pressure (its own mid/short/xshort type steps)
-                  while the centred column condenses on `mid` (the launcher row,
-                  search, focus, world-clocks/countdown all step smaller — see
-                  LinksWidget et al.), so the flowing links row rises to clear it.
-                  Where it still can't clear — MEASURED against the worst-case
-                  column (world clocks + countdown on), the links lap it below
-                  ~671h however hard the column condenses without gutting the clock
-                  — it yields ONCE, MONOTONICALLY and FADED (`.quote-gate`,
-                  index.css `@media (max-height:671px)`): shown and shrinking above
-                  671, a soft fade-out at the floor, and STAYING gone below. Never
-                  gone-then-back. At >=672 it clears the links; the preview quote
-                  fencepost asserts 671/672 live. No translate/transform — the same
-                  landmine the bookmarks/quote wrappers were converted away from. A
-                  stored `pos` still wins (both classes dropped on the arranged
-                  branch, so an arranged quote is never height-hidden). */}
-              <PositionedBlock id="quote" pos={layout?.quote} className="quote-gate tier-fade">
-                <QuoteWidget />
-              </PositionedBlock>
-            </WidgetBoundary>
-          </aside>
-
-          <button
-            ref={settingsButtonRef}
-            type="button"
-            aria-label="Open settings"
-            onClick={() => setSettingsOpen(true)}
-            className="fixed bottom-4 right-4 rounded-full bg-panel-solid p-2 text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-
-          <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
-            <DrawerBoundary>
-              <SettingsPanel onArrangeLayout={requestArrange} open={settingsOpen} />
-            </DrawerBoundary>
-          </Drawer>
-
-          <WidgetBoundary name="palette">
-            <PaletteHost onOpenSettings={() => setSettingsOpen(true)} arranging={arranging} />
-          </WidgetBoundary>
-        </div>
-
-        {/* Rendered last so its z-[60] overlay paints above every widget
-            above (per Task 36's brief) — and OUTSIDE the inert wrapper, so
-            it (and its Done/Reset/outline buttons) stays fully interactive
-            while everything under it goes inert. Off by default (mode starts
-            'off' and renders null) — the unarranged page is untouched.
-            `onModeChange` is how App learns when to flip `arranging` — see
-            the comment on that state above. `openSignal` is the Settings
-            "Arrange layout" entry point (Task 37) — see `requestArrange`. */}
-        <ArrangeController
-          onDraftChange={setDraft}
-          onModeChange={setArranging}
-          openSignal={arrangeSignal}
+    <main
+      data-aurora-canvas=""
+      data-canvas-text-scale={textScale}
+      data-editing={session ? 'true' : undefined}
+      className="aurora-canvas text-fg"
+    >
+      <div className="contents" inert={utilityTrayOpen && narrowModality}>
+        <Background prefs={photoPrefs} utilityTray={utilityTray} />
+        <CanvasSurface
+          activeLayout={renderedLayout}
+          entries={activeEntries}
+          viewport={viewport}
+          elevatedIds={elevatedIds}
+          chrome={session ? 'editing' : 'normal'}
+          selectedId={session?.selection?.kind === 'widget' ? session.selection.id : null}
+          selectedStackId={session?.selection?.kind === 'stack' ? session.selection.id : null}
+          stackTarget={session ? drag.stackTarget : null}
+          // Guides are session chrome only. The hook also clears them on
+          // every finish/cancel path, while this gate makes edit-session
+          // ownership explicit (owner-reported 2026-08-18 "blue lines where
+          // borders are").
+          guideSet={session ? drag.guideSet : null}
+          onSelectItem={(id) => editMode.select({ kind: 'widget', id })}
+          onSelectStack={(id) => editMode.select({ kind: 'stack', id })}
+          onItemGeometryChange={onItemGeometryChange}
+          onStackGeometryChange={onStackGeometryChange}
+          onGripPointerDown={(id, event) => {
+            startCanvasObjectDrag({ kind: 'widget', id }, id, event)
+          }}
+          onStackGripPointerDown={(id, event) => {
+            startCanvasObjectDrag({ kind: 'stack', id }, `stack:${id}`, event)
+          }}
+          onStepStack={(id, direction) => {
+            if (session) {
+              const stack = activeDraftLayout(session).stacks?.find((candidate) => candidate.id === id)
+              if (!stack) return
+              const index = stack.members.indexOf(stack.facing)
+              const next = stack.members[(index + direction + stack.members.length) % stack.members.length]
+              editMode.dispatch((current) => setSelectedStackFacing(selectStack(current, id), next))
+              return
+            }
+            void updateStoredStackFacing(storage, renderedLayout.id, id, direction === 1 ? 'next' : 'previous')
+          }}
+          onFaceStack={(id, face) => {
+            if (session) {
+              editMode.dispatch((current) => setSelectedStackFacing(selectStack(current, id), face))
+              return
+            }
+            void updateStoredStackFacing(storage, renderedLayout.id, id, face)
+          }}
+          onGearClick={openSettingsForWidget}
+          renderWidget={renderWidget}
         />
-      </DraftLayoutContext.Provider>
+        {!session && layoutsDocument && isPremium() ? (
+          <LayoutBadge
+            document={layoutsDocument}
+            clearsTray={trayTriggerVisible}
+            onSwitch={(layoutId) => {
+              // Explicit user switching (spec 2.1): instant, cannot lose or
+              // alter data — one validated write of the layouts key.
+              void saveLayoutsDocument(storage, switchActiveLayout(layoutsDocument, layoutId))
+            }}
+            onEdit={(invoker) => editMode.begin(invoker)}
+            onNew={() => {
+              const name = `Layout ${layoutsDocument.layouts.length + 1}`
+              const id = crypto.randomUUID()
+              void saveLayoutsDocument(
+                storage,
+                switchActiveLayout(createLayout(layoutsDocument, { id, name }), id),
+              )
+            }}
+          />
+        ) : null}
+        {session ? <div className="edit-scrim" aria-hidden /> : null}
+        {session && dragZone ? <div className="dock-drop-zone" data-edge={dragZone} aria-hidden /> : null}
+        {session && session.selection ? (() => {
+          const draftLayout = activeDraftLayout(session)
+          const selection = session.selection
+          const objectId = selection.kind === 'stack' ? `stack:${selection.id}` : selection.id
+          const anchorRect = itemRectsRef.current.get(objectId)
+          if (!anchorRect) return null
+          const selectedPlacement = selection.kind === 'widget'
+            ? draftLayout.widgets[selection.id]
+            : undefined
+
+          const overlapLabels = [...itemRectsRef.current]
+            .filter(([candidateId, rect]) => {
+              if (candidateId === objectId) return false
+              if (selectedPlacement?.kind === 'docked') {
+                if (candidateId.startsWith('stack:')) return false
+                const candidate = draftLayout.widgets[candidateId as BlockId]
+                if (candidate?.kind !== 'docked' || candidate.dock !== selectedPlacement.dock) return false
+              } else if (!candidateId.startsWith('stack:')) {
+                const candidate = draftLayout.widgets[candidateId as BlockId]
+                if (candidate?.kind !== 'free') return false
+              }
+              return rect.left < anchorRect.right && rect.right > anchorRect.left
+                && rect.top < anchorRect.bottom && rect.bottom > anchorRect.top
+            })
+            .map(([candidateId]) => {
+              if (candidateId.startsWith('stack:')) {
+                const stack = draftLayout.stacks?.find((candidate) => `stack:${candidate.id}` === candidateId)
+                const facing = activeEntries.find((entry) => entry.id === stack?.facing)
+                return stack ? `${facing?.label ?? 'Widget'} +${stack.members.length - 1}` : candidateId
+              }
+              return activeEntries.find((entry) => entry.id === candidateId)?.label ?? candidateId
+            })
+
+          if (selection.kind === 'stack') {
+            const stack = draftLayout.stacks?.find((candidate) => candidate.id === selection.id)
+            if (!stack) return null
+            const entries = stack.members.flatMap((id) => {
+              const entry = activeEntries.find((candidate) => candidate.id === id)
+              return entry ? [entry] : []
+            })
+            return (
+              <StackInspector
+                stack={stack}
+                entries={entries}
+                anchorRect={anchorRect}
+                overlapLabels={overlapLabels}
+                onTier={(tier) => editMode.dispatch((current) => setSelectedTier(current, tier))}
+                onLayer={(direction) => editMode.dispatch((current) => stepSelectedLayer(current, direction))}
+                onReorder={(id, direction) => editMode.dispatch((current) => (
+                  reorderSelectedStackMember(selectStack(current, stack.id), id, direction)
+                ))}
+                onRemove={(id) => editMode.dispatch((current) => (
+                  removeSelectedStackMember(selectStack(current, stack.id), id)
+                ))}
+                onHide={() => editMode.dispatch((current) => hideSelected(selectStack(current, stack.id)))}
+              />
+            )
+          }
+
+          const entry = activeEntries.find((candidate) => candidate.id === selection.id)
+          const placement = draftLayout.widgets[selection.id]
+          if (!entry || !placement) return null
+          return (
+            <WidgetInspector
+              entry={entry}
+              placement={placement}
+              anchorRect={anchorRect}
+              toolbarRect={document.querySelector<HTMLElement>('.edit-toolbar')?.getBoundingClientRect()}
+              overlapLabels={overlapLabels}
+              onTier={(tier) => editMode.dispatch((current) => setSelectedTier(current, tier))}
+              onLayer={(direction) => editMode.dispatch((current) => stepSelectedLayer(current, direction))}
+              onHide={() => editMode.dispatch(hideSelected)}
+              onRestore={() => editMode.dispatch(restoreSelectedDefaults)}
+              calendarPreference={entry.id === 'ics' ? calendarPreferenceFor(calendarPreferences, draftLayout.id) : undefined}
+              onCalendarPreference={entry.id === 'ics'
+                ? (patch) => { void updateCalendarLayoutPreference(storage, draftLayout.id, patch) }
+                : undefined}
+            />
+          )
+        })() : null}
+        {session ? (
+          <EditToolbar
+            session={session}
+            topOffset={toolbarTopOffset}
+            hiddenWidgets={activeEntries.flatMap((entry) => (
+              activeDraftLayout(session).widgets[entry.id]?.kind === 'hidden'
+                ? [{ id: entry.id, label: entry.label }]
+                : []
+            ))}
+            onRestoreHidden={(id) => editMode.dispatch((current) => restoreHiddenWidget(current, id as BlockId))}
+            onSwitchLayout={(layoutId) => {
+              editMode.dispatch((current) => beginEditSession(
+                switchActiveLayout(current.draft, layoutId),
+                enabledBlockIds,
+              ))
+            }}
+            onBulkTier={(tier) => editMode.dispatch((current) => applyBulkTier(current, tier))}
+            onUndo={() => editMode.dispatch(undo)}
+            onReset={() => editMode.dispatch(resetSession)}
+            onCancel={() => {
+              drag.cancelDrag()
+              editMode.cancel()
+            }}
+            onSave={() => void editMode.save()}
+          />
+        ) : null}
+
+        {/* The tray trigger renders only when the tray offers something its
+            visible siblings do not (owner-questioned twice, 2026-08-18/19):
+            the Refresh tool duplicates the corner photo button, so with no
+            Home Assistant actions the briefcase is pure noise. It reappears
+            the moment HA actions exist. */}
+        {trayTriggerVisible ? <button
+          type="button"
+          aria-label="Open utility tray"
+          aria-haspopup="dialog"
+          aria-expanded={utilityTrayOpen}
+          onClick={(event) => {
+            utilityTrayInvokerRef.current = event.currentTarget
+            setActiveUtilityTool(selectedUtilityTool)
+            setUtilityTrayOpen(true)
+          }}
+          className="utility-tray-trigger fixed bottom-4 right-28 flex min-h-9 min-w-9 items-center justify-center rounded-full bg-panel-solid text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 7h16v12H4z" />
+            <path d="M9 7V5h6v2M4 11h16M10 11v2h4v-2" />
+          </svg>
+        </button> : null}
+        <button
+          type="button"
+          aria-label="Open Chrome tab"
+          title="Open Chrome tab"
+          onClick={() => {
+            void chrome.tabs.update({ url: 'chrome://new-tab-page/' })
+          }}
+          className="chrome-tab-trigger fixed bottom-4 right-16 flex min-h-9 min-w-9 items-center justify-center rounded-full bg-panel-solid text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 5h16v14H4z" />
+            <path d="M4 9h16M8 5v4" />
+            <path d="M12 12v4M10 14h4" />
+          </svg>
+        </button>
+        <button
+          ref={settingsButtonRef}
+          type="button"
+          aria-label="Open settings"
+          onClick={requestSettingsOpen}
+          className="settings-gear fixed bottom-4 right-4 rounded-full bg-panel-solid p-2 text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82-.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+        <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
+          <DrawerBoundary open={settingsOpen}>
+            <SettingsPanel
+              open={settingsOpen}
+              focusAnchor={settingsFocusAnchor}
+              layoutsDocument={layoutsDocument}
+              calendarConsolidationLayout={layouts?.layouts.find(
+                (candidate) => candidate.id === layouts.activeLayoutId,
+              ) ?? null}
+            />
+          </DrawerBoundary>
+        </Drawer>
+        <WidgetBoundary name="palette">
+          <PaletteHost onOpenSettings={requestSettingsOpen} />
+        </WidgetBoundary>
+      </div>
+
+      <UtilityTray
+        open={utilityTrayOpen}
+        modal={narrowModality}
+        onClose={requestUtilityTrayClose}
+        invokerRef={utilityTrayInvokerRef}
+        tools={utilityTools}
+        activeTool={selectedUtilityTool}
+        onToolChange={(tool) => requestUtilityToolChange(tool as UtilityToolId)}
+        contentRef={setUtilityTrayHost}
+      ><></></UtilityTray>
     </main>
+  )
+}
+
+export default function App() {
+  return (
+    <TimerSessionProvider>
+      <AuroraApp />
+    </TimerSessionProvider>
   )
 }

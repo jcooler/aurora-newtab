@@ -4,30 +4,48 @@ import type { Upload } from '../../lib/hooks/useUploads'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { PhotoPrefs } from '../../lib/storage/schema'
 import { APOD_ORIGINS } from '../../services/apod'
-import { ensureOrigins, originPattern, removeOrigin } from '../../services/permissions'
-import { heldOrigins } from '../../services/connectors/registry'
+import { readLocalDay } from '../../lib/hooks/useLocalDay'
+import { BUNDLED, bundledPreviewUrl } from '../../services/photos'
+import {
+  runOriginOwnerMutation,
+  runOriginTransaction,
+  type OriginTransactionResult,
+} from '../../services/permissionTransactions'
 import Section from '../Section'
+import Switch from '../Switch'
 import { row, label, select } from './shared'
 
-/** Background photo source (daily/upload/gradient/apod) + the upload
- *  gallery. `photoPrefs`/`savePhotoPrefs` and the loaded `uploads`/`thumbUrls`
- *  stay owned by SettingsPanel (their async resolution timing —
- *  useStoredKey, useUploads, and the object-URL effect derived from it — must
- *  not shift relative to today) and flow down as props; `galleryError`, the
- *  APOD permission-denied alert, and every handler below are section-local
- *  and live entirely here. */
+function reportTransactionCleanup<T>(
+  transaction: OriginTransactionResult<T>,
+  reportPendingCleanup: (patterns: readonly string[]) => void,
+) {
+  if ('pendingCleanup' in transaction && transaction.pendingCleanup.length > 0) {
+    reportPendingCleanup(transaction.pendingCleanup)
+  }
+}
+
+function apodTransactionError(transaction: OriginTransactionResult<void>): string | null {
+  if (transaction.status === 'committed') return null
+  if (transaction.status === 'denied') {
+    return 'Permission to reach NASA was denied, so the background is unchanged.'
+  }
+  if (transaction.status === 'access-lost') return 'Access changed before saving. Please try again.'
+  if (transaction.status === 'aborted') return transaction.message
+  return "Couldn't save the NASA background. Please try again."
+}
+
 export default function Background({
   storage,
+  reportPendingCleanup,
   photoPrefs,
-  savePhotoPrefs,
   uploads,
   thumbUrls,
   galleryError,
   setGalleryError,
 }: {
   storage: AuroraStorage
+  reportPendingCleanup(patterns: readonly string[]): void
   photoPrefs: PhotoPrefs | undefined
-  savePhotoPrefs: (next: PhotoPrefs) => void
   uploads: Upload[]
   thumbUrls: Record<string, string>
   galleryError: string | null
@@ -39,58 +57,58 @@ export default function Background({
   // (any of the four), not just a later apod attempt.
   const [apodError, setApodError] = useState<string | null>(null)
 
-  // Selecting 'apod': ensureOrigins(APOD_ORIGINS) must be the FIRST await in
-  // this whole chain, with ZERO awaits ahead of it — same gesture-chain
-  // discipline as every other permission-gated control in Settings
-  // (Switch.tsx's own doc comment, Widgets.tsx's bookmarks toggle, every
-  // TokenConnectForm/RssBody/IcsBody/CryptoBody handler in Connectors.tsx).
-  // The <select>'s onChange itself runs synchronously up to here; nothing
-  // above this call awaits anything.
+  async function commitPhotoOwnerMutation(
+    updatePrefs: (prefs: PhotoPrefs) => PhotoPrefs,
+  ) {
+    return runOriginOwnerMutation(storage, async () => {
+      let leavingApod = false
+      await storage.update('photoPrefs', (prefs) => {
+        const next = updatePrefs(prefs)
+        leavingApod = prefs.mode === 'apod' && next.mode !== 'apod'
+        return next
+      })
+
+      let cacheClearFailed = false
+      if (leavingApod) {
+        try {
+          await storage.update('apodCache', () => null)
+        } catch {
+          cacheClearFailed = true
+        }
+      }
+
+      return {
+        value: { cacheClearFailed },
+        releaseCandidates: leavingApod ? APOD_ORIGINS : [],
+      }
+    })
+  }
+
   async function handleSourceChange(newMode: PhotoPrefs['mode']) {
     if (!photoPrefs) return
-    const prevMode = photoPrefs.mode
 
     if (newMode === 'apod') {
-      // ensureOrigins can REJECT, not just resolve false (e.g. the gesture
-      // context was somehow already lost) — without a catch here, that's an
-      // unhandled rejection with no alert shown at all, same reasoning as
-      // Widgets.tsx's ensureBookmarksPermission catch.
-      let granted: boolean
-      try {
-        granted = await ensureOrigins(APOD_ORIGINS)
-      } catch {
-        granted = false
-      }
-      if (!granted) {
-        // Denied/rejected: prefs stay UNWRITTEN — the select falls back to
-        // rendering the prior mode (its `value` prop is still `photoPrefs.mode`,
-        // untouched) — and the alert explains why.
-        setApodError('Permission to reach NASA was denied, so the background is unchanged.')
-        return
-      }
-      setApodError(null)
-      savePhotoPrefs({ ...photoPrefs, mode: 'apod' })
+      const transaction = await runOriginTransaction(storage, APOD_ORIGINS, async () => {
+        await storage.update('photoPrefs', (prefs) => ({ ...prefs, mode: 'apod' }))
+        return { ok: true as const, value: undefined, ownerCommitted: true as const }
+      })
+      reportTransactionCleanup(transaction, reportPendingCleanup)
+      setApodError(apodTransactionError(transaction))
       return
     }
 
-    // Every other source change clears any stale apod alert, per the pinned
-    // "cleared on the next successful source change" rule — including a
-    // switch between two non-apod modes, not just a switch AWAY from apod.
+    const mutation = await commitPhotoOwnerMutation((prefs) => ({ ...prefs, mode: newMode }))
+    if (mutation.status !== 'committed') {
+      setApodError("Couldn't save the background. Please try again.")
+      return
+    }
     setApodError(null)
-    savePhotoPrefs({ ...photoPrefs, mode: newMode })
 
-    if (prevMode === 'apod') {
-      // Switching AWAY from apod: clear the cache (a fresh 'apod' pick later
-      // starts clean, never shows yesterday's photo for a beat) and release
-      // whatever APOD origins no still-enabled connector independently holds
-      // — read fresh from storage (non-gesture context now, so awaiting here
-      // is fine; this is well after the click that started the chain).
-      await storage.update('apodCache', () => null)
-      const connectors = await storage.get('connectors')
-      const held = new Set(heldOrigins(connectors))
-      for (const url of APOD_ORIGINS) {
-        if (!held.has(originPattern(url))) await removeOrigin(url)
-      }
+    if (mutation.cleanup.pending.length > 0) {
+      reportPendingCleanup(mutation.cleanup.pending)
+    }
+    if (mutation.value.cacheClearFailed) {
+      setApodError("The NASA photo cache couldn't be cleared. The new background was saved.")
     }
   }
 
@@ -121,13 +139,43 @@ export default function Background({
       setGalleryError("Couldn't save that photo. Your device may be low on storage.")
       return
     }
-    setGalleryError(null)
-    // fresh read + changed value: a stale spread could revert concurrent
-    // writes, and a deep-equal write emits no chrome.storage event at all
-    await storage.update('photoPrefs', (p) => ({
+    // The upload itself can take long enough for another context to select
+    // APOD. Re-read and change the owner only after entering the shared
+    // lifecycle authority, then clean up any APOD ownership in that same lock.
+    const mutation = await commitPhotoOwnerMutation((p) => ({
       ...p,
       mode: 'upload',
       uploadedAt: new Date().toISOString(),
+    }))
+    if (mutation.status !== 'committed') {
+      setGalleryError("The photo was saved, but the background couldn't be updated. Please try again.")
+      return
+    }
+    setGalleryError(null)
+    if (mutation.cleanup.pending.length > 0) {
+      reportPendingCleanup(mutation.cleanup.pending)
+    }
+    if (mutation.value.cacheClearFailed) {
+      setApodError("The NASA photo cache couldn't be cleared. The new background was saved.")
+    } else {
+      setApodError(null)
+    }
+  }
+
+  async function handleLockChange(locked: boolean) {
+    if (!photoPrefs) return
+    await storage.update('photoPrefs', (prefs) => ({ ...prefs, locked }))
+  }
+
+  async function handleBundledSelection(index: number) {
+    if (!photoPrefs) return
+    const today = readLocalDay().key
+    await storage.update('photoPrefs', (prefs) => ({
+      ...prefs,
+      mode: 'auto',
+      index,
+      lastRotated: today,
+      locked: true,
     }))
   }
 
@@ -162,6 +210,48 @@ export default function Background({
           {apodError}
         </p>
       )}
+      {photoPrefs?.mode === 'auto' && BUNDLED.length > 0 && (
+        <div className="flex flex-col gap-3 pt-2">
+          <div className={row}>
+            <label htmlFor="set-bg-locked" className={label}>
+              Keep this background
+            </label>
+            <Switch
+              id="set-bg-locked"
+              checked={photoPrefs.locked ?? false}
+              onChange={(locked) => void handleLockChange(locked)}
+            />
+          </div>
+          <div role="group" aria-label="Bundled photos" className="grid grid-cols-2 gap-2 min-[520px]:grid-cols-3">
+            {BUNDLED.map((photo, index) => {
+              const selected = photoPrefs.index % BUNDLED.length === index
+              return (
+                <button
+                  key={photo.id}
+                  type="button"
+                  aria-label={`Use ${photo.label}`}
+                  aria-pressed={selected}
+                  onClick={() => void handleBundledSelection(index)}
+                  className={`min-w-0 cursor-pointer overflow-hidden rounded-lg border text-left outline-none transition-[border-color,box-shadow] focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none ${
+                    selected ? 'border-accent ring-1 ring-accent' : 'border-control-border hover:border-fg-muted'
+                  }`}
+                >
+                  <img
+                    src={bundledPreviewUrl(index)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="aspect-[8/5] w-full bg-control-bg object-cover"
+                  />
+                  <span className="block truncate px-2 py-1.5 text-xs text-fg-muted">
+                    {photo.photographer}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       {photoPrefs?.mode === 'upload' && (
         <>
           <div className={row}>
@@ -180,7 +270,7 @@ export default function Background({
                 void handleAddUploads(files)
               }}
               aria-describedby={galleryError ? 'bg-gallery-error' : undefined}
-              className="max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover"
+              className="min-h-9 min-w-0 max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover motion-reduce:transition-none max-[420px]:w-full max-[420px]:max-w-full"
             />
           </div>
           {uploads.length > 0 && (
@@ -206,7 +296,7 @@ export default function Background({
                       type="button"
                       aria-label={`Remove photo ${i + 1}`}
                       onClick={() => void handleRemoveUpload(u.key)}
-                      className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-[10px] leading-none text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                      className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-[10px] leading-none text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:right-0 max-[420px]:top-0 max-[420px]:size-9"
                     >
                       ✕
                     </button>

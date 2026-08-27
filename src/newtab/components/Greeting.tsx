@@ -1,6 +1,7 @@
 import { greetingFor } from '../../lib/clock'
 import { useNow } from '../../lib/hooks/useNow'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import AuroraBriefing from './AuroraBriefing'
 
 export default function Greeting() {
   const [settings] = useStoredKey('settings')
@@ -8,13 +9,15 @@ export default function Greeting() {
   if (!settings) return null
   const text = greetingFor(now.getHours(), settings.name)
   return (
-    <p
+    <div className="aurora-greeting">
+      <p
+        data-canvas-type-role="greeting"
       // `title` carries the full text whenever `truncate` below actually
       // elides it — same "always set, only visible on the clipped path"
       // idiom the weather chip's condition/location line and every
       // bookmarks chip label already use, rather than conditioning it on
       // whether THIS render happens to be long enough to clip.
-      title={text}
+        title={text}
       // WIDTH CAP (finding: a long custom `Settings -> General -> "Your
       // name"` renders this line unbounded — the default greeting is short
       // enough that nobody had reason to cap it before). Three tiers:
@@ -92,9 +95,11 @@ export default function Greeting() {
       // search, focus, links) — a second-order layout shift nothing here
       // has budget for. One line, capped, ellipsised is the same contract
       // the weather chip already keeps for its own long content.
-      className="text-photo font-display mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 text-4xl mid:text-3xl short:text-2xl xshort:text-lg font-medium text-canvas-fg min-w-0 max-w-full min-[721px]:max-[899px]:max-w-[18rem] compact:max-w-[calc(100vw-4rem)] truncate"
-    >
-      {text}
-    </p>
+        className="text-photo font-display mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 text-4xl mid:text-3xl short:text-2xl xshort:text-lg font-medium text-canvas-fg min-w-0 max-w-full min-[721px]:max-[899px]:max-w-[18rem] compact:max-w-[calc(100vw-4rem)] truncate"
+      >
+        {text}
+      </p>
+      <AuroraBriefing />
+    </div>
   )
 }

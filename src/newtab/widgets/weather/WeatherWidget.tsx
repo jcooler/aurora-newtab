@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { ResourceFeedback } from '../../../components/StateFeedback'
+import { useDialogEscape } from '../../../lib/dialogStack'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { describeCode } from '../../../services/weather/codes'
 import { rainCallout } from '../../../services/weather/callout'
+import { aqiReading, pollenSummary, uvReading } from '../../../services/weather/environmentIdentity'
 import { PRECIP_FLOOR, forecastRange, forecastSlots } from '../../../services/weather/forecast'
 import {
   clockTime,
   compactHour,
+  compassPoint,
+  hourLabel,
   displayTemp,
   displayTempWithUnit,
   displayWind,
@@ -14,6 +20,35 @@ import {
 import LocationSetup from './LocationSetup'
 import WeatherIcon from './WeatherIcon'
 import { useWeather } from './useWeather'
+import { useWeatherAlerts } from './useWeatherAlerts'
+import { weatherPanelAnchor, type WeatherPanelAnchor } from './weatherPanelAnchor'
+import type { WidgetVariant } from '../../../lib/layout/types'
+import type { WeatherAlert } from '../../../lib/storage/schema'
+import type { WidgetPresentationState } from '../../widgetSizeContracts'
+import TierFrame, { type TierFrameTier } from '../shared/TierFrame'
+
+function WeatherSurface({
+  framed,
+  tier,
+  state,
+  className,
+  children,
+}: {
+  framed: boolean
+  tier: TierFrameTier
+  state: WidgetPresentationState
+  className: string
+  children: ReactNode
+}) {
+  if (framed) {
+    return (
+      <TierFrame label="Weather" tier={tier} state={state} className={className}>
+        {children}
+      </TierFrame>
+    )
+  }
+  return <section aria-label="Weather" className={className}>{children}</section>
+}
 
 /** Chevron — the panel's disclosure affordance, in both directions. Rotates
  *  rather than swapping glyphs so the control reads as one continuous thing. */
@@ -38,13 +73,138 @@ function Chevron({ expanded }: { expanded: boolean }) {
   )
 }
 
+function freshnessLabel(fetchedAt: number, now = Date.now()): string {
+  const minutes = Math.max(0, Math.floor((now - fetchedAt) / 60_000))
+  if (minutes < 1) return 'Updated just now'
+  if (minutes < 60) return `Updated ${minutes}m ago`
+  return `Updated ${Math.floor(minutes / 60)}h ago`
+}
+
 export default function WeatherWidget({
   onExpandedChange,
-}: { onExpandedChange?: (expanded: boolean) => void } = {}) {
+  stageVariant = 'standard',
+  docked = false,
+}: { onExpandedChange?: (expanded: boolean) => void; stageVariant?: WidgetVariant; docked?: boolean } = {}) {
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
-  const { snapshot, stale, loading, error, refresh } = useWeather()
+  const { snapshot, stale, loading, enrichmentPending, error, refresh, state } = useWeather()
+  const {
+    snapshot: alertSnapshot,
+    loading: alertsLoading,
+    stale: alertsStale,
+    error: alertError,
+    refresh: refreshAlerts,
+  } = useWeatherAlerts()
+  const summarySize: TierFrameTier = stageVariant === 'expanded' ? 'full' : stageVariant
   const [expanded, setExpanded] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const [panelAnchor, setPanelAnchor] = useState<WeatherPanelAnchor | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
+  const feedbackId = useId()
+  const environmentFeedbackId = useId()
+  const detailsId = useId()
+
+  const closeExpanded = useCallback(() => {
+    setExpanded(false)
+    triggerRef.current?.focus()
+  }, [])
+
+  useDialogEscape(closeExpanded, expanded)
+
+  const updatePanelAnchor = useCallback(() => {
+    const trigger = triggerRef.current
+    const panel = panelRef.current
+    if (!trigger || !panel) return
+    const panelRect = panel.getBoundingClientRect()
+    const utilityRects = [...document.querySelectorAll<HTMLElement>('.utility-tray-trigger, .chrome-tab-trigger, .settings-gear')]
+      .map((element) => element.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+    const utilityExclusion = utilityRects.length > 0
+      ? ({
+          left: Math.min(...utilityRects.map((rect) => rect.left)),
+          top: Math.min(...utilityRects.map((rect) => rect.top)),
+          right: Math.max(...utilityRects.map((rect) => rect.right)),
+          bottom: Math.max(...utilityRects.map((rect) => rect.bottom)),
+          width: Math.max(...utilityRects.map((rect) => rect.right)) - Math.min(...utilityRects.map((rect) => rect.left)),
+          height: Math.max(...utilityRects.map((rect) => rect.bottom)) - Math.min(...utilityRects.map((rect) => rect.top)),
+          x: Math.min(...utilityRects.map((rect) => rect.left)),
+          y: Math.min(...utilityRects.map((rect) => rect.top)),
+          toJSON: () => ({}),
+        } as DOMRectReadOnly)
+      : undefined
+    // Clamp against the LAYOUT viewport, not window.inner*: on a scrollable
+    // document real Chrome's classic scrollbar gutter lives inside inner*,
+    // so an inner-clamped top-right panel could sit up to ~17px underneath
+    // the scrollbar (the owner's reported right-edge cut). documentElement
+    // client sizes exclude the gutter; jsdom reports 0 there, so fall back.
+    const layoutViewport = {
+      width: document.documentElement.clientWidth || window.innerWidth,
+      height: document.documentElement.clientHeight || window.innerHeight,
+    }
+    const next = weatherPanelAnchor({
+      trigger: trigger.getBoundingClientRect(),
+      panel: {
+        width: panelRect.width || Math.min(384, Math.max(0, layoutViewport.width - 16)),
+        height: panel.scrollHeight || panelRect.height || 420,
+      },
+      viewport: layoutViewport,
+      safeMargin: 8,
+      utilityExclusion,
+    })
+    setPanelAnchor((current) => current
+      && current.left === next.left
+      && current.top === next.top
+      && current.maxHeight === next.maxHeight
+      && current.vertical === next.vertical
+      && current.horizontal === next.horizontal
+      ? current
+      : next)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!expanded) {
+      setPanelAnchor(null)
+      return
+    }
+    updatePanelAnchor()
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(updatePanelAnchor)
+    if (panelRef.current) observer?.observe(panelRef.current)
+    if (triggerRef.current) observer?.observe(triggerRef.current)
+    window.addEventListener('resize', updatePanelAnchor)
+    window.addEventListener('scroll', updatePanelAnchor, true)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updatePanelAnchor)
+      window.removeEventListener('scroll', updatePanelAnchor, true)
+    }
+  }, [expanded, updatePanelAnchor])
+
+  useEffect(() => {
+    if (!expanded) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)
+        || panelRef.current?.contains(target)
+        || triggerRef.current?.contains(target)) return
+      closeExpanded()
+      // A pointer's native focus action runs after pointerdown dispatch and
+      // can overwrite closeExpanded's immediate restoration. Reassert on the
+      // next task so outside-click dismissal ends on the disclosure trigger
+      // just like Escape and second activation do.
+      window.setTimeout(() => triggerRef.current?.focus(), 0)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [closeExpanded, expanded])
+
+  const requestRefresh = () => {
+    setRetrying(true)
+    const alertsRefresh = !alertSnapshot || alertsStale || alertError ? refreshAlerts() : Promise.resolve()
+    void Promise.all([refresh(), alertsRefresh]).finally(() => setRetrying(false))
+  }
 
   // Mirrors BookmarksBar's own `onPopoverOpenChange` idiom (App.tsx): a ref
   // keeps this always calling the LATEST callback (never a stale closure
@@ -64,10 +224,11 @@ export default function WeatherWidget({
   // so the collapsed chip (which never reaches that far) is unaffected.
   const onExpandedChangeRef = useRef(onExpandedChange)
   onExpandedChangeRef.current = onExpandedChange
+  const surfaceOpen = expanded || location === null
   useEffect(() => {
-    onExpandedChangeRef.current?.(expanded)
+    onExpandedChangeRef.current?.(surfaceOpen)
     return () => onExpandedChangeRef.current?.(false)
-  }, [expanded])
+  }, [surfaceOpen])
 
   if (!settings?.widgets.weather) return null
 
@@ -79,8 +240,37 @@ export default function WeatherWidget({
   // shows even when the peak falls on an odd hour the grid never samples.
   const slots = forecastSlots(hours)
   const range = forecastRange(hours)
+  const dailyContext = range
+    ? `High ${displayTemp(range.hiC, settings.units)} · Low ${displayTempWithUnit(range.loC, settings.units)}`
+    : null
+  const trendSignal = [callout, dailyContext].filter(Boolean).join(' ') || null
+  const summarySlots = slots.slice(0, 4)
+  const peakRain = hours.reduce(
+    (best, point) => (best === null || point.precipProb > best.precipProb ? point : best),
+    null as (typeof hours)[number] | null,
+  )
+  const environment = snapshot?.environment
+  const environmentAqi = environment?.status === 'available' && environment.usAqi !== null
+    ? aqiReading(environment.usAqi)
+    : null
+  const environmentUv = environment?.status === 'available' && environment.uvIndex !== null
+    ? uvReading(environment.uvIndex)
+    : null
+  const environmentPollen = environment?.status === 'available'
+    ? pollenSummary(environment.pollen)
+    : null
+  const hasEnvironmentalReadings = Boolean(
+    environmentAqi || environmentUv || (environmentPollen && environmentPollen.kind !== 'unavailable'),
+  )
+  const environmentNeedsRetry = !enrichmentPending && (!environment || environment.status === 'unavailable')
+  const activeAlerts = alertSnapshot?.status === 'supported' ? alertSnapshot.alerts : []
+  const highestAlert = activeAlerts[0] ?? null
+  const urgentAlert = activeAlerts.find((alert) => alert.severity === 'Extreme' || alert.severity === 'Severe') ?? null
 
-  // Width caps. ORIGINALLY derived to keep this panel clear of the centred
+  // Legacy Docked-wrapper width caps. Non-Docked faces now take their exact
+  // geometry from TierFrame; the derivation below remains only because this
+  // migration must preserve Docked markup and sizing exactly. ORIGINALLY these
+  // caps were derived to keep this panel clear of the centred
   // bookmarks bar HORIZONTALLY, back when the two shared the top line: the
   // bar was capped at `max-w-[52vw]` (worst-case right edge 50vw + 26vw =
   // 76vw) and this panel is anchored `right-4`, so requiring 100vw − 16px −
@@ -205,13 +395,37 @@ export default function WeatherWidget({
   // Written out as whole literal strings (rather than composed from a
   // `widthCap` constant) because Tailwind only ever sees source TEXT — a
   // class name assembled at runtime is never generated at build time.
-  const widthClass = expanded
-    ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[min(30vw,calc(50vw_-_10.5rem))] compact:w-[min(20rem,calc(100vw_-_8.5rem))]'
+  const widthClass = location === null
+    ? 'w-[min(20rem,calc(100vw_-_2rem))]'
     : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))] xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]'
+  const partialFrame = Boolean(snapshot && (
+    alertError || (!enrichmentPending && environment?.status === 'unavailable')
+  ))
+  let frameState: WidgetPresentationState = 'ready'
+  if (location === null) frameState = 'permission-required'
+  else if (!location || (!snapshot && state.operation === 'pending')) frameState = 'loading'
+  else if (!snapshot && state.operation === 'error') frameState = 'hard-error'
+  else if (!snapshot) frameState = 'empty'
+  else if (state.freshness === 'stale' || state.operation === 'error') frameState = 'stale'
+  else if (partialFrame) frameState = 'partial'
+  else if (state.operation === 'pending') frameState = 'loading'
+  const framedSurface = !docked
+  const surfaceClassName = framedSurface
+    ? 'cursor-default'
+    : `cursor-default rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] ${widthClass}`
+  const effectiveAnchor = panelAnchor ?? {
+    left: 8,
+    top: 8,
+    maxHeight: Math.max(0, (document.documentElement.clientHeight || window.innerHeight) - 16),
+    vertical: 'below' as const,
+    horizontal: 'inward-right' as const,
+  }
 
   return (
-    <section
-      aria-label="Weather"
+    <WeatherSurface
+      framed={framedSurface}
+      tier={summarySize}
+      state={frameState}
       // `cursor-default` is load-bearing, not cosmetic. `cursor` inherits, and
       // its initial value `auto` resolves to the TEXT I-beam over text — so
       // every label, temperature and forecast line in here used to advertise
@@ -227,20 +441,102 @@ export default function WeatherWidget({
       // every on-page surface now carries the connector cards' opaque token).
       // The collapsed chip used to be the translucent bg-panel; it now matches
       // the expanded panel and the rest of the page.
-      className={`cursor-default rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] ${widthClass}`}
+      className={surfaceClassName}
     >
       {location === null && (
-        <div className="p-4">
-          <LocationSetup />
+        <div className="weather-tier-state weather-tier-state--setup">
+          <LocationSetup tier={summarySize} />
         </div>
       )}
       {location && !snapshot && (
-        <p className="p-4 text-sm text-fg-muted">
-          {error ?? (loading ? 'Loading weather…' : 'No data yet.')}
-        </p>
+        <div className={`weather-tier-state weather-tier-state--${frameState} text-sm text-fg-muted`}>
+          <header className="weather-tier-state__header">
+            <h2>Weather</h2>
+            <p>{location.label}</p>
+          </header>
+          {frameState === 'loading' ? (
+            <div data-weather-state-skeleton="" aria-hidden="true" className="weather-tier-state__skeleton">
+              <span />
+              <span />
+              <span />
+            </div>
+          ) : null}
+          {state.operation === 'idle' ? (
+            <p role="status" id={feedbackId}>No data yet.</p>
+          ) : (
+            <ResourceFeedback
+              state={state}
+              loading={'Loading weather\u2026'}
+              refreshing={'Refreshing\u2026'}
+              stale="Updated a while ago"
+              offline={'Offline \u2014 showing cached'}
+              unavailable="Weather unavailable. Try again."
+              id={feedbackId}
+            />
+          )}
+          {(state.operation === 'idle' || state.operation === 'error' || retrying) && (
+            <button
+              type="button"
+              onClick={requestRefresh}
+              disabled={loading || retrying}
+              aria-busy={loading || retrying || undefined}
+              aria-describedby={feedbackId}
+              className="inline-flex min-h-9 cursor-pointer items-center text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
+            >
+              Refresh
+            </button>
+          )}
+        </div>
       )}
       {location && snapshot && (
         <>
+          {docked ? (
+            /* The Docked tier (named-layouts spec 2.3): one dense text-first
+               line — temperature · location · condition, middle dots
+               separating facts. The SAME trigger semantics as the free chip:
+               clicking opens the identical details panel (spec 2.4), anchored
+               from this line's own rect. */
+            <button
+              ref={triggerRef}
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={expanded ? detailsId : undefined}
+              onClick={() => expanded ? closeExpanded() : setExpanded(true)}
+              data-dock-line=""
+              data-weather-summary=""
+              aria-label={`${displayTempWithUnit(snapshot.current.tempC, settings.units)}, ${snapshot.locationLabel}, ${describeCode(snapshot.current.code).label}${urgentAlert ? `, ALERT, ${urgentAlert.event}` : ''}`}
+              className="dock-line cursor-pointer rounded-panel text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+            >
+              <WeatherIcon
+                icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon}
+                size={16}
+              />
+              {/* The digits carry the line (font-medium, chip scale); the
+                  unit letter stays subordinate via the dock metadata size —
+                  a second em-shrink here made the F read DOMINANT because
+                  the digits, not the letter, ended up the smaller glyphs
+                  (owner-reported 2026-08-18). */}
+              <span data-canvas-type-role="body" className="font-medium tabular-nums">
+                {displayTemp(snapshot.current.tempC, settings.units)}
+                <span data-canvas-type-role="metadata" className="align-baseline opacity-[0.68]">
+                  {unitLetter(settings.units)}
+                </span>
+              </span>
+              <span aria-hidden className="opacity-[0.68]">·</span>
+              <span data-canvas-type-role="body" className="opacity-[0.68]">{snapshot.locationLabel}</span>
+              <span aria-hidden className="opacity-[0.68]">·</span>
+              <span data-canvas-type-role="body" className="opacity-[0.68]">{describeCode(snapshot.current.code).label}</span>
+              {urgentAlert ? (
+                <>
+                  <span aria-hidden className="opacity-[0.68]">·</span>
+                  <span data-weather-alert-badge="" data-canvas-type-role="body" className="font-semibold text-red-400">ALERT</span>
+                  <span aria-hidden className="opacity-[0.68]">·</span>
+                  <span data-canvas-type-role="body" className="max-w-56 truncate text-red-300">{urgentAlert.event}</span>
+                </>
+              ) : null}
+            </button>
+          ) : (
+          <>
           {/* THE toggle — one button covering the entire chip, padding and
               corners included, rather than a content-sized row floating
               inside a padded panel. The old markup put `p-3` on the section
@@ -251,9 +547,11 @@ export default function WeatherWidget({
               including the rain callout — lives inside the button, so there
               is no dead pixel anywhere on the collapsed chip. */}
           <button
+            ref={triggerRef}
             type="button"
             aria-expanded={expanded}
-            onClick={() => setExpanded((v) => !v)}
+            aria-controls={expanded ? detailsId : undefined}
+            onClick={() => expanded ? closeExpanded() : setExpanded(true)}
             // The `short`/`xshort` steps repeated across this panel are one
             // decision, not eight: expanded, this card is ~383px tall, and
             // the viewports the app is tuned for include 1420x437 and
@@ -266,20 +564,25 @@ export default function WeatherWidget({
             // heights. Both variants carry the same value (they're disjoint
             // ranges covering height <= 600px together), so there is no
             // source-order tie to break between them.
-            className={`flex w-full cursor-pointer flex-col gap-1 px-4 py-3 short:py-2 xshort:py-2 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
-              expanded ? 'rounded-t-panel' : 'rounded-panel'
-            }`}
+            data-weather-summary=""
+            data-weather-summary-size={summarySize}
+            className="weather-summary weather-tier-summary flex h-full w-full cursor-pointer flex-col px-4 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
-            <span className="flex w-full items-center gap-3">
+            {summarySize === 'full' ? (
+              <span data-weather-kicker="" data-canvas-type-role="metadata" className="uppercase tracking-[0.1em] text-fg-muted">
+                Current conditions
+              </span>
+            ) : null}
+            <span data-weather-summary-row="current" className="flex w-full items-center gap-3">
               <WeatherIcon
                 icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon}
-                size={32}
+                size={summarySize === 'compact' ? 28 : summarySize === 'full' ? 48 : 36}
               />
               {/* font-display (Space Grotesk) is the page's own headline face
                   — the clock and greeting already speak it. Borrowing it for
                   the one number this widget exists to report ties the card to
                   the page instead of styling it like a generic tooltip. */}
-              <span className="font-display text-[2rem] font-light leading-none tabular-nums">
+              <span data-weather-current="" data-canvas-type-role="body" className="font-display text-[2rem] font-light leading-none tabular-nums">
                 {displayTemp(snapshot.current.tempC, settings.units)}
                 {/* Jon: "adding F or C to the card would be nice." Same
                     two-span idiom as the expanded grid's own end slots below
@@ -288,7 +591,7 @@ export default function WeatherWidget({
                     as a child span. The two pieces still concatenate to
                     exactly `displayTempWithUnit` — one derivation, styled
                     apart — never a second string for the same value. */}
-                <span className="align-baseline text-[0.7em] text-fg-muted">
+                <span data-canvas-type-role="metadata" className="align-baseline text-[0.7em] text-fg-muted">
                   {unitLetter(settings.units)}
                 </span>
               </span>
@@ -301,26 +604,156 @@ export default function WeatherWidget({
                   condition meets a long city ("Thunderstorm · San Francisco"),
                   and `title` is where the rest of it goes when it does. */}
               <span
-                title={`${describeCode(snapshot.current.code).label} · ${snapshot.locationLabel}`}
-                className="min-w-0 flex-1 truncate text-sm leading-snug text-fg-muted"
+                data-weather-condition-location=""
+                data-canvas-type-role="body"
+                title={`${describeCode(snapshot.current.code).label} - ${snapshot.locationLabel}`}
+                aria-label={`${describeCode(snapshot.current.code).label} - ${snapshot.locationLabel}`}
+                className="min-w-0 flex-1 truncate text-fg-muted"
               >
-                {describeCode(snapshot.current.code).label} · {snapshot.locationLabel}
+                {describeCode(snapshot.current.code).label} - {snapshot.locationLabel}
               </span>
-              <Chevron expanded={expanded} />
+              <span data-weather-disclosure=""><Chevron expanded={expanded} /></span>
             </span>
-            {callout && <span className="text-sm text-accent">{callout}</span>}
-            {(stale || error) && (
-              <span className="text-xs text-fg-muted">
-                {error ? 'Offline — showing cached' : 'Updated a while ago'}
+            {summarySize === 'compact' && urgentAlert ? (
+              <span data-weather-alert-badge="" data-canvas-type-role="body" className="truncate text-sm font-medium text-red-300">
+                {urgentAlert.event}
               </span>
+            ) : summarySize === 'compact' ? (
+              <span data-weather-freshness="" data-canvas-type-role="metadata" className="truncate text-fg-muted" style={{ fontSize: 12 }}>
+                {freshnessLabel(snapshot.fetchedAt)}
+              </span>
+            ) : highestAlert ? (
+              <span data-weather-alert-line="" data-canvas-type-role="body" className="truncate text-sm font-medium text-red-300">
+                {highestAlert.severity} · {highestAlert.event}
+              </span>
+            ) : null}
+            {summarySize === 'standard' && trendSignal ? (
+              <span data-weather-summary-row="trend" data-weather-summary-trend="" data-weather-daily-context="" data-panel-accent-text="" data-canvas-type-role="body" className="truncate text-accent">
+                {trendSignal}
+              </span>
+            ) : null}
+            {summarySize !== 'compact' ? (
+              <dl data-weather-summary-row="metrics" data-weather-summary-metrics="" className="grid grid-cols-3 gap-x-3 border-t border-panel-border pt-2">
+                <div>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Feels</dt>
+                  <dd data-canvas-type-role="body" className="tabular-nums">{displayTemp(snapshot.current.feelsLikeC, settings.units)}</dd>
+                </div>
+                <div>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Wind</dt>
+                  <dd data-canvas-type-role="body" className="tabular-nums">{displayWind(snapshot.current.windKmh, settings.units)}</dd>
+                </div>
+                <div>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Humidity</dt>
+                  <dd data-canvas-type-role="body" className="tabular-nums">{snapshot.current.humidity}%</dd>
+                </div>
+              </dl>
+            ) : null}
+            {summarySize === 'full' && summarySlots.length > 0 ? (
+              <div data-testid="weather-summary-hourly" data-weather-summary-row="hourly" data-weather-summary-hourly="" className="grid grid-cols-4 gap-1 border-t border-panel-border pt-2">
+                {summarySlots.map((slot) => (
+                  <span key={slot.index} className="min-w-0 text-center">
+                    <span data-canvas-type-role="metadata" className="block truncate text-fg-muted">
+                      {slot.now ? 'Now' : compactHour(slot.point.time, settings.use24Hour)}
+                    </span>
+                    <span data-canvas-type-role="body" className="block tabular-nums">
+                      {displayTemp(slot.point.tempC, settings.units)}
+                    </span>
+                    <WeatherIcon
+                      icon={describeCode(slot.point.code, slot.point.isDay ?? true).icon}
+                      size={16}
+                    />
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {summarySize === 'full' ? (
+              <dl data-weather-full-context="" className="weather-summary-full-context grid grid-cols-6 gap-2 border-t border-panel-border pt-2">
+                <div>
+                  <dt>Air</dt>
+                  <dd>{environmentAqi ? `${environmentAqi.value} ${environmentAqi.category}` : 'Unavailable'}</dd>
+                </div>
+                <div>
+                  <dt>UV</dt>
+                  <dd>{environmentUv ? `${environmentUv.value} ${environmentUv.category}` : 'Unavailable'}</dd>
+                </div>
+                <div>
+                  <dt>Pollen</dt>
+                  <dd>{environmentPollen?.kind === 'reading'
+                    ? `${environmentPollen.label} ${environmentPollen.grainsPerCubicMeter}`
+                    : environmentPollen?.kind === 'clear'
+                      ? 'None'
+                      : 'Unavailable'}</dd>
+                </div>
+                <div>
+                  <dt>Rain</dt>
+                  <dd>{peakRain && peakRain.precipProb >= PRECIP_FLOOR
+                    ? `${peakRain.precipProb}% ${compactHour(peakRain.time, settings.use24Hour)}`
+                    : 'None'}</dd>
+                </div>
+                <div>
+                  <dt>Sun</dt>
+                  <dd>{snapshot.sunriseISO && snapshot.sunsetISO
+                    ? `${clockTime(snapshot.sunriseISO, settings.use24Hour)}-${clockTime(snapshot.sunsetISO, settings.use24Hour)}`
+                    : 'Unavailable'}</dd>
+                </div>
+                <div
+                  data-weather-daily-context=""
+                  aria-label={dailyContext ?? 'Daily forecast unavailable'}
+                >
+                  <dt>Daily</dt>
+                  <dd title={dailyContext ?? undefined}>{range
+                    ? `${displayTemp(range.hiC, settings.units)} / ${displayTempWithUnit(range.loC, settings.units)}`
+                    : 'Unavailable'}</dd>
+                </div>
+              </dl>
+            ) : null}
+            {frameState === 'partial' ? (
+              <span
+                id={feedbackId}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                data-canvas-type-role="metadata"
+                className="truncate text-fg-muted"
+              >
+                Weather details partially unavailable.
+              </span>
+            ) : (
+              <ResourceFeedback
+                state={state}
+                loading={'Loading weather\u2026'}
+                refreshing={'Refreshing\u2026'}
+                stale="Updated a while ago"
+                offline={'Offline \u2014 showing cached'}
+                unavailable="Weather unavailable. Try again."
+                id={feedbackId}
+                className="text-fg-muted"
+              />
             )}
           </button>
+          </>
+          )}
 
-          {expanded && (
-            <div className="px-4 pb-4 short:pb-3 xshort:pb-3">
+          {expanded && createPortal(
+            <section
+              ref={panelRef}
+              id={detailsId}
+              role="dialog"
+              aria-label="Weather details"
+              data-weather-details=""
+              data-weather-vertical={effectiveAnchor.vertical}
+              data-weather-horizontal={effectiveAnchor.horizontal}
+              className="fixed z-[70] w-96 max-w-[calc(100vw-1rem)] cursor-default overflow-y-auto rounded-panel border border-panel-border bg-panel-solid text-fg shadow-2xl shadow-black/35 backdrop-blur-[var(--panel-blur)]"
+              style={{
+                left: `${effectiveAnchor.left}px`,
+                top: `${effectiveAnchor.top}px`,
+                maxHeight: `${effectiveAnchor.maxHeight}px`,
+              }}
+            >
+            <div className="px-4 py-4 short:py-3 xshort:py-3">
               {range && slots.length > 0 && (
                 <div className="border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
-                  <div className="flex items-baseline justify-between gap-3 text-[11px] text-fg-muted">
+                  <div data-canvas-type-role="metadata" className="flex items-baseline justify-between gap-3 text-fg-muted">
                     {/* CSS-uppercased, so the DOM text stays "Next 12 hours"
                         (screen readers and tests read the real word, the eye
                         reads the eyebrow). */}
@@ -357,7 +790,7 @@ export default function WeatherWidget({
                       the retired ridgeline held by being an SVG. Accent is
                       reserved for rain here and in the callout above; nothing
                       else in the panel uses it. */}
-                  <div className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-6 gap-x-1 narrow:gap-x-0">
+                  <div data-weather-hourly-grid className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-6 gap-x-1 narrow:gap-x-0">
                     {slots.map((slot, i) => {
                       const atEnd = i === 0 || i === slots.length - 1
                       const rain =
@@ -369,10 +802,10 @@ export default function WeatherWidget({
                             slot.now ? 'bg-fg/[0.07]' : ''
                           }`}
                         >
-                          <span className="text-[11px] narrow:text-[10px] leading-none text-fg-muted">
+                          <span data-canvas-type-role="metadata" className="leading-none text-fg-muted">
                             {slot.now
                               ? 'NOW'
-                              : compactHour(slot.point.time, settings.use24Hour).toUpperCase()}
+                              : hourLabel(slot.point.time, settings.use24Hour)}
                           </span>
                           {/* The scale letter on the end slots renders SMALLER
                               (0.7em, so it holds ~70% of the digit height at
@@ -391,13 +824,13 @@ export default function WeatherWidget({
                           <span className="text-[15px] narrow:text-[12px] font-medium leading-none tabular-nums text-fg">
                             {displayTemp(slot.point.tempC, settings.units)}
                             {atEnd && (
-                              <span className="align-baseline text-[0.7em] text-fg-muted">
+                              <span data-canvas-type-role="metadata" className="align-baseline text-[0.7em] text-fg-muted">
                                 {unitLetter(settings.units)}
                               </span>
                             )}
                           </span>
                           {rain !== null && (
-                            <span className="text-[11px] narrow:text-[10px] leading-none tabular-nums text-accent">
+                            <span data-canvas-type-role="metadata" className="leading-none tabular-nums text-accent">
                               <span className="sr-only">Rain chance </span>
                               {rain}%
                             </span>
@@ -409,50 +842,191 @@ export default function WeatherWidget({
                 </div>
               )}
 
-              <dl className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2 border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
+              <dl data-weather-details-metrics="" className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2 border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
                 <div>
-                  <dt className="text-[11px] text-fg-muted">Feels like</dt>
-                  <dd className="mt-0.5 text-sm tabular-nums text-fg">
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Feels like</dt>
+                  <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
                     {displayTemp(snapshot.current.feelsLikeC, settings.units)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] text-fg-muted">Wind</dt>
-                  <dd className="mt-0.5 text-sm tabular-nums text-fg">
-                    {displayWind(snapshot.current.windKmh, settings.units)}
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Wind</dt>
+                  <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
+                    {typeof snapshot.current.windDirection === 'number' && (
+                      // Screen-up is north, and the arrow points AT the
+                      // direction its own letters name (owner-reported
+                      // 2026-08-21). The meteorologist's convention — letters
+                      // for where the wind is from, arrow for where it is
+                      // going — makes the two halves of one readout point
+                      // opposite ways, which is correct on a weather map and
+                      // baffling on a new tab. Self-consistency wins here.
+                      <svg
+                        data-weather-wind-arrow=""
+                        aria-hidden="true"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="shrink-0 text-accent"
+                        style={{ transform: `rotate(${snapshot.current.windDirection}deg)` }}
+                      >
+                        <path d="M12 19V5M5 12l7-7 7 7" />
+                      </svg>
+                    )}
+                    <span>
+                      {displayWind(snapshot.current.windKmh, settings.units)}
+                      {typeof snapshot.current.windDirection === 'number'
+                        ? ` ${compassPoint(snapshot.current.windDirection)}`
+                        : ''}
+                    </span>
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] text-fg-muted">Humidity</dt>
-                  <dd className="mt-0.5 text-sm tabular-nums text-fg">{snapshot.current.humidity}%</dd>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Humidity</dt>
+                  <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">{snapshot.current.humidity}%</dd>
                 </div>
-                {snapshot.sunriseISO && snapshot.sunsetISO && (
+                {/* Rain outlook from the ALREADY-FETCHED hourly precipitation
+                    probabilities (owner 2026-08-18: fill the panel's empty
+                    cell with something useful, no new request fields). */}
+                <div>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Rain</dt>
+                  <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
+                    {(() => {
+                      const peak = snapshot.hourly.reduce(
+                        (best, point) => (best === null || point.precipProb > best.precipProb ? point : best),
+                        null as (typeof snapshot.hourly)[number] | null,
+                      )
+                      if (!peak || peak.precipProb < 10) return <span>None expected</span>
+                      return (
+                        <>
+                          <svg data-weather-rain-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-accent">
+                            <path d="M6 14a4 4 0 0 1 .6-7.9 5 5 0 0 1 9.5-1.3A3.8 3.8 0 0 1 18 14" />
+                            <path d="M8 18l-1 2M12 18l-1 2M16 18l-1 2" />
+                          </svg>
+                          {/* hourLabel, not compactHour: "20% at 02" reads as
+                              ambiguous the moment it leaves a column header
+                              (owner-reported 2026-08-19). */}
+                          <span>{`${peak.precipProb}% at ${hourLabel(peak.time, settings.use24Hour)}`}</span>
+                        </>
+                      )
+                    })()}
+                  </dd>
+                </div>
+                {/* Sunrise and sunset are two cells, not one stacked pair
+                    (owner-reported 2026-08-19: bare arrows read as generic
+                    glyphs, and the doubled cell left the grid a row short).
+                    Real icons carry the meaning; the visible labels stay for
+                    anyone who does not read the icon. */}
+                {snapshot.sunriseISO && (
                   <div>
-                    <dt className="text-[11px] text-fg-muted">Sun</dt>
-                    <dd className="mt-0.5 text-sm tabular-nums text-fg">
-                      <span className="block">
-                        <span aria-hidden="true">↑ </span>
-                        <span className="sr-only">Sunrise </span>
-                        {clockTime(snapshot.sunriseISO, settings.use24Hour)}
-                      </span>
-                      <span className="block">
-                        <span aria-hidden="true">↓ </span>
-                        <span className="sr-only">Sunset </span>
-                        {clockTime(snapshot.sunsetISO, settings.use24Hour)}
-                      </span>
+                    <dt data-canvas-type-role="metadata" className="text-fg-muted">Sunrise</dt>
+                    <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
+                      {/* A plain sun and, below, a plain moon (owner-reported
+                          2026-08-21). Two horizon-and-arrow variants read as
+                          the same icon twice at 13px; sun versus crescent is
+                          unmistakable at any size. */}
+                      <svg data-weather-sunrise-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-amber-300">
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8" />
+                      </svg>
+                      <span>{clockTime(snapshot.sunriseISO, settings.use24Hour)}</span>
+                    </dd>
+                  </div>
+                )}
+                {snapshot.sunsetISO && (
+                  <div>
+                    <dt data-canvas-type-role="metadata" className="text-fg-muted">Sunset</dt>
+                    <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
+                      <svg data-weather-sunset-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-300">
+                        <path d="M20 14.5A8.2 8.2 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z" />
+                      </svg>
+                      <span>{clockTime(snapshot.sunsetISO, settings.use24Hour)}</span>
                     </dd>
                   </div>
                 )}
               </dl>
 
+              <div data-weather-environment="" className="mt-3 border-t border-panel-border pt-3 short:mt-2 short:pt-2 xshort:mt-2 xshort:pt-2">
+                <div data-canvas-type-role="metadata" className="uppercase tracking-[0.08em] text-fg-muted">
+                  Environment
+                </div>
+                {enrichmentPending ? (
+                  <p id={environmentFeedbackId} role="status" className="mt-2 text-sm text-fg-muted">
+                    Loading environmental data…
+                  </p>
+                ) : environment?.status === 'available' && hasEnvironmentalReadings ? (
+                  <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2">
+                    {environmentAqi && (
+                      <div>
+                        <dt data-canvas-type-role="metadata" className="text-fg-muted">Air quality</dt>
+                        <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
+                          {environmentAqi.value} <span className="text-fg-muted">{environmentAqi.category}</span>
+                        </dd>
+                      </div>
+                    )}
+                    {environmentUv && (
+                      <div>
+                        <dt data-canvas-type-role="metadata" className="text-fg-muted">UV index</dt>
+                        <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
+                          {environmentUv.value} <span className="text-fg-muted">{environmentUv.category}</span>
+                        </dd>
+                      </div>
+                    )}
+                    {environmentPollen && (
+                      <div className={environmentAqi && environmentUv ? 'col-span-2' : undefined}>
+                        <dt data-canvas-type-role="metadata" className="text-fg-muted">Pollen</dt>
+                        <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
+                          {environmentPollen.kind === 'unavailable'
+                            ? 'Pollen unavailable here'
+                            : environmentPollen.kind === 'clear'
+                              ? 'No pollen detected'
+                              : `${environmentPollen.label} ${environmentPollen.grainsPerCubicMeter} grains/m³`}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                ) : environment?.status === 'available' ? (
+                  <p className="mt-2 text-sm text-fg-muted">
+                    Environmental readings unavailable for this location.
+                  </p>
+                ) : (
+                  <p id={environmentFeedbackId} role="status" className="mt-2 text-sm text-fg-muted">
+                    Environmental data unavailable.
+                  </p>
+                )}
+                <a
+                  href="https://open-meteo.com/en/docs/air-quality-api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-canvas-type-role="metadata"
+                  className="mt-2 inline-flex cursor-pointer text-fg-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  Air quality and pollen: CAMS ENSEMBLE via Open-Meteo
+                </a>
+              </div>
+
+              <WeatherAlertsSection
+                snapshot={alertSnapshot}
+                loading={alertsLoading}
+                error={alertError}
+                onRefresh={refreshAlerts}
+              />
+
               <div className="mt-3 short:mt-2 xshort:mt-2 flex items-center justify-between gap-3">
-                {stale || error ? (
+                {stale || error || retrying || enrichmentPending || environmentNeedsRetry ? (
                   <button
                     type="button"
-                    onClick={() => void refresh()}
-                    className="cursor-pointer text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                    onClick={requestRefresh}
+                    disabled={loading || enrichmentPending || retrying}
+                    aria-busy={loading || enrichmentPending || retrying || undefined}
+                    aria-describedby={environmentNeedsRetry || enrichmentPending ? environmentFeedbackId : feedbackId}
+                    className="inline-flex min-h-9 cursor-pointer items-center text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
                   >
-                    {loading ? 'Refreshing…' : 'Refresh'}
+                    Refresh
                   </button>
                 ) : (
                   <span />
@@ -471,9 +1045,86 @@ export default function WeatherWidget({
                 </a>
               </div>
             </div>
+            </section>,
+            document.body,
           )}
         </>
       )}
+    </WeatherSurface>
+  )
+}
+
+function WeatherAlertsSection({
+  snapshot,
+  loading,
+  error,
+  onRefresh,
+}: {
+  snapshot: ReturnType<typeof useWeatherAlerts>['snapshot']
+  loading: boolean
+  error: string | null
+  onRefresh: () => Promise<void>
+}) {
+  if (snapshot?.status === 'unsupported') return null
+  if (!snapshot && !loading && !error) return null
+  return (
+    <section
+      role="region"
+      aria-label="NWS alerts"
+      data-weather-alerts=""
+      className="mt-3 border-t border-panel-border pt-3 short:mt-2 short:pt-2 xshort:mt-2 xshort:pt-2"
+    >
+      <div data-canvas-type-role="metadata" className="uppercase tracking-[0.08em] text-fg-muted">NWS alerts</div>
+      {snapshot?.status === 'supported' && snapshot.alerts.length === 0 ? (
+        <p className="mt-2 text-sm text-fg-muted">No active NWS alerts</p>
+      ) : snapshot?.status === 'supported' ? (
+        <div className="mt-2 space-y-3">
+          {snapshot.alerts.map((alert) => <AlertDetails key={alert.id} alert={alert} />)}
+          {error ? <p className="text-xs text-fg-muted">Saved alert data. Live NWS refresh unavailable.</p> : null}
+        </div>
+      ) : loading ? (
+        <p role="status" className="mt-2 text-sm text-fg-muted">Loading NWS alerts…</p>
+      ) : (
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p role="status" className="text-sm text-fg-muted">NWS alerts unavailable.</p>
+          <button type="button" onClick={() => void onRefresh()} className="min-h-9 cursor-pointer text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">Retry</button>
+        </div>
+      )}
+      <a
+        href="https://www.weather.gov/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 inline-flex text-xs text-fg-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        National Weather Service
+      </a>
     </section>
   )
+}
+
+function AlertDetails({ alert }: { alert: WeatherAlert }) {
+  return (
+    <article className="rounded-lg border border-red-400/30 bg-red-400/[0.06] p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-fg">{alert.event}</h3>
+          <p className="text-xs text-red-300">{alert.severity} · {alert.urgency}</p>
+        </div>
+        {alert.expires ? <span className="text-xs text-fg-muted">Until {alertTime(alert.expires)}</span> : null}
+      </div>
+      <p className="mt-2 text-sm leading-5 text-fg">{alert.headline}</p>
+      <p className="mt-1 text-xs text-fg-muted">{alert.areaDescription}</p>
+      {alert.description || alert.instruction ? (
+        <details className="mt-2">
+          <summary className="min-h-9 cursor-pointer py-2 text-xs font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent">Details and instructions</summary>
+          {alert.description ? <p className="text-sm leading-5 text-fg-muted">{alert.description}</p> : null}
+          {alert.instruction ? <p className="mt-2 text-sm font-medium leading-5 text-fg">{alert.instruction}</p> : null}
+        </details>
+      ) : null}
+    </article>
+  )
+}
+
+function alertTime(value: string): string {
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value))
 }

@@ -1,17 +1,26 @@
 {
   "name": "aurora-newtab",
   "private": true,
-  "version": "1.14.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "build:preview": "tsc --noEmit && vite build --mode preview",
+    "build": "node scripts/build.mjs",
+    "build:preview": "node scripts/build.mjs --mode=preview",
     "package": "npm run build && node scripts/package.mjs",
     "pretest": "node scripts/verify-photo-manifest.mjs",
     "test": "vitest run",
+    "test:expansion-contract": "node scripts/expansion/run-contracts.mjs",
+    "test:information-first-contract": "node --test scripts/preview-information-first.test.mjs",
+    "test:widget-redesign-catalog": "node --test scripts/widget-redesign-catalog-contracts.test.mjs scripts/qa-widget-redesign-catalog.test.mjs",
     "test:watch": "vitest",
     "store-shots": "node scripts/store-shots.mjs",
+    "qa:information-first": "node scripts/preview-information-first.mjs",
+    "qa:widget-redesign-catalog": "node scripts/qa-widget-redesign-catalog.mjs",
+    "qa:widget-redesign-production": "node scripts/qa-widget-redesign-production.mjs --exact",
+    "qa:attention-signals": "node scripts/qa-attention-signals.mjs --exact",
+    "qa:canvas-polish": "node scripts/qa-canvas-polish.mjs",
+    "qa:weather-enrichment": "node scripts/qa-weather-enrichment.mjs",
     "verify:photos": "node scripts/verify-photo-manifest.mjs"
   },
   "dependencies": {
@@ -27,6 +36,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^3.2.7",
     "jsdom": "^29.1.1",
     "playwright": "^1.62.0",
     "sharp": "^0.35.3",
@@ -34,5 +44,8 @@
     "typescript": "^5.9.3",
     "vite": "^6.4.3",
     "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "nanoid": "3.3.18"
   }
 }

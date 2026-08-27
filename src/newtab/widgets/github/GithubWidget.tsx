@@ -3,6 +3,13 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchGithub, resolveGithubViews, type GithubData, type GithubItem } from '../../../services/connectors/github'
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import { buildContributionGrid } from '../shared/contributionGrid'
+import DockLine from '../shared/DockLine'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
+import TierFrame, { ResourceFrameStatus, resourceFrameState } from '../shared/TierFrame'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import { DEFAULT_BRIEFING_SOURCES } from '../../../lib/storage/schema'
+import { attentionRuntimeScope, attentionSnapshotScope, effectiveGithubViews, type AttentionRuntimeScope } from '../../../services/connectors/attentionPolicy'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
 // so a full page reads as "50+" rather than an exact-but-misleading number.
@@ -46,6 +53,7 @@ const MAX_ISSUES = 2
 const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
 const GRAPH_SEP_TALLER = ' taller:mt-3 taller:border-t taller:border-panel-border taller:pt-3'
 const GRAPH_SEP_GRAND = ' grand:mt-3 grand:border-t grand:border-panel-border grand:pt-3'
+const FRAMED_GRAPH_SEP = ' mt-2 border-t border-panel-border pt-2'
 
 /** Narrow `connectors.github` (a ConnectorConfig union member, or undefined)
  *  to a CONNECTED GithubConfig, defensively. schema.ts ties every connector id
@@ -62,12 +70,14 @@ function connectedGithub(config: ConnectorConfig | undefined): GithubConfig | nu
   return github
 }
 
-export default function GithubWidget() {
+export default function GithubWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as RssWidget: the one useStoredKey read
   // runs every render (Rules of Hooks stay satisfied), but a disabled/
   // unconnected connector never mounts GithubInner and therefore never runs
   // useConnectorSnapshot's subscribe/refresh.
   const [connectors] = useStoredKey('connectors')
+  const [settings] = useStoredKey('settings')
+  if (!settings) return null
   const github = connectedGithub(connectors?.github)
   if (!github) return null
   // Count the enabled forge SIBLINGS that share the right rail's flow column
@@ -79,31 +89,50 @@ export default function GithubWidget() {
   // laps the Tasks pill). This governs the graph's reveal tier — see GithubInner
   // and App.tsx's right-rail comment.
   const forgeSiblings = (connectors?.gitlab?.enabled ? 1 : 0) + (connectors?.jira?.enabled ? 1 : 0)
-  return <GithubInner github={github} forgeSiblings={forgeSiblings} />
+  const runtime = attentionRuntimeScope(
+    settings.briefingEnabled === true,
+    settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
+  )
+  return <GithubInner github={github} forgeSiblings={forgeSiblings} canvasSize={canvasSize} docked={docked} runtime={runtime} />
 }
 
-function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSiblings: number }) {
+function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { github: GithubConfig; forgeSiblings: number; canvasSize?: CanvasSize; docked?: boolean; runtime: AttentionRuntimeScope }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately and
   // refreshes once per mount, carrying `prev` so ETag 304s keep each section.
   // The user's resolved views gate the fetch (a section turned off never issues
   // a request — see fetchGithub) AND this render (below).
   const token = github.token
   const views = resolveGithubViews(github)
-  const { data } = useConnectorSnapshot<GithubData>('github', (prev) => fetchGithub(token, prev, views))
+  const fetchViews = effectiveGithubViews(views, runtime)
+  const { data, state } = useConnectorSnapshot<GithubData>('github', github, (prev) =>
+    fetchGithub(token, prev, fetchViews),
+    undefined,
+    attentionSnapshotScope(runtime, 'assignments', views.pulls && views.issues),
+  )
 
   // All four sections off: the user asked for nothing to show, so render no
   // empty shell — the settings copy owns that explanation.
   if (!views.commitGraph && !views.pulls && !views.issues && !views.notifications) return null
-  // No cached data yet (first-ever load in flight, or a total failure) renders
-  // nothing rather than an empty shell — same as RssInner.
-  if (!data) return null
+  const tier = canvasSize ?? 'standard'
+  if (!data) {
+    if (docked) return null
+    const frameState = resourceFrameState(state)
+    return <ResourceFrameStatus label="GitHub" tier={tier} state={frameState === 'hard-error' ? 'hard-error' : 'loading'} />
+  }
+  const framed = canvasSize !== undefined
 
   // Old snapshots predate the contributions field — read it defensively. An
   // empty day array is treated as absent (a graph needs cells to draw), so the
   // section only appears when commitGraph is on AND there are real days.
   const contributions = data.contributions ?? null
+  // Compact keeps the graph too (batch-2 owner review: compact GitHub matches
+  // compact GitLab — graph, contributions, and streak), exactly GitLab's own
+  // gate shape.
   const graph =
     views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
+  const fullGraphStats = tier === 'full' && graph
+    ? { total: graph.total, streak: buildContributionGrid(graph.days).streak }
+    : null
 
   // STRICTLY graph-only composition (commitGraph on, every other section off —
   // Jon's "just my commit graph"). The graph is then the card's ONLY content, so
@@ -147,12 +176,20 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   // whole card yields), on the inner graph wrapper otherwise (the card stays, the
   // graph alone yields). Exactly one of the two ever carries it, so the reveal is
   // a single whole-card OR single-section boundary — monotonic either way.
-  const sectionTier = graphOnly ? ` ${graphWrap}` : ''
-  const innerGraphClass = graphOnly ? undefined : graphWrap
+  const innerGraphClass = framed || graphOnly || canvasSize === 'full' ? undefined : graphWrap
 
   // A disabled list is empty regardless of what the snapshot still carries.
-  const prs = views.pulls ? (data.prs ?? []).slice(0, MAX_PRS) : []
-  const issues = views.issues ? (data.issues ?? []).slice(0, MAX_ISSUES) : []
+  const allPrs = views.pulls ? (data.prs ?? []) : []
+  const allIssues = views.issues ? (data.issues ?? []) : []
+  const rowCap = canvasSize === 'standard' ? 1 : MAX_PRS
+  const prs = framed
+    ? tier === 'compact' ? [] : allPrs.slice(0, 1)
+    : canvasSize !== 'compact' ? allPrs.slice(0, rowCap) : []
+  const issues = framed
+    ? tier === 'full'
+      ? allIssues.slice(0, 1)
+      : tier === 'standard' && prs.length === 0 ? allIssues.slice(0, 1) : []
+    : canvasSize !== 'compact' ? allIssues.slice(0, canvasSize === 'standard' ? 1 : MAX_ISSUES) : []
   const notifications = data.notifications
 
   // The celebratory empty line ("No PRs waiting on you") shows whenever a LIST
@@ -168,8 +205,8 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   // else. With no graph DATA the line shows unconditionally, exactly as it did
   // before the graph existed. (A strictly graph-only card has no list section, so
   // showEmpty is false there — that whole-card path is untouched.)
-  const showEmpty = (views.pulls || views.issues) && prs.length === 0 && issues.length === 0
-  const emptyLineTier = graph === null ? '' : graphNeedsGrand ? ' grand:hidden' : ' taller:hidden'
+  const showEmpty = (views.pulls || views.issues) && allPrs.length === 0 && allIssues.length === 0
+  const emptyLineTier = framed || graph === null ? '' : graphNeedsGrand ? ' grand:hidden' : ' taller:hidden'
 
   // No-husk law (wave 2, generalized — gitlab/jira/vercel apply the same
   // rule): render null when NOTHING inside the card would render — no
@@ -183,8 +220,32 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   // showEmpty are all false, so `!graph` alone decides it there too — but
   // that early return stays, unchanged, to skip the tier math below for it.)
   const chipShows = views.notifications && notifications !== null && notifications > 0
-  const anyRow = prs.length > 0 || issues.length > 0
-  if (!graph && !anyRow && !chipShows && !showEmpty) return null
+  const anySelectedRow = allPrs.length > 0 || allIssues.length > 0
+  if (!graph && !anySelectedRow && !chipShows && !showEmpty) return null
+  const prioritizedCount = allPrs.length + allIssues.length
+  const summaryValue = chipShows
+    ? `${notifications >= NOTIF_CAP ? '50+' : notifications} need attention`
+    : prioritizedCount > 0
+      ? `${prioritizedCount} open ${prioritizedCount === 1 ? 'item' : 'items'}`
+      : 'All clear'
+
+  // Docked tier (NL-P5 batch 2, spec 2.3's own example shape): dense facts
+  // from the SAME derivations the card renders — one data owner, no second
+  // fetch. The no-husk return above already covered the no-data case.
+  if (docked) {
+    const dockFacts = [
+      allPrs.length > 0 && `${allPrs.length} PR${allPrs.length === 1 ? '' : 's'}`,
+      allIssues.length > 0 && `${allIssues.length} issue${allIssues.length === 1 ? '' : 's'}`,
+      chipShows && `${notifications >= NOTIF_CAP ? '50+' : notifications} unread`,
+    ]
+    return (
+      <DockLine
+        label="GitHub"
+        facts={dockFacts.some(Boolean) ? dockFacts : ['All clear']}
+        tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+      />
+    )
+  }
 
   return (
     // Floating panel surface: the solid panel token per the house rule for
@@ -195,9 +256,24 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
     // chrome trim (8px of card height), not a shape change — rounded-2xl/
     // shadow-lg/w-80 all unchanged, screenshot-verified against
     // connectors-github.png and connectors-all.png before shipping.
-    <section aria-label="GitHub" className={`w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg${sectionTier}`}>
-      <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
+    // Full earns its footprint (batch-2 owner review): a wider card whose
+    // graph renders at larger cells below — never Standard restated.
+    <TierFrame
+      label="GitHub"
+      tier={tier}
+      state={resourceFrameState(state, showEmpty)}
+      data-canvas-size={tier}
+      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
+    >
+      <div className="mb-1.5 dense:mb-1 flex items-center gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
+        {fullGraphStats ? (
+          <p data-contribution-header-summary className="min-w-0 flex-1 truncate text-right text-xs text-fg-muted">
+            <span className="font-semibold tabular-nums text-fg">{fullGraphStats.total}</span> contributions
+            <span aria-hidden className="mx-1.5 text-fg-muted/40">·</span>
+            <span className="font-semibold tabular-nums text-accent">{fullGraphStats.streak}</span> day streak
+          </p>
+        ) : <span className="flex-1" />}
         {/* Unread chip renders ONLY when the notifications view is on AND the
             count is known AND positive (Controller ruling 2, compounded with the
             view gate): null (endpoint unavailable) hides it; 0 (all caught up)
@@ -207,6 +283,14 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
             {notifications >= NOTIF_CAP ? '50+' : notifications} unread
           </span>
         )}
+      </div>
+
+      <div className={framed && graph ? 'sr-only' : undefined}>
+        <WorkPulseSummary
+          label="GitHub"
+          value={summaryValue}
+          tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+        />
       </div>
 
       {/* Commit graph on top — the board's composed face. The graph adds 176px
@@ -228,29 +312,54 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
           graph-only, this boundary moves to the SECTION (sectionTier) and the inner
           wrapper carries nothing — the whole card yields as one, no husk. */}
       {graph && (
-        <div className={innerGraphClass}>
-          <ContributionGraph contributions={graph} />
+        <div data-work-pulse-detail className={innerGraphClass}>
+          <ContributionGraph
+            contributions={graph}
+            tier={tier}
+            showMonthTicks={tier === 'full'}
+            showSummary={tier !== 'full'}
+          />
         </div>
       )}
 
-      {prs.length > 0 && (
-        <ul className={`flex flex-col gap-2 dense:gap-1${graph ? graphSep : ''}`}>
+      {tier === 'full' && (prs.length > 0 || issues.length > 0) ? (
+        <div
+          data-github-row-families="parallel"
+          className={`${graph ? 'mt-1.5 border-t border-panel-border pt-1.5' : ''} grid ${prs.length > 0 && issues.length > 0 ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}
+        >
+          {prs.length > 0 ? (
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Pull requests</p>
+              <ul data-work-pulse-rows>{prs.map((item) => <ItemRow key={item.url} item={item} />)}</ul>
+            </div>
+          ) : null}
+          {issues.length > 0 ? (
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Issues</p>
+              <ul data-work-pulse-rows>{issues.map((item) => <ItemRow key={item.url} item={item} />)}</ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tier !== 'full' && prs.length > 0 && (
+        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${graph ? framed ? FRAMED_GRAPH_SEP : graphSep : ''}`}>
           {prs.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
         </ul>
       )}
 
-      {issues.length > 0 && (
-        <ul className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? graphSep : ''}`}>
+      {tier !== 'full' && issues.length > 0 && (
+        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? framed ? FRAMED_GRAPH_SEP : graphSep : ''}`}>
           {issues.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
         </ul>
       )}
 
-      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>No PRs waiting on you 🎉</p>}
-    </section>
+      {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>No PRs waiting on you 🎉</p>}
+    </TierFrame>
   )
 }
 
@@ -268,8 +377,8 @@ function ItemRow({ item }: { item: GithubItem }) {
         title={item.title}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        {item.repo && <span className="block truncate text-xs text-fg-muted">{item.repo}</span>}
-        <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        {item.repo && <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.repo}</span>}
+        <span className="block truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>
       </a>

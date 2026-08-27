@@ -39,3 +39,28 @@ export function clockTime(iso: string, use24Hour: boolean): string {
   const h12 = hour % 12 || 12
   return `${h12}:${minutes} ${hour < 12 ? 'AM' : 'PM'}`
 }
+
+/** The ROOMY hour label for the details panel (owner-reported 2026-08-19:
+ *  a bare "02" is ambiguous the moment it leaves a column header). 24-hour
+ *  mode gets a full clock hour, 12-hour mode a spaced meridiem — never the
+ *  single-letter "2a" form, which `compactHour` keeps for the collapsed
+ *  chip's own tight six-column strip. */
+export function hourLabel(iso: string, use24Hour: boolean): string {
+  const hour = Number(iso.slice(11, 13))
+  if (use24Hour) return `${String(hour).padStart(2, '0')}:00`
+  const h12 = hour % 12 || 12
+  return `${h12} ${hour < 12 ? 'AM' : 'PM'}`
+}
+
+const COMPASS = Object.freeze([
+  'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+  'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
+])
+
+/** The 16-point compass name for a meteorological bearing — the direction
+ *  the wind blows FROM, which is what a weather reading means by "NW wind".
+ *  Each sector spans 22.5 degrees, so the rounding boundary sits at 11.25. */
+export function compassPoint(degrees: number): string {
+  const normalized = ((degrees % 360) + 360) % 360
+  return COMPASS[Math.round(normalized / 22.5) % 16]
+}

@@ -23,11 +23,6 @@ export function relativeLuminance(hex: string): number {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
 }
 
-// Above this relative luminance the panel reads as "light" and needs dark text
-// (and a light native color-scheme so OS-drawn controls match). Chosen to sit
-// comfortably above mid-gray so only genuinely bright picks flip.
-const FG_FLIP_THRESHOLD = 0.45
-
 // Dark-panel foreground = the app's default off-white (matches themes.css's
 // :root --fg/--fg-muted exactly, so a dark pick is seamless with the default).
 const DARK_FG = '#f5f5f4'
@@ -47,10 +42,32 @@ export interface DerivedFg {
  *  panel of the given color. A luminous panel gets near-black text + a light
  *  scheme; a dark panel keeps the default off-white + a dark scheme. */
 export function derivedFg(hex: string): DerivedFg {
-  const light = relativeLuminance(hex) > FG_FLIP_THRESHOLD
+  // Saturated colors do not follow a useful fixed luminance threshold. Bright
+  // pink, for example, sits below the old cutoff but has substantially better
+  // contrast with near-black than off-white. Select the stronger of the two
+  // standing panel inks directly so every panel color follows the same rule.
+  const light = contrastRatio(LIGHT_FG, hex) >= contrastRatio(DARK_FG, hex)
   return light
     ? { fg: LIGHT_FG, fgMuted: LIGHT_FG_MUTED, scheme: 'light' }
     : { fg: DARK_FG, fgMuted: DARK_FG_MUTED, scheme: 'dark' }
+}
+
+/** WCAG 2.x contrast ratio between two `#rrggbb` colors (1 to 21). Drives
+ *  the appearance pickers' legibility WARNINGS (never blocks — the user owns
+ *  the pick; derived from the actual colors, never tuned to any one panel
+ *  shade). */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a)
+  const lb = relativeLuminance(b)
+  const [lighter, darker] = la >= lb ? [la, lb] : [lb, la]
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+/** The muted tier of a chosen ink: the SAME color at the app's standing 0.68
+ *  alpha (as an 8-digit hex — 0.68*255 ≈ 0xad), so hierarchy derives from
+ *  any pick instead of assuming a palette. */
+export function mutedInk(hex: string): string {
+  return `${hex}ad`
 }
 
 const PANEL_COLOR_RE = /^#[0-9a-f]{6}$/i

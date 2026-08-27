@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { monthGrid } from './monthGrid'
+import { monthGrid, weekContainingDate } from './monthGrid'
 
 describe('monthGrid', () => {
+  it('returns the complete Sunday-through-Saturday row containing an in-month day', () => {
+    expect(weekContainingDate(2026, 4, 15).map((cell) => cell.key)).toEqual([
+      '2026-05-10', '2026-05-11', '2026-05-12', '2026-05-13', '2026-05-14', '2026-05-15', '2026-05-16',
+    ])
+  })
+
   it('Feb 2026 (starts on a Sunday) renders exactly 4 rows, no leading cells', () => {
     const weeks = monthGrid(2026, 1) // month0=1 -> February
     expect(weeks).toHaveLength(4)

@@ -1,121 +1,322 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useStorage } from '../storage/context'
-import type { ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
+import {
+  currentCacheAuthorityEpoch,
+  subscribeCacheAuthority,
+} from '../cacheAuthority'
+import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 import { getConnector } from '../../services/connectors/registry'
+import {
+  canonicalConnectorEventConfig,
+  canonicalConnectorRuntimeScope,
+  connectorSnapshotScope,
+} from '../../services/connectors/snapshotIdentity'
+import { resourceStateOf, type AsyncResourceState } from '../asyncState'
 
-// Dedupes concurrent refreshes of ONE connector across every mounted consumer
-// in this document (two widgets reading 'rss' trigger a single fetch). Keyed by
-// id. NOT cross-tab: two browser tabs of the same page each run their own
-// refresh — last write wins, harmless for a cache. Module-level, so it outlives
-// any single mount and therefore leaks between tests unless reset.
-const inFlight = new Map<ConnectorId, Promise<unknown>>()
+const inFlight = new Map<string, Promise<unknown>>()
+const latestConfigKeys = new Map<ConnectorId, string>()
 
-/** Test-only: clear the module-level in-flight map between cases. Without it a
- *  pending (or resolved) refresh from one test would dedupe the next. Not part
- *  of the production surface. */
 export function __resetInFlight(): void {
   inFlight.clear()
+  latestConfigKeys.clear()
 }
 
-/** SWR over connectorSnapshots[id]: returns the cached snapshot immediately,
- *  and if absent/staler than ttlMs, runs `refresh` ONCE per mount (not per
- *  render), writing the result via storage.update. Refresh failures keep the
- *  stale snapshot (quiet-failure) and set `lastError` locally (never stored).
- *  Concurrency: the module-level in-flight map keyed by id dedupes across
- *  multiple mounted consumers — only the starter writes; joiners receive the
- *  fresh snapshot through the storage subscription. Cross-tab dedupe is NOT
- *  attempted; last write wins, harmless for caches.
- *
- *  `ttlMs` defaults to the registry descriptor's (getConnector(id).ttlMs), so
- *  Task 43+ call sites stay clean: `useConnectorSnapshot('rss', refreshFn)`.
- *  The registry is empty until Task 43 — the `?? 0` fallback then treats every
- *  snapshot as stale (refresh on mount), and tests pass an explicit ttl to
- *  exercise the fresh-enough path.
- *
- *  `refresh` receives the previously-cached data (null when there was none) —
- *  exactly what the mount effect just read from the snapshot, never a fresh
- *  storage read. Token connectors (Task 46+) use this to carry over fields a
- *  fetch doesn't repeat every call (e.g. a display name resolved once at
- *  connect time). RSS ignores the argument; a callback declared with fewer
- *  parameters is assignable here, so its call site compiles unchanged. */
+interface SnapshotState<T> {
+  configKey: string | null
+  data: T | null
+  fetchedAt: number | null
+  refreshing: boolean
+  lastError: string | null
+}
+
+const EMPTY_STATE = {
+  configKey: null,
+  data: null,
+  fetchedAt: null,
+  refreshing: false,
+  lastError: null,
+} as const
+
+/**
+ * Configuration-scoped SWR for connector snapshots. The synchronous
+ * canonical key filters old data on the config-changing render; the opaque
+ * SHA-256 scope is the only identity persisted with the cache.
+ */
 export function useConnectorSnapshot<T>(
   id: ConnectorId,
+  config: ConnectorConfig,
   refresh: (prev: T | null) => Promise<T>,
   ttlMs: number = getConnector(id)?.ttlMs ?? 0,
-): { data: T | null; fetchedAt: number | null; refreshing: boolean; lastError: string | null } {
+  runtimeScope?: unknown,
+  isData?: (value: unknown) => value is T,
+): {
+  data: T | null
+  fetchedAt: number | null
+  refreshing: boolean
+  lastError: string | null
+  state: AsyncResourceState
+} {
   const storage = useStorage()
-  const [data, setData] = useState<T | null>(null)
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const [lastError, setLastError] = useState<string | null>(null)
+  const cacheAuthorityEpoch = useSyncExternalStore(
+    subscribeCacheAuthority,
+    currentCacheAuthorityEpoch,
+    currentCacheAuthorityEpoch,
+  )
+  const runtimeKey = runtimeScope === undefined ? '' : canonicalConnectorRuntimeScope(runtimeScope)
+  const connectorConfigKey = `${canonicalConnectorEventConfig(id, config)}\n${runtimeKey}`
+  const configKey = `${connectorConfigKey}\ncache:${cacheAuthorityEpoch}`
+  const [state, setState] = useState<SnapshotState<T>>(EMPTY_STATE)
 
-  // Callers pass inline closures whose identity changes each render; capture
-  // the latest in refs so the mount effect can stay [id, storage] and fire the
-  // refresh exactly ONCE per mount, never on an unrelated re-render.
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
-  const ttlRef = useRef(ttlMs)
-  ttlRef.current = ttlMs
+  const isDataRef = useRef(isData)
+  isDataRef.current = isData
+
+  useLayoutEffect(() => {
+    latestConfigKeys.set(id, configKey)
+  }, [id, configKey])
 
   useEffect(() => {
     let live = true
+    let unsubscribe: () => void = () => undefined
+    let unsubscribeConnectors: () => void = () => undefined
+    let removeRestorationListeners: () => void = () => undefined
+    let expiryTimer: number | undefined
 
-    const unsubscribe = storage.subscribe('connectorSnapshots', (snapshots) => {
-      const snap = snapshots[id]
-      if (live && snap) {
-        setData(snap.data as T)
-        setFetchedAt(snap.fetchedAt)
-      }
-    })
+    const isCurrent = () => (
+      latestConfigKeys.get(id) === configKey &&
+      currentCacheAuthorityEpoch() === cacheAuthorityEpoch
+    )
 
-    async function runRefresh(prev: T | null): Promise<void> {
-      let pending = inFlight.get(id)
-      const owner = pending === undefined
-      if (pending === undefined) {
-        pending = refreshRef.current(prev)
-        inFlight.set(id, pending)
-      }
-      if (live) setRefreshing(true)
-      try {
-        const result = await pending
-        // Only the consumer that STARTED the fetch writes; joiners get the
-        // fresh snapshot via the subscription above. fetchedAt changes every
-        // write, so the write is never deep-equal — the driver always emits
-        // onChanged and the subscription lands (deep-equal writes are dropped).
-        if (owner) {
-          const snapshot: ConnectorSnapshot = { fetchedAt: Date.now(), data: result }
-          await storage.update('connectorSnapshots', (prev) => ({ ...prev, [id]: snapshot }))
-        }
-      } catch (error) {
-        // Quiet failure: keep the stale snapshot, surface the error locally
-        // only. A transient fetch failure must never poison the cache other
-        // tabs read, so nothing is written to storage.
-        if (live) setLastError(error instanceof Error ? error.message : String(error))
-      } finally {
-        if (owner) inFlight.delete(id)
-        if (live) setRefreshing(false)
+    const clearExpiryTimer = () => {
+      if (expiryTimer !== undefined) {
+        window.clearTimeout(expiryTimer)
+        expiryTimer = undefined
       }
     }
 
-    void storage.get('connectorSnapshots').then((snapshots) => {
-      if (!live) return
-      const snap = snapshots[id]
-      if (snap) {
-        setData(snap.data as T)
-        setFetchedAt(snap.fetchedAt)
+    const setCurrentState = (update: (current: SnapshotState<T>) => SnapshotState<T>) => {
+      if (!live || !isCurrent()) return
+      setState((previous) => {
+        const current = previous.configKey === configKey ? previous : { ...EMPTY_STATE, configKey }
+        return update(current)
+      })
+    }
+
+    void (async () => {
+      const scope = await connectorSnapshotScope(id, config, runtimeScope)
+      if (!live || !isCurrent()) return
+
+      const scheduleCheck = (delayMs: number, checkFreshness: () => Promise<void>) => {
+        clearExpiryTimer()
+        expiryTimer = window.setTimeout(() => void checkFreshness(), delayMs)
       }
-      const stale = snap === undefined || Date.now() - snap.fetchedAt >= ttlRef.current
-      if (stale) void runRefresh(snap ? (snap.data as T) : null)
-    })
+
+      const showSnapshot = (snapshot: ConnectorSnapshot): boolean => {
+        if (isDataRef.current && !isDataRef.current(snapshot.data)) return false
+        setCurrentState((current) => ({
+          ...current,
+          data: snapshot.data as T,
+          fetchedAt: snapshot.fetchedAt,
+        }))
+        return true
+      }
+
+      let checkFreshness: () => Promise<void>
+
+      const scheduleSnapshot = (snapshot: ConnectorSnapshot) => {
+        const dueIn = Math.max(0, snapshot.fetchedAt + ttlMs - Date.now())
+        scheduleCheck(dueIn, checkFreshness)
+      }
+
+      const scheduleRetry = () => {
+        const retryIn = Math.min(Math.max(ttlMs, 1_000), 30_000)
+        scheduleCheck(retryIn, checkFreshness)
+      }
+
+      const runRefresh = async (previousData: T | null): Promise<void> => {
+        const connectors = await storage.get('connectors')
+        if (!live || !isCurrent()) return
+        const authoritativeConfig = connectors[id]
+        const authoritativeConfigKey = authoritativeConfig
+          ? `${canonicalConnectorEventConfig(id, authoritativeConfig)}\n${runtimeKey}`
+          : null
+        // Snapshot removal and connector replacement are delivered as
+        // separate React/storage notifications. Revalidate before issuing
+        // the request so the old mounted owner cannot make one last call with
+        // credentials that authoritative storage has already disconnected.
+        if (!authoritativeConfig?.enabled || authoritativeConfigKey !== connectorConfigKey) return
+
+        const requestKey = `${id}\n${scope}\ncache:${cacheAuthorityEpoch}`
+        let pending = inFlight.get(requestKey)
+        const owner = pending === undefined
+        if (pending === undefined) {
+          pending = Promise.resolve().then(() => refreshRef.current(previousData))
+          inFlight.set(requestKey, pending)
+        }
+
+        setCurrentState((current) => ({ ...current, refreshing: true }))
+        try {
+          const result = await pending
+          if (isDataRef.current && !isDataRef.current(result)) {
+            throw new Error(`Invalid ${id} snapshot payload`)
+          }
+          if (owner && isCurrent()) {
+            const snapshot: ConnectorSnapshot = {
+              scope,
+              fetchedAt: Date.now(),
+              data: result,
+            }
+            await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+              const authoritativeConfig = connectors[id]
+              const authoritativeConfigKey = authoritativeConfig
+                ? `${canonicalConnectorEventConfig(id, authoritativeConfig)}\n${runtimeKey}`
+                : null
+              // A restore/config save can commit before React propagates the
+              // new props into this mounted owner. Revalidate against the
+              // authoritative connector record inside the same queued update
+              // that would write the derived cache; render-local generation
+              // ownership alone cannot authorize a stale completion.
+              if (!isCurrent() || !authoritativeConfig?.enabled || authoritativeConfigKey !== connectorConfigKey) {
+                return {}
+              }
+              return {
+                connectorSnapshots: {
+                  ...connectorSnapshots,
+                  [id]: snapshot,
+                },
+              }
+            })
+          }
+          setCurrentState((current) => ({ ...current, lastError: null }))
+        } catch (error) {
+          setCurrentState((current) => ({
+            ...current,
+            lastError: error instanceof Error ? error.message : String(error),
+          }))
+          if (live && isCurrent()) scheduleRetry()
+        } finally {
+          if (owner && inFlight.get(requestKey) === pending) inFlight.delete(requestKey)
+          setCurrentState((current) => ({ ...current, refreshing: false }))
+        }
+      }
+
+      checkFreshness = async () => {
+        if (!live || !isCurrent()) return
+        clearExpiryTimer()
+        const snapshots = await storage.get('connectorSnapshots')
+        if (!live || !isCurrent()) return
+        const snapshot = snapshots[id]
+        if (!snapshot || snapshot.scope !== scope) {
+          setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+          await runRefresh(null)
+          return
+        }
+
+        if (!showSnapshot(snapshot)) {
+          setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+          await runRefresh(null)
+          return
+        }
+        if (Date.now() - snapshot.fetchedAt >= ttlMs) {
+          await runRefresh(snapshot.data as T)
+        } else {
+          scheduleSnapshot(snapshot)
+        }
+      }
+
+      unsubscribe = storage.subscribe('connectorSnapshots', (snapshots) => {
+        if (!live || !isCurrent()) return
+        // A direct chrome.storage removal reports the key as undefined to
+        // subscribers even though Aurora's typed storage facade normally
+        // supplies an object. Treat that transient/removal shape exactly like
+        // an empty snapshot map so the mounted connector refreshes cleanly.
+        const snapshot = snapshots?.[id]
+        if (!snapshot || snapshot.scope !== scope) {
+          setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+          void runRefresh(null)
+          return
+        }
+        if (!showSnapshot(snapshot)) {
+          setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+          void runRefresh(null)
+          return
+        }
+        scheduleSnapshot(snapshot)
+      })
+
+      unsubscribeConnectors = storage.subscribe('connectors', (connectors) => {
+        if (!live || !isCurrent()) return
+        const authoritativeConfig = connectors?.[id]
+        const authoritativeConfigKey = authoritativeConfig
+          ? `${canonicalConnectorEventConfig(id, authoritativeConfig)}\n${runtimeKey}`
+          : null
+        // A render can observe the next config while an earlier queued
+        // storage update is still finishing. Once storage confirms that same
+        // owner, retry freshness; removed or different owners stay silent.
+        if (authoritativeConfig?.enabled && authoritativeConfigKey === connectorConfigKey) {
+          void checkFreshness()
+        }
+      })
+
+      const onVisibility = () => {
+        if (document.visibilityState === 'visible') void checkFreshness()
+      }
+      const onFocus = () => void checkFreshness()
+      document.addEventListener('visibilitychange', onVisibility)
+      window.addEventListener('focus', onFocus)
+      removeRestorationListeners = () => {
+        document.removeEventListener('visibilitychange', onVisibility)
+        window.removeEventListener('focus', onFocus)
+      }
+
+      const snapshots = await storage.get('connectorSnapshots')
+      if (!live || !isCurrent()) return
+      const snapshot = snapshots[id]
+      if (!snapshot || snapshot.scope !== scope) {
+        setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+        await runRefresh(null)
+      } else {
+        if (!showSnapshot(snapshot)) {
+          setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+          await runRefresh(null)
+          return
+        }
+        if (Date.now() - snapshot.fetchedAt >= ttlMs) {
+          await runRefresh(snapshot.data as T)
+        } else {
+          scheduleSnapshot(snapshot)
+        }
+      }
+
+      if (!live) {
+        removeRestorationListeners()
+      }
+    })()
 
     return () => {
       live = false
+      clearExpiryTimer()
       unsubscribe()
+      unsubscribeConnectors()
+      removeRestorationListeners()
     }
-    // Deps are [id, storage] ONLY: refresh/ttl are read through refs so their
-    // per-render identity change must not re-run this — the refresh fires once
-    // per mount, not per render.
-  }, [id, storage])
+  }, [id, storage, configKey, connectorConfigKey, cacheAuthorityEpoch, ttlMs])
 
-  return { data, fetchedAt, refreshing, lastError }
+  const current = state.configKey === configKey ? state : EMPTY_STATE
+  const now = Date.now()
+  return {
+    data: current.data,
+    fetchedAt: current.fetchedAt,
+    refreshing: current.refreshing,
+    lastError: current.lastError,
+    state: resourceStateOf({
+      hasData: current.data !== null,
+      fetchedAt: current.fetchedAt,
+      ttlMs,
+      pending: current.refreshing,
+      error: current.lastError,
+      now,
+    }),
+  }
 }

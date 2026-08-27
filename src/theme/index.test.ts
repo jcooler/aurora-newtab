@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { applyPanelColor } from './index'
+import { applyInkColors, applyPanelColor, type AppearanceInks } from './index'
 
 function el() {
   return document.createElement('div')
@@ -51,6 +51,14 @@ describe('applyPanelColor', () => {
     expect(e.getAttribute('data-scheme')).toBe('light')
   })
 
+  it('derives a panel accent/focus token that remains readable on bright pink', () => {
+    const e = el()
+    applyPanelColor(e, '#ff69b4')
+    expect(e.style.getPropertyValue('--panel-accent')).toBe('#1a1a1a')
+    expect(e.style.getPropertyValue('--fg')).toBe('#1a1a1a')
+    expect(e.getAttribute('data-scheme')).toBe('light')
+  })
+
   it('a light pick adapts the PANEL ink (--fg) but NEVER the CANVAS ink (--canvas-fg)', () => {
     // The photo-floating text set reads --canvas-fg/--canvas-fg-muted, which the
     // engine must leave entirely alone (Task 60 fix round): a light panel pick
@@ -69,5 +77,42 @@ describe('applyPanelColor', () => {
     expect(e.getAttribute('data-scheme')).toBe('light')
     applyPanelColor(e, '#000000')
     expect(e.hasAttribute('data-scheme')).toBe(false)
+  })
+})
+
+describe('applyInkColors (owner-approved 2026-08-18 appearance system)', () => {
+  const AUTO: AppearanceInks = { widgetText: null, photoText: null, clock: null, greeting: null, quote: null }
+
+  it('a widget-text pick overrides the panel-derived pair, muted DERIVING at the standing 0.68 alpha', () => {
+    const e = el()
+    applyPanelColor(e, '#ff69b4') // bright pink panels — never assume black
+    applyInkColors(e, { ...AUTO, widgetText: '#112233' })
+    expect(e.style.getPropertyValue('--fg')).toBe('#112233')
+    expect(e.style.getPropertyValue('--fg-muted')).toBe('#112233ad')
+  })
+
+  it('clearing the widget-text pick re-derives from the panel on the next composed apply', () => {
+    const e = el()
+    applyPanelColor(e, '#ffffff')
+    applyInkColors(e, { ...AUTO, widgetText: '#112233' })
+    expect(e.style.getPropertyValue('--fg')).toBe('#112233')
+    // The App effect always runs the pair in order: derive, then override.
+    applyPanelColor(e, '#ffffff')
+    applyInkColors(e, AUTO)
+    expect(e.style.getPropertyValue('--fg')).toBe('#1a1a1a') // white panel derives dark ink
+    expect(e.style.getPropertyValue('--fg-custom')).toBe('')
+  })
+
+  it('photo and per-element picks set their own var chains and clear deterministically', () => {
+    const e = el()
+    applyInkColors(e, { ...AUTO, photoText: '#aabbcc', clock: '#ddeeff' })
+    expect(e.style.getPropertyValue('--photo-ink')).toBe('#aabbcc')
+    expect(e.style.getPropertyValue('--photo-ink-muted')).toBe('#aabbccad')
+    expect(e.style.getPropertyValue('--photo-ink-clock')).toBe('#ddeeff')
+    expect(e.style.getPropertyValue('--photo-ink-greeting')).toBe('')
+    applyInkColors(e, AUTO)
+    expect(e.style.getPropertyValue('--photo-ink')).toBe('')
+    expect(e.style.getPropertyValue('--photo-ink-clock')).toBe('')
+    expect(e.style.getPropertyValue('--photo-ink-clock-muted')).toBe('')
   })
 })

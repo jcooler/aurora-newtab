@@ -4,37 +4,69 @@
 // knows how to walk old snapshots forward) stays the caller's job, not this
 // module's. That's why the success shape is `{ data, version }` rather than
 // an already-migrated `AuroraData`.
-import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
+import { CURRENT_VERSION, FLOW_AMBIENCE_VALUES, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { isPlainObject } from './object'
 import { isPanelColor } from './color'
-import { BLOCK_IDS, type BlockId, type Layout } from './layout/types'
+import { LAYOUT_DENSITY_PREFERENCES } from './layout/types'
+import { cleanStoredLayout, type StoredLayout } from './layout/canvasTypes'
+import { cleanLayoutsDocument, isCalendarLayoutPreferences, isLayoutsDocument, type LayoutsDocument } from './layout/namedLayouts'
+import { LegacyLayoutValidationError } from './layout/v2'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
 import { CONNECTORS } from '../services/connectors/registry'
+import { ownedOriginPatterns } from '../services/originOwnership'
+import { migrate } from './storage/migrations'
+import { isSafeQuickLinkUrl } from './quickLinkUrl'
 
 const APP_ID = 'aurora'
+export const BACKUP_REDACTION_NOTICE = 'Connector secrets and capability URLs were not included. Re-enter them after restore.' as const
+
+export interface BackupRedactions {
+  reentryRequired: ConnectorId[]
+  notice: typeof BACKUP_REDACTION_NOTICE
+}
 
 export interface BackupEnvelope {
   app: typeof APP_ID
   version: number
   exportedAt: string
-  // connectorSnapshots and apodCache are both cache, not user data —
+  redactions: BackupRedactions
+  // connectorSnapshots, attentionLedger, apodCache, and weatherAlertCache are
+  // derived state or caches, not user data —
   // deliberately excluded from every export (smaller files, and one less
   // validator surface on import: see validateBackupShape's matching
   // never-trust-it-on-import handling below). `connectors` (user-chosen
   // config) IS exported, minus anything a connector's registry descriptor
   // lists in `secretFields`.
-  data: Omit<AuroraData, 'connectorSnapshots' | 'apodCache'>
+  data: Omit<AuroraData, 'connectorSnapshots' | 'attentionLedger' | 'apodCache' | 'weatherAlertCache'>
 }
 
 export type ParseBackupResult =
-  | { ok: true; data: Record<string, unknown>; version: number }
+  | {
+      ok: true
+      data: Record<string, unknown>
+      version: number
+      exportedAt?: string
+      redactionsPresent: boolean
+      redactions: BackupRedactions
+    }
+  | { ok: false; reason: string }
+
+export type PrepareBackupResult =
+  | {
+      ok: true
+      data: AuroraData
+      exportedAt?: string
+      redactions: BackupRedactions
+      legacyReentryMayBeRequired: boolean
+      requiredOrigins: string[]
+    }
   | { ok: false; reason: string }
 
 /** Returns a new connectors map with every field a connector's descriptor
  *  lists in `secretFields` removed — the single source of truth is the
- *  registry (no local secret list to keep in sync). RSS declares none today,
- *  so this is an identity over its config; the first secret-bearing connector
- *  only adds `secretFields` to its descriptor, nothing here changes.
+ *  registry (no local secret list to keep in sync). Capability-URL connectors
+ *  can additionally use `redactForBackup` for nested or whole-list values;
+ *  RSS and Calendar both use that second-stage policy today.
  *
  *  Never mutates its input — `data.connectors` is what's actually sitting in
  *  storage and must survive an export untouched (each stripped entry is a fresh
@@ -64,13 +96,51 @@ export function stripSecrets(
   return result
 }
 
+function descriptorFor(id: ConnectorId, descriptors: readonly ConnectorDescriptor[] = CONNECTORS): ConnectorDescriptor | undefined {
+  return descriptors.find((descriptor) => descriptor.id === id)
+}
+
+function redactConnectorConfig(config: ConnectorConfig, descriptor: ConnectorDescriptor | undefined): ConnectorConfig {
+  const clone: Partial<ConnectorConfig> = { ...config }
+  for (const field of descriptor?.secretFields ?? []) delete clone[field]
+  const redacted = descriptor?.redactForBackup?.(clone as ConnectorConfig) ?? clone
+  return { ...redacted } as ConnectorConfig
+}
+
+/** Produces a new exportable data object and trusted reconnect metadata.
+ *  Neither the stored configs nor their nested config values are mutated. */
+export function redactBackupData(data: AuroraData): { data: BackupEnvelope['data']; redactions: BackupRedactions } {
+  const connectors: AuroraData['connectors'] = {}
+  for (const id of Object.keys(data.connectors) as ConnectorId[]) {
+    const config = data.connectors[id]
+    if (!config) continue
+    connectors[id] = redactConnectorConfig(config, descriptorFor(id))
+  }
+  const {
+    connectorSnapshots: _connectorSnapshots,
+    attentionLedger: _attentionLedger,
+    apodCache: _apodCache,
+    weatherAlertCache: _weatherAlertCache,
+    ...rest
+  } = data
+  const redactedData = { ...rest, connectors }
+  return {
+    data: redactedData,
+    redactions: {
+      reentryRequired: requiredReentryConnectorIds(connectors, undefined, true),
+      notice: BACKUP_REDACTION_NOTICE,
+    },
+  }
+}
+
 export function serializeBackup(data: AuroraData): string {
-  const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...rest } = data
+  const redacted = redactBackupData(data)
   const envelope: BackupEnvelope = {
     app: APP_ID,
     version: CURRENT_VERSION,
     exportedAt: new Date().toISOString(),
-    data: { ...rest, connectors: stripSecrets(data.connectors) },
+    redactions: redacted.redactions,
+    data: redacted.data,
   }
   return JSON.stringify(envelope, null, 2)
 }
@@ -105,7 +175,33 @@ export function parseBackup(raw: string): ParseBackupResult {
     return { ok: false, reason: 'That backup has no data to restore.' }
   }
 
-  return { ok: true, data: envelope.data, version }
+  const exportedAt = envelope.exportedAt
+  if (exportedAt !== undefined) {
+    if (typeof exportedAt !== 'string') return { ok: false, reason: "That backup's export date is invalid." }
+    try {
+      if (new Date(exportedAt).toISOString() !== exportedAt) return { ok: false, reason: "That backup's export date is invalid." }
+    } catch {
+      return { ok: false, reason: "That backup's export date is invalid." }
+    }
+  }
+
+  const redactionsPresent = Object.prototype.hasOwnProperty.call(envelope, 'redactions')
+  if (!redactionsPresent) {
+    return { ok: true, data: envelope.data, version, exportedAt, redactionsPresent: false, redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE } }
+  }
+  const redactions = envelope.redactions
+  if (!isValidBackupRedactions(redactions)) return { ok: false, reason: "That backup's redaction metadata is invalid." }
+  return { ok: true, data: envelope.data, version, exportedAt, redactionsPresent: true, redactions }
+}
+
+function isValidBackupRedactions(value: unknown): value is BackupRedactions {
+  if (!isPlainObject(value) || Object.keys(value).length !== 2 || value.notice !== BACKUP_REDACTION_NOTICE || !Array.isArray(value.reentryRequired)) return false
+  const seen = new Set<string>()
+  for (const id of value.reentryRequired) {
+    if (typeof id !== 'string' || !CONNECTOR_IDS.includes(id as ConnectorId) || seen.has(id)) return false
+    seen.add(id)
+  }
+  return true
 }
 
 // --- validateBackupShape -----------------------------------------------
@@ -140,6 +236,7 @@ function isOptional(v: unknown, pred: (v: unknown) => boolean): boolean {
 }
 
 const WIDGET_KEYS = Object.keys(defaults().settings.widgets) as (keyof AuroraData['settings']['widgets'])[]
+const LAYOUT_DENSITY_SET: ReadonlySet<unknown> = new Set(LAYOUT_DENSITY_PREFERENCES)
 
 // Deliberately strict on purpose (not defensive-loosened to "extra keys ok,
 // missing keys default"): requiring EVERY known widget key present as a
@@ -164,8 +261,23 @@ function isSettings(v: unknown): boolean {
     // migrate-then-validate order the retired `searchEngine` field relied on
     // (see migrations.ts step 7, and validateBackupShape's doc comment below).
     (v.panelColor === null || isPanelColor(v.panelColor)) &&
+    // The five appearance inks (v14) share panelColor's exact contract:
+    // `null` or a full `#rrggbb` hex, anything else rejects settings whole.
+    (v.widgetTextColor === null || isPanelColor(v.widgetTextColor)) &&
+    (v.photoTextColor === null || isPanelColor(v.photoTextColor)) &&
+    (v.photoClockColor === null || isPanelColor(v.photoClockColor)) &&
+    (v.photoGreetingColor === null || isPanelColor(v.photoGreetingColor)) &&
+    (v.photoQuoteColor === null || isPanelColor(v.photoQuoteColor)) &&
     isString(v.units) &&
     isBoolean(v.muted) &&
+    FLOW_AMBIENCE_VALUES.some((choice) => choice === v.flowAmbience) &&
+    isNumber(v.flowVolume) &&
+    Number.isInteger(v.flowVolume) &&
+    v.flowVolume >= 0 &&
+    v.flowVolume <= 100 &&
+    isOptional(v.briefingEnabled, isBoolean) &&
+    isBriefingSources(v.briefingSources) &&
+    LAYOUT_DENSITY_SET.has(v.layoutDensity) &&
     isWidgetToggles(v.widgets)
   )
 }
@@ -195,12 +307,45 @@ function isTodoLists(v: unknown): boolean {
 function isLinks(v: unknown): boolean {
   return (
     Array.isArray(v) &&
-    v.every((item) => isPlainObject(item) && isString(item.id) && isString(item.title) && isString(item.url))
+    v.every(
+      (item) =>
+        isPlainObject(item) &&
+        isString(item.id) &&
+        isString(item.title) &&
+        isString(item.url) &&
+        isSafeQuickLinkUrl(item.url),
+    )
   )
 }
 
 function isTimerConfig(v: unknown): boolean {
   return isPlainObject(v) && isNumber(v.workMinutes) && isNumber(v.breakMinutes)
+}
+
+function isBriefingSources(v: unknown): boolean {
+  return (
+    isPlainObject(v) &&
+    isBoolean(v.calendar) &&
+    isBoolean(v.assignments) &&
+    isBoolean(v.deployments) &&
+    isBoolean(v.rain)
+  )
+}
+
+function isTimerSession(v: unknown): boolean {
+  if (v === null) return true
+  return (
+    isPlainObject(v) &&
+    (v.mode === 'work' || v.mode === 'break') &&
+    isBoolean(v.running) &&
+    (v.endsAt === null || isNumber(v.endsAt)) &&
+    isNumber(v.remainingMs) &&
+    v.remainingMs >= 0 &&
+    isNumber(v.cycles) &&
+    Number.isInteger(v.cycles) &&
+    v.cycles >= 0 &&
+    isBoolean(v.flow)
+  )
 }
 
 function isPhotoPrefs(v: unknown): boolean {
@@ -209,13 +354,24 @@ function isPhotoPrefs(v: unknown): boolean {
     isString(v.mode) &&
     isNumber(v.index) &&
     isString(v.lastRotated) &&
+    isOptional(v.locked, isBoolean) &&
     isOptional(v.uploadedAt, isString)
   )
 }
 
 function isLocation(v: unknown): boolean {
   if (v === null) return true
-  return isPlainObject(v) && isNumber(v.lat) && isNumber(v.lon) && isString(v.label) && isBoolean(v.manual)
+  return (
+    isPlainObject(v) &&
+    isNumber(v.lat) &&
+    v.lat >= -90 &&
+    v.lat <= 90 &&
+    isNumber(v.lon) &&
+    v.lon >= -180 &&
+    v.lon <= 180 &&
+    isString(v.label) &&
+    isBoolean(v.manual)
+  )
 }
 
 function isCurrentWeather(v: unknown): boolean {
@@ -241,6 +397,43 @@ function isHourlyPoint(v: unknown): boolean {
   )
 }
 
+const POLLEN_SPECIES = ['alder', 'birch', 'grass', 'mugwort', 'olive', 'ragweed'] as const
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value).sort()
+  const expected = [...keys].sort()
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index])
+}
+
+function isWeatherPollen(v: unknown): boolean {
+  if (!isPlainObject(v)) return false
+  if (v.status === 'unavailable') return hasExactKeys(v, ['status'])
+  if (v.status !== 'available' || !hasExactKeys(v, ['status', 'readings']) || !Array.isArray(v.readings) || v.readings.length === 0) return false
+
+  let previousIndex = -1
+  for (const reading of v.readings) {
+    if (!isPlainObject(reading) || !hasExactKeys(reading, ['species', 'grainsPerCubicMeter'])) return false
+    const speciesIndex = POLLEN_SPECIES.indexOf(reading.species as typeof POLLEN_SPECIES[number])
+    if (speciesIndex <= previousIndex || !isNumber(reading.grainsPerCubicMeter) || reading.grainsPerCubicMeter < 0) return false
+    previousIndex = speciesIndex
+  }
+  return true
+}
+
+function isWeatherEnvironment(v: unknown): boolean {
+  if (!isPlainObject(v) || !hasExactKeys(v, ['requestIdentity', 'fetchedAt', 'status', 'usAqi', 'uvIndex', 'pollen'])) return false
+  if (!isString(v.requestIdentity) || !isNumber(v.fetchedAt) || v.fetchedAt < 0 || !isWeatherPollen(v.pollen)) return false
+
+  if (v.status === 'unavailable') {
+    return v.usAqi === null && v.uvIndex === null && isPlainObject(v.pollen) && v.pollen.status === 'unavailable'
+  }
+  return (
+    v.status === 'available' &&
+    (v.usAqi === null || (isNumber(v.usAqi) && v.usAqi >= 0)) &&
+    (v.uvIndex === null || (isNumber(v.uvIndex) && v.uvIndex >= 0))
+  )
+}
+
 function isWeatherCache(v: unknown): boolean {
   if (v === null) return true
   if (!isPlainObject(v)) return false
@@ -250,8 +443,10 @@ function isWeatherCache(v: unknown): boolean {
     v.hourly.every(isHourlyPoint) &&
     isNumber(v.fetchedAt) &&
     isString(v.locationLabel) &&
+    isOptional(v.requestIdentity, isString) &&
     isOptional(v.sunriseISO, isString) &&
-    isOptional(v.sunsetISO, isString)
+    isOptional(v.sunsetISO, isString) &&
+    isOptional(v.environment, isWeatherEnvironment)
   )
 }
 
@@ -270,16 +465,13 @@ function isCountdowns(v: unknown): boolean {
   )
 }
 
-function isBlockPos(v: unknown): boolean {
-  return isPlainObject(v) && isNumber(v.x) && isNumber(v.y)
-}
-
-// Structural only: every entry must be a finite {x,y} pair. Unknown block ids
-// (keys outside BLOCK_IDS) are NOT rejected here — they're silently dropped
-// later in the cleaned-assembly step below, matching the unknown-top-level-key
-// convention rather than failing the whole import.
 function isLayout(v: unknown): boolean {
-  return isPlainObject(v) && Object.values(v).every(isBlockPos)
+  try {
+    cleanLayout(v)
+    return true
+  } catch {
+    return false
+  }
 }
 
 // Structural only, same restraint as every other validator here: just
@@ -303,12 +495,13 @@ function isHabits(v: unknown): boolean {
   return Array.isArray(v)
 }
 
-const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (v: unknown) => boolean> = {
+const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'attentionLedger' | 'apodCache' | 'weatherAlertCache'>, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
   todoLists: isTodoLists,
   links: isLinks,
   timerConfig: isTimerConfig,
+  timerSession: isTimerSession,
   photoPrefs: isPhotoPrefs,
   location: isLocation,
   weatherCache: isWeatherCache,
@@ -316,20 +509,26 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (
   worldClocks: isWorldClocks,
   countdowns: isCountdowns,
   layout: isLayout,
+  // null = never explicitly saved (the pre-v13 and fresh-install state).
+  // Deep cleaning (unknown-widget-id dropping) is validateBackupShape's
+  // cleanLayoutsKey branch.
+  layouts: (v) => v === null || isLayoutsDocument(v, { invalidStack: 'reject' }),
+  calendarPreferences: isCalendarLayoutPreferences,
+  calendarWeekStart: (v) => v === 'locale' || v === 'sunday' || v === 'monday',
   connectors: isConnectors,
   habits: isHabits,
 }
 
-const BLOCK_ID_SET: ReadonlySet<string> = new Set(BLOCK_IDS)
+/** Strictly validates V1/V2/V3 known members while dropping future ids. */
+function cleanLayout(v: unknown): StoredLayout {
+  return cleanStoredLayout(v)
+}
 
-/** Drops any layout entry whose key isn't a known BlockId. */
-function cleanLayout(v: unknown): Layout {
-  const layout = v as Layout
-  const cleaned: Layout = {}
-  for (const id of Object.keys(layout) as BlockId[]) {
-    if (BLOCK_ID_SET.has(id)) cleaned[id] = layout[id]
-  }
-  return cleaned
+/** Strict on known members, drops unknown widget ids — the same convention
+ *  as cleanLayout/cleanConnectors. `null` (never explicitly saved) passes
+ *  through untouched. */
+function cleanLayoutsKey(v: unknown): LayoutsDocument | null {
+  return v === null ? null : cleanLayoutsDocument(v, { invalidStack: 'reject' })
 }
 
 const CONNECTOR_ID_SET: ReadonlySet<string> = new Set(CONNECTOR_IDS)
@@ -388,9 +587,10 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
   const source = data as unknown as Record<string, unknown>
   const cleaned = {} as Record<string, unknown>
   for (const key of DATA_KEYS) {
-    // connectorSnapshots and apodCache are both cache, not user data (see
-    // serializeBackup's doc comment): neither is ever trusted from an
-    // import, both are always reset regardless of what — if anything — is
+    // connectorSnapshots, attentionLedger, apodCache, and weatherAlertCache
+    // are caches or device-local derived state (see serializeBackup's doc
+    // comment): none is ever trusted from an import; each is reset regardless
+    // of what is present for the key.
     // present for the key. No validator needed for either; they're simply
     // never read. Their "empty" values differ by shape: connectorSnapshots
     // is a Partial<Record<...>> (empty object), apodCache is a nullable
@@ -399,7 +599,15 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
       cleaned[key] = {}
       continue
     }
+    if (key === 'attentionLedger') {
+      cleaned[key] = { version: 1, sources: {} }
+      continue
+    }
     if (key === 'apodCache') {
+      cleaned[key] = null
+      continue
+    }
+    if (key === 'weatherAlertCache') {
       cleaned[key] = null
       continue
     }
@@ -417,11 +625,101 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
     cleaned[key] =
       key === 'layout'
         ? cleanLayout(value)
-        : key === 'connectors'
-          ? cleanConnectors(value)
-          : key === 'habits'
-            ? cleanHabits(value)
-            : value
+        : key === 'layouts'
+          ? cleanLayoutsKey(value)
+          : key === 'connectors'
+            ? cleanConnectors(value)
+            : key === 'habits'
+              ? cleanHabits(value)
+              : value
   }
   return { ok: true, data: cleaned as unknown as AuroraData }
+}
+
+function hasNonEmptyString(config: ConnectorConfig, field: string): boolean {
+  const value = Reflect.get(config, field)
+  return typeof value === 'string' && value !== ''
+}
+
+function reentryIsRequired(descriptor: ConnectorDescriptor, config: ConnectorConfig): boolean {
+  try {
+    if (descriptor.backupReentryRequired) return descriptor.backupReentryRequired(config) === true
+    if (!descriptor.identityField || descriptor.secretFields.length === 0) return false
+    return hasNonEmptyString(config, descriptor.identityField) && descriptor.secretFields.some((field) => !hasNonEmptyString(config, field))
+  } catch {
+    return false
+  }
+}
+
+function isAmbiguousLegacyReentry(descriptor: ConnectorDescriptor, config: ConnectorConfig): boolean {
+  return !descriptor.identityField && descriptor.secretFields.length > 0 && reentryIsRequired(descriptor, config)
+}
+
+/** Derives only registry-trusted reconnect ids. Legacy envelopes without
+ * metadata may identify the unambiguous identity-plus-missing-token shape,
+ * but never name a no-identity capability connector from an ambiguous shell. */
+export function requiredReentryConnectorIds(
+  connectors: AuroraData['connectors'],
+  declaredIds?: readonly ConnectorId[],
+  metadataPresent = false,
+): ConnectorId[] {
+  const detected: ConnectorId[] = []
+  for (const descriptor of CONNECTORS) {
+    const config = connectors[descriptor.id]
+    if (!config) continue
+    const required = metadataPresent
+      ? reentryIsRequired(descriptor, config)
+      : Boolean(descriptor.identityField) && reentryIsRequired(descriptor, config)
+    if (required) detected.push(descriptor.id)
+  }
+
+  if (metadataPresent && declaredIds) {
+    for (const id of declaredIds) {
+      if (!detected.includes(id)) throw new Error('inconsistent redaction metadata')
+    }
+  }
+  return detected
+}
+
+export function prepareBackup(raw: string): PrepareBackupResult {
+  const parsed = parseBackup(raw)
+  if (!parsed.ok) return parsed
+
+  let migrated: AuroraData
+  try {
+    migrated = migrate(parsed.data, parsed.version)
+  } catch (error) {
+    if (error instanceof LegacyLayoutValidationError) {
+      return { ok: false, reason: 'That backup\'s "layout" data is invalid.' }
+    }
+    return { ok: false, reason: 'That backup cannot be migrated by this Aurora version.' }
+  }
+
+  const shape = validateBackupShape(migrated)
+  if (!shape.ok) return shape
+
+  let requiredIds: ConnectorId[]
+  try {
+    requiredIds = requiredReentryConnectorIds(
+      shape.data.connectors,
+      parsed.redactionsPresent ? parsed.redactions.reentryRequired : undefined,
+      parsed.redactionsPresent,
+    )
+  } catch {
+    return { ok: false, reason: "That backup's redaction metadata is invalid." }
+  }
+
+  const legacyReentryMayBeRequired = !parsed.redactionsPresent && CONNECTORS.some((descriptor) => {
+    const config = shape.data.connectors[descriptor.id]
+    return config ? isAmbiguousLegacyReentry(descriptor, config) : false
+  })
+
+  return {
+    ok: true,
+    data: shape.data,
+    exportedAt: parsed.exportedAt,
+    redactions: { reentryRequired: requiredIds, notice: BACKUP_REDACTION_NOTICE },
+    legacyReentryMayBeRequired,
+    requiredOrigins: ownedOriginPatterns({ connectors: shape.data.connectors, photoPrefs: shape.data.photoPrefs }),
+  }
 }

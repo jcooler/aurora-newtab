@@ -8,6 +8,7 @@ import { defaults, type StoredLocation } from '../../../lib/storage/schema'
 import { formatClock } from '../../../lib/clock'
 import { sunTimes } from '../../../lib/sun'
 import SunWidget from './SunWidget'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // New York — the same fixture sun.test.ts already proves against the NOAA/
 // USNO table (±2 minutes). Reusing it here doesn't re-verify the astronomy
@@ -36,10 +37,14 @@ async function renderWithSun({
   widgetOn = true,
   location = NYC as StoredLocation | null,
   use24Hour = false,
+  docked = false,
+  canvasSize = 'compact',
 }: {
   widgetOn?: boolean
   location?: StoredLocation | null
   use24Hour?: boolean
+  docked?: boolean
+  canvasSize?: CanvasSize
 } = {}): Promise<{ storage: AuroraStorage; container: HTMLElement }> {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -51,7 +56,7 @@ async function renderWithSun({
   await storage.set('location', location)
   const { container } = render(
     <StorageProvider storage={storage}>
-      <SunWidget />
+      <SunWidget docked={docked} canvasSize={canvasSize} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -59,6 +64,38 @@ async function renderWithSun({
 }
 
 describe('SunWidget', () => {
+  it.each(['compact', 'standard'] as const)('renders the %s sun facts in the exact ready TierFrame', async (canvasSize) => {
+    vi.setSystemTime(NYC_SOLSTICE)
+    const { container } = await renderWithSun({ canvasSize })
+    const frame = container.querySelector<HTMLElement>('section[aria-label="Sun times"]')!
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.classList.contains(`tier-frame--${canvasSize}`)).toBe(true)
+    expect(frame.className).not.toContain('overflow-y')
+    expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+  })
+
+  it('uses distinct sunrise and sunset glyphs in Standard', async () => {
+    vi.setSystemTime(NYC_SOLSTICE)
+    const { container } = await renderWithSun({ canvasSize: 'standard' })
+    const sunrise = container.querySelector('[data-sunrise-glyph]')
+    const sunset = container.querySelector('[data-sunset-glyph]')
+    expect(sunrise).toBeTruthy()
+    expect(sunset).toBeTruthy()
+    expect(sunrise?.textContent).not.toBe(sunset?.textContent)
+  })
+
+  it('Docked renders one bare dense line, smaller than the compact card (batch-2 owner review)', async () => {
+    vi.setSystemTime(NYC_SOLSTICE)
+    const { container } = await renderWithSun({ docked: true })
+    const line = container.querySelector('[data-dock-line]')!
+    expect(line).toBeTruthy()
+    const times = sunTimes(NYC_SOLSTICE, NYC.lat, NYC.lon)!
+    expect(line.textContent).toContain(`☀ ${formatClock(times.sunrise, false)} → ${formatClock(times.sunset, false)}`)
+    // The dock line is bare — no padded panel card around it.
+    expect(container.querySelector('section')).toBeNull()
+  })
+
   // Same intervalSpy discipline as WorldClocks.test.tsx: this is the actual
   // proof the gate lives BEFORE useNow, not just an inference from "renders
   // nothing".
@@ -96,7 +133,15 @@ describe('SunWidget', () => {
   it('toggle on with a location set renders the section and starts the interval', async () => {
     const { container } = await renderWithSun()
     expect(container.querySelector('section[aria-label="Sun times"]')).toBeTruthy()
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000)
+    expect(intervalSpy).not.toHaveBeenCalled()
+  })
+
+  it('recomputes sun times when the local day changes in an open tab', async () => {
+    const { container } = await renderWithSun()
+    const before = container.querySelector('section[aria-label="Sun times"]')!.textContent
+    vi.setSystemTime(new Date(2026, 8, 21, 12, 0, 0))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(container.querySelector('section[aria-label="Sun times"]')!.textContent).not.toBe(before)
   })
 
   it('line text matches "☀ {rise} → {set} · golden hour {gh}" exactly, computed via the real pipeline', async () => {
@@ -105,6 +150,7 @@ describe('SunWidget', () => {
     const expected = `☀ ${formatClock(times.sunrise, false)} → ${formatClock(times.sunset, false)} · golden hour ${formatClock(times.goldenHour!, false)}`
     const section = container.querySelector('section[aria-label="Sun times"]')!
     expect(section.textContent).toBe(expected)
+    expect(section.querySelector('[data-sun-golden]')?.textContent).toContain('golden hour')
   })
 
   it('use24Hour is respected both ways', async () => {

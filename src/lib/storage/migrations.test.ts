@@ -1,10 +1,52 @@
 import { describe, expect, it } from 'vitest'
-import { defaults } from './schema'
-import { migrate, type Migration } from './migrations'
+import {
+  LEGACY_LAYOUT_VALIDATION_MESSAGE,
+  LegacyLayoutValidationError,
+  layoutV2FromLegacy,
+} from '../layout/v2'
+import { CURRENT_VERSION, defaults, type AuroraData } from './schema'
+import { migrate, migrations, type Migration } from './migrations'
+import type { LayoutV2 } from '../layout/types'
+
+const EMPTY_MIGRATED_LAYOUT = {
+  version: 2,
+  profiles: { compact: {}, standard: {}, display: {}, ultrawide: {} },
+  legacy: {},
+} as const
 
 describe('migrate', () => {
+  it('defaults every explainable Greeting helper source on with an empty device-local ledger', () => {
+    const data = defaults() as unknown as Record<string, unknown>
+    const settings = data.settings as Record<string, unknown>
+
+    expect(settings.briefingSources).toEqual({
+      calendar: true,
+      assignments: true,
+      deployments: true,
+      rain: true,
+    })
+    expect(data.attentionLedger).toEqual({ version: 1, sources: {} })
+  })
+
+  it('migrates v18 Settings without replacing existing values or partial source choices', () => {
+    const settings = { ...defaults().settings, name: 'Jon' } as unknown as Record<string, unknown>
+    settings.briefingSources = { assignments: false }
+
+    const out = migrate({ ...defaults(), settings }, 18) as unknown as {
+      settings: Record<string, unknown>
+    }
+
+    expect(out.settings.name).toBe('Jon')
+    expect(out.settings.briefingSources).toEqual({
+      calendar: true,
+      assignments: false,
+      deployments: true,
+      rain: true,
+    })
+  })
+
   it('fills an empty snapshot with defaults', () => {
-    expect(migrate({}, 1)).toEqual(defaults())
+    expect(migrate({}, 1)).toEqual({ ...defaults(), layout: EMPTY_MIGRATED_LAYOUT })
   })
 
   it('preserves stored values over defaults', () => {
@@ -19,7 +61,9 @@ describe('migrate', () => {
       // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2]
       // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
       // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7,
-      // registry[7] upgrades v7 -> v8, registry[8] upgrades v8 -> v9
+      // registry[7] upgrades v7 -> v8, registry[8] upgrades v8 -> v9,
+      // registry[9] upgrades v9 -> v10, registry[10] upgrades v10 -> v11,
+      // registry[11] upgrades v11 -> v12, registry[12] upgrades v12 -> v13
       // (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
@@ -57,9 +101,55 @@ describe('migrate', () => {
         calls.push(8)
         return data
       },
+      9: (data) => {
+        calls.push(9)
+        return data
+      },
+      10: (data) => {
+        calls.push(10)
+        return data
+      },
+      11: (data) => {
+        calls.push(11)
+        return data
+      },
+      12: (data) => {
+        calls.push(12)
+        return data
+      },
+      // registry[13] upgrades v13 -> v14
+      13: (data) => {
+        calls.push(13)
+        return data
+      },
+      // registry[14] upgrades v14 -> v15
+      14: (data) => {
+        calls.push(14)
+        return data
+      },
+      // registry[15] upgrades v15 -> v16
+      15: (data) => {
+        calls.push(15)
+        return data
+      },
+      // registry[16] upgrades v16 -> v17
+      16: (data) => {
+        calls.push(16)
+        return data
+      },
+      // registry[17] upgrades v17 -> v18
+      17: (data) => {
+        calls.push(17)
+        return data
+      },
+      // registry[18] upgrades v18 -> v19 (CURRENT_VERSION)
+      18: (data) => {
+        calls.push(18)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -122,12 +212,12 @@ describe('v1 -> v2', () => {
 describe('v2 -> v3', () => {
   it('backfills an empty layout map', () => {
     const out = migrate({ settings: defaults().settings }, 2)
-    expect(out.layout).toEqual({})
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT)
   })
   it('a v1 snapshot chains through both migrations', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 still ran
-    expect(out.layout).toEqual({}) // v2->v3 ran after it
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran after it
   })
 })
 
@@ -171,7 +261,7 @@ describe('v3 -> v4', () => {
     const out = migrate({ settings: v1Settings }, 1)
     expect(out.settings.name).toBe('Jon') // v1->v2 preserved it
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 backfilled it
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran last
   })
 
@@ -211,7 +301,7 @@ describe('v4 -> v5', () => {
   it('a v1 snapshot chains through all four migrations: layout and connectors backfilled, searchEngine gone', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.connectorSnapshots).toEqual({}) // v4->v5 ran
@@ -239,7 +329,7 @@ describe('v5 -> v6', () => {
   it('a v1 snapshot chains through all five migrations, ending with habits present and every v5-era key intact', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.connectorSnapshots).toEqual({}) // v4->v5 ran
@@ -309,7 +399,7 @@ describe('v6 -> v7', () => {
   it('a v1 snapshot chains through all six migrations, ending with habits AND monthCal present and every v6-era key intact', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.habits).toEqual([]) // v5->v6 ran
@@ -377,7 +467,7 @@ describe('v7 -> v8', () => {
     const out = migrate({ settings: v1Settings }, 1)
     expect(out.settings.name).toBe('Jon') // v1->v2 preserved it
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 backfilled it
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.habits).toEqual([]) // v5->v6 ran
@@ -443,7 +533,7 @@ describe('v8 -> v9', () => {
   it('a v1 snapshot chains through all eight migrations, ending with sun AND moon present and every v8-era key intact', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.habits).toEqual([]) // v5->v6 ran
@@ -470,3 +560,385 @@ describe('v8 -> v9', () => {
     expect(out.settings.widgets.moon).toBe(false) // backfilled default (v8->v9 step)
   })
 })
+
+describe('v9 -> v10', () => {
+  it('maps a populated legacy layout into exact preserved legacy data and deterministic all-profile overrides', () => {
+    const legacy = {
+      weather: { x: 12, y: 20 },
+      focus: { x: 50, y: 50 },
+      github: { x: 88, y: 30 },
+      timer: { x: 50, y: 96 },
+    }
+    const snapshot = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Keep me' },
+      layout: legacy,
+    }
+    const before = structuredClone(snapshot)
+
+    const out = migrate(snapshot, 9)
+
+    const expectedProfile = {
+      weather: { zone: 'day', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+      focus: { zone: 'now', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+      github: { zone: 'pulse', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+      timer: { zone: 'dock', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+    }
+    expect(out.layout).toEqual({
+      version: 2,
+      profiles: {
+        compact: expectedProfile,
+        standard: expectedProfile,
+        display: expectedProfile,
+        ultrawide: expectedProfile,
+      },
+      legacy,
+    })
+    expect(out.settings.name).toBe('Keep me')
+    expect(snapshot).toEqual(before)
+  })
+
+  it('keeps migration deterministic across repeat runs and legacy insertion order', () => {
+    const first = migrate({ layout: {
+      weather: { x: 10, y: 20 },
+      sun: { x: 10, y: 20 },
+      clock: { x: 50, y: 50 },
+    } }, 9).layout as LayoutV2
+    const reordered = migrate({ layout: {
+      clock: { x: 50, y: 50 },
+      sun: { x: 10, y: 20 },
+      weather: { x: 10, y: 20 },
+    } }, 9).layout as LayoutV2
+
+    expect(reordered).toEqual(first)
+    expect(migrate({ layout: first.legacy }, 9).layout).toEqual(first)
+  })
+
+  it.each([
+    ['primitive', 'oops'],
+    ['array', []],
+    ['malformed known row', { weather: { x: 10 } }],
+    ['non-finite known x', { weather: { x: Number.NaN, y: 20 } }],
+    ['non-finite known y', { weather: { x: 10, y: Number.POSITIVE_INFINITY } }],
+  ])('rejects %s with the typed fixed-message validation error', (_label, layout) => {
+    const error = (() => {
+      try {
+        migrate({ layout }, 9)
+      } catch (caught) {
+        return caught
+      }
+      return undefined
+    })()
+
+    expect(error).toBeInstanceOf(LegacyLayoutValidationError)
+    expect((error as Error).message).toBe(LEGACY_LAYOUT_VALIDATION_MESSAGE)
+  })
+
+  it('drops valid or malformed unknown IDs only after validating every known row', () => {
+    expect((migrate({ layout: {
+      weather: { x: 10, y: 20 },
+      unknownValid: { x: 1, y: 2 },
+      unknownMalformed: 'ignored',
+    } }, 9).layout as LayoutV2).legacy).toEqual({ weather: { x: 10, y: 20 } })
+
+    expect(() => migrate({ layout: {
+      weather: { x: 'bad', y: 20 },
+      unknownMalformed: 'ignored',
+    } }, 9)).toThrow(LegacyLayoutValidationError)
+  })
+
+  it('requires the v9 step before producing a v10 result', () => {
+    const registry = { ...migrationsWithoutNine() }
+    expect(() => migrate({ layout: {} }, 9, registry)).toThrow('No migration from schema v9')
+  })
+})
+
+describe('v10 -> v11', () => {
+  function v10Settings(extra: Record<string, unknown> = {}) {
+    const { layoutDensity: _layoutDensity, ...settings } = defaults().settings as ReturnType<typeof defaults>['settings'] & {
+      layoutDensity?: unknown
+    }
+    return { ...settings, ...extra }
+  }
+
+  it('adds Auto Fit only to a well-formed v10 Settings object (plus the v14 ink backfill downstream)', () => {
+    const settings = v10Settings({ name: 'Keep me', muted: true })
+    const out = migrate({ settings }, 10)
+
+    expect(CURRENT_VERSION).toBe(19)
+    expect(out.settings).toEqual({
+      ...settings,
+      layoutDensity: 'auto',
+      widgetTextColor: null,
+      photoTextColor: null,
+      photoClockColor: null,
+      photoGreetingColor: null,
+      photoQuoteColor: null,
+      flowAmbience: 'off',
+    })
+  })
+
+  it.each([
+    ['null settings', null],
+    ['string settings', 'oops'],
+    ['array settings', []],
+  ])('does not repair malformed v10 %s', (_label, settings) => {
+    const out = migrate({ settings }, 10) as unknown as Record<string, unknown>
+
+    expect(out.settings).toEqual(settings)
+  })
+
+  it('keeps missing v10 settings explicitly invalid instead of defaulting them', () => {
+    const out = migrate({}, 10) as unknown as Record<string, unknown>
+
+    expect(Object.hasOwn(out, 'settings')).toBe(true)
+    expect(out.settings).toBeUndefined()
+  })
+
+  it('does not normalize an invalid explicit v10 density', () => {
+    const settings = v10Settings({ layoutDensity: 'dense' })
+    const out = migrate({ settings }, 10)
+
+    expect((out.settings as unknown as Record<string, unknown>).layoutDensity).toBe('dense')
+  })
+
+  it('preserves layout, legacy coordinates, connectors, unknown stores, and every Settings sibling', () => {
+    const layout = layoutV2FromLegacy({ clock: { x: 12, y: 34 } })
+    const connectors = { github: { enabled: true, token: 'local-only', username: 'octocat' } }
+    const settings = v10Settings({ name: 'Jon', panelColor: '#123456' })
+    const unknownStore = { future: ['keep'] }
+    const out = migrate({ settings, layout, connectors, unknownStore }, 10) as AuroraData & {
+      unknownStore: typeof unknownStore
+    }
+
+    expect(out.settings).toEqual({ ...settings, layoutDensity: 'auto' })
+    expect(out.layout).toEqual(layout)
+    expect((out.layout as LayoutV2).legacy).toEqual({ clock: { x: 12, y: 34 } })
+    expect(out.connectors).toEqual(connectors)
+    expect(out.unknownStore).toEqual(unknownStore)
+  })
+
+  it.each(['auto', 'compact', 'balanced', 'spacious'] as const)(
+    'round-trips valid current-v11 density %s without mutation',
+    (layoutDensity) => {
+      const snapshot = {
+        ...defaults(),
+        settings: { ...defaults().settings, name: 'Current', layoutDensity },
+      }
+      const before = structuredClone(snapshot)
+
+      expect(migrate(snapshot, 11)).toEqual(before)
+      expect(snapshot).toEqual(before)
+    },
+  )
+
+  it('is idempotent after a v10 migration and older snapshots run sequentially through v11', () => {
+    const v10 = migrate({ settings: v10Settings(), layout: { version: 2, profiles: {} } }, 10)
+    expect(migrate(v10 as unknown as Record<string, unknown>, 11)).toEqual(v10)
+
+    const fromV9 = migrate({ settings: v10Settings(), layout: { clock: { x: 50, y: 50 } } }, 9)
+    expect(fromV9.settings.layoutDensity).toBe('auto')
+    expect((fromV9.layout as LayoutV2).version).toBe(2)
+    expect((fromV9.layout as LayoutV2).legacy).toEqual({ clock: { x: 50, y: 50 } })
+  })
+})
+
+describe('v11 -> v12', () => {
+  it.each([
+    ['V1', { clock: { x: 12.25, y: 34.75 } }],
+    ['V2', { version: 2, profiles: {}, legacy: { focus: { x: 50, y: 60 } } }],
+  ])('preserves the exact %s layout value and every sibling', (_label, layout) => {
+    const snapshot = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Keep me' },
+      layout,
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
+
+    expect(CURRENT_VERSION).toBe(19)
+    expect(out.layout).toEqual(layout)
+    // The v13->v14 ink backfill and v16->v17 Flow preference are the only
+    // Settings deltas on the way up.
+    expect(out.settings).toEqual({
+      ...snapshot.settings,
+      widgetTextColor: null,
+      photoTextColor: null,
+      photoClockColor: null,
+      photoGreetingColor: null,
+      photoQuoteColor: null,
+      flowAmbience: 'off',
+    })
+    expect(out.unknownStore).toEqual(snapshot.unknownStore)
+    expect(snapshot).toEqual(before)
+  })
+
+  it('requires the identity v11 migration step', () => {
+    expect(() => migrate({ layout: { version: 2, profiles: {} } }, 11, {}))
+      .toThrow('No migration from schema v11')
+  })
+})
+
+describe('v12 -> v13', () => {
+  it('is the identity: layouts arrives as null via the default merge only', () => {
+    const snapshot = { ...defaults(), settings: { ...defaults().settings, name: 'Kept' } } as Record<string, unknown>
+    delete snapshot.layouts
+    const migrated = migrate(snapshot, 12)
+    expect(migrated.layouts).toBeNull()
+    expect(migrated.settings.name).toBe('Kept')
+  })
+
+  it('a stored layouts document survives migrate untouched', () => {
+    const document = {
+      version: 1,
+      activeLayoutId: 'a',
+      layouts: [{ id: 'a', name: 'Desktop', widgets: {} }],
+    }
+    const migrated = migrate({ ...defaults(), layouts: document }, 12)
+    expect(migrated.layouts).toEqual(document)
+  })
+
+  it('a v9 legacy snapshot still migrates to the current version with layouts null', () => {
+    const migrated = migrate({ ...defaults(), layout: { clock: { x: 50, y: 20 } } }, 9)
+    expect(migrated.layouts).toBeNull()
+  })
+
+  // Guard for index.ts's METADATA_ONLY_FLOOR (18, mirrored here by value):
+  // live init stamps only `aurora:version` for any stored version >= that
+  // floor, which is safe ONLY while every migration step in the range is the
+  // identity. A future packet that adds a NON-identity step without raising
+  // the floor would silently stamp stores whose data was never migrated —
+  // this test makes that mistake fail loudly instead (review fix I1). The
+  // floor moved 11 -> 14 with the v14 ink backfill, then 14 -> 16 for the
+  // browser-widget migration, 16 -> 17 for Flow ambience, and 17 -> 18 for
+  // persisted Flow volume. The probe
+  // deliberately omits nested fields so a wrongly-low floor is caught.
+  it('every migration step from the metadata-only floor on is the identity', () => {
+    const settings = { ...defaults().settings, name: 'Floor probe' } as Record<string, unknown>
+    delete settings.widgetTextColor
+    const probe = {
+      ...defaults(),
+      settings,
+      layout: { clock: { x: 12.25, y: 34.75 } },
+      unknownStore: { future: ['keep'] },
+    }
+    // The floor itself: migrations[13] is NOT the identity for a pre-ink
+    // snapshot — the documented reason the floor sits at 14.
+    expect(migrations[13](structuredClone(probe))).not.toEqual(probe)
+    // v14 -> v15 adds only the top-level timerSession key supplied by the
+    // defaults merge, so the registry step itself remains the identity.
+    expect(migrations[14](structuredClone(probe))).toEqual(probe)
+    // v15 -> v16 is NOT identity: Program F adds four nested widget toggles.
+    const preBrowser = structuredClone(probe)
+    delete (preBrowser.settings.widgets as Record<string, unknown>).readingList
+    expect(migrations[15](structuredClone(preBrowser))).not.toEqual(preBrowser)
+    const preAmbience = structuredClone(probe)
+    delete preAmbience.settings.flowAmbience
+    expect(migrations[16](structuredClone(preAmbience))).not.toEqual(preAmbience)
+    const preVolume = structuredClone(probe)
+    delete preVolume.settings.flowVolume
+    expect(migrations[17](structuredClone(preVolume))).not.toEqual(preVolume)
+    for (let v = 18; v < CURRENT_VERSION; v++) {
+      const before = structuredClone(probe)
+      const out = migrations[v](structuredClone(probe))
+      expect(out, `migrations[${v}] must be the identity`).toEqual(before)
+    }
+  })
+})
+
+describe('v14 -> v15', () => {
+  it('keeps the migration step identity and materializes timerSession only through defaults', () => {
+    const snapshot = { ...defaults(), unknownStore: { future: ['keep'] } } as Record<string, unknown>
+    delete snapshot.timerSession
+    const before = structuredClone(snapshot)
+
+    expect(migrations[14](structuredClone(snapshot))).toEqual(before)
+    const migrated = migrate(snapshot, 14) as AuroraData & { unknownStore: { future: string[] } }
+    expect(migrated.timerSession).toBeNull()
+    expect(migrated.layout).toEqual(before.layout)
+    expect(migrated.layouts).toEqual(before.layouts)
+    expect(migrated.unknownStore).toEqual(before.unknownStore)
+    expect(snapshot).toEqual(before)
+  })
+})
+
+describe('v15 -> v16', () => {
+  it('backfills exactly the four browser-native toggles and preserves every sibling', () => {
+    const current = defaults()
+    const widgets = { ...current.settings.widgets } as Record<string, boolean>
+    for (const key of ['readingList', 'recentlyClosed', 'downloads', 'tabGroups']) delete widgets[key]
+    const snapshot = {
+      ...current,
+      settings: { ...current.settings, name: 'Keep me', widgets },
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const migrated = migrate(snapshot, 15) as AuroraData & { unknownStore: { future: string[] } }
+
+    expect(migrated.settings.widgets).toEqual({
+      ...widgets,
+      readingList: false,
+      recentlyClosed: false,
+      downloads: false,
+      tabGroups: false,
+    })
+    expect(migrated.settings.name).toBe('Keep me')
+    expect(migrated.layout).toEqual(before.layout)
+    expect(migrated.layouts).toEqual(before.layouts)
+    expect(migrated.unknownStore).toEqual(before.unknownStore)
+    expect(snapshot).toEqual(before)
+  })
+
+  it('strictly rejects a malformed nested widget map instead of stamping v16', () => {
+    const snapshot = { ...defaults(), settings: { ...defaults().settings, widgets: 'oops' } }
+    expect(() => migrate(snapshot as unknown as Record<string, unknown>, 15)).toThrow(/settings\.widgets/i)
+  })
+})
+
+describe('v16 -> v17', () => {
+  it('backfills Flow ambience off while preserving every Settings sibling', () => {
+    const settings = { ...defaults().settings, name: 'Keep me' } as Record<string, unknown>
+    delete settings.flowAmbience
+    const snapshot = {
+      ...defaults(),
+      settings,
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const migrated = migrate(snapshot, 16) as AuroraData & { unknownStore: { future: string[] } }
+
+    expect(migrated.settings.flowAmbience).toBe('off')
+    expect(migrated.settings.name).toBe('Keep me')
+    expect(migrated.unknownStore).toEqual(before.unknownStore)
+    expect(snapshot).toEqual(before)
+  })
+})
+
+describe('v17 -> v18', () => {
+  it('backfills a quiet Flow volume while preserving the chosen ambience and every sibling', () => {
+    const settings = { ...defaults().settings, name: 'Keep me', flowAmbience: 'creek' } as Record<string, unknown>
+    delete settings.flowVolume
+    const snapshot = {
+      ...defaults(),
+      settings,
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const migrated = migrate(snapshot, 17) as AuroraData & { unknownStore: { future: string[] } }
+
+    expect(migrated.settings.flowVolume).toBe(15)
+    expect(migrated.settings.flowAmbience).toBe('creek')
+    expect(migrated.settings.name).toBe('Keep me')
+    expect(migrated.unknownStore).toEqual(before.unknownStore)
+    expect(snapshot).toEqual(before)
+  })
+})
+
+function migrationsWithoutNine(): Record<number, Migration> {
+  return {}
+}

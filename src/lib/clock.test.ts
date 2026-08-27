@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatClock, greetingFor } from './clock'
+import { formatClock, formatDayContext, greetingFor } from './clock'
 
 describe('formatClock', () => {
   const at = (h: number, m: number) => new Date(2026, 6, 26, h, m)
@@ -23,5 +23,17 @@ describe('greetingFor', () => {
   })
   it('includes the name when set', () => {
     expect(greetingFor(6, 'Jon')).toBe('Good morning, Jon.')
+  })
+})
+
+describe('formatDayContext', () => {
+  const date = new Date(2026, 7, 16, 11, 33)
+
+  it('formats a compact responsive date label', () => {
+    expect(formatDayContext(date, 'compact')).toBe('Sun, Aug 16')
+  })
+
+  it('formats useful long detail without a redundant year', () => {
+    expect(formatDayContext(date, 'long')).toBe('Sunday, August 16')
   })
 })

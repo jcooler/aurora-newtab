@@ -3,6 +3,7 @@ import type { GeoMatch } from './types'
 export async function searchCity(
   query: string,
   fetchFn: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<GeoMatch[]> {
   // Open-Meteo matches on place NAME only — strip a ", GA"-style qualifier so
   // "Dallas, GA" still finds every Dallas; admin1 in the results disambiguates.
@@ -13,7 +14,7 @@ export async function searchCity(
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
     name,
   )}&count=6&language=en&format=json`
-  const res = await fetchFn(url)
+  const res = signal ? await fetchFn(url, { signal }) : await fetchFn(url)
   if (!res.ok) throw new Error(`Geocoding failed: HTTP ${res.status}`)
   const data = await res.json()
   return (data.results ?? []).map(

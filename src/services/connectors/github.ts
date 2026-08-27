@@ -56,6 +56,7 @@ function authHeaders(token: string): Record<string, string> {
 }
 
 export interface GithubItem {
+  id: string
   title: string
   url: string
   repo: string // 'owner/name', derived from the search item's repository_url
@@ -86,7 +87,12 @@ export interface GithubData {
 }
 
 interface SearchBody {
-  items?: Array<{ title?: unknown; html_url?: unknown; repository_url?: unknown }>
+  items?: Array<{ id?: unknown; title?: unknown; html_url?: unknown; repository_url?: unknown }>
+}
+
+function stableItemId(value: unknown): string {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value)
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : ''
 }
 
 /** 'owner/name' from a search item's repository_url
@@ -105,11 +111,12 @@ function parseItems(body: SearchBody): GithubItem[] {
   const items = Array.isArray(body.items) ? body.items : []
   const out: GithubItem[] = []
   for (const item of items) {
+    const id = stableItemId(item.id)
     const title = typeof item.title === 'string' ? item.title : ''
     const url = typeof item.html_url === 'string' ? item.html_url : ''
-    if (!title || !url) continue
+    if (!id || !title || !url) continue
     const repo = typeof item.repository_url === 'string' ? repoFromUrl(item.repository_url) : ''
-    out.push({ title, url, repo })
+    out.push({ id, title, url, repo })
   }
   return out
 }
@@ -308,4 +315,7 @@ export const githubDescriptor: ConnectorDescriptor<GithubConfig> = {
   // The single origin every request above targets. Constant (no per-config
   // derivation), so this never throws and needs no defensive wrapper.
   origins: () => ['https://api.github.com/*'],
+  ownsOrigins: (config) =>
+    typeof config.token === 'string' && config.token.length > 0 &&
+    typeof config.username === 'string' && config.username.length > 0,
 }

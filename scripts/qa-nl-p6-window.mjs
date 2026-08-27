@@ -1,0 +1,414 @@
+// NL-P6 real-window witness (plan Task 3): a REAL OS window — not viewport
+// emulation — at the owner's exact short-desktop shape, per the corrected
+// A2-D060 standard. `viewport: null` hands Playwright the actual window
+// inner size; the script MEASURES it and records the truth rather than
+// trusting the request. Interaction smoke on the named-saved scenario:
+// free drag, dock-out-and-back, save round-trip, exact cancel.
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { chromium } from 'playwright'
+import { SCENARIOS } from './qa-nl-p6-scenarios.mjs'
+import { prepareQaOutputDir } from './qa-nl-p6-output.mjs'
+
+const repoRoot = process.cwd()
+const dist = resolve('.qa-nl-p6-dist')
+const profileDir = resolve('.playwright-profile-qa-nl-p6-window')
+const outDir = prepareQaOutputDir(process.argv.slice(2), repoRoot)
+
+for (const [path, suffix] of [
+  [dist, '.qa-nl-p6-dist'],
+  [profileDir, '.playwright-profile-qa-nl-p6-window'],
+]) {
+  if (!path.endsWith(suffix)) throw new Error(`unsafe path: ${path}`)
+}
+rmSync(profileDir, { recursive: true, force: true })
+
+if (!existsSync(dist)) {
+  const build = spawnSync(process.execPath, [
+    resolve('node_modules/vite/bin/vite.js'),
+    'build', '--mode', 'preview', '--outDir', dist, '--emptyOutDir',
+  ], { cwd: repoRoot, encoding: 'utf8' })
+  if (build.status !== 0) {
+    process.stdout.write(build.stdout ?? '')
+    process.stderr.write(build.stderr ?? '')
+    throw new Error(`build failed: ${build.status}`)
+  }
+}
+
+const evidence = { measuredInner: null, stages: [], writes: [], flowCrossTab: null, stackWindow: null, failures: [], runtimeErrors: [], failedRequests: [] }
+const fail = (message) => { evidence.failures.push(message) }
+
+// HEADED with a real window: the outer size approximates the target; the
+// measured inner size is the evidence.
+const context = await chromium.launchPersistentContext(profileDir, {
+  channel: 'chromium',
+  headless: false,
+  // A REAL window: viewport null hands us the OS window's inner size.
+  // deviceScaleFactor is not supported with a null viewport — the window
+  // runs at the machine's real DPI, and the measured CSS-pixel inner size
+  // below is the evidence either way.
+  viewport: null,
+  reducedMotion: 'reduce',
+  args: [
+    `--disable-extensions-except=${dist}`,
+    `--load-extension=${dist}`,
+    // Measured on this machine: the OS window chrome consumes 16px of
+    // width and 152px of height (1424x532 yielded 1408x380), so the outer
+    // size targets the exact 1408x445 inner.
+    '--window-size=1424,597',
+    '--window-position=40,40',
+  ],
+})
+const page = await context.newPage()
+page.setDefaultTimeout(20_000)
+page.on('console', (m) => { if (m.type() === 'error') evidence.runtimeErrors.push(`console: ${m.text()}`) })
+page.on('pageerror', (e) => evidence.runtimeErrors.push(`page: ${String(e)}`))
+page.on('requestfailed', (r) => {
+  evidence.failedRequests.push(`${r.method()} ${r.url()}: ${r.failure()?.errorText ?? 'failed'}`)
+})
+
+const waitForCanvas = async () => {
+  await page.waitForSelector('[data-canvas-surface]')
+  await page.waitForTimeout(400)
+}
+const waitForFlow = async (target = page) => {
+  await target.waitForSelector('[data-flow-screen]')
+  await target.waitForTimeout(400)
+}
+const armWriteLog = () => page.evaluate(() => {
+  window.__writeLog = []
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local') window.__writeLog.push(Object.keys(changes).sort().join(','))
+  })
+})
+const stage = async (name, note) => {
+  evidence.stages.push({ name, note })
+  await page.screenshot({ path: resolve(outDir, `${name}.png`) })
+}
+
+let caughtError
+try {
+  await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
+  await waitForCanvas()
+
+  const inner = await page.evaluate(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    dpr: window.devicePixelRatio,
+  }))
+  evidence.measuredInner = inner
+  if (inner.width < 1380 || inner.width > 1430 || inner.height < 430 || inner.height > 460) {
+    fail(`real window inner ${inner.width}x${inner.height} outside the 1408x445 family band`)
+  }
+
+  const namedSaved = SCENARIOS.find((scenario) => scenario.id === 'named-saved')
+  await namedSaved.seed(page)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForCanvas()
+  await armWriteLog()
+  await stage('window-1408x445-settled', `real window ${inner.width}x${inner.height}, named-saved scenario`)
+
+  // (1) Free drag: grab the Month card by its grip, move 200px right.
+  // (The scenario's focus line sits under the default search box at this
+  // short height — a user-authored overlap the placement law permits; the
+  // judgment pass sees it in the settled capture. Month is unobstructed.)
+  const monthItem = page.locator('[data-canvas-surface] [data-block-id="monthCal"]')
+  const before = await monthItem.boundingBox()
+  await monthItem.hover()
+  const grip = await page.locator('button[aria-label="Move Month"]').boundingBox()
+  if (!grip) throw new Error('month grip not visible')
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(before.x + before.width / 2 + 200, before.y + before.height / 2, { steps: 8 })
+  await page.waitForTimeout(150)
+  // The user-facing contract, DPI-independent: the widget moved rightward
+  // with the pointer, and the DROP settles exactly where the live preview
+  // showed it (real-window OS display scale maps pointer travel through
+  // devicePixelRatio, so absolute pixel distance is not the invariant —
+  // the recorded dpr contextualizes the delta).
+  const midDrag = await monthItem.boundingBox()
+  await page.mouse.up()
+  await page.waitForTimeout(250)
+  const after = await monthItem.boundingBox()
+  if (after.x - before.x < 80) {
+    fail(`window drag: month moved only ${Math.round(after.x - before.x)}px rightward`)
+  }
+  if (Math.abs(after.x - midDrag.x) > 12) {
+    fail(`window drop: settled ${Math.round(after.x - midDrag.x)}px away from the drag preview`)
+  }
+  await stage('window-1408x445-mid-edit', `month dragged right in the live session (moved ${Math.round(after.x - before.x)}px at dpr ${inner.dpr})`)
+
+  // (2) Weather out of the bottom dock and back to center.
+  const dockedWeather = page.locator('nav[aria-label="Bottom bar"] [data-block-id="weather"]')
+  const weatherBox = await dockedWeather.boundingBox()
+  await page.mouse.move(weatherBox.x + weatherBox.width / 2, weatherBox.y + weatherBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(inner.width / 2, inner.height / 2, { steps: 8 })
+  await page.waitForTimeout(150)
+  const outMode = await page.evaluate(() => (
+    document.querySelector('[data-block-id="weather"]')?.getAttribute('data-canvas-mode')
+  ))
+  if (outMode !== 'anchored') fail(`window undock: weather mode ${outMode}`)
+  await page.mouse.move(inner.width / 2, inner.height - 12, { steps: 8 })
+  await page.waitForTimeout(150)
+  await page.mouse.up()
+  await page.waitForTimeout(250)
+  const backMode = await page.evaluate(() => (
+    document.querySelector('[data-block-id="weather"]')?.getAttribute('data-canvas-mode')
+  ))
+  if (backMode !== 'docked') fail(`window re-dock: weather mode ${backMode}`)
+
+  // (3) Save; reload; the document round-trips with weather near center.
+  await page.locator('[role="toolbar"] button:has-text("Save")').click()
+  await page.waitForTimeout(400)
+  const savedX = await page.evaluate(async () => {
+    const { layouts } = await chrome.storage.local.get('layouts')
+    const active = layouts.layouts.find((layout) => layout.id === layouts.activeLayoutId)
+    return active.widgets.weather?.kind === 'docked' ? active.widgets.weather.x : null
+  })
+  if (savedX === null || Math.abs(savedX - 50) > 4) fail(`window save: stored weather x ${savedX}, expected ~50`)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForCanvas()
+  await armWriteLog()
+  const reloadedMode = await page.evaluate(() => (
+    document.querySelector('nav[aria-label="Bottom bar"] [data-block-id="weather"]') ? 'docked' : 'missing'
+  ))
+  if (reloadedMode !== 'docked') fail('window reload: weather not docked after round-trip')
+  await stage('window-1408x445-after-reload', `saved document round-tripped; weather x ${savedX}`)
+
+  // (4) Exact cancel: a second session with a nudge, Escape, zero writes.
+  await page.keyboard.press('Control+Shift+E')
+  await page.waitForTimeout(250)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(250)
+  const cancelWrites = await page.evaluate(() => window.__writeLog ?? [])
+  if (cancelWrites.length > 0) fail(`window cancel: session wrote ${cancelWrites.join(';')}`)
+
+  // (5) Saved stacks in the same real short window. A short overlap is an
+  // ordinary move. Only a continuous 500ms hold creates a stack.
+  const stacksScenario = SCENARIOS.find((scenario) => scenario.id === 'stacks')
+  if (!stacksScenario) throw new Error('stacks scenario missing')
+  await stacksScenario.seed(page)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForCanvas()
+  await armWriteLog()
+  await stage('window-1408x445-stack-settled', 'saved three-member stack in the real short-height window')
+
+  const stackCount = () => page.locator('[data-stack-card]').count()
+  const stackMembers = () => page.evaluate(() => (
+    [...document.querySelectorAll('[data-stack-card="qa-stack"] [data-stack-member]')]
+      .map((node) => node.getAttribute('data-stack-member'))
+  ))
+  const clickToolbar = (name) => page.locator('[role="toolbar"][aria-label="Edit layout"]').getByRole('button', { name }).click()
+
+  const clock = page.locator('[data-canvas-object-id="clock"]')
+  const notes = page.locator('[data-canvas-object-id="notes"]')
+  const notesBox = await notes.boundingBox()
+  await clock.hover()
+  await page.waitForTimeout(180)
+  const clockGrip = await page.getByRole('button', { name: 'Move Clock' }).boundingBox()
+  if (!clockGrip || !notesBox) throw new Error('stack window: Clock or Notes geometry missing')
+  const clockGripX = clockGrip.x + clockGrip.width / 2
+  const clockGripY = clockGrip.y + clockGrip.height / 2
+  const clockGripHit = await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y)
+    return hit?.closest('button')?.getAttribute('aria-label') === 'Move Clock'
+  }, { x: clockGripX, y: clockGripY })
+  if (!clockGripHit) throw new Error('stack window: Clock hover grip is visible but not hit-testable')
+  await page.mouse.move(clockGripX, clockGripY)
+  await page.mouse.down()
+  await page.mouse.move(notesBox.x + notesBox.width / 2, notesBox.y + notesBox.height / 2, { steps: 8 })
+  await page.waitForTimeout(350)
+  if (await page.getByText('Stack with Notes').count()) fail('stack window: target marked before 500ms')
+  await page.mouse.up()
+  await page.waitForTimeout(150)
+  if (await stackCount() !== 1) fail(`stack window: sub-500ms overlap created ${await stackCount()} stacks`)
+  await clickToolbar('Undo')
+  await page.waitForTimeout(150)
+
+  const movedClockBox = await clock.boundingBox()
+  const restoredNotesBox = await notes.boundingBox()
+  if (!movedClockBox || !restoredNotesBox) throw new Error('stack window: restored standalone geometry missing')
+  await page.mouse.move(movedClockBox.x + movedClockBox.width / 2, movedClockBox.y + movedClockBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(
+    restoredNotesBox.x + restoredNotesBox.width / 2,
+    restoredNotesBox.y + restoredNotesBox.height / 2,
+    { steps: 8 },
+  )
+  await page.waitForTimeout(550)
+  if (!await page.getByText('Stack with Notes').count()) fail('stack window: 500ms target did not mark')
+  await page.mouse.up()
+  await page.waitForTimeout(180)
+  if (await stackCount() !== 2) fail(`stack window: held drop created ${await stackCount()} stacks`)
+  await page.getByRole('dialog', { name: 'Clock +1 inspector' }).waitFor()
+  await clickToolbar('Undo')
+  await page.waitForTimeout(180)
+  if (await stackCount() !== 1 || !await clock.count() || !await notes.count()) {
+    fail('stack window: one Undo did not restore the two standalone widgets')
+  }
+
+  // Reorder, remove, dissolve, and one-step restoration all remain draft-only.
+  const mainStack = page.locator('[data-canvas-object-id="stack:qa-stack"]')
+  await mainStack.click({ position: { x: 8, y: 8 } })
+  let stackInspector = page.getByRole('dialog', { name: 'Quote +2 inspector' })
+  await stackInspector.waitFor()
+  await stackInspector.getByRole('button', { name: 'Move Weather earlier' }).click()
+  if ((await stackMembers()).join(',') !== 'weather,monthCal,quote') {
+    fail(`stack window: reorder produced ${(await stackMembers()).join(',')}`)
+  }
+  await clickToolbar('Undo')
+  if ((await stackMembers()).join(',') !== 'monthCal,weather,quote') fail('stack window: reorder Undo was not exact')
+
+  stackInspector = page.getByRole('dialog', { name: 'Quote +2 inspector' })
+  await stackInspector.getByRole('button', { name: 'Remove Quote from stack' }).click()
+  if ((await stackMembers()).join(',') !== 'monthCal,weather') fail('stack window: remove did not leave two ordered members')
+  await clickToolbar('Undo')
+  if ((await stackMembers()).join(',') !== 'monthCal,weather,quote') fail('stack window: remove Undo was not exact')
+
+  await page.locator('[data-canvas-object-id="stack:qa-stack"]').click({ position: { x: 8, y: 8 } })
+  stackInspector = page.getByRole('dialog', { name: 'Quote +2 inspector' })
+  await stackInspector.getByRole('button', { name: 'Remove Quote from stack' }).click()
+  stackInspector = page.getByRole('dialog', { name: 'Month +1 inspector' })
+  await stackInspector.getByRole('button', { name: 'Remove Weather from stack' }).click()
+  if (await page.locator('[data-stack-card="qa-stack"]').count()) fail('stack window: two-member removal did not dissolve')
+  await clickToolbar('Undo')
+  if ((await stackMembers()).join(',') !== 'monthCal,weather') fail('stack window: dissolve Undo did not restore two-member stack')
+  await clickToolbar('Undo')
+  if ((await stackMembers()).join(',') !== 'monthCal,weather,quote') fail('stack window: second Undo did not restore original stack')
+
+  await page.locator('[data-canvas-object-id="stack:qa-stack"]').click({ position: { x: 8, y: 8 } })
+  await page.locator('[data-stack-card="qa-stack"]').getByRole('button', { name: 'Show Weather' }).click()
+  await page.getByRole('group', { name: 'Weather, 2 of 3' }).waitFor()
+  const storedDuringDraft = await page.evaluate(async () => {
+    const { layouts } = await chrome.storage.local.get('layouts')
+    return layouts.layouts[0].stacks[0].facing
+  })
+  if (storedDuringDraft !== 'quote') fail(`stack window: draft dot wrote stored face ${storedDuringDraft}`)
+  await page.keyboard.press('Escape')
+  await page.getByRole('group', { name: 'Quote, 3 of 3' }).waitFor()
+  const stackCancelWrites = await page.evaluate(() => window.__writeLog ?? [])
+  if (stackCancelWrites.length > 0) fail(`stack window: stack Cancel wrote ${stackCancelWrites.join(';')}`)
+  await stage('window-1408x445-stack-edits', 'hold creation, one Undo, reorder, remove, dissolve, and exact Cancel completed')
+
+  // Normal face paging is the one immediate stack write. It must be layouts
+  // only and must survive a reload in the real OS window.
+  await armWriteLog()
+  const normalStack = page.locator('[data-stack-card="qa-stack"]')
+  await normalStack.getByRole('button', { name: 'Show Weather' }).click()
+  await page.getByRole('group', { name: 'Weather, 2 of 3' }).waitFor()
+  await normalStack.locator('[data-stack-member="weather"] button[aria-expanded="false"]').click()
+  await page.getByRole('dialog', { name: 'Weather details' }).waitFor()
+  await page.keyboard.press('Escape')
+  await normalStack.getByRole('button', { name: 'Next widget' }).click()
+  await page.getByRole('group', { name: 'Quote, 3 of 3' }).waitFor()
+  await normalStack.getByRole('button', { name: 'Next widget' }).click()
+  await page.getByRole('group', { name: 'Month, 1 of 3' }).waitFor()
+  const normalStackWrites = await page.evaluate(() => window.__writeLog ?? [])
+  evidence.writes.push(...normalStackWrites.map((keys) => `stack:${keys}`))
+  if (normalStackWrites.length === 0 || normalStackWrites.some((keys) => keys !== 'layouts')) {
+    fail(`stack window: normal paging writes ${normalStackWrites.join(';') || 'empty'}`)
+  }
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForCanvas()
+  await page.getByRole('group', { name: 'Month, 1 of 3' }).waitFor()
+  evidence.stackWindow = {
+    sub500OverlapStayedStandalone: true,
+    heldDropCreatedStack: true,
+    oneUndoRestoredStandalone: true,
+    reorderRemoveDissolve: true,
+    cancelWrites: stackCancelWrites,
+    normalPagingWrites: normalStackWrites,
+    reloadFacing: 'monthCal',
+  }
+  await stage('window-1408x445-stack-reload', 'Weather click parity and layouts-only face paging survived reload')
+
+  // (6) Flow owns the real window and the same persisted deadline is visible
+  // in a second real extension tab. A pause in one must update the other.
+  const flowScenario = SCENARIOS.find((scenario) => scenario.id === 'flow')
+  await flowScenario.seed(page)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForFlow()
+  await armWriteLog()
+  await stage('window-1408x445-flow', `Flow replaced the dashboard in the real ${inner.width}x${inner.height} window`)
+
+  const firstSession = await page.evaluate(async () => (await chrome.storage.local.get('timerSession')).timerSession)
+  const firstCountdown = await page.locator('[data-flow-timer] p[aria-label*="timer"]').textContent()
+  const secondPage = await context.newPage()
+  secondPage.setDefaultTimeout(20_000)
+  secondPage.on('console', (m) => { if (m.type() === 'error') evidence.runtimeErrors.push(`second-tab console: ${m.text()}`) })
+  secondPage.on('pageerror', (e) => evidence.runtimeErrors.push(`second-tab page: ${String(e)}`))
+  secondPage.on('requestfailed', (r) => {
+    evidence.failedRequests.push(`second-tab ${r.method()} ${r.url()}: ${r.failure()?.errorText ?? 'failed'}`)
+  })
+  await secondPage.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
+  await waitForFlow(secondPage)
+  const secondSession = await secondPage.evaluate(async () => (await chrome.storage.local.get('timerSession')).timerSession)
+  const secondCountdown = await secondPage.locator('[data-flow-timer] p[aria-label*="timer"]').textContent()
+  await secondPage.screenshot({ path: resolve(outDir, 'window-flow-second-tab.png') })
+  evidence.stages.push({ name: 'window-flow-second-tab', note: 'second extension tab shares Flow mode and deadline' })
+
+  if (firstSession?.endsAt !== secondSession?.endsAt || !firstSession?.flow || !secondSession?.flow) {
+    fail(`window Flow tabs disagree on session ${JSON.stringify({ firstSession, secondSession })}`)
+  }
+  const countdownSeconds = (text) => {
+    const [minutes, seconds] = String(text).trim().split(':').map(Number)
+    return minutes * 60 + seconds
+  }
+  const countdownDelta = Math.abs(countdownSeconds(firstCountdown) - countdownSeconds(secondCountdown))
+  if (countdownDelta > 1) fail(`window Flow countdowns differ by ${countdownDelta}s`)
+
+  await page.getByRole('button', { name: 'Pause timer' }).click()
+  await secondPage.getByRole('button', { name: 'Resume timer' }).waitFor()
+
+  await page.getByRole('button', { name: 'End flow' }).click()
+  await page.waitForSelector('[data-canvas-surface]')
+  await secondPage.waitForSelector('[data-canvas-surface]')
+  const flowWrites = await page.evaluate(() => window.__writeLog ?? [])
+  evidence.writes.push(...flowWrites.map((keys) => `flow:${keys}`))
+  if (flowWrites.some((keys) => keys.split(',').some((key) => key === 'layout' || key === 'layouts'))) {
+    fail(`window Flow wrote layout state ${flowWrites.join(';')}`)
+  }
+  const restored = await page.evaluate(() => ({
+    canvas: Boolean(document.querySelector('[data-canvas-surface]')),
+    flow: Boolean(document.querySelector('[data-flow-screen]')),
+  }))
+  const secondRestored = await secondPage.evaluate(() => ({
+    canvas: Boolean(document.querySelector('[data-canvas-surface]')),
+    flow: Boolean(document.querySelector('[data-flow-screen]')),
+  }))
+  evidence.flowCrossTab = {
+    sameDeadline: firstSession?.endsAt === secondSession?.endsAt,
+    countdownDeltaSeconds: countdownDelta,
+    pauseObservedInSecondTab: true,
+    firstTabRestored: restored.canvas && !restored.flow,
+    secondTabRestored: secondRestored.canvas && !secondRestored.flow,
+  }
+  if (!restored.canvas || restored.flow) fail(`window Flow dashboard did not restore ${JSON.stringify(restored)}`)
+  if (!secondRestored.canvas || secondRestored.flow) fail(`window Flow second-tab dashboard did not restore ${JSON.stringify(secondRestored)}`)
+  await stage('window-1408x445-flow-exit', 'pause synchronized across tabs and ending Flow restored the named dashboard')
+  await secondPage.close()
+} catch (error) {
+  caughtError = error
+} finally {
+  try { await context.close() } catch { /* ignore */ }
+}
+
+writeFileSync(resolve(outDir, 'window-evidence.json'), JSON.stringify(evidence, null, 2))
+console.log(JSON.stringify({
+  measuredInner: evidence.measuredInner,
+  stages: evidence.stages.length,
+  failures: evidence.failures,
+  runtimeErrors: evidence.runtimeErrors,
+  failedRequests: evidence.failedRequests,
+}, null, 2))
+if (caughtError) {
+  console.error('NL-P6 WINDOW ERROR:', caughtError)
+  process.exitCode = 1
+} else if (evidence.failures.length > 0 || evidence.runtimeErrors.length > 0 || evidence.failedRequests.length > 0) {
+  console.error('FAIL: NL-P6 window')
+  process.exitCode = 1
+} else {
+  console.log('PASS: NL-P6 window')
+}

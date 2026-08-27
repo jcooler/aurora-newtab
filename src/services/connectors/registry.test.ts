@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { CONNECTORS, getConnector, releasableOrigins, heldOrigins } from './registry'
+import { CONNECTORS, getConnector, releasableOrigins, heldOrigins, ownedConnectorOriginPatterns } from './registry'
 import {
   CATEGORY_ORDER,
   CONNECTOR_IDS,
@@ -18,6 +18,18 @@ import {
 // CONNECTOR_IDS, or a registered id that getConnector can't resolve all fail
 // immediately, for the current registry and every future descriptor alike.
 describe('connector registry invariants', () => {
+  it('reserves the approved At a glance identities and category without reordering existing groups', () => {
+    expect(CONNECTOR_IDS.slice(-3)).toEqual(['onThisDay', 'publicHolidays', 'auroraKp'])
+    expect(CATEGORY_ORDER).toEqual([
+      'development',
+      'calendar-tasks',
+      'at-a-glance',
+      'home',
+      'news-markets',
+      'fun',
+    ])
+  })
+
   it('has no duplicate descriptor ids', () => {
     const ids = CONNECTORS.map((d) => d.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -33,6 +45,32 @@ describe('connector registry invariants', () => {
     for (const d of CONNECTORS) {
       expect(getConnector(d.id)).toBe(d)
     }
+  })
+
+  it('every registered descriptor exposes its own pure ownership-readiness predicate', () => {
+    for (const descriptor of CONNECTORS) expect(descriptor.ownsOrigins).toBeTypeOf('function')
+  })
+
+  it('has descriptor-owned backup redaction and re-entry policy for capability-bearing connectors', () => {
+    expect(getConnector('rss')?.redactForBackup).toBeTypeOf('function')
+    expect(getConnector('rss')?.backupReentryRequired).toBeTypeOf('function')
+    expect(getConnector('ics')?.redactForBackup).toBeTypeOf('function')
+    expect(getConnector('ics')?.backupReentryRequired).toBeTypeOf('function')
+  })
+
+  it('registers the three keyless At a glance descriptors without claiming Chrome origins', () => {
+    const configs: Record<'onThisDay' | 'publicHolidays' | 'auroraKp', ConnectorConfig> = {
+      onThisDay: { enabled: true },
+      publicHolidays: { enabled: true, countryCode: 'US' },
+      auroraKp: { enabled: true },
+    }
+    for (const id of Object.keys(configs) as (keyof typeof configs)[]) {
+      const descriptor = getConnector(id)
+      expect(descriptor).toMatchObject({ id, category: 'at-a-glance', auth: 'none' })
+      expect(descriptor?.origins(configs[id])).toEqual([])
+      expect(descriptor?.ownsOrigins(configs[id])).toBe(true)
+    }
+    expect(getConnector('publicHolidays')?.ownsOrigins({ enabled: true, countryCode: 'usa' })).toBe(false)
   })
 
   // Completeness direction, written conditionally so it becomes meaningful
@@ -61,6 +99,27 @@ describe('connector registry invariants', () => {
   })
 })
 
+describe('ownedConnectorOriginPatterns', () => {
+  it('counts complete disabled configs and excludes enabled-but-unconfigured constant-origin cards', () => {
+    const configs = {
+      github: { enabled: false, token: 't', username: 'octocat' },
+      vercel: { enabled: true, token: '', username: '' },
+      crypto: { enabled: true, coins: [] },
+    } satisfies Partial<Record<ConnectorId, ConnectorConfig>>
+
+    expect(ownedConnectorOriginPatterns(configs)).toEqual(['https://api.github.com/*'])
+  })
+
+  it('is defensive when a descriptor ownership predicate or origins mapper sees malformed persisted data', () => {
+    const malformed = {
+      rss: { enabled: false, feeds: null },
+      status: { enabled: true, services: 'bad' },
+    } as unknown as Partial<Record<ConnectorId, ConnectorConfig>>
+    expect(() => ownedConnectorOriginPatterns(malformed)).not.toThrow()
+    expect(ownedConnectorOriginPatterns(malformed)).toEqual([])
+  })
+})
+
 // Task 79: every descriptor names its purpose. The drawer (Task 80) groups
 // cards by category, so this pins both directions — every registered
 // descriptor's category is a real CATEGORY_ORDER member (catches a typo'd
@@ -86,6 +145,12 @@ describe('descriptor categories', () => {
       rss: 'news-markets',
       crypto: 'news-markets',
       homeassistant: 'home',
+      linear: 'development',
+      sentry: 'development',
+      todoist: 'calendar-tasks',
+      onThisDay: 'at-a-glance',
+      publicHolidays: 'at-a-glance',
+      auroraKp: 'at-a-glance',
     }
     for (const d of CONNECTORS) {
       expect(d.category).toBe(expected[d.id])
@@ -119,6 +184,7 @@ describe('releasableOrigins', () => {
     secretFields: ['token'],
     identityField: 'username',
     origins: () => ['https://shared.example.com/*'],
+    ownsOrigins: () => true,
   }
 
   const fakeJiraThrows: ConnectorDescriptor<JiraConfig> = {
@@ -133,6 +199,7 @@ describe('releasableOrigins', () => {
     origins: () => {
       throw new Error('malformed config')
     },
+    ownsOrigins: () => true,
   }
 
   const rssConfig: RssConfig = { enabled: true, feeds: ['https://shared.example.com/feed'], shownCount: 5 }
@@ -212,6 +279,7 @@ describe('heldOrigins', () => {
     origins: () => {
       throw new Error('malformed config')
     },
+    ownsOrigins: () => true,
   }
 
   it('an empty configs map returns []', () => {

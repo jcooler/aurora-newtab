@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import type { Settings } from '../../lib/storage/schema'
+import { useRef } from 'react'
+import { DEFAULT_BRIEFING_SOURCES, type BriefingSources, type FlowAmbience, type Settings } from '../../lib/storage/schema'
+import { contrastRatio, derivedFg, relativeLuminance } from '../../lib/color'
 import Section from '../Section'
+import ColorPickerRow from '../ColorPickerRow'
 import Switch from '../Switch'
 import { row, label, control, select } from './shared'
 
@@ -8,12 +10,14 @@ import { row, label, control, select } from './shared'
 // rgb(10 10 10), i.e. #0a0a0a — shown in the swatch when the user hasn't picked
 // one (settings.panelColor is null).
 const DEFAULT_PANEL_HEX = '#0a0a0a'
-// Live-drag writes are debounced so dragging the native picker doesn't storm
-// storage; the final value ALSO commits immediately on the picker's own
-// `change`. Deep-equal writes are no-ops at the storage layer (memoryDriver /
-// chrome.storage both dedupe), so the debounced trailing write and the commit
-// never fight even when they carry the same color.
-const PANEL_COLOR_DEBOUNCE_MS = 150
+// The fixed photo ink default (themes.css --canvas-fg fallback).
+const DEFAULT_PHOTO_HEX = '#f5f5f4'
+// Advisory floors (never blocking — the user owns the pick, and every check
+// derives from the ACTUAL chosen colors, not any assumed palette): WCAG AA
+// body-text contrast for widget text on the panel, and a luminance floor
+// below which photo text tends to vanish into dark photographs.
+const CONTRAST_FLOOR = 4.5
+const PHOTO_LUMINANCE_FLOOR = 0.25
 
 /** Profile, Appearance (the widget-color customizer), and Clock-and-units —
  *  the three sections that read/write plain `Settings` fields directly, with no
@@ -28,64 +32,20 @@ export default function General({
   settings: Settings
   patch: (p: Partial<Settings>) => void
 }) {
-  // patch is a fresh closure each render; read it through a ref so the
-  // commit-on-`change` effect below can stay mount-once (register/unregister
-  // exactly once) rather than re-subscribing on every render — same idiom
-  // NotesPanel uses for its flush-on-unmount.
+  // patch is a fresh closure each render; the picker rows read it through a
+  // ref-backed writer so their commit listeners stay mount-once.
   const patchRef = useRef(patch)
   patchRef.current = patch
 
-  const effectiveHex = settings.panelColor ?? DEFAULT_PANEL_HEX
-  // Local draft so dragging the native picker isn't snapped back by the
-  // controlled `value` before the (debounced) write lands; re-synced whenever
-  // the stored value actually changes — our own commit, Reset, or another tab.
-  const [draftHex, setDraftHex] = useState(effectiveHex)
-  useEffect(() => {
-    setDraftHex(effectiveHex)
-  }, [effectiveHex])
-
-  const colorInputRef = useRef<HTMLInputElement>(null)
-  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  function clearWriteTimer() {
-    if (writeTimer.current !== null) {
-      clearTimeout(writeTimer.current)
-      writeTimer.current = null
-    }
-  }
-
-  // Debounced live write during a drag — the picker's `input` stream surfaces
-  // as React's onChange for a color input.
-  function onColorInput(hex: string) {
-    setDraftHex(hex)
-    clearWriteTimer()
-    writeTimer.current = setTimeout(() => {
-      writeTimer.current = null
-      patchRef.current({ panelColor: hex })
-    }, PANEL_COLOR_DEBOUNCE_MS)
-  }
-
-  // Final commit when the picker closes (its native `change` event): write now
-  // and cancel any pending debounce. Mount-once (patch read via patchRef); also
-  // clears a leaked debounce timer on unmount.
-  useEffect(() => {
-    const el = colorInputRef.current
-    if (!el) return
-    const onCommit = () => {
-      clearWriteTimer()
-      patchRef.current({ panelColor: el.value })
-    }
-    el.addEventListener('change', onCommit)
-    return () => {
-      el.removeEventListener('change', onCommit)
-      clearWriteTimer()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once; patch is read via patchRef
-  }, [])
-
-  function resetColor() {
-    clearWriteTimer()
-    patchRef.current({ panelColor: null })
+  const panelHex = settings.panelColor ?? DEFAULT_PANEL_HEX
+  // What "auto" widget text currently resolves to — the panel-derived ink.
+  const autoWidgetInk = derivedFg(panelHex).fg
+  const effectiveWidgetInk = settings.widgetTextColor ?? autoWidgetInk
+  const effectivePhotoInk = settings.photoTextColor ?? DEFAULT_PHOTO_HEX
+  const widgetContrast = contrastRatio(effectiveWidgetInk, panelHex)
+  const briefingSources = settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES
+  const patchBriefingSource = (key: keyof BriefingSources, checked: boolean) => {
+    patch({ briefingSources: { ...briefingSources, [key]: checked } })
   }
 
   return (
@@ -107,52 +67,98 @@ export default function General({
       </Section>
 
       <Section title="Appearance">
-        <div className={row}>
-          <span className={label} id="panel-color-label">
-            Widget color
-          </span>
-          <div className="flex items-center gap-3">
-            {/* The visible 28px swatch IS the label: clicking it opens the
-                native picker (the real <input type="color"> is visually hidden
-                but keyboard-reachable and label-associated). `peer` on the
-                input lets the swatch carry the focus ring. */}
-            <label
-              htmlFor="set-panel-color"
-              className="relative inline-flex size-7 cursor-pointer items-center justify-center rounded-full"
-            >
-              <input
-                ref={colorInputRef}
-                id="set-panel-color"
-                type="color"
-                aria-label="Widget color"
-                value={draftHex}
-                onChange={(e) => onColorInput(e.currentTarget.value)}
-                className="peer sr-only"
-              />
-              <span
-                aria-hidden
-                style={{ backgroundColor: draftHex }}
-                className="size-7 rounded-full border border-control-border shadow-inner shadow-black/30 transition peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-transparent"
-              />
-            </label>
-            {/* Quiet Reset, present only when a color is actually set (null =
-                the default surface, nothing to reset). */}
-            {settings.panelColor !== null && (
-              <button
-                type="button"
-                aria-label="Reset widget color"
-                onClick={resetColor}
-                className="rounded-full px-2 py-1 text-xs text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
-              >
-                Reset
-              </button>
-            )}
+        <ColorPickerRow
+          id="set-panel-color"
+          labelText="Widget color"
+          resetLabel="Reset widget color"
+          stored={settings.panelColor}
+          fallbackHex={DEFAULT_PANEL_HEX}
+          onWrite={(hex) => patchRef.current({ panelColor: hex })}
+        />
+        <p className="pb-2 text-xs text-fg-muted">Tints every widget. Text adapts automatically unless you pick one below.</p>
+        <ColorPickerRow
+          id="set-widget-text-color"
+          labelText="Widget text"
+          resetLabel="Reset widget text"
+          stored={settings.widgetTextColor}
+          fallbackHex={autoWidgetInk}
+          onWrite={(hex) => patchRef.current({ widgetTextColor: hex })}
+          advisory={settings.widgetTextColor !== null && widgetContrast < CONTRAST_FLOOR ? (
+            <p data-testid="widget-text-contrast-warning" className="pb-2 text-xs text-amber-300">
+              Low contrast against your widget color — this text may be hard to read.
+            </p>
+          ) : (
+            <p className="pb-2 text-xs text-fg-muted">Colors every widget's text; the softer secondary tone derives automatically.</p>
+          )}
+        />
+        <ColorPickerRow
+          id="set-photo-text-color"
+          labelText="Photo text"
+          resetLabel="Reset photo text"
+          stored={settings.photoTextColor}
+          fallbackHex={DEFAULT_PHOTO_HEX}
+          onWrite={(hex) => patchRef.current({ photoTextColor: hex })}
+          advisory={settings.photoTextColor !== null && relativeLuminance(settings.photoTextColor) < PHOTO_LUMINANCE_FLOOR ? (
+            <p data-testid="photo-text-dark-warning" className="pb-2 text-xs text-amber-300">
+              Dark colors can disappear against dark photos.
+            </p>
+          ) : (
+            <p className="pb-2 text-xs text-fg-muted">Colors the clock, greeting, quote, and other text on the photo.</p>
+          )}
+        />
+        <details className="pb-2">
+          <summary className="cursor-pointer text-xs text-fg-muted hover:text-fg">
+            Per-element photo colors
+          </summary>
+          <div className="mt-1 flex flex-col">
+            <ColorPickerRow
+              id="set-photo-clock-color"
+              labelText="Clock color"
+              resetLabel="Reset clock color"
+              stored={settings.photoClockColor}
+              fallbackHex={effectivePhotoInk}
+              onWrite={(hex) => patchRef.current({ photoClockColor: hex })}
+            />
+            <ColorPickerRow
+              id="set-photo-greeting-color"
+              labelText="Greeting color"
+              resetLabel="Reset greeting color"
+              stored={settings.photoGreetingColor}
+              fallbackHex={effectivePhotoInk}
+              onWrite={(hex) => patchRef.current({ photoGreetingColor: hex })}
+            />
+            <ColorPickerRow
+              id="set-photo-quote-color"
+              labelText="Quote color"
+              resetLabel="Reset quote color"
+              stored={settings.photoQuoteColor}
+              fallbackHex={effectivePhotoInk}
+              onWrite={(hex) => patchRef.current({ photoQuoteColor: hex })}
+            />
           </div>
+        </details>
+        <div className={row}>
+          <label htmlFor="set-text-size" className={label}>
+            Text size
+          </label>
+          <select
+            id="set-text-size"
+            aria-describedby="set-text-size-description"
+            value={settings.layoutDensity === 'compact' ? 'balanced' : settings.layoutDensity}
+            onChange={(event) => patch({ layoutDensity: event.currentTarget.value as Settings['layoutDensity'] })}
+            className={`${select} w-36`}
+          >
+            <option value="auto">Automatic</option>
+            <option value="balanced">Standard</option>
+            <option value="spacious">Large</option>
+          </select>
         </div>
-        <p className="pb-2 text-xs text-fg-muted">Tints every widget. Text adapts automatically.</p>
+        <p id="set-text-size-description" className="pb-2 text-xs text-fg-muted">
+          Automatic uses larger type on larger displays.
+        </p>
       </Section>
 
-      <Section title="Clock and units">
+      <Section title="Clock, Flow, and units">
         <div className={row}>
           <label htmlFor="set-24h" className={label}>
             24-hour clock
@@ -178,15 +184,102 @@ export default function General({
           </select>
         </div>
         <div className={row}>
-          <label htmlFor="set-muted" className={label}>
-            Mute sounds
+          <label htmlFor="set-timer-sound" className={label}>
+            Timer completion sound
           </label>
           <Switch
-            id="set-muted"
-            checked={settings.muted}
-            onChange={(checked) => patch({ muted: checked })}
+            id="set-timer-sound"
+            checked={!settings.muted}
+            onChange={(checked) => patch({ muted: !checked })}
           />
         </div>
+        <div className={row}>
+          <label htmlFor="set-flow-ambience" className={label}>
+            Flow sound
+          </label>
+          <select
+            id="set-flow-ambience"
+            aria-describedby="set-flow-ambience-description"
+            value={settings.flowAmbience}
+            onChange={(event) => patch({ flowAmbience: event.currentTarget.value as FlowAmbience })}
+            className={select}
+          >
+            <option value="off">Off</option>
+            <option value="creek">Creek</option>
+            <option value="rain">Rain</option>
+            <option value="ocean">Ocean</option>
+            <option value="forest">Forest</option>
+          </select>
+        </div>
+        <p id="set-flow-ambience-description" className="pb-2 text-xs text-fg-muted">
+          Plays your selected local sound only while the Flow timer is running.
+        </p>
+        <div className={row}>
+          <label htmlFor="set-daily-summary" className={label}>
+            Greeting helper
+          </label>
+          <Switch
+            id="set-daily-summary"
+            checked={settings.briefingEnabled === true}
+            onChange={(checked) => patch({ briefingEnabled: checked })}
+            describedBy="set-daily-summary-description"
+          />
+        </div>
+        <p id="set-daily-summary-description" className="pb-2 text-xs text-fg-muted">
+          Shows useful upcoming context and recent attention beneath your greeting.
+        </p>
+        {settings.briefingEnabled === true ? (
+          <div role="group" aria-label="Greeting helper sources" className="ml-2 border-l border-panel-border pl-3">
+            <div className={row}>
+              <label htmlFor="set-briefing-calendar" className={label}>Upcoming calendar</label>
+              <Switch
+                id="set-briefing-calendar"
+                checked={briefingSources.calendar}
+                onChange={(checked) => patchBriefingSource('calendar', checked)}
+                describedBy="set-briefing-calendar-description"
+              />
+            </div>
+            <p id="set-briefing-calendar-description" className="pb-2 text-xs text-fg-muted">
+              Shows the next useful event within 24 hours.
+            </p>
+            <div className={row}>
+              <label htmlFor="set-briefing-assignments" className={label}>Assigned work</label>
+              <Switch
+                id="set-briefing-assignments"
+                checked={briefingSources.assignments}
+                onChange={(checked) => patchBriefingSource('assignments', checked)}
+                describedBy="set-briefing-assignments-description"
+              />
+            </div>
+            <p id="set-briefing-assignments-description" className="pb-2 text-xs text-fg-muted">
+              Newly observed GitHub, GitLab, Jira, and Linear items stay here for six hours. Undated Aurora tasks are not counted.
+            </p>
+            <div className={row}>
+              <label htmlFor="set-briefing-deployments" className={label}>Deployment failures</label>
+              <Switch
+                id="set-briefing-deployments"
+                checked={briefingSources.deployments}
+                onChange={(checked) => patchBriefingSource('deployments', checked)}
+                describedBy="set-briefing-deployments-description"
+              />
+            </div>
+            <p id="set-briefing-deployments-description" className="pb-2 text-xs text-fg-muted">
+              Shows failed Vercel builds from the last six hours.
+            </p>
+            <div className={row}>
+              <label htmlFor="set-briefing-rain" className={label}>Rain</label>
+              <Switch
+                id="set-briefing-rain"
+                checked={briefingSources.rain}
+                onChange={(checked) => patchBriefingSource('rain', checked)}
+                describedBy="set-briefing-rain-description"
+              />
+            </div>
+            <p id="set-briefing-rain-description" className="pb-2 text-xs text-fg-muted">
+              Shows the first forecast hour with at least a 50% chance of rain.
+            </p>
+          </div>
+        ) : null}
       </Section>
     </>
   )

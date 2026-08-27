@@ -93,7 +93,7 @@ describe('Switch (the control kit — Task 61)', () => {
   it('carries the signature affordances: cursor-pointer + focus-visible ring on the track, a sliding thumb with a reduced-motion opt-out', () => {
     render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" />)
     const el = screen.getByRole('switch')
-    const thumb = el.querySelector('span')
+    const thumb = el.querySelector('[data-switch-thumb]')
     expect(el.className).toContain('cursor-pointer')
     expect(el.className).toContain('focus-visible')
     expect(thumb).not.toBeNull()
@@ -104,10 +104,20 @@ describe('Switch (the control kit — Task 61)', () => {
 
   it('the track styling differs on vs off (accent fill on, fg-derived neutral off)', () => {
     const { rerender } = render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" />)
-    const off = screen.getByRole('switch').className
+    const off = screen.getByRole('switch').querySelector('[data-switch-track]')!.className
     rerender(<Switch id="s" checked={true} onChange={() => {}} label="Wifi" />)
-    const on = screen.getByRole('switch').className
+    const on = screen.getByRole('switch').querySelector('[data-switch-track]')!.className
     expect(off).not.toBe(on)
     expect(on).toContain('bg-accent')
+  })
+
+  it('keeps a fixed 36x20 visual track inside a 36px routine target at every width', () => {
+    render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" />)
+    const el = screen.getByRole('switch')
+    expect(el.className).toContain('min-h-9')
+    expect(el.className).toContain('w-9')
+    const track = el.querySelector('[data-switch-track]')
+    expect(track).not.toBeNull()
+    expect(track!.className).toContain('h-5')
   })
 })

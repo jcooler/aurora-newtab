@@ -100,18 +100,64 @@ describe('useDialogEscape (shared newest-first dialog stack)', () => {
 })
 
 describe('closeAllDialogs', () => {
-  it('invokes every registered active onClose exactly once, newest-first (same order Escape would pop them in)', () => {
+  it('awaits the newest close before invoking the older entry', async () => {
     const order: string[] = []
-    const closeA = vi.fn(() => order.push('A'))
-    const closeB = vi.fn(() => order.push('B'))
-    const closeC = vi.fn(() => order.push('C'))
+    let releaseNewest = () => {}
+    renderHook(() => useDialogEscape(() => { order.push('older') }))
+    renderHook(() => useDialogEscape(async () => {
+      order.push('newest:start')
+      await new Promise<void>((resolve) => { releaseNewest = resolve })
+      order.push('newest:end')
+      return true
+    }))
+
+    let result!: Promise<boolean>
+    act(() => { result = closeAllDialogs() })
+    expect(order).toEqual(['newest:start'])
+    await act(async () => { releaseNewest(); await result })
+    expect(await result).toBe(true)
+    expect(order).toEqual(['newest:start', 'newest:end', 'older'])
+  })
+
+  it.each(['false', 'reject'] as const)('%s from the newest close stops and retains it on top', async (mode) => {
+    const older = vi.fn()
+    const newest = vi.fn(() => mode === 'false' ? false : Promise.reject(new Error('blocked')))
+    renderHook(() => useDialogEscape(older))
+    renderHook(() => useDialogEscape(newest))
+
+    await expect(closeAllDialogs()).resolves.toBe(false)
+    expect(older).not.toHaveBeenCalled()
+    act(() => { escape() })
+    expect(newest).toHaveBeenCalledTimes(2)
+  })
+
+  it('dedupes concurrent close-all requests', async () => {
+    let release = () => {}
+    const close = vi.fn(async () => {
+      await new Promise<void>((resolve) => { release = resolve })
+      return true
+    })
+    renderHook(() => useDialogEscape(close))
+
+    const first = closeAllDialogs()
+    const second = closeAllDialogs()
+    expect(second).toBe(first)
+    expect(close).toHaveBeenCalledOnce()
+    await act(async () => { release(); await first })
+    await expect(second).resolves.toBe(true)
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('invokes every registered active onClose exactly once, newest-first (same order Escape would pop them in)', async () => {
+    const order: string[] = []
+    const closeA = vi.fn(() => { order.push('A') })
+    const closeB = vi.fn(() => { order.push('B') })
+    const closeC = vi.fn(() => { order.push('C') })
     renderHook(() => useDialogEscape(closeA))
     renderHook(() => useDialogEscape(closeB))
     renderHook(() => useDialogEscape(closeC))
 
-    act(() => {
-      closeAllDialogs()
-    })
+    await act(async () => { await closeAllDialogs() })
 
     expect(closeA).toHaveBeenCalledTimes(1)
     expect(closeB).toHaveBeenCalledTimes(1)
@@ -119,7 +165,7 @@ describe('closeAllDialogs', () => {
     expect(order).toEqual(['C', 'B', 'A'])
   })
 
-  it('skips an entry that already unregistered itself (closed by other means) before the call', () => {
+  it('skips an entry that already unregistered itself (closed by other means) before the call', async () => {
     const closeA = vi.fn()
     const closeB = vi.fn()
     renderHook(() => useDialogEscape(closeA))
@@ -127,21 +173,17 @@ describe('closeAllDialogs', () => {
 
     b.unmount() // B is no longer active/registered
 
-    act(() => {
-      closeAllDialogs()
-    })
+    await act(async () => { await closeAllDialogs() })
 
     expect(closeA).toHaveBeenCalledTimes(1)
     expect(closeB).not.toHaveBeenCalled()
   })
 
-  it('empties the stack: a subsequent Escape finds nothing left to close', () => {
+  it('empties the stack: a subsequent Escape finds nothing left to close', async () => {
     const close = vi.fn()
     renderHook(() => useDialogEscape(close))
 
-    act(() => {
-      closeAllDialogs()
-    })
+    await act(async () => { await closeAllDialogs() })
     expect(close).toHaveBeenCalledTimes(1)
 
     act(() => {
@@ -150,13 +192,11 @@ describe('closeAllDialogs', () => {
     expect(close).toHaveBeenCalledTimes(1) // unchanged — nothing was there to pop
   })
 
-  it('a dialog registered after the call becomes the new top on its own', () => {
+  it('a dialog registered after the call becomes the new top on its own', async () => {
     const closeA = vi.fn()
     renderHook(() => useDialogEscape(closeA))
 
-    act(() => {
-      closeAllDialogs()
-    })
+    await act(async () => { await closeAllDialogs() })
 
     const closeB = vi.fn()
     renderHook(() => useDialogEscape(closeB))
@@ -169,11 +209,7 @@ describe('closeAllDialogs', () => {
     expect(closeA).toHaveBeenCalledTimes(1) // only from the closeAllDialogs call above, not this Escape
   })
 
-  it('is a no-op on an empty stack (no throw)', () => {
-    expect(() => {
-      act(() => {
-        closeAllDialogs()
-      })
-    }).not.toThrow()
+  it('is a no-op on an empty stack (no throw)', async () => {
+    await expect(closeAllDialogs()).resolves.toBe(true)
   })
 })

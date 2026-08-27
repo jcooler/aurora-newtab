@@ -1,6 +1,6 @@
 # Aurora Privacy Policy
 
-**Effective date:** August 8, 2026
+**Effective date:** August 22, 2026
 
 Aurora is a new-tab dashboard extension for Chrome. This policy describes,
 completely, what Aurora stores, what it sends over the network, and to whom.
@@ -8,12 +8,14 @@ If something isn't listed here, Aurora doesn't do it.
 
 ## Summary
 
-Aurora has no backend and no accounts. It does not collect, sell, rent, or
-transfer any of your data to anyone, for any purpose — including to the
-developer. There is no analytics and no tracking of any kind. Everything
+Aurora has no backend and requires no Aurora account. Optional credentialed
+connectors can use accounts you already have with their third-party providers.
+Aurora does not collect data for its developer, sell or rent your data, or
+transfer it for advertising, profiling, lending, or any unrelated purpose.
+There is no analytics and no tracking of any kind. Everything
 Aurora stores lives only on your own device. The outbound network calls
 Aurora makes on its own, with no action from you beyond turning a widget
-on, are three read-only, keyless weather/location lookups described in full
+on, are four read-only, keyless weather/location lookups described in full
 below. Beyond those, Aurora's **Connectors** framework lets you point it at
 outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel, Crypto,
 Calendar, Status, and Home Assistant today — and every such request goes
@@ -28,6 +30,11 @@ which is stored locally like everything else and sent only to the one
 service it authenticates to; the other four (RSS, Crypto, Calendar,
 Status) need no credential at all. See "Connectors" below for the complete
 disclosure.
+
+Connector credentials and RSS/Calendar capability URLs are stored as local
+plaintext in `chrome.storage.local`, protected by your Chrome/OS profile.
+They are not encrypted, obfuscated, or vault-grade. On a shared or untrusted
+profile, disconnect connectors or clear Aurora's extension data after use.
 
 ## What Aurora stores, and where
 
@@ -44,12 +51,14 @@ anywhere except as explicitly described under "Network calls" below:
 - Background photo preferences (which mode — bundled rotation, your own
   upload, a flat gradient, or NASA's photo of the day — and, in rotation
   mode, which photo)
-- Weather cache (the last forecast fetched)
+- Weather cache (the last forecast and environmental context fetched)
 - NASA photo-of-the-day cache (the single photo fetched for the current
   local day, if you've chosen that background source — see "Network calls"
   below), so it isn't refetched on every new tab
-- Your saved location (latitude/longitude rounded to two decimal places,
-  i.e. roughly 1 km precision, plus a display label)
+- Your saved location and display label. Device location is rounded to two
+  decimal places (roughly 1 km precision). A city you select keeps the
+  coordinates returned by Open-Meteo; each Weather request normalizes either
+  source to at most four decimal places (roughly 11 m at the equator).
 - Notes (the scratchpad text)
 - World clocks and countdowns you've configured
 - Habits (the habit names you've added and which days you've marked each
@@ -82,10 +91,11 @@ something you entered — to a JSON file you choose to
 save, and re-import it later. Importing a backup also resets the NASA
 photo-of-the-day cache to empty, the same "rebuilds on next use" treatment
 every other excluded cache gets, rather than carrying an old day's photo
-forward. Connector configuration itself (e.g. your RSS
-feed list) IS included in the export, minus any field that connector
+forward. Connector configuration itself is included in the export, minus
+any field that connector
 declares as secret — every GitHub/GitLab/Jira/Vercel/Home Assistant
-token, and every calendar address you've added to the Calendar connector,
+token, every calendar address you've added to the Calendar connector, and
+every RSS feed URL,
 is stripped from the exported file automatically, before it's ever
 written to disk (see "Connectors" below for
 the full per-connector list and the mechanism that enforces it). This file
@@ -94,35 +104,48 @@ uploads it anywhere on its own. Where that file goes afterward (cloud
 drive, email, USB stick, etc.) is entirely up to you and outside Aurora's
 control.
 
-None of the above is ever sent to the developer, to analytics services, or
-to any third party. There is no server that Aurora's storage or backups
-pass through.
+Aurora never uploads the local store or a backup file wholesale to the
+developer, analytics, or any outside service. Individual values leave the
+device only through the specific functionality-necessary network calls
+disclosed below. There is no Aurora server that storage or backups pass
+through.
 
 ## Network calls
 
-Aurora makes network requests to exactly three **fixed** endpoints, all
+Aurora makes network requests to exactly four **fixed** endpoints, all
 operated by third-party services (Aurora itself has no server), all
 read-only, all keyless (no account, sign-in, or API key involved), and all
 sent no more data than described below — plus two **opt-in** sources: a
 Connector, if and only if you've configured one (the site(s) you configured,
-item 4 below), and NASA's Astronomy Picture of the Day, if and only if
-you've chosen it as your background (item 5 below):
+item 5 below), and NASA's Astronomy Picture of the Day, if and only if
+you've chosen it as your background (item 6 below):
 
 1. **Weather forecast** — `api.open-meteo.com`, once the Weather widget is
    turned on and a location is set. Sends only your saved latitude/longitude
-   (rounded to ~1 km, as stored). Refreshed periodically while the widget is
-   visible and on demand when you click refresh.
-2. **City search (geocoding)** — `geocoding-api.open-meteo.com`, only while
+   normalized to at most four decimal places. Device-derived coordinates were
+   already rounded to two decimal places; a selected city's provider
+   coordinates can retain up to four. Refreshed periodically while the widget
+   is visible and on demand when you click refresh.
+2. **Weather environmental context** - `air-quality-api.open-meteo.com`, once
+   the Weather widget is turned on and a location is set. Sends only the same
+   normalized coordinates as the forecast request and receives current
+   US AQI, UV index, and provider-available pollen values. The result is
+   stored inside the included weather cache and follows the same 30-minute freshness window
+   and manual refresh control as the forecast. Open-Meteo currently provides
+   pollen values only in Europe during pollen season, so Aurora shows them as
+   unavailable when the provider does not return them.
+3. **City search (geocoding)** — `geocoding-api.open-meteo.com`, only while
    the Weather widget is on and you're actively typing into its city search
    box (debounced ~300ms, and only once you've typed at least 2 characters —
    not on every keystroke, and not at all unless you open that search box).
    Sends only the text you've typed so far.
-3. **One-time reverse geocode** — `api.bigdatacloud.net`, only at the exact
+4. **One-time reverse geocode** — `api.bigdatacloud.net`, only at the exact
    moment you click "Use my location" in the Weather widget, so Aurora can
    label the forecast with a real place name instead of "My location." Sends
-   the same ~1 km-rounded coordinates the forecast call already uses. This
+   the device coordinates after Aurora rounds them to two decimal places
+   (roughly 1 km). This
    call happens once per click of that button, never on a schedule.
-4. **Connector fetches** — only to the connector(s) you've actually
+5. **Connector fetches** — only to the connector(s) you've actually
    configured yourself in Settings → Connectors (RSS, GitHub, GitLab, Jira,
    Vercel, Crypto, Calendar, Status, Home Assistant); there are none until
    you add or connect one. Each fetch is a single HTTP request sent
@@ -138,7 +161,7 @@ you've chosen it as your background (item 5 below):
    below for the full disclosure of that write path. See "Connectors"
    below for the full, per-connector disclosure, including the permission
    model that gates which sites Aurora is even allowed to reach.
-5. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
+6. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
    lookup) and `apod.nasa.gov` (the separate host that actually serves the
    image), only once you've chosen "NASA photo of the day" as your
    background in Settings → General → Background. Sends only NASA's shared,
@@ -277,9 +300,10 @@ pre-granted at install, nothing is granted in the background, and removing
 the last thing pointed at a given origin releases that origin's permission
 automatically.
 
-**Token connectors.** RSS, Crypto, Calendar, and Status need no credential
-(`auth: 'none'`) — there's nothing to keep secret beyond, for Calendar,
-each calendar address itself (see below). GitHub, GitLab, Jira, Vercel, and
+**Authentication and capability secrets.** RSS, Crypto, Calendar, and Status
+need no credential (`auth: 'none'`). RSS feed URLs and Calendar addresses are
+still capability secrets: possession of the full URL may grant read access,
+even though it is not an account sign-in. GitHub, GitLab, Jira, Vercel, and
 Home Assistant do require a credential — to read your own data, and for
 Home Assistant alone, to also send it a command — and each one stores that
 credential only in `chrome.storage.local`, on your device, exactly like
@@ -293,10 +317,11 @@ remember to update. GitHub/GitLab/Vercel/Home Assistant each declare their
 token secret; Jira declares its API token secret (the email address
 travels with the rest of the config, unstripped — it identifies you to
 Jira, the same way a username would, and isn't itself a bearer
-credential); Calendar declares its whole `calendars` list (every entry's
+credential); RSS uses its descriptor's backup redactor to remove every feed
+URL; Calendar declares its whole `calendars` list (every entry's
 own address) secret, since each address alone is what grants read access
-to that calendar — up to 5 per the connector's own cap; RSS, Crypto, and
-Status declare no secret fields, because they have none — a status page
+to that calendar — up to 5 per the connector's own cap; Crypto and Status
+declare no secret fields because they have none — a status page
 URL, curated or custom, grants no access to anything and identifies no
 one.
 
@@ -304,7 +329,8 @@ one.
 Settings → Connectors — nothing else — at most about once every 30 minutes
 per feed (or sooner, on demand, if you open the widget with a stale cache).
 Each fetch is a single HTTP GET straight to that feed's own host; nothing
-is sent but the request itself. The response — headline titles, links,
+is sent but the request itself. Each full feed URL is treated as a capability
+secret and removed from backup exports. The response — headline titles, links,
 source names, and publish dates — is parsed on your device and cached
 locally (as part of "What Aurora stores," above) purely so the widget
 doesn't need to refetch on every new tab; that cache is excluded from
@@ -362,11 +388,17 @@ covers its one write path, the only one in this whole list):
   reverse-proxied instances work fine). Sends your long-lived access
   token as the Authorization header, stored locally and stripped from
   backup exports exactly like the four other credentialed connectors
-  above. Reads two endpoints on that instance: `/api/config` (a one-time
+  above. Reads `/api/config` once (a one-time
   check, at the moment you connect, that resolves the location name your
-  card is labeled with) and `/api/states` (the entity picker's one bulk
-  fetch when you click "Choose entities," and the widget's own poll,
-  filtered down to just the entities you picked). Polled at most once
+  card is labeled with). The entity picker makes one bulk `/api/states`
+  request only when you click "Choose entities"; regular widget refreshes
+  request `/api/states/{entity_id}` separately for only the selected
+  entities. Because Home Assistant lets you select arbitrary entities, a
+  selected value can reflect personal, location, or health information,
+  depending on what you choose; Aurora treats it only as dashboard data and
+  sends it nowhere except in requests to that same connected instance. The
+  action controller checks `/api/` for health and does not use that endpoint
+  for ordinary state polling. Selected entities are polled at most once
   every 60 seconds, and only while a tab with the widget open is
   on-screen — there's no background timer of its own. A chip's text
   (the name and the value both) comes from that live poll, so renaming or
@@ -375,7 +407,7 @@ covers its one write path, the only one in this whole list):
   pick it, since an action is never re-fetched — it's static config, not
   polled state. **The one write path:** up to 3 of your picked entities can
   be one-tap actions (a scene, script, or switch); clicking that action's
-  button on the board sends a single command —
+  button on the board sends a single POST —
   `/api/services/scene/turn_on`, `/api/services/script/turn_on`, or
   `/api/services/switch/toggle`, matching what you picked — carrying
   nothing but that one entity's id, to that same instance, only in the
@@ -386,24 +418,34 @@ covers its one write path, the only one in this whole list):
 ## Data collection, sale, and sharing
 
 Aurora does not collect any data on the developer's behalf, in any form —
-there is no server for it to be collected to. Aurora does not sell, rent,
-trade, or otherwise transfer any user data to any third party for any
-purpose, including advertising. Aurora does not use or transfer data for
-purposes unrelated to the extension's single, disclosed purpose (a local
-new-tab dashboard), and does not use or transfer data to determine
-creditworthiness or for lending purposes.
+there is no server for it to be collected to. Aurora transfers data only
+when necessary to provide the user-requested dashboard feature described in
+this policy: directly to Chrome or to the weather, NASA, cloud, feed,
+calendar, status, or self-hosted provider the user selected. Aurora does not
+sell, rent, or trade user data; transfer it to advertising platforms, data
+brokers, or information resellers; use it for personalized advertising or
+profiling; allow the developer or other humans to read it; use or transfer it
+for a purpose unrelated to the extension's single disclosed purpose; or use
+or transfer it to determine creditworthiness or for lending.
+
+Aurora's use of information received from Chrome APIs complies with the
+Chrome Web Store User Data Policy, including its Limited Use requirements.
+Aurora uses that information only to provide or improve its single purpose as
+a local-first new-tab dashboard, and only makes the functionality-necessary
+transfers disclosed above.
 
 ## Children's privacy
 
-Aurora is not directed at children and does not knowingly collect
-information from anyone, of any age — see "What Aurora stores" above: every
-value listed there is generated by your own use of the dashboard and stored
-only on your device.
+Aurora is not directed at children and does not knowingly collect information
+on the developer's behalf from anyone, of any age. See "What Aurora stores"
+above: every value listed there is generated by your own use of the dashboard
+and stored only on your device, except for the functionality-necessary direct
+requests disclosed under "Network calls."
 
 ## Changes to this policy
 
 If this policy changes, the updated version will be published at the same
-location with a new effective date above. Because Aurora has no accounts
+location with a new effective date above. Because Aurora has no Aurora account
 and no way to contact users directly, checking this page is the only way to
 learn of changes.
 

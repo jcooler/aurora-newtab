@@ -8,6 +8,7 @@ import { defaults } from '../../../lib/storage/schema'
 import type { BarModel } from '../../../services/bookmarks'
 import { hasBookmarksPermission, loadBarModel } from '../../../services/bookmarks'
 import BookmarksBar from './BookmarksBar'
+import { folderMonogram, resolveBookmarkMark } from './BookmarksBar'
 
 // loadBarModel and hasBookmarksPermission are the only chrome.* touches
 // (chrome.bookmarks.getTree and chrome.permissions.contains respectively);
@@ -40,7 +41,12 @@ const nestedModel: BarModel = {
   loose: [{ id: 'i3', title: 'Docs', url: 'https://docs.example' }],
 }
 
-async function renderBar(model: BarModel, onPopoverOpenChange?: (open: boolean) => void) {
+async function renderBar(
+  model: BarModel,
+  onPopoverOpenChange?: (open: boolean) => void,
+  presentation: 'free' | 'stack' | 'docked' = 'free',
+  canvasSize: 'compact' | 'standard' = 'standard',
+) {
   vi.mocked(hasBookmarksPermission).mockResolvedValue(true)
   vi.mocked(loadBarModel).mockResolvedValue(model)
   const storage = createStorage(memoryDriver())
@@ -51,13 +57,46 @@ async function renderBar(model: BarModel, onPopoverOpenChange?: (open: boolean) 
   })
   const result = render(
     <StorageProvider storage={storage}>
-      <BookmarksBar onPopoverOpenChange={onPopoverOpenChange} />
+      <BookmarksBar onPopoverOpenChange={onPopoverOpenChange} presentation={presentation} canvasSize={canvasSize} />
     </StorageProvider>,
   )
   return result
 }
 
 describe('BookmarksBar', () => {
+  it.each(['free', 'stack', 'docked'] as const)(
+    'keeps the established single-line bookmarks bar in %s presentations',
+    async (presentation) => {
+      const view = await renderBar(nestedModel, undefined, presentation, 'standard')
+      const bar = await screen.findByRole('navigation', { name: 'Bookmarks bar' })
+      expect(bar.getAttribute('data-bookmarks-presentation')).toBe('bar')
+      expect(screen.queryByRole('region', { name: 'Bookmarks' })).toBeNull()
+      view.unmount()
+      vi.mocked(loadBarModel).mockClear()
+    },
+  )
+  it('uses single-letter folder marks per the batch-1 owner review (N for News, D for Docs)', () => {
+    expect(folderMonogram('News')).toBe('N')
+    expect(folderMonogram('Docs')).toBe('D')
+    expect(folderMonogram('Music')).toBe('M')
+    // Multi-word folders take the FIRST initial only (owner: "just say N").
+    expect(folderMonogram('Project Aurora')).toBe('P')
+    expect(folderMonogram('Reading')).toBe('R')
+    // Emoji-prefixed folders keep the whole emoji (code-point split).
+    expect(folderMonogram('\ud83d\udcda Reading')).toBe('\ud83d\udcda')
+    expect(folderMonogram('   ')).toBe('\ud83d\udcc1')
+  })
+
+  it('resolves exactly one deterministic mark for every compact bookmark identity', () => {
+    expect(resolveBookmarkMark({ kind: 'folder', title: 'A' })).toEqual({ kind: 'monogram', text: 'A' })
+    expect(resolveBookmarkMark({ kind: 'folder', title: 'Project Aurora' })).toEqual({ kind: 'monogram', text: 'P' })
+    expect(resolveBookmarkMark({ kind: 'folder', title: '   ' })).toEqual({ kind: 'folder' })
+    expect(resolveBookmarkMark({ kind: 'bookmark', url: 'https://docs.example', faviconFailed: false })).toEqual({
+      kind: 'favicon',
+      src: 'favicon:https://docs.example',
+    })
+    expect(resolveBookmarkMark({ kind: 'bookmark', url: 'https://docs.example', faviconFailed: true })).toEqual({ kind: 'globe' })
+  })
   it('renders nothing while settings.widgets.bookmarks is off', async () => {
     vi.mocked(loadBarModel).mockResolvedValue(nestedModel)
     const storage = createStorage(memoryDriver())
@@ -102,6 +141,18 @@ describe('BookmarksBar', () => {
     await renderBar(nestedModel)
     expect(await screen.findByRole('button', { name: 'Work' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Docs' })).toBeTruthy()
+  })
+
+  it('keeps loose and folder bookmarks in the current tab', async () => {
+    await renderBar(nestedModel)
+    const loose = await screen.findByRole('link', { name: 'Docs' })
+    expect(loose.getAttribute('href')).toBe('https://docs.example')
+    expect(loose.getAttribute('target')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Work' }))
+    const nested = await screen.findByRole('link', { name: 'Dashboard' })
+    expect(nested.getAttribute('href')).toBe('https://dash.example')
+    expect(nested.getAttribute('target')).toBeNull()
   })
 
   // Top-band pass: the bar owns the top row alone (the timer pill and
@@ -252,7 +303,7 @@ describe('BookmarksBar', () => {
     }
   })
 
-  it('swaps a folder chip\'s generic glyph for its own initial in compact mode', async () => {
+  it('pairs a named folder\'s glyph and monogram exclusively across the width threshold', async () => {
     const model: BarModel = {
       folders: [
         { id: 'f1', title: 'reading list', items: [], folders: [] },
@@ -264,18 +315,33 @@ describe('BookmarksBar', () => {
     const reading = await screen.findByRole('button', { name: 'reading list' })
     const weather = screen.getByRole('button', { name: '天気予報' })
 
-    // Eight identical folder glyphs in a row say nothing. The initial says
-    // which folder — the one thing the label was there to tell you.
-    const mark = reading.querySelector('[data-chip-mark]')!
+    // V1 identity above the compact width threshold: the folder GLYPH sits
+    // beside the visible name. The monogram is the compact-only mark —
+    // eight one-letter circles say nothing next to a visible label, and
+    // the owner's installed window proved a monogram-only chip reads as an
+    // "unexplained one-letter circle" the moment the label is squeezed.
+    // The two marks are media-gated so exactly one is ever visible.
+    const glyph = reading.querySelector('[data-bookmark-mark="folder"]')!
+    expect(glyph).not.toBeNull()
+    expect(glyph.classList.contains('compact:hidden')).toBe(true)
+    const mark = reading.querySelector('[data-bookmark-mark="monogram"]')!
+    // Single-letter mark per the batch-1 owner review ("just say N for news").
     expect(mark.textContent).toBe('R')
     expect(mark.getAttribute('aria-hidden')).toBe('true')
     expect(mark.classList.contains('hidden')).toBe(true)
-    expect(mark.classList.contains('compact:block')).toBe(true)
+    expect(mark.classList.contains('compact:inline')).toBe(true)
+    expect(reading.querySelectorAll('[data-chip-mark]')).toHaveLength(2)
     // Code points, not UTF-16 units, and uppercasing a CJK glyph is the
     // identity — a folder named with an emoji or a Han character keeps it.
-    expect(weather.querySelector('[data-chip-mark]')!.textContent).toBe('天')
-    // The generic folder glyph steps aside for it rather than doubling up.
-    expect(reading.querySelector('svg')!.classList.contains('compact:hidden')).toBe(true)
+    expect(weather.querySelector('[data-bookmark-mark="monogram"]')!.textContent).toBe('天')
+  })
+
+  it('renders one folder glyph and no monogram for an unnamed folder', async () => {
+    await renderBar({ folders: [{ id: 'f1', title: '   ', items: [], folders: [] }], loose: [] })
+    const folder = await screen.findByRole('button')
+    expect(folder.querySelectorAll('[data-chip-mark]')).toHaveLength(1)
+    expect(folder.querySelector('[data-chip-mark]')?.tagName).toBe('svg')
+    expect(folder.textContent?.trim()).toBe('')
   })
 
   it('keeps a loose bookmark\'s favicon as its compact mark, sized up to carry the chip alone', async () => {
@@ -285,6 +351,15 @@ describe('BookmarksBar', () => {
     expect(favicon.tagName).toBe('IMG')
     expect(favicon.classList.contains('size-3')).toBe(true)
     expect(favicon.classList.contains('compact:size-4')).toBe(true)
+  })
+
+  it('replaces a failed favicon with one generic globe without adding a second mark', async () => {
+    await renderBar(nestedModel)
+    const looseChip = await screen.findByRole('link', { name: 'Docs' })
+    fireEvent.error(looseChip.querySelector('img')!)
+    expect(looseChip.querySelectorAll('[data-chip-mark]')).toHaveLength(1)
+    expect(looseChip.querySelector('[data-chip-mark]')?.getAttribute('data-bookmark-mark')).toBe('globe')
+    expect(looseChip.querySelector('img')).toBeNull()
   })
 
   it('advertises chips as clickable (Tailwind preflight makes a bare <button> cursor:default)', async () => {
@@ -574,33 +649,87 @@ describe('BookmarksBar', () => {
     // and this rect (width 256px, matching the w-64 panel) sits far enough
     // right that its right edge (1156) overflows by 140px once the 8px
     // margin is accounted for.
-    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      left: 900,
-      right: 1156,
-      top: 0,
-      bottom: 0,
-      width: 256,
-      height: 0,
-      x: 900,
-      y: 0,
-      toJSON() {},
-    })
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: Element) {
+        if (this === folderChip) {
+          return { left: 950, right: 1000, top: 20, bottom: 56, width: 50, height: 36, x: 950, y: 20, toJSON() {} } as DOMRect
+        }
+        return { left: 0, right: 256, top: 0, bottom: 100, width: 256, height: 100, x: 0, y: 0, toJSON() {} } as DOMRect
+      },
+    )
 
     await act(async () => {
       fireEvent.click(folderChip)
     })
     const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
 
-    // Nudged left by exactly the overflow amount, on top of the default
-    // -50% centering (Tailwind v4 compiles -translate-x-1/2 to the CSS
-    // `translate` property, not `transform` — see the comment in
-    // FolderPopover.tsx on why the inline style targets `translate`).
-    expect(dialog.style.translate).toBe('calc(-50% - 140px) 0')
+    expect(dialog.style.left).toBe('760px')
+    expect(dialog.style.top).toBe('62px')
 
     rectSpy.mockRestore()
   })
 
-  it('renders no fixed-position element inside the bar; backdrop portals to <body>', async () => {
+  it('bounds height and recomputes from the unshifted baseline across resize and drill changes without drift', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+    const originalWidth = window.innerWidth
+    const originalHeight = window.innerHeight
+    Object.defineProperty(window, 'innerWidth', { value: 320, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: Element) {
+        if (this === folderChip) {
+          return { left: 280, right: 320, top: 140, bottom: 176, width: 40, height: 36, x: 280, y: 140, toJSON() {} } as DOMRect
+        }
+        return { left: 0, right: 256, top: 0, bottom: 164, width: 256, height: 164, x: 0, y: 0, toJSON() {} } as DOMRect
+      },
+    )
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
+    expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(dialog.style.left).toBe('56px')
+    expect(dialog.style.top).toBe('8px')
+
+    await act(async () => {
+      fireEvent(window, new Event('resize'))
+    })
+    expect(dialog.style.left).toBe('56px')
+    expect(dialog.style.top).toBe('8px')
+
+    const focused = screen.getByRole('button', { name: 'Projects' })
+    focused.focus()
+    await act(async () => {
+      fireEvent(window, new Event('resize'))
+    })
+    expect(document.activeElement).toBe(focused)
+    await act(async () => {
+      fireEvent.click(focused)
+    })
+    expect(await screen.findByRole('dialog', { name: 'Projects bookmarks' })).toBe(dialog)
+    expect(dialog.style.left).toBe('56px')
+    expect(dialog.style.top).toBe('8px')
+
+    rectSpy.mockRestore()
+    Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true })
+  })
+
+  it('keeps every narrow folder control at the 36px target floor', async () => {
+    await renderBar(nestedModel)
+    fireEvent.click(await screen.findByRole('button', { name: 'Work' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Projects' }))
+
+    expect(screen.getByRole('button', { name: '‹ Back' }).classList.contains('max-[420px]:min-h-9')).toBe(true)
+    const dialog = screen.getByRole('dialog', { name: 'Projects bookmarks' })
+    for (const control of screen.getAllByRole('link').filter((link) => dialog.contains(link))) {
+      expect(control.classList.contains('max-[420px]:min-h-9')).toBe(true)
+    }
+  })
+
+  it('closes on an outside pointer without installing a viewport click interceptor', async () => {
     await renderBar(nestedModel)
     const folderChip = await screen.findByRole('button', { name: 'Work' })
 
@@ -619,35 +748,49 @@ describe('BookmarksBar', () => {
     // inside the nav may be position-fixed, ever.
     expect(nav.querySelector('.fixed')).toBeNull()
 
-    // The popover panel anchors to its chip wrapper (absolute), not the
-    // viewport (fixed) — that's what pins it visually under the clicked chip.
-    expect(dialog.classList.contains('absolute')).toBe(true)
-    expect(dialog.classList.contains('fixed')).toBe(false)
+    // The panel is portaled to body and positioned from its chip. Keeping it
+    // outside the Dock scrollport prevents a visible menu from being clipped
+    // or sending focus-driven horizontal scroll into the entire Stage.
+    expect(dialog.classList.contains('fixed')).toBe(true)
+    expect(dialog.parentElement).toBe(document.body)
 
-    // The click-outside catcher escapes the bar's subtree via a portal to
-    // <body>, where fixed inset-0 really means the whole viewport.
+    // A body-level fixed backdrop can still outrank the bar when an ancestor
+    // creates a stacking context. That makes a visibly-open popover entirely
+    // unclickable in Chromium, so outside dismissal must not rely on one.
     const bodyBackdrop = [...document.body.children].find(
       (el) => el.matches('div[aria-hidden="true"]') && el.classList.contains('fixed'),
     )
-    expect(bodyBackdrop).toBeTruthy()
+    expect(bodyBackdrop).toBeUndefined()
 
-    // And it still closes the popover.
+    // The document-level pointer handler still provides native-menu-style
+    // outside dismissal without covering any interactive content.
     await act(async () => {
-      fireEvent.click(bodyBackdrop!)
+      fireEvent.pointerDown(document.body)
     })
     expect(screen.queryByRole('dialog', { name: 'Work bookmarks' })).toBeNull()
   })
 
-  // Bookmarks-stacking bug fix (bug: popovers opened but nothing inside was
-  // clickable — see App.tsx's comment on the bookmarks PositionedBlock for
-  // the full root-cause writeup). The nav lost `position: fixed` when its
-  // placement classes moved out to the App.tsx wrapper (commit 1125413),
-  // leaving its conditional z-20/z-50 classes sitting on a `position:
-  // static` element, where z-index has no effect at all — chips would stay
-  // under FolderPopover's z-40 body-portaled catcher even once the wrapper
-  // itself stopped being a transform-created stacking context. `relative`
-  // (no visual offset, just a `position` value) is what makes those
-  // z-index classes apply again.
+  it('lets the active folder chip close its own popover without reopening it', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    expect(await screen.findByRole('dialog', { name: 'Work bookmarks' })).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.pointerDown(folderChip)
+    })
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    expect(screen.queryByRole('dialog', { name: 'Work bookmarks' })).toBeNull()
+  })
+
+  // The nav's local z-20/z-50 classes still require a positioned element.
+  // The portaled panel owns global layering; this class only orders the
+  // active chip against its sibling launchers.
   it('the nav carries `relative` so its z-20/z-50 classes actually apply (bookmarks-stacking bug fix)', async () => {
     await renderBar(nestedModel)
     const nav = await screen.findByRole('navigation', { name: 'Bookmarks bar' })

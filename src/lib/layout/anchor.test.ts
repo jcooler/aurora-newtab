@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { anchorPanel, hugHorizontal, type PanelPlacement } from './anchor'
+import {
+  VIEWPORT_PANEL_GUTTER,
+  anchorPanel,
+  anchorPanelAvoidingAnchor,
+  fitPanelSize,
+  hugHorizontal,
+  type PanelPlacement,
+} from './anchor'
 
 // `anchorPanel` returns `{left,top}` (opens downward) or `{left,bottom}`
 // (opens upward) — these narrow the union so tests can assert on whichever
@@ -81,6 +88,88 @@ describe('anchorPanel', () => {
     // Unclamped this would be viewport.h - pillRect.top + 8 = 448, well past
     // the max of viewport.h - tallPanel.h - 8 = 392.
     expect(bottomOf(result)).toBe(viewport.h - tallPanel.h - 8)
+  })
+
+  it('fits an over-wide preferred panel before clamping so both horizontal edges retain the shared gutter', () => {
+    const fitted = fitPanelSize({ w: 384, h: 184 }, { w: 320, h: 568 })
+    expect(VIEWPORT_PANEL_GUTTER).toBe(8)
+    expect(fitted).toEqual({ w: 304, h: 184 })
+
+    const result = anchorPanel(
+      { left: 278, top: 510, right: 304, bottom: 548, width: 26, height: 38 },
+      { w: 384, h: 184 },
+      { w: 320, h: 568 },
+    )
+    expect(result.left).toBe(8)
+  })
+
+  it('fits the Notes preferred width to the 320px viewport contract', () => {
+    expect(fitPanelSize({ w: 320, h: 256 }, { w: 320, h: 568 })).toEqual({ w: 304, h: 256 })
+  })
+
+  it('fits an over-tall preferred panel and never returns a negative top or bottom offset', () => {
+    expect(fitPanelSize({ w: 256, h: 218 }, { w: 320, h: 180 })).toEqual({ w: 256, h: 164 })
+
+    const top = anchorPanel(
+      { left: 16, top: 8, right: 92, bottom: 46, width: 76, height: 38 },
+      { w: 256, h: 218 },
+      { w: 320, h: 180 },
+    )
+    expect(topOf(top)).toBe(8)
+
+    const bottom = anchorPanel(
+      { left: 228, top: 134, right: 304, bottom: 172, width: 76, height: 38 },
+      { w: 320, h: 256 },
+      { w: 320, h: 180 },
+    )
+    expect(bottomOf(bottom)).toBe(8)
+  })
+
+  it('keeps the established 1600x900 numeric anchors unchanged', () => {
+    expect(anchorPanel(
+      { left: 16, top: 16, right: 92, bottom: 54, width: 76, height: 38 },
+      { w: 256, h: 218 },
+      { w: 1600, h: 900 },
+    )).toEqual({ left: 16, top: 62 })
+    expect(anchorPanel(
+      { left: 1526, top: 846, right: 1584, bottom: 884, width: 58, height: 38 },
+      { w: 384, h: 184 },
+      { w: 1600, h: 900 },
+    )).toEqual({ left: 1200, bottom: 62 })
+  })
+
+  it('fits and anchors an upward-growing panel above an exact tall-Dock boundary', () => {
+    const viewport = { w: 800, h: 450 }
+    const dockTop = 242
+    const result = anchorPanel(
+      { left: 680, top: 260, right: 752, bottom: 298, width: 72, height: 38 },
+      { w: 384, h: 324 },
+      viewport,
+      dockTop,
+    )
+
+    expect(result).toEqual({ left: 368, bottom: 216, maxHeight: 226 })
+    expect(viewport.h - bottomOf(result)).toBe(dockTop - VIEWPORT_PANEL_GUTTER)
+  })
+})
+
+describe('anchorPanelAvoidingAnchor', () => {
+  it('moves a clamped tall inspector beside the selected card when horizontal room exists', () => {
+    const anchor = {
+      left: 650.2578125,
+      top: 117.25,
+      right: 1095.6484375,
+      bottom: 372.25,
+      width: 445.390625,
+      height: 255,
+    }
+    const result = anchorPanelAvoidingAnchor(
+      anchor,
+      { w: 280, h: 381.25 },
+      { w: 1408, h: 445 },
+    )
+
+    expect(result).toEqual({ left: 362.2578125, top: 54.125 })
   })
 })
 

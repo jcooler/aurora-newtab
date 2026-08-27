@@ -18,6 +18,12 @@ import { cryptoDescriptor } from './crypto'
 import { icsDescriptor } from './ics'
 import { statusDescriptor } from './status'
 import { homeassistantDescriptor } from './homeassistant'
+import { linearDescriptor } from './linear'
+import { sentryDescriptor } from './sentry'
+import { todoistDescriptor } from './todoist'
+import { onThisDayDescriptor } from './onThisDay'
+import { publicHolidaysDescriptor } from './publicHolidays'
+import { auroraKpDescriptor } from './auroraKp'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
@@ -62,6 +68,12 @@ export const CONNECTORS: ConnectorDescriptor[] = [
   icsDescriptor as ConnectorDescriptor,
   statusDescriptor as ConnectorDescriptor,
   homeassistantDescriptor as ConnectorDescriptor,
+  linearDescriptor as ConnectorDescriptor,
+  sentryDescriptor as ConnectorDescriptor,
+  todoistDescriptor as ConnectorDescriptor,
+  onThisDayDescriptor as ConnectorDescriptor,
+  publicHolidaysDescriptor as ConnectorDescriptor,
+  auroraKpDescriptor as ConnectorDescriptor,
 ]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan
@@ -78,10 +90,34 @@ export function getConnector(id: ConnectorId): ConnectorDescriptor | undefined {
  *  never need this catch; it exists for the ones that don't. */
 function originsOf(descriptor: ConnectorDescriptor, config: ConnectorConfig): string[] {
   try {
-    return descriptor.origins(config)
+    const origins = descriptor.origins(config)
+    return Array.isArray(origins) ? origins.filter((origin): origin is string => typeof origin === 'string') : []
   } catch {
     return []
   }
+}
+
+function ownsOriginsOf(descriptor: ConnectorDescriptor, config: ConnectorConfig): boolean {
+  try {
+    return descriptor.ownsOrigins(config) === true
+  } catch {
+    return false
+  }
+}
+
+/** Origins claimed by every configured connector, including disabled cards.
+ *  Each descriptor defines its own readiness boundary so generic enable-only
+ *  rows and secret-stripped backups cannot claim constant origins. */
+export function ownedConnectorOriginPatterns(
+  configs: Partial<Record<ConnectorId, ConnectorConfig>>,
+): string[] {
+  const claimed = new Set<string>()
+  for (const descriptor of CONNECTORS) {
+    const config = configs[descriptor.id]
+    if (!config || !ownsOriginsOf(descriptor, config)) continue
+    for (const origin of originsOf(descriptor, config)) claimed.add(origin)
+  }
+  return [...claimed]
 }
 
 /** The union of every ENABLED connector's derived origins, deduped — pulled

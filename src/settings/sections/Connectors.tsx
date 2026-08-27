@@ -1,16 +1,23 @@
-import { useState, type ComponentType } from 'react'
+import { useEffect, useRef, useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, StatusConfig, StatusService, VercelConfig, VercelViews } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, LinearConfig, RssConfig, SentryConfig, StatusConfig, StatusService, TodoistConfig, VercelConfig, VercelViews } from '../../services/connectors/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../services/connectors/types'
-import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
+import { CONNECTORS, getConnector } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
 import { whoamiGitlab, DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../services/connectors/jira'
 import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
+import { connectorSnapshotScope, newSnapshotEpoch } from '../../services/connectors/snapshotIdentity'
+import { isSentryData, sentryBaseUrl, sentryItemLimit, sentryProjectSlugs, sentryRegion, validateSentryConnection } from '../../services/connectors/sentry'
+import { isLinearWorkData, LINEAR_ORIGIN, linearItemLimit, linearTeamIds, whoamiLinear } from '../../services/connectors/linear'
+import { fetchTodoistProjects, isTodoistData, TODOIST_ORIGIN, todoistItemLimit, todoistProjectIds } from '../../services/connectors/todoist'
+import { fetchHolidayCountries, normalizeHolidayCountryCode, type HolidayCountry } from '../../services/connectors/publicHolidays'
 import { resolveViews } from '../../services/connectors/views'
-import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES, MAX_CALENDARS } from '../../services/connectors/ics'
+import { icsCalendarsOf, icsViewOf, MAX_CALENDARS } from '../../services/connectors/ics'
+import { CALENDAR_COLORS, calendarColorClass, calendarColorOf, isCalendarColor, type CalendarColor } from '../../services/connectors/calendarColors'
 import { CURATED_STATUS, MAX_SERVICES, statusServicesOf } from '../../services/connectors/status'
+import { CRYPTO_CATALOG, CRYPTO_CATALOG_IDS } from '../../services/connectors/cryptoCatalog'
 import {
   whoamiHomeAssistant,
   fetchAllStates,
@@ -21,13 +28,25 @@ import {
   type HaState,
   type HomeAssistantConfig,
 } from '../../services/connectors/homeassistant'
-import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
+import { canonicalOriginPatterns, originPattern } from '../../services/permissions'
+import {
+  releaseUnownedOrigins,
+  runOriginTransaction,
+  type OriginTransactionResult,
+} from '../../services/permissionTransactions'
 import { fuzzyScore } from '../../lib/fuzzy'
-import { TokenConnectForm } from './TokenConnectForm'
+import { TokenConnectForm, type TokenDisconnectResult } from './TokenConnectForm'
 import EntityPickerDialog from './EntityPickerDialog'
 import Switch from '../Switch'
 import ToggleChip from '../ToggleChip'
 import { btnQuiet, control, eyebrow, label, row, select, submitBtn } from './shared'
+import ConnectorCardShell from '../connectors/ConnectorCardShell'
+import ConnectorPrivacyDisclosure from '../connectors/ConnectorPrivacyDisclosure'
+import {
+  deriveConnectorCardState,
+  type ConnectorCardMode,
+} from '../connectors/connectorCardState'
+import { useStoredKey } from '../../lib/hooks/useStoredKey'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -40,6 +59,149 @@ const RSS_DEFAULT: RssConfig = { enabled: true, feeds: [], shownCount: 5 }
 interface BodyProps {
   config: ConnectorConfig | undefined
   storage: AuroraStorage
+  reportPendingCleanup(patterns: readonly string[]): void
+  mode: ConnectorCardMode
+  closeEditor(): void
+}
+
+type DisconnectableConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant' | 'crypto' | 'linear' | 'sentry' | 'todoist'
+
+/** A credential replacement may identify a different provider account. Keep
+ * display preferences, but never carry account-scoped entity ids across it. */
+export function nextLinearConnection(
+  previous: LinearConfig | undefined,
+  token: string,
+  displayName: string,
+): LinearConfig {
+  return {
+    enabled: true,
+    token,
+    displayName,
+    snapshotEpoch: newSnapshotEpoch(),
+    itemLimit: linearItemLimit(previous),
+  }
+}
+
+export function nextSentryConnection(
+  previous: SentryConfig | undefined,
+  values: Record<string, string>,
+  organization: string,
+): SentryConfig {
+  return {
+    enabled: true,
+    token: values.token,
+    organization,
+    region: sentryRegion(values.region),
+    snapshotEpoch: newSnapshotEpoch(),
+    itemLimit: sentryItemLimit(previous),
+  }
+}
+
+export function nextTodoistConnection(
+  previous: TodoistConfig | undefined,
+  token: string,
+  accountLabel: string,
+): TodoistConfig {
+  return {
+    enabled: true,
+    token,
+    accountLabel,
+    snapshotEpoch: newSnapshotEpoch(),
+    itemLimit: todoistItemLimit(previous),
+  }
+}
+
+function useScopeValidatedSnapshotData(
+  id: 'linear' | 'sentry' | 'todoist',
+  config: ConnectorConfig | undefined,
+  snapshot: AuroraData['connectorSnapshots'][ConnectorId],
+): unknown | null {
+  const [validated, setValidated] = useState<{
+    config: ConnectorConfig
+    snapshot: NonNullable<typeof snapshot>
+    data: unknown
+  } | null>(null)
+
+  useEffect(() => {
+    let current = true
+    setValidated(null)
+    if (!config || !snapshot?.scope) return () => { current = false }
+
+    void connectorSnapshotScope(id, config).then((scope) => {
+      if (current && snapshot.scope === scope) setValidated({ config, snapshot, data: snapshot.data })
+    })
+    return () => { current = false }
+  }, [config, id, snapshot])
+
+  return validated !== null && validated.config === config && validated.snapshot === snapshot ? validated.data : null
+}
+
+function canonicalCandidates(candidates: readonly string[]): string[] {
+  const canonical = new Set<string>()
+  for (const candidate of candidates) {
+    try {
+      for (const pattern of canonicalOriginPatterns([candidate])) canonical.add(pattern)
+    } catch {
+      // Descriptor origins are expected to be canonical. Ignore one malformed
+      // entry rather than preventing the valid removed origins from recovery.
+    }
+  }
+  return [...canonical]
+}
+
+function descriptorCandidates(id: ConnectorId, config: ConnectorConfig): string[] {
+  const descriptor = getConnector(id)
+  if (!descriptor) return []
+  try {
+    return canonicalCandidates(descriptor.origins(config))
+  } catch {
+    return []
+  }
+}
+
+function reportTransactionCleanup<T>(
+  transaction: OriginTransactionResult<T>,
+  reportPendingCleanup: (patterns: readonly string[]) => void,
+) {
+  if ('pendingCleanup' in transaction && transaction.pendingCleanup.length > 0) {
+    reportPendingCleanup(transaction.pendingCleanup)
+  }
+}
+
+function transactionError<T>(
+  transaction: OriginTransactionResult<T>,
+  deniedMessage: string,
+): string | null {
+  if (transaction.status === 'committed') return null
+  if (transaction.status === 'aborted') return transaction.message
+  if (transaction.status === 'denied') return deniedMessage
+  if (transaction.status === 'access-lost') return 'Access changed before saving. Please try again.'
+  return "Couldn't save that connection. Please try again."
+}
+
+/** Captures origin candidates from the exact config value removed by the
+ * authoritative update, never from render-time props or a separate read.
+ * The empty-origin transaction is deliberately permission-free: it only puts
+ * the owner mutation into the same lifecycle authority used by its subsequent
+ * release in TokenConnectForm. */
+async function disconnectTokenConnector(
+  storage: AuroraStorage,
+  id: DisconnectableConnectorId,
+): Promise<TokenDisconnectResult> {
+  let candidates: string[] = []
+  const transaction = await runOriginTransaction(storage, [], async () => {
+    await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+      const removed = connectors[id]
+      const nextConnectors = { ...connectors }
+      const nextSnapshots = { ...connectorSnapshots }
+      delete nextConnectors[id]
+      delete nextSnapshots[id]
+      if (removed) candidates = descriptorCandidates(id, removed)
+      return { connectors: nextConnectors, connectorSnapshots: nextSnapshots }
+    })
+    return { ok: true as const, value: undefined, ownerCommitted: true as const }
+  })
+  return { candidates: transaction.status === 'committed' ? candidates : [], transaction }
 }
 
 /** Card auth-state, exported (beside the default export) purely for direct
@@ -60,17 +222,27 @@ export function authState(
   return secretMissing ? 'reconnect' : 'connected'
 }
 
-/** The origin match pattern for a URL, or null if it can't be derived
- *  (non-https / unparseable). Two call sites: RssBody's remove-feed handler
- *  (deciding whether a REMAINING feed still claims the origin of a feed
- *  being removed) and IcsBody's save handler (deciding whether a save-over-
- *  save actually changed the origin) — in both, a bad entry simply doesn't
- *  count as sharing/matching, so it never throws out of the caller. */
-function originOf(url: string): string | null {
-  try {
-    return originPattern(url)
-  } catch {
-    return null
+export type ConnectorCardState = 'off' | 'setup' | 'reconnect' | 'connected' | 'ready'
+
+/** Configuration health shown before card details. This deliberately derives
+ * from the frozen descriptor/config contract only: it does not inspect secret
+ * values beyond presence and never treats an unrelated cached snapshot as
+ * proof that the current connection is healthy. */
+export function connectorCardState(
+  descriptor: ConnectorDescriptor,
+  config: ConnectorConfig | undefined,
+): { state: ConnectorCardState; label: string } {
+  if (!config?.enabled) return { state: 'off', label: 'Off' }
+  if (descriptor.auth === 'none') return { state: 'ready', label: 'Ready' }
+
+  const auth = authState(descriptor, config)
+  if (auth === 'reconnect') return { state: 'reconnect', label: 'Reconnect needed' }
+  if (auth === 'unconfigured') return { state: 'setup', label: 'Setup needed' }
+
+  const identity = descriptor.identityField ? config[descriptor.identityField] : undefined
+  return {
+    state: 'connected',
+    label: `Connected ${descriptor.identityPhrase ?? 'as'} ${String(identity)}`,
   }
 }
 
@@ -109,39 +281,102 @@ function originOf(url: string): string | null {
 export default function Connectors({
   connectors,
   storage,
+  reportPendingCleanup,
 }: {
   connectors: AuroraData['connectors'] | undefined
   storage: AuroraStorage
+  reportPendingCleanup(patterns: readonly string[]): void
 }) {
   const [query, setQuery] = useState('')
+  const [editor, setEditor] = useState<{
+    id: ConnectorId
+    mode: ConnectorCardMode
+    group: 'on-canvas' | 'available'
+  } | null>(null)
+  const pendingFocusId = useRef<ConnectorId | null>(null)
+  const autoOpenedReconnects = useRef(new Set<ConnectorId>())
   const q = query.trim()
+
+  const presentation = (descriptor: ConnectorDescriptor) =>
+    deriveConnectorCardState(descriptor, connectors?.[descriptor.id])
+
+  useEffect(() => {
+    if (editor) return
+    const reconnect = CONNECTORS.find((descriptor) => {
+      const state = presentation(descriptor)
+      return state.openImmediately && !autoOpenedReconnects.current.has(descriptor.id)
+    })
+    if (!reconnect) return
+    autoOpenedReconnects.current.add(reconnect.id)
+    setEditor({ id: reconnect.id, mode: 'reconnect', group: 'available' })
+  }, [connectors, editor])
+
+  useEffect(() => {
+    if (editor || !pendingFocusId.current) return
+    const id = pendingFocusId.current
+    pendingFocusId.current = null
+    document.getElementById(`connector-${id}-action`)?.focus()
+  }, [editor])
+
+  function openEditor(id: ConnectorId, mode: ConnectorCardMode) {
+    pendingFocusId.current = null
+    const descriptor = getConnector(id)
+    setEditor({
+      id,
+      mode,
+      group: descriptor ? presentation(descriptor).group : 'available',
+    })
+  }
+
+  function closeEditor(id: ConnectorId) {
+    pendingFocusId.current = id
+    setEditor((current) => (current?.id === id ? null : current))
+  }
 
   // Grouping is DERIVED per render from the registry + live config — no
   // memo: seven descriptors is nothing, and staleness bugs cost more than
   // the map does.
-  const enabled = (d: ConnectorDescriptor) => !!connectors?.[d.id]?.enabled
   const results = q
     ? CONNECTORS.map((d, i) => ({ d, i, score: fuzzyScore(q, `${d.label} ${d.blurb}`) }))
         .filter((r): r is { d: ConnectorDescriptor; i: number; score: number } => r.score !== null)
         .sort((a, b) => b.score - a.score || a.i - b.i)
         .map((r) => r.d)
     : null
-  const pinned = q ? [] : CONNECTORS.filter(enabled)
+  const onCanvas = q
+    ? []
+    : CONNECTORS.filter(
+        (descriptor) =>
+          (editor?.id === descriptor.id ? editor.group : presentation(descriptor).group) === 'on-canvas',
+      )
   const grouped = q
     ? []
     : CATEGORY_ORDER.map((cat) => ({
         cat,
-        cards: CONNECTORS.filter((d) => d.category === cat && !enabled(d)),
+        cards: CONNECTORS.filter(
+          (descriptor) =>
+            descriptor.category === cat &&
+            (editor?.id === descriptor.id ? editor.group : presentation(descriptor).group) === 'available',
+        ),
       })).filter((g) => g.cards.length > 0)
 
   const card = (d: ConnectorDescriptor) => (
-    <ConnectorCard key={d.id} descriptor={d} config={connectors?.[d.id]} storage={storage} />
+    <ConnectorCard
+      key={d.id}
+      descriptor={d}
+      config={connectors?.[d.id]}
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      activeMode={editor?.id === d.id ? editor.mode : null}
+      onOpen={(mode) => openEditor(d.id, mode)}
+      onClose={() => closeEditor(d.id)}
+    />
   )
 
   return (
-    <section aria-label="Connectors" className="py-6 first:pt-0 last:pb-0">
-      <div className="sticky -top-6 z-10 bg-panel pb-3">
+    <section aria-label="Connectors" className="py-4 first:pt-0 last:pb-0">
+      <div className="settings-sticky-surface sticky -top-6 z-10 pb-3 max-[420px]:-top-3">
         <h3 className={eyebrow}>Connectors</h3>
+        <ConnectorPrivacyDisclosure />
         <label htmlFor="connector-search" className="sr-only">
           Search connectors
         </label>
@@ -150,33 +385,42 @@ export default function Connectors({
           type="search"
           placeholder="Search connectors"
           value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
-          className={`${control} w-full`}
+          onChange={(e) => {
+            pendingFocusId.current = null
+            setEditor(null)
+            setQuery(e.currentTarget.value)
+          }}
+          className={`${control} mt-2 w-full`}
         />
       </div>
 
       <div data-testid="connector-scroll">
         {results !== null ? (
           results.length > 0 ? (
-            results.map(card)
+            <div className="space-y-2">{results.map(card)}</div>
           ) : (
             <p className="text-sm text-fg-muted">No connector matches.</p>
           )
         ) : (
-          <>
-            {pinned.length > 0 && (
-              <div className="mt-6 first:mt-0">
-                <h4 className={eyebrow}>On your board</h4>
-                {pinned.map(card)}
+          <div className="space-y-5">
+            {onCanvas.length > 0 ? (
+              <section aria-label="On canvas">
+                <h4 className={eyebrow}>On canvas</h4>
+                <div className="space-y-2">{onCanvas.map(card)}</div>
+              </section>
+            ) : null}
+            <section aria-label="Available">
+              <h4 className={eyebrow}>Available</h4>
+              <div className="space-y-4">
+                {grouped.map(({ cat, cards }) => (
+                  <section key={cat} aria-label={CATEGORY_LABELS[cat]}>
+                    <h5 className="mb-2 text-xs font-medium text-fg-muted">{CATEGORY_LABELS[cat]}</h5>
+                    <div className="space-y-2">{cards.map(card)}</div>
+                  </section>
+                ))}
               </div>
-            )}
-            {grouped.map(({ cat, cards }) => (
-              <div key={cat} className="mt-6 first:mt-0">
-                <h4 className={eyebrow}>{CATEGORY_LABELS[cat]}</h4>
-                {cards.map(card)}
-              </div>
-            ))}
-          </>
+            </section>
+          </div>
         )}
       </div>
     </section>
@@ -198,81 +442,250 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   ics: IcsBody,
   status: StatusBody,
   homeassistant: HomeAssistantBody,
+  linear: LinearBody,
+  sentry: SentryBody,
+  todoist: TodoistBody,
+  onThisDay: OnThisDayBody,
+  publicHolidays: PublicHolidaysBody,
+  auroraKp: AuroraKpBody,
 }
+
+export const CONNECTOR_BODY_IDS: readonly ConnectorId[] = Object.freeze(
+  Object.keys(BODY_COMPONENTS) as ConnectorId[],
+)
 
 function ConnectorCard({
   descriptor,
   config,
   storage,
+  reportPendingCleanup,
+  activeMode,
+  onOpen,
+  onClose,
 }: {
   descriptor: ConnectorDescriptor
   config: ConnectorConfig | undefined
   storage: AuroraStorage
+  reportPendingCleanup(patterns: readonly string[]): void
+  activeMode: ConnectorCardMode | null
+  onOpen(mode: ConnectorCardMode): void
+  onClose(): void
 }) {
-  const enabled = !!config?.enabled
-  const state = authState(descriptor, config)
-  const identity = descriptor.identityField ? config?.[descriptor.identityField] : undefined
+  const presentation = deriveConnectorCardState(descriptor, config)
   const Body = BODY_COMPONENTS[descriptor.id]
 
   return (
-    <div className="mt-3 rounded-xl border border-control-border p-3 first:mt-0">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="text-sm font-semibold text-fg">{descriptor.label}</h4>
-          <p className="text-xs text-fg-muted">{descriptor.blurb}</p>
-          {/* Status chip: 'token'-auth connectors only (types.ts's
-              identityField doc comment states the connected/reconnect rule
-              authState implements). Quiet-chip idiom, same as the On/Off
-              span below — text-xs, tinted by state, no pill/border. */}
-          {descriptor.auth === 'token' && state === 'connected' && (
-            <p className="text-xs text-emerald-400">
-              Connected {descriptor.identityPhrase ?? 'as'} {String(identity)}
-            </p>
-          )}
-          {descriptor.auth === 'token' && state === 'reconnect' && (
-            <p className="text-xs text-fg-muted">Reconnect needed</p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className={`text-xs ${enabled ? 'text-accent' : 'text-fg-muted'}`}>
-            {enabled ? 'On' : 'Off'}
-          </span>
-          <label htmlFor={`connector-${descriptor.id}-enabled`} className="sr-only">
-            Enable {descriptor.label}
-          </label>
-          {/* A plain storage write — NO permission gesture rides on this enable
-              toggle (each connector body requests chrome.permissions at
-              connect/add-feed time, not here), so the checkbox→Switch swap
-              carries no gesture-ordering concern. */}
-          <Switch
-            id={`connector-${descriptor.id}-enabled`}
-            checked={enabled}
-            onChange={(checked) => {
-              // Only rss seeds default FIELDS here (its feeds/shownCount, which
-              // RssBody needs present the moment it renders). Every other
-              // connector supplies its real fields through its OWN body — token
-              // connectors (github + Tasks 49-51) at connect time via
-              // onConnected — so seeding them with RSS_DEFAULT would persist,
-              // and EXPORT, an RSS-shaped {feeds, shownCount} object under an id
-              // it doesn't belong to. Keyed to 'rss' specifically (not
-              // auth-gated) so no non-rss id ever gets an RSS-shaped seed; a
-              // first enable of any other connector writes just { enabled }.
-              const seed = descriptor.id === 'rss' ? RSS_DEFAULT : {}
-              void storage.update('connectors', (prev) => ({
-                ...prev,
-                [descriptor.id]: { ...seed, ...prev[descriptor.id], enabled: checked },
-              }))
-            }}
-          />
-        </div>
-      </div>
-
-      {Body && enabled && <Body config={config} storage={storage} />}
-    </div>
+    <ConnectorCardShell
+      id={descriptor.id}
+      label={descriptor.label}
+      blurb={descriptor.blurb}
+      presentation={presentation}
+      activeMode={activeMode}
+      onOpen={(mode) => onOpen(mode)}
+      onClose={() => onClose()}
+      onVisibilityChange={(visible) => {
+        void storage.update('connectors', (previous) => {
+          const current = previous[descriptor.id]
+          if (!current || !deriveConnectorCardState(descriptor, current).configured) return previous
+          return {
+            ...previous,
+            [descriptor.id]: { ...current, enabled: visible },
+          }
+        })
+      }}
+    >
+      {Body && activeMode ? (
+        <Body
+          config={config}
+          storage={storage}
+          reportPendingCleanup={reportPendingCleanup}
+          mode={activeMode}
+          closeEditor={onClose}
+        />
+      ) : null}
+    </ConnectorCardShell>
   )
 }
 
-function RssBody({ config, storage }: BodyProps) {
+function OnThisDayBody({ config, storage, closeEditor }: BodyProps) {
+  const configured = config?.enabled === true || config?.enabled === false
+
+  if (configured) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Uses today&apos;s local month and day to request public historical facts from English Wikipedia.
+        </p>
+        <button type="button" onClick={closeEditor} className={submitBtn}>Done</button>
+      </div>
+    )
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.onThisDay
+          return {
+            connectors: { ...connectors, onThisDay: { enabled: true } },
+            connectorSnapshots: nextSnapshots,
+          }
+        }).then(closeEditor)
+      }}
+    >
+      <p className="text-xs leading-relaxed text-fg-muted">
+        Aurora sends only today&apos;s local month and day to English Wikipedia. No account, key, or permission is required.
+      </p>
+      <button type="submit" className={submitBtn}>Add On This Day to canvas</button>
+    </form>
+  )
+}
+
+function PublicHolidaysBody({ config, storage, closeEditor }: BodyProps) {
+  const current = config && 'countryCode' in config
+    ? normalizeHolidayCountryCode(config.countryCode)
+    : null
+  const [countries, setCountries] = useState<HolidayCountry[]>([])
+  const [countryCode, setCountryCode] = useState(current ?? '')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [ownerFingerprint] = useState(() => publicHolidaysOwnerFingerprint(config))
+
+  useEffect(() => {
+    let live = true
+    setLoading(true)
+    void fetchHolidayCountries()
+      .then((rows) => {
+        if (!live) return
+        setCountries(rows)
+        setError(null)
+      })
+      .catch(() => {
+        if (live) setError('Country choices are unavailable. Try again.')
+      })
+      .finally(() => {
+        if (live) setLoading(false)
+      })
+    return () => { live = false }
+  }, [])
+
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const normalized = normalizeHolidayCountryCode(countryCode)
+        if (!normalized || !countries.some((country) => country.countryCode === normalized)) {
+          setError('Choose a country from the list.')
+          return
+        }
+        setSubmitting(true)
+        setError(null)
+        void (async () => {
+          try {
+            await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+              if (publicHolidaysOwnerFingerprint(connectors.publicHolidays) !== ownerFingerprint) {
+                throw new PublicHolidaysOwnershipError()
+              }
+              const nextSnapshots = { ...connectorSnapshots }
+              delete nextSnapshots.publicHolidays
+              return {
+                connectors: { ...connectors, publicHolidays: { enabled: true, countryCode: normalized } },
+                connectorSnapshots: nextSnapshots,
+              }
+            })
+            closeEditor()
+          } catch (saveError) {
+            setError(saveError instanceof PublicHolidaysOwnershipError
+              ? 'Public Holidays changed elsewhere. Reopen it before saving.'
+              : 'Public Holidays could not be saved. Try again.')
+          } finally {
+            setSubmitting(false)
+          }
+        })()
+      }}
+    >
+      <div>
+        <label htmlFor="connector-public-holidays-country" className={label}>Country</label>
+        <select
+          id="connector-public-holidays-country"
+          value={countryCode}
+          disabled={loading}
+          onChange={(event) => {
+            setCountryCode(event.currentTarget.value)
+            setError(null)
+          }}
+          className={`${select} w-full`}
+        >
+          <option value="">{loading ? 'Loading countries…' : 'Choose a country'}</option>
+          {countries.map((country) => (
+            <option key={country.countryCode} value={country.countryCode}>{country.name}</option>
+          ))}
+        </select>
+      </div>
+      <p className="text-xs leading-relaxed text-fg-muted">
+        Aurora sends this country code and the current and next local year to Nager.Date. No account, key, or permission is required.
+      </p>
+      <button type="submit" disabled={loading || submitting || countries.length === 0} className={submitBtn}>
+        {submitting ? 'Saving…' : current ? 'Save Public Holidays country' : 'Add Public Holidays to canvas'}
+      </button>
+      {error ? <p role="alert" className="text-xs text-fg-muted">{error}</p> : null}
+    </form>
+  )
+}
+
+class PublicHolidaysOwnershipError extends Error {}
+
+function publicHolidaysOwnerFingerprint(config: ConnectorConfig | undefined): string {
+  if (!config || !('countryCode' in config)) return 'missing'
+  return JSON.stringify([
+    config.enabled,
+    normalizeHolidayCountryCode(config.countryCode) ?? null,
+  ])
+}
+
+function AuroraKpBody({ config, storage, closeEditor }: BodyProps) {
+  const configured = config?.enabled === true || config?.enabled === false
+
+  if (configured) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Uses NOAA&apos;s public planetary K-index forecast. Aurora sends no account or personal data.
+        </p>
+        <button type="button" onClick={closeEditor} className={submitBtn}>Done</button>
+      </div>
+    )
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.auroraKp
+          return {
+            connectors: { ...connectors, auroraKp: { enabled: true } },
+            connectorSnapshots: nextSnapshots,
+          }
+        }).then(closeEditor)
+      }}
+    >
+      <p className="text-xs leading-relaxed text-fg-muted">
+        Aurora reads NOAA&apos;s public geomagnetic forecast. No account, key, location, or permission is required.
+      </p>
+      <button type="submit" className={submitBtn}>Add Aurora &amp; Kp to canvas</button>
+    </form>
+  )
+}
+
+function RssBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // BodyProps.config is the generic ConnectorConfig union (BODY_COMPONENTS is
   // shared across every connector id); this component is registered only
   // under 'rss', so it is always RssConfig at runtime — one documented
@@ -288,10 +701,11 @@ function RssBody({ config, storage }: BodyProps) {
   const atCap = feeds.length >= MAX_FEEDS
 
   const updateRss = (fn: (rss: RssConfig) => RssConfig) =>
-    storage.update('connectors', (prev) => ({
-      ...prev,
-      rss: fn({ ...RSS_DEFAULT, ...prev.rss }),
-    }))
+    storage.update('connectors', (prev) => {
+      const current = { ...RSS_DEFAULT, ...prev.rss } as RssConfig
+      const next = fn(current)
+      return next === current ? prev : { ...prev, rss: next }
+    })
 
   async function handleAddFeed(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -318,46 +732,72 @@ function RssBody({ config, storage }: BodyProps) {
     }
     if (atCap) return // guarded by the disabled input/button too; belt and braces
 
-    // The gesture chain: ensureOrigin (→ chrome.permissions.request) is the
-    // FIRST await in this handler, with ZERO awaits ahead of it. Denied (or a
-    // rejected request) → the feed is not added and an alert explains why.
-    let granted: boolean
-    try {
-      granted = await ensureOrigin(url)
-    } catch {
-      granted = false
-    }
-    if (!granted) {
-      setError('Permission to read that site was denied, so the feed was not added.')
+    // `runOriginTransaction` starts chrome.permissions.request before its
+    // first await and keeps the owner write plus any rollback under the shared
+    // origin lifecycle authority.
+    const transaction = await runOriginTransaction(storage, [url], async () => {
+      let ownerCommitted = false
+      await updateRss((current) => {
+        if (current.feeds.includes(url) || current.feeds.length >= MAX_FEEDS) return current
+        ownerCommitted = true
+        return { ...current, feeds: [...current.feeds, url] }
+      })
+      if (!ownerCommitted) {
+        return {
+          ok: false as const,
+          message: 'That feed is already in the list.',
+        }
+      }
+      return { ok: true as const, value: undefined, ownerCommitted: true as const }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    const transactionMessage = transactionError(
+      transaction,
+      'Permission to read that site was denied, so the feed was not added.',
+    )
+    if (transactionMessage) {
+      setError(transactionMessage)
       return
     }
 
-    await updateRss((rss) => (rss.feeds.includes(url) ? rss : { ...rss, feeds: [...rss.feeds, url] }))
     setNewFeed('')
     setError(null)
   }
 
   async function handleRemoveFeed(url: string) {
-    // Survivors come from the WRITE's result, never the render-time `feeds`
-    // prop: two same-origin removals landing before a re-render would each
-    // see the other still present in the stale prop and NEITHER would
-    // revoke — a permanent grant leak PRIVACY.md's "released automatically"
-    // promise doesn't allow. storage.update serializes per-key and returns
-    // the post-write value, so the second removal always sees the first's.
-    const next = await updateRss((rss) => ({ ...rss, feeds: rss.feeds.filter((f) => f !== url) }))
-    // Same narrowing as the ConnectorCard call site above: next.rss is
-    // ConnectorConfig-typed post-union, but updateRss only ever writes RssConfig.
-    const remaining = (next.rss as RssConfig | undefined)?.feeds ?? []
-    // Revoke the origin only when this was its last user — another feed on the
-    // same site still needs the grant. originOf swallows bad entries so they
-    // don't count as sharing (and don't crash the sweep).
-    const origin = originOf(url)
-    const stillUsed = origin !== null && remaining.some((f) => originOf(f) === origin)
-    if (!stillUsed) await removeOrigin(url)
+    let candidates: string[] = []
+    const transaction = await runOriginTransaction(storage, [], async () => {
+      let ownerCommitted = false
+      await storage.update('connectors', (prev) => {
+        const current = { ...RSS_DEFAULT, ...prev.rss } as RssConfig
+        if (!current.feeds.includes(url)) return prev
+        ownerCommitted = true
+        candidates = descriptorCandidates('rss', { ...current, feeds: [url] })
+        return {
+          ...prev,
+          rss: { ...current, feeds: current.feeds.filter((feed) => feed !== url) },
+        }
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: 'That feed is no longer in the list.' }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    if (transaction.status !== 'committed') {
+      setError(transactionError(transaction, 'Permission to read that site was denied, so the feed was not removed.')!)
+      return
+    }
+
+    try {
+      const cleanup = await releaseUnownedOrigins(storage, candidates)
+      if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
+    } catch {
+      if (candidates.length > 0) reportPendingCleanup(candidates)
+    }
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3">
+    <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-1">
         {feeds.map((url) => (
           <li key={url} className="flex items-center justify-between gap-2">
@@ -368,7 +808,7 @@ function RssBody({ config, storage }: BodyProps) {
               type="button"
               aria-label={`Remove ${url}`}
               onClick={() => void handleRemoveFeed(url)}
-              className="shrink-0 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="shrink-0 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
             >
               ✕
             </button>
@@ -448,7 +888,7 @@ const VIEW_CHIPS: Array<{ key: keyof GithubViews; label: string }> = [
 // mechanics (the gesture-safe ensureOrigin-first chain, the single inline
 // alert, the per-instance field ids) live in the shared TokenConnectForm
 // (Task 47); this body only supplies the pure, connector-specific callbacks.
-function GithubBody({ config, storage }: BodyProps) {
+function GithubBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as RssBody above: BodyProps.config is the generic
   // union (the body map is shared across ids), and this component is registered
   // only under 'github', so it is always GithubConfig at runtime — one
@@ -470,6 +910,10 @@ function GithubBody({ config, storage }: BodyProps) {
 
   return (
     <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
       fields={[
         {
           id: 'token',
@@ -501,12 +945,14 @@ function GithubBody({ config, storage }: BodyProps) {
               enabled: true,
               token: values.token,
               username: identity,
+              snapshotEpoch: newSnapshotEpoch(),
               ...(prevViews ? { views: prevViews } : {}),
             },
           }
         })
       }}
       connectedAs={connectedAs}
+      initiallyCollapsed={github?.token === undefined && github?.username === undefined}
       connectedExtras={
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
@@ -542,21 +988,7 @@ function GithubBody({ config, storage }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => {
-        // Compute what's safe to revoke BEFORE clearing the config (releasable-
-        // Origins needs github's own config present to derive its origins), then
-        // drop the entry and revoke each released origin. releasableOrigins runs
-        // through the REAL registry, so an origin another enabled connector also
-        // claimed would be withheld — api.github.com is github's alone today.
-        const current = await storage.get('connectors')
-        const releasable = releasableOrigins('github', current)
-        await storage.update('connectors', (prev) => {
-          const next = { ...prev }
-          delete next.github
-          return next
-        })
-        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-      }}
+      onDisconnect={() => disconnectTokenConnector(storage, 'github')}
     />
   )
 }
@@ -577,7 +1009,7 @@ const GITLAB_VIEW_CHIPS: Array<{ key: keyof GitlabViews; label: string }> = [
 // difference: TWO fields (a per-config instance URL alongside the token,
 // since GitLab is self-hostable), which flows through into `originsFor`
 // deriving the origin from the FIELD VALUE rather than a single constant.
-function GitlabBody({ config, storage }: BodyProps) {
+function GitlabBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as GithubBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'gitlab', so it is always GitlabConfig at runtime —
@@ -601,6 +1033,10 @@ function GitlabBody({ config, storage }: BodyProps) {
 
   return (
     <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
       fields={[
         {
           id: 'instanceUrl',
@@ -648,12 +1084,16 @@ function GitlabBody({ config, storage }: BodyProps) {
               token: values.token,
               instanceUrl: values.instanceUrl,
               username: identity,
+              snapshotEpoch: newSnapshotEpoch(),
               ...(prevViews ? { views: prevViews } : {}),
             },
           }
         })
       }}
       connectedAs={connectedAs}
+      initiallyCollapsed={
+        gitlab?.token === undefined && gitlab?.username === undefined && gitlab?.instanceUrl === undefined
+      }
       connectedExtras={
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
@@ -686,23 +1126,7 @@ function GitlabBody({ config, storage }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => {
-        // Compute what's safe to revoke BEFORE clearing the config
-        // (releasableOrigins needs gitlab's own config present to derive its
-        // origin), then drop the entry and revoke each released origin.
-        // releasableOrigins runs through the REAL registry, so an origin
-        // another enabled connector (or another gitlab-pointed-at-the-same-
-        // instance connector, hypothetically) still claimed would be
-        // withheld.
-        const current = await storage.get('connectors')
-        const releasable = releasableOrigins('gitlab', current)
-        await storage.update('connectors', (prev) => {
-          const next = { ...prev }
-          delete next.gitlab
-          return next
-        })
-        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-      }}
+      onDisconnect={() => disconnectTokenConnector(storage, 'gitlab')}
     />
   )
 }
@@ -729,7 +1153,7 @@ const JIRA_VIEW_CHIPS: Array<{ key: keyof JiraViews; label: string }> = [
   { key: 'dueSoon', label: 'Due soon' },
 ]
 
-function JiraBody({ config, storage }: BodyProps) {
+function JiraBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as GitlabBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'jira', so it is always JiraConfig at runtime —
@@ -753,6 +1177,10 @@ function JiraBody({ config, storage }: BodyProps) {
 
   return (
     <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
       fields={[
         {
           id: 'site',
@@ -808,12 +1236,19 @@ function JiraBody({ config, storage }: BodyProps) {
               apiToken: values.apiToken,
               site: normalizeJiraSite(values.site),
               displayName: identity,
+              snapshotEpoch: newSnapshotEpoch(),
               ...(prevViews ? { views: prevViews } : {}),
             },
           }
         })
       }}
       connectedAs={connectedAs}
+      initiallyCollapsed={
+        jira?.apiToken === undefined &&
+        jira?.displayName === undefined &&
+        jira?.site === undefined &&
+        jira?.email === undefined
+      }
       connectedExtras={
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
@@ -846,21 +1281,7 @@ function JiraBody({ config, storage }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => {
-        // Compute what's safe to revoke BEFORE clearing the config
-        // (releasableOrigins needs jira's own config present to derive its
-        // origin), then drop the entry and revoke each released origin.
-        // releasableOrigins runs through the REAL registry, so an origin
-        // another enabled connector still claimed would be withheld.
-        const current = await storage.get('connectors')
-        const releasable = releasableOrigins('jira', current)
-        await storage.update('connectors', (prev) => {
-          const next = { ...prev }
-          delete next.jira
-          return next
-        })
-        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-      }}
+      onDisconnect={() => disconnectTokenConnector(storage, 'jira')}
     />
   )
 }
@@ -877,7 +1298,7 @@ const VERCEL_VIEW_CHIPS: Array<{ key: keyof VercelViews; label: string }> = [
 // The Vercel connector's card body — the fourth token connector (Task 51),
 // copying GithubBody's mechanics most closely: ONE field, a single constant
 // origin (unlike GitlabBody's/JiraBody's per-config derived one).
-function VercelBody({ config, storage }: BodyProps) {
+function VercelBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as GithubBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'vercel', so it is always VercelConfig at runtime —
@@ -900,6 +1321,10 @@ function VercelBody({ config, storage }: BodyProps) {
 
   return (
     <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
       fields={[
         {
           id: 'token',
@@ -929,12 +1354,14 @@ function VercelBody({ config, storage }: BodyProps) {
               enabled: true,
               token: values.token,
               username: identity,
+              snapshotEpoch: newSnapshotEpoch(),
               ...(prevViews ? { views: prevViews } : {}),
             },
           }
         })
       }}
       connectedAs={connectedAs}
+      initiallyCollapsed={vercel?.token === undefined && vercel?.username === undefined}
       connectedExtras={
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
@@ -967,21 +1394,7 @@ function VercelBody({ config, storage }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => {
-        // Compute what's safe to revoke BEFORE clearing the config (releasable-
-        // Origins needs vercel's own config present to derive its origins), then
-        // drop the entry and revoke each released origin. releasableOrigins runs
-        // through the REAL registry, so an origin another enabled connector also
-        // claimed would be withheld — api.vercel.com is vercel's alone today.
-        const current = await storage.get('connectors')
-        const releasable = releasableOrigins('vercel', current)
-        await storage.update('connectors', (prev) => {
-          const next = { ...prev }
-          delete next.vercel
-          return next
-        })
-        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-      }}
+      onDisconnect={() => disconnectTokenConnector(storage, 'vercel')}
     />
   )
 }
@@ -997,27 +1410,18 @@ const CRYPTO_ORIGIN_URL = 'https://api.coingecko.com/api/v3/'
 // to validate against (auth 'none'), so this is the one and only check a
 // bad id ever gets before it's persisted and handed to fetchCrypto.
 const CRYPTO_ID_RE = /^[a-z0-9-]+$/
-const CRYPTO_MIN_COINS = 2
+// 1, not 2 (owner 2026-08-18: "sometimes people just want one").
+const CRYPTO_MIN_COINS = 1
 const CRYPTO_MAX_COINS = 5
 
-/** 'bitcoin, ETH , ,dogecoin' -> ['bitcoin', 'eth', 'dogecoin'] — split on
- *  commas, trim, lowercase, drop empties. Pure (no validation here; the
- *  count/shape checks happen at the call site so their error messages can
- *  name the exact rule that failed). */
-function parseCoinIds(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((id) => id.trim().toLowerCase())
-    .filter((id) => id.length > 0)
-}
-
-// The Crypto connector's card body — the first NO-AUTH connector body since
-// RSS's own (Task 44): no TokenConnectForm here at all (that component's
-// whole shape is built around a token + a whoami validate() round-trip,
-// neither of which a no-auth connector has), just one labelled text input
-// (CoinGecko ids, comma-separated) and a Save button, closest in spirit to
-// RssBody's own handleAddFeed above.
-function CryptoBody({ config, storage }: BodyProps) {
+// The Crypto connector's card body — a PICKLIST (owner direction 2026-08-18:
+// "picklists for this data, not typing them in comma separated"): the
+// curated CRYPTO_CATALOG renders as checkboxes, selection ORDER is display
+// order, and any saved id outside the catalog appears as a removable
+// "(custom)" entry so hand-configured or backup-restored coins are never
+// lost. A small secondary input still adds one uncatalogued CoinGecko id at
+// a time for power users — additive, never comma-parsed.
+function CryptoBody({ config, storage, reportPendingCleanup, closeEditor }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'crypto', so it is always
@@ -1026,9 +1430,37 @@ function CryptoBody({ config, storage }: BodyProps) {
   const crypto = config as CryptoConfig | undefined
   const coins = Array.isArray(crypto?.coins) ? crypto.coins : []
 
-  const [value, setValue] = useState(() => coins.join(', '))
+  // Selection order IS display order, so state is an array, not a Set.
+  const [selected, setSelected] = useState<string[]>(() => [...coins])
+  const [customDraft, setCustomDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const atCap = selected.length >= CRYPTO_MAX_COINS
+  const toggle = (id: string) => {
+    setError(null)
+    setSelected((previous) => (
+      previous.includes(id)
+        ? previous.filter((existing) => existing !== id)
+        : atCap ? previous : [...previous, id]
+    ))
+  }
+  // Saved ids the catalog doesn't know (typed in the comma era, restored
+  // from a backup, or added below) — rendered as their own checked rows.
+  const customSelected = selected.filter((id) => !CRYPTO_CATALOG_IDS.has(id))
+
+  function handleAddCustom() {
+    const id = customDraft.trim().toLowerCase()
+    if (id.length === 0) return
+    if (!CRYPTO_ID_RE.test(id)) {
+      setError(`"${id}" isn't a valid CoinGecko id — use only lowercase letters, numbers, and hyphens.`)
+      return
+    }
+    if (selected.includes(id) || atCap) return
+    setError(null)
+    setSelected((previous) => [...previous, id])
+    setCustomDraft('')
+  }
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -1040,85 +1472,141 @@ function CryptoBody({ config, storage }: BodyProps) {
     // the FIRST await in this handler, with ZERO awaits ahead of it, or the
     // gesture window chrome.permissions.request needs can close before the
     // call lands.
-    const ids = parseCoinIds(value)
+    const ids = selected
     if (ids.length < CRYPTO_MIN_COINS || ids.length > CRYPTO_MAX_COINS) {
-      setError(`Enter ${CRYPTO_MIN_COINS} to ${CRYPTO_MAX_COINS} CoinGecko ids, separated by commas.`)
-      return
-    }
-    const bad = ids.find((id) => !CRYPTO_ID_RE.test(id))
-    if (bad) {
-      setError(`"${bad}" isn't a valid CoinGecko id — use only lowercase letters, numbers, and hyphens.`)
+      setError(`Pick ${CRYPTO_MIN_COINS} to ${CRYPTO_MAX_COINS} coins.`)
       return
     }
 
     setSaving(true)
     try {
-      // ensureOrigin -> chrome.permissions.request is the first await, per
-      // the comment above.
-      let granted: boolean
-      try {
-        granted = await ensureOrigin(CRYPTO_ORIGIN_URL)
-      } catch {
-        granted = false
-      }
-      if (!granted) {
-        setError('Permission to read CoinGecko was denied, so nothing was saved.')
+      const transaction = await runOriginTransaction(storage, [CRYPTO_ORIGIN_URL], async () => {
+        // Replace the whole crypto config (dropping any stray cruft the
+        // generic enable-toggle's `{}` seed left) with exactly the connector's
+        // two fields.
+        await storage.update('connectors', (prev) => ({
+          ...prev,
+          crypto: { enabled: true, coins: ids },
+        }))
+        return { ok: true as const, value: undefined, ownerCommitted: true as const }
+      })
+      reportTransactionCleanup(transaction, reportPendingCleanup)
+      const transactionMessage = transactionError(
+        transaction,
+        'Permission to read CoinGecko was denied, so nothing was saved.',
+      )
+      if (transactionMessage) {
+        setError(transactionMessage)
         return
       }
 
-      // Replace the whole crypto config (dropping any stray cruft the
-      // generic enable-toggle's `{}` seed left) with exactly the connector's
-      // two fields.
-      await storage.update('connectors', (prev) => ({
-        ...prev,
-        crypto: { enabled: true, coins: ids },
-      }))
-      setValue(ids.join(', '))
     } finally {
       setSaving(false)
     }
   }
 
   async function handleClear() {
-    // Compute what's safe to revoke BEFORE clearing the config (releasable-
-    // Origins needs crypto's own config present to derive its origins), then
-    // drop the entry entirely and revoke each released origin — mirrors the
-    // token connector bodies' own onDisconnect above (GithubBody et al.),
-    // even though crypto has no token to forget: api.coingecko.com is
-    // crypto's alone today, so this always releases it.
-    const current = await storage.get('connectors')
-    const releasable = releasableOrigins('crypto', current)
-    await storage.update('connectors', (prev) => {
-      const next = { ...prev }
-      delete next.crypto
-      return next
-    })
-    setValue('')
+    // Crypto has no token, but its teardown is the same descriptor-derived
+    // owner mutation as a token connector's Disconnect path.
+    const result = await disconnectTokenConnector(storage, 'crypto')
+    if (result.transaction.status !== 'committed') {
+      setError("Couldn't clear Crypto because its saved configuration could not be updated. Please try again.")
+      return
+    }
+    setSelected([])
     setError(null)
-    await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+    try {
+      const cleanup = await releaseUnownedOrigins(storage, result.candidates)
+      if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
+    } catch {
+      if (result.candidates.length > 0) reportPendingCleanup(result.candidates)
+    }
+    closeEditor()
   }
 
   return (
     <form
-      className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3"
+      className="flex flex-col gap-2"
       onSubmit={(e) => void handleSave(e)}
     >
-      <div>
-        <label htmlFor="connector-crypto-coins" className="mb-1 block text-xs text-fg-muted">
-          Coins (CoinGecko ids, comma-separated)
-        </label>
-        <input
-          id="connector-crypto-coins"
-          type="text"
-          placeholder="bitcoin, ethereum"
-          value={value}
-          onChange={(e) => {
-            setValue(e.currentTarget.value)
-            setError(null)
-          }}
-          aria-describedby={error ? 'connector-crypto-error' : undefined}
-          className={`${control} w-full`}
-        />
+      <fieldset>
+        <legend className="mb-1 block text-xs text-fg-muted">
+          Coins · pick {CRYPTO_MIN_COINS} to {CRYPTO_MAX_COINS} · {selected.length} selected
+        </legend>
+        <div role="group" aria-label="Coins" className="grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-3">
+          {CRYPTO_CATALOG.map((entry) => {
+            const checked = selected.includes(entry.id)
+            return (
+              <label
+                key={entry.id}
+                className={`flex min-h-9 items-center gap-2 text-sm ${!checked && atCap ? 'opacity-50' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!checked && atCap}
+                  onChange={() => toggle(entry.id)}
+                  aria-label={`${entry.name} (${entry.symbol})`}
+                  className="accent-[var(--accent)]"
+                />
+                <span className="min-w-0 truncate">
+                  <span className="font-medium">{entry.symbol}</span>
+                  <span className="text-fg-muted"> {entry.name}</span>
+                </span>
+              </label>
+            )
+          })}
+          {customSelected.map((id) => (
+            <label key={id} className="flex min-h-9 items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked
+                onChange={() => toggle(id)}
+                aria-label={`${id} (custom)`}
+                className="accent-[var(--accent)]"
+              />
+              <span className="min-w-0 truncate">
+                <span className="font-medium">{id}</span>
+                <span className="text-fg-muted"> custom</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <label htmlFor="connector-crypto-custom" className="mb-1 block text-xs text-fg-muted">
+            Other CoinGecko id (optional)
+          </label>
+          <input
+            id="connector-crypto-custom"
+            type="text"
+            placeholder="render-token"
+            value={customDraft}
+            disabled={atCap}
+            onChange={(e) => {
+              setCustomDraft(e.currentTarget.value)
+              setError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleAddCustom()
+              }
+            }}
+            aria-describedby={error ? 'connector-crypto-error' : undefined}
+            className={`${control} w-full`}
+          />
+        </div>
+        <button
+          type="button"
+          disabled={atCap || customDraft.trim().length === 0}
+          onClick={handleAddCustom}
+          className={submitBtn}
+        >
+          Add
+        </button>
       </div>
 
       <div className="flex items-center gap-3">
@@ -1129,7 +1617,7 @@ function CryptoBody({ config, storage }: BodyProps) {
           <button
             type="button"
             onClick={() => void handleClear()}
-            className="shrink-0 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            className="shrink-0 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
           >
             Clear
           </button>
@@ -1152,8 +1640,8 @@ function CryptoBody({ config, storage }: BodyProps) {
 // CryptoBody's single Save/Clear form — but keeps the origin semantics that
 // made ics distinct from rss to begin with: each entry's origin is DERIVED
 // from its own url (like GitlabBody's instanceUrl / JiraBody's site) via the
-// same originPattern() the descriptor's own origins() and ensureOrigin()
-// both call, and removal is share-aware exactly like RssBody's
+// same originPattern() the descriptor's own origins() and transaction
+// acquisition both call, and removal is share-aware exactly like RssBody's
 // handleRemoveFeed — now doubly so, since two calendars in THIS card can
 // share a host (two paths under the same iCloud account, say) the same way
 // two rss feeds can share one. The url field stays `type="password"` (the
@@ -1177,7 +1665,7 @@ function hostOf(url: string): string {
   }
 }
 
-function IcsBody({ config, storage }: BodyProps) {
+function IcsBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'ics', so it is always IcsConfig at
@@ -1203,24 +1691,56 @@ function IcsBody({ config, storage }: BodyProps) {
   // view/upcomingCount: a write that doesn't touch it (add/remove, or a view
   // change) still carries the CURRENT effective value forward rather than
   // dropping it.
+  const icsConfig = (
+    previous: IcsConfig | undefined,
+    nextCalendars: IcsCalendar[],
+    patch?: Partial<Pick<IcsConfig, 'view' | 'upcomingCount' | 'meetLinks'>>,
+  ): IcsConfig => {
+    const v = icsViewOf(previous)
+    return {
+      enabled: true,
+      calendars: nextCalendars,
+      view: v.view,
+      upcomingCount: v.upcomingCount,
+      meetLinks: v.meetLinks,
+      ...patch,
+    }
+  }
+
   const updateIcs = (
     fn: (cals: IcsCalendar[]) => IcsCalendar[],
     patch?: Partial<Pick<IcsConfig, 'view' | 'upcomingCount' | 'meetLinks'>>,
   ) =>
     storage.update('connectors', (prev) => {
-      const prevIcs = prev.ics as IcsConfig | undefined
-      const v = icsViewOf(prevIcs)
-      return {
-        ...prev,
-        ics: {
-          enabled: true,
-          calendars: fn(icsCalendarsOf(prevIcs)),
-          view: v.view,
-          upcomingCount: v.upcomingCount,
-          meetLinks: v.meetLinks,
-          ...patch,
-        },
-      }
+      const previous = prev.ics as IcsConfig | undefined
+      const current = icsCalendarsOf(previous)
+      const next = fn(current)
+      return next === current && !patch ? prev : { ...prev, ics: icsConfig(previous, next, patch) }
+    })
+
+  const updateCalendarColor = (target: string, value: 'auto' | CalendarColor) =>
+    storage.update('connectors', (prev) => {
+      const previous = prev.ics as IcsConfig | undefined
+      if (!previous) return prev
+      let changed = false
+      const nextCalendars = icsCalendarsOf(previous).map((calendar) => {
+        if (calendar.url !== target) return calendar
+        if (value === 'auto') {
+          if (calendar.color === undefined) return calendar
+          changed = true
+          return { name: calendar.name, url: calendar.url }
+        }
+        if (calendar.color === value) return calendar
+        changed = true
+        return { ...calendar, color: value }
+      })
+      if (!changed) return prev
+
+      // A color-only edit must not materialize optional view defaults. Keeping
+      // the prior shape stable also keeps the fetched-event generation and
+      // persisted snapshot scope stable for backward-compatible configs.
+      const { url: _legacyUrl, ...preserved } = previous
+      return { ...prev, ics: { ...preserved, enabled: true, calendars: nextCalendars } }
     })
 
   // WHY: CalendarWidget.tsx's own gate remounts CalendarInner on every
@@ -1250,7 +1770,7 @@ function IcsBody({ config, storage }: BodyProps) {
     // webcal:// is an https ICS feed behind a different scheme — normalize
     // BEFORE validation, case-insensitively, so a link pasted straight from
     // Apple Calendar just works. Synchronous, same load-bearing boundary as
-    // every other body's own handler above: ensureOrigin below must be the
+    // every other body's own handler above: the transaction below must be the
     // FIRST await, with ZERO awaits ahead of it.
     const normalized = url.trim().replace(/^webcal:\/\//i, 'https://')
     try {
@@ -1267,76 +1787,122 @@ function IcsBody({ config, storage }: BodyProps) {
     }
     if (atCap) return // guarded by the disabled inputs/button too; belt and braces
 
-    // ensureOrigin -> chrome.permissions.request is the first await, per the
-    // comment above.
-    let granted: boolean
-    try {
-      granted = await ensureOrigin(normalized)
-    } catch {
-      granted = false
-    }
-    if (!granted) {
-      setError('Permission to read that calendar was denied, so nothing was saved.')
+    // The transaction invokes chrome.permissions.request before this handler's
+    // first await, per the comment above.
+    const trimmedName = name.trim()
+    const transaction = await runOriginTransaction(storage, [normalized], async () => {
+      let ownerCommitted = false
+      let abortMessage = 'That calendar is already in the list.'
+      await updateIcs((cals) => {
+        // Re-checked HERE (not just the disabled inputs/button, and not just
+        // the `atCap` closed over from render): two rapid submits before a
+        // re-render both read the same stale `atCap`, so without re-deriving
+        // the cap against THIS write's own `cals` a double-submit could push
+        // past MAX_CALENDARS. Belt and braces with icsCalendarsOf's own
+        // .slice(0, MAX_CALENDARS) (ics.ts) — that one guards hand-edited
+        // storage, this one guards the write path itself.
+        if (cals.some((c) => c.url === normalized)) return cals
+        if (cals.length >= MAX_CALENDARS) {
+          abortMessage = `Up to ${MAX_CALENDARS} calendars. Remove one to add another.`
+          return cals
+        }
+        ownerCommitted = true
+        return [...cals, { name: trimmedName || `Calendar ${cals.length + 1}`, url: normalized }]
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: abortMessage }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    const transactionMessage = transactionError(
+      transaction,
+      'Permission to read that calendar was denied, so nothing was saved.',
+    )
+    if (transactionMessage) {
+      setError(transactionMessage)
       return
     }
-
-    const trimmedName = name.trim()
-    await updateIcs((cals) =>
-      // Re-checked HERE (not just the disabled inputs/button, and not just
-      // the `atCap` closed over from render): two rapid submits before a
-      // re-render both read the same stale `atCap`, so without re-deriving
-      // the cap against THIS write's own `cals` a double-submit could push
-      // past MAX_CALENDARS. Belt and braces with icsCalendarsOf's own
-      // .slice(0, MAX_CALENDARS) (ics.ts) — that one guards hand-edited
-      // storage, this one guards the write path itself.
-      cals.some((c) => c.url === normalized) || cals.length >= MAX_CALENDARS
-        ? cals
-        : [...cals, { name: trimmedName || `Calendar ${cals.length + 1}`, url: normalized }],
-    )
-    await clearIcsSnapshot()
     setName('')
     setUrl('')
+    try {
+      await clearIcsSnapshot()
+    } catch {
+      setError('The calendar was saved, but its cached events could not be cleared.')
+    }
   }
 
   async function handleRemove(target: string) {
-    // Pre-removal record: the cross-connector sharing check below
-    // (releasableOrigins) needs ics's own config as it stood BEFORE this
-    // removal. Survivors come from the WRITE's result, never the render-time
-    // `calendars` prop — same two-removals-before-rerender discipline
-    // RssBody's handleRemoveFeed documents above: storage.update serializes
-    // per-key and returns the post-write value, so a second removal clicked
-    // before a re-render still sees the first's result, not a stale one.
-    const before = await storage.get('connectors')
-    const next = await updateIcs((cals) => cals.filter((c) => c.url !== target))
-    // Clear BEFORE the origin early-return below (a bad/unparseable url
-    // still removes its calendar from the list, and its stale cal-indexed
-    // events must not linger regardless of whether an origin can be
-    // derived from it) — see clearIcsSnapshot's own doc comment above.
-    await clearIcsSnapshot()
-    const origin = originOf(target)
-    if (!origin) return
-    const remaining = icsCalendarsOf(next.ics as IcsConfig | undefined)
-    const stillUsed = remaining.some((c) => originOf(c.url) === origin)
-    if (!stillUsed && releasableOrigins('ics', before).includes(origin)) await removeOrigin(origin)
+    // The removed row's descriptor-derived candidate is captured inside the
+    // authoritative owner write. The global release runs only afterwards.
+    let candidates: string[] = []
+    const transaction = await runOriginTransaction(storage, [], async () => {
+      let ownerCommitted = false
+      await storage.update('connectors', (prev) => {
+        const previous = prev.ics as IcsConfig | undefined
+        const current = icsCalendarsOf(previous)
+        const removed = current.find((calendar) => calendar.url === target)
+        if (!removed) return prev
+        ownerCommitted = true
+        candidates = descriptorCandidates('ics', icsConfig(previous, [removed]))
+        return { ...prev, ics: icsConfig(previous, current.filter((calendar) => calendar.url !== target)) }
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: 'That calendar is no longer in the list.' }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    if (transaction.status !== 'committed') {
+      setError(transactionError(transaction, 'Permission to read that calendar was not removed.')!)
+      return
+    }
+    // Cache invalidation and permission release are intentionally independent:
+    // either failure must not suppress the other completed operation.
+    const [snapshot, release] = await Promise.allSettled([
+      clearIcsSnapshot(),
+      releaseUnownedOrigins(storage, candidates),
+    ])
+    if (snapshot.status === 'rejected') {
+      setError('The calendar was removed, but its cached events could not be cleared.')
+    }
+    if (release.status === 'fulfilled') {
+      if (release.value.pending.length > 0) reportPendingCleanup(release.value.pending)
+    } else if (candidates.length > 0) {
+      reportPendingCleanup(candidates)
+    }
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3">
+    <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-1">
         {calendars.map((cal, i) => (
           <li key={cal.url} className="flex items-center justify-between gap-2">
             <span className="flex min-w-0 items-center gap-2">
-              {/* Dot keyed by LIST POSITION, same rule CALENDAR_DOT_CLASSES'
-                  own doc comment states (ics.ts) — the widget's rows key their
-                  dots the identical way, so a calendar's color never drifts
-                  between settings and the card. */}
+              {/* Calendar dots share this color helper with the event widget.
+                  Explicit colors persist with a feed; Auto follows its list position.
+                  This keeps Settings and Calendar in sync. */}
               <span
                 aria-hidden="true"
-                className={`h-2 w-2 shrink-0 rounded-full ${CALENDAR_DOT_CLASSES[i % CALENDAR_DOT_CLASSES.length]}`}
+                className={`h-2 w-2 shrink-0 rounded-full ${calendarColorClass(calendarColorOf(cal.color, i))}`}
               />
               <span className="min-w-0 truncate text-xs text-fg">{cal.name}</span>
               <span className="shrink-0 truncate text-xs text-fg-muted">{hostOf(cal.url)}</span>
             </span>
+            <label className="sr-only" htmlFor={`connector-ics-color-${i}`}>Color for {cal.name}</label>
+            <select
+              id={`connector-ics-color-${i}`}
+              aria-label={`Color for ${cal.name}`}
+              value={cal.color ?? 'auto'}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                if (value === 'auto' || isCalendarColor(value)) void updateCalendarColor(cal.url, value)
+              }}
+              className={select}
+            >
+              <option value="auto">Auto</option>
+              {CALENDAR_COLORS.map((color) => (
+                <option key={color} value={color}>{color[0]!.toUpperCase() + color.slice(1)}</option>
+              ))}
+            </select>
             <button
               type="button"
               aria-label={`Remove ${cal.name}`}
@@ -1347,7 +1913,7 @@ function IcsBody({ config, storage }: BodyProps) {
               // documents for every OTHER button class in this control kit.
               // RssBody's identical Remove button (above) carries the same
               // gap; out of scope for this ics-only wave, left as found.
-              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
             >
               ✕
             </button>
@@ -1507,7 +2073,400 @@ function IcsBody({ config, storage }: BodyProps) {
 // today (handleCuratedPick below, handleCustomAdd further down), and the
 // flip touches only which of them the select's own choice feeds through, not
 // addService itself.
-function StatusBody({ config, storage }: BodyProps) {
+function WorkPreferenceControls({
+  groupLabel,
+  emptyLabel,
+  options,
+  selected,
+  onToggle,
+  onSelectAll,
+  onClear,
+  countLabel,
+  count,
+  onCount,
+}: {
+  groupLabel: string
+  emptyLabel: string
+  options: readonly { id: string; label: string }[]
+  selected: readonly string[]
+  onToggle(id: string): void
+  onSelectAll(): void
+  onClear(): void
+  countLabel: string
+  count: number
+  onCount(value: number): void
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{groupLabel}</p>
+        {options.length > 0 ? (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {options.map((option) => (
+                <ToggleChip key={option.id} label={option.label} on={selected.includes(option.id)} onClick={() => onToggle(option.id)} />
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" className={btnQuiet} onClick={onSelectAll}>Select all</button>
+              <button type="button" className={btnQuiet} onClick={onClear}>Clear</button>
+            </div>
+          </>
+        ) : <p className="text-xs text-fg-muted">{emptyLabel}</p>}
+      </div>
+      <div>
+        <label htmlFor={`connector-work-count-${countLabel.replace(/\s+/g, '-').toLowerCase()}`} className="mb-1 block text-xs text-fg-muted">
+          {countLabel}
+        </label>
+        <select
+          id={`connector-work-count-${countLabel.replace(/\s+/g, '-').toLowerCase()}`}
+          value={count}
+          className={`${select} w-full`}
+          onChange={(event) => onCount(Number(event.currentTarget.value))}
+        >
+          {[3, 4, 5, 6, 7, 8, 9, 10].map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </div>
+    </div>
+  )
+}
+
+function LinearBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
+  const linear = config as LinearConfig | undefined
+  const token = typeof linear?.token === 'string' ? linear.token : ''
+  const displayName = typeof linear?.displayName === 'string' ? linear.displayName : ''
+  const connectedAs = token && displayName ? displayName : null
+  const [snapshots] = useStoredKey('connectorSnapshots')
+  const snapshotData = useScopeValidatedSnapshotData('linear', linear, snapshots?.linear)
+  const issues = isLinearWorkData(snapshotData) ? snapshotData.issues : []
+  const teams = [...new Map(issues.map((issue) => [issue.team.id, issue.team])).values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const selected = linearTeamIds(linear)
+  const teamOwner = `${linear?.snapshotEpoch ?? ''}\n${token}\n${displayName}`
+  const teamOptionsRef = useRef({ owner: teamOwner, values: new Map<string, { id: string; label: string }>() })
+  if (teamOptionsRef.current.owner !== teamOwner) {
+    teamOptionsRef.current = { owner: teamOwner, values: new Map() }
+  }
+  for (const team of teams) teamOptionsRef.current.values.set(team.id, { id: team.id, label: team.name })
+  for (const id of selected) {
+    if (!teamOptionsRef.current.values.has(id)) teamOptionsRef.current.values.set(id, { id, label: id })
+  }
+  const teamOptions = [...teamOptionsRef.current.values.values()].sort((a, b) => a.label.localeCompare(b.label))
+
+  async function updatePreferences(update: (current: LinearConfig) => LinearConfig) {
+    await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+      const current = connectors.linear as LinearConfig | undefined
+      if (!current) return {}
+      const nextSnapshots = { ...connectorSnapshots }
+      delete nextSnapshots.linear
+      return { connectors: { ...connectors, linear: update(current) }, connectorSnapshots: nextSnapshots }
+    })
+  }
+
+  return (
+    <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
+      fields={[{ id: 'token', label: 'Linear personal API key', type: 'password', placeholder: 'lin_api_…' }]}
+      originsFor={() => [LINEAR_ORIGIN]}
+      validate={async (values) => {
+        const result = await whoamiLinear(values.token)
+        return result.ok ? { ok: true, identity: result.identity } : result
+      }}
+      onConnected={async (values, identity) => {
+        await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const previous = connectors.linear as LinearConfig | undefined
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.linear
+          return {
+            connectors: {
+              ...connectors,
+              linear: nextLinearConnection(previous, values.token, identity),
+            },
+            connectorSnapshots: nextSnapshots,
+          }
+        })
+      }}
+      connectedAs={connectedAs}
+      initiallyCollapsed={linear?.token === undefined && linear?.displayName === undefined}
+      connectedExtras={
+        <WorkPreferenceControls
+          groupLabel="Teams"
+          emptyLabel="Teams appear after the first successful refresh."
+          options={teamOptions}
+          selected={selected}
+          onToggle={(id) => void updatePreferences((current) => {
+            const ids = linearTeamIds(current)
+            return { ...current, teamIds: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id] }
+          })}
+          onSelectAll={() => void updatePreferences((current) => ({ ...current, teamIds: teamOptions.map((team) => team.id) }))}
+          onClear={() => void updatePreferences((current) => ({ ...current, teamIds: [] }))}
+          countLabel="Issues shown"
+          count={linearItemLimit(linear)}
+          onCount={(value) => void updatePreferences((current) => ({ ...current, itemLimit: value }))}
+        />
+      }
+      onDisconnect={() => disconnectTokenConnector(storage, 'linear')}
+    />
+  )
+}
+
+function TodoistBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
+  const todoist = config as TodoistConfig | undefined
+  const token = typeof todoist?.token === 'string' ? todoist.token : ''
+  const accountLabel = typeof todoist?.accountLabel === 'string' ? todoist.accountLabel : ''
+  const connectedAs = token && accountLabel ? accountLabel : null
+  const [snapshots] = useStoredKey('connectorSnapshots')
+  const snapshotData = useScopeValidatedSnapshotData('todoist', todoist, snapshots?.todoist)
+  const projects = isTodoistData(snapshotData) ? snapshotData.projects : []
+  const selected = todoistProjectIds(todoist)
+  const projectOwner = `${todoist?.snapshotEpoch ?? ''}\n${token}\n${accountLabel}`
+  const projectOptionsRef = useRef({ owner: projectOwner, values: new Map<string, { id: string; label: string }>() })
+  if (projectOptionsRef.current.owner !== projectOwner) {
+    projectOptionsRef.current = { owner: projectOwner, values: new Map() }
+  }
+  for (const project of projects) projectOptionsRef.current.values.set(project.id, { id: project.id, label: project.name })
+  for (const id of selected) {
+    if (!projectOptionsRef.current.values.has(id)) projectOptionsRef.current.values.set(id, { id, label: id })
+  }
+  const projectOptions = [...projectOptionsRef.current.values.values()].sort((a, b) => a.label.localeCompare(b.label))
+
+  async function updatePreferences(update: (current: TodoistConfig) => TodoistConfig) {
+    await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+      const current = connectors.todoist as TodoistConfig | undefined
+      if (!current) return {}
+      const nextSnapshots = { ...connectorSnapshots }
+      delete nextSnapshots.todoist
+      return { connectors: { ...connectors, todoist: update(current) }, connectorSnapshots: nextSnapshots }
+    })
+  }
+
+  return (
+    <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
+      fields={[{ id: 'token', label: 'Todoist API token', type: 'password', placeholder: 'Todoist API token' }]}
+      originsFor={() => [TODOIST_ORIGIN]}
+      validate={async (values) => {
+        try {
+          await fetchTodoistProjects(values.token)
+          return { ok: true as const, identity: 'Todoist' }
+        } catch (error) {
+          return { ok: false as const, message: error instanceof Error ? error.message : 'Todoist request failed.' }
+        }
+      }}
+      onConnected={async (values, identity) => {
+        await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const previous = connectors.todoist as TodoistConfig | undefined
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.todoist
+          return {
+            connectors: {
+              ...connectors,
+              todoist: nextTodoistConnection(previous, values.token, identity),
+            },
+            connectorSnapshots: nextSnapshots,
+          }
+        })
+      }}
+      connectedAs={connectedAs}
+      initiallyCollapsed={todoist?.token === undefined && todoist?.accountLabel === undefined}
+      connectedExtras={
+        <WorkPreferenceControls
+          groupLabel="Projects"
+          emptyLabel="Projects appear after the first successful refresh."
+          options={projectOptions}
+          selected={selected}
+          onToggle={(id) => void updatePreferences((current) => {
+            const ids = todoistProjectIds(current)
+            return { ...current, projectIds: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id] }
+          })}
+          onSelectAll={() => void updatePreferences((current) => ({ ...current, projectIds: projectOptions.map((project) => project.id) }))}
+          onClear={() => void updatePreferences((current) => ({ ...current, projectIds: [] }))}
+          countLabel="Tasks shown"
+          count={todoistItemLimit(todoist)}
+          onCount={(value) => void updatePreferences((current) => ({ ...current, itemLimit: value }))}
+        />
+      }
+      onDisconnect={() => disconnectTokenConnector(storage, 'todoist')}
+    />
+  )
+}
+
+function SentryBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
+  const sentry = config as SentryConfig | undefined
+  const token = typeof sentry?.token === 'string' ? sentry.token : ''
+  const organization = typeof sentry?.organization === 'string' ? sentry.organization : ''
+  const region = sentryRegion(sentry?.region)
+  const connectedAs = token && organization ? organization : null
+  const [snapshots] = useStoredKey('connectorSnapshots')
+  const snapshotData = useScopeValidatedSnapshotData('sentry', sentry, snapshots?.sentry)
+  const issues = isSentryData(snapshotData) ? snapshotData.issues : []
+  const projects = [...new Map(issues.map((issue) => [issue.project.slug, issue.project])).values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const selectedProjects = sentryProjectSlugs(sentry)
+  const projectOwner = `${sentry?.snapshotEpoch ?? ''}\n${token}\n${organization}\n${region}`
+  const projectOptionsRef = useRef({ owner: projectOwner, values: new Map<string, { slug: string; name: string }>() })
+  if (projectOptionsRef.current.owner !== projectOwner) {
+    projectOptionsRef.current = { owner: projectOwner, values: new Map() }
+  }
+  for (const project of projects) projectOptionsRef.current.values.set(project.slug, { slug: project.slug, name: project.name })
+  for (const slug of selectedProjects) {
+    if (!projectOptionsRef.current.values.has(slug)) projectOptionsRef.current.values.set(slug, { slug, name: slug })
+  }
+  const projectOptions = [...projectOptionsRef.current.values.values()].sort((a, b) => a.name.localeCompare(b.name))
+  const itemLimit = sentryItemLimit(sentry)
+
+  async function updatePreferences(
+    update: (current: SentryConfig) => SentryConfig,
+  ) {
+    await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+      const current = connectors.sentry as SentryConfig | undefined
+      if (!current) return {}
+      const nextSnapshots = { ...connectorSnapshots }
+      delete nextSnapshots.sentry
+      return {
+        connectors: { ...connectors, sentry: update(current) },
+        connectorSnapshots: nextSnapshots,
+      }
+    })
+  }
+
+  return (
+    <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
+      fields={[
+        {
+          id: 'region',
+          label: 'Data region',
+          type: 'select',
+          placeholder: 'Choose a region',
+          defaultValue: region,
+          options: [
+            { value: 'global', label: 'Global' },
+            { value: 'us', label: 'United States' },
+            { value: 'de', label: 'Germany' },
+          ],
+        },
+        {
+          id: 'organization',
+          label: 'Organization slug',
+          type: 'text',
+          placeholder: 'acme',
+          defaultValue: organization,
+        },
+        {
+          id: 'token',
+          label: 'Sentry auth token',
+          type: 'password',
+          placeholder: 'sntrys_…',
+        },
+      ]}
+      originsFor={(values) => [`${sentryBaseUrl(values.region)}/*`]}
+      validate={(values) => validateSentryConnection({
+        region: sentryRegion(values.region),
+        organization: values.organization,
+        token: values.token,
+      })}
+      onConnected={async (values, identity) => {
+        await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const previous = connectors.sentry as SentryConfig | undefined
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.sentry
+          return {
+            connectors: {
+              ...connectors,
+              sentry: nextSentryConnection(previous, values, identity),
+            },
+            connectorSnapshots: nextSnapshots,
+          }
+        })
+      }}
+      connectedAs={connectedAs}
+      initiallyCollapsed={sentry?.token === undefined && sentry?.organization === undefined}
+      connectedExtras={
+        <div className="space-y-3">
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+              Projects
+            </p>
+            {projectOptions.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {projectOptions.map((project) => (
+                  <ToggleChip
+                    key={project.slug}
+                    label={project.name}
+                    on={selectedProjects.includes(project.slug)}
+                    onClick={() => void updatePreferences((current) => {
+                      const selected = sentryProjectSlugs(current)
+                      return {
+                        ...current,
+                        projectSlugs: selected.includes(project.slug)
+                          ? selected.filter((slug) => slug !== project.slug)
+                          : [...selected, project.slug],
+                      }
+                    })}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-fg-muted">Projects appear after the first successful refresh.</p>
+            )}
+            {projectOptions.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={btnQuiet}
+                  onClick={() => void updatePreferences((current) => ({
+                    ...current,
+                    projectSlugs: projectOptions.map((project) => project.slug),
+                  }))}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className={btnQuiet}
+                  onClick={() => void updatePreferences((current) => ({ ...current, projectSlugs: [] }))}
+                >
+                  Clear
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <div>
+            <label htmlFor="connector-sentry-item-limit" className="mb-1 block text-xs text-fg-muted">
+              Issues shown
+            </label>
+            <select
+              id="connector-sentry-item-limit"
+              value={itemLimit}
+              className={`${select} w-full`}
+              onChange={(event) => {
+                const value = Number(event.currentTarget.value)
+                void updatePreferences((current) => ({ ...current, itemLimit: value }))
+              }}
+            >
+              {[3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      }
+      onDisconnect={() => disconnectTokenConnector(storage, 'sentry')}
+    />
+  )
+}
+
+function StatusBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'status', so it is always
@@ -1528,10 +2487,11 @@ function StatusBody({ config, storage }: BodyProps) {
   // serializes per key and hands each call the prior call's own result, so a
   // second write queued before a re-render still sees the first's effect.
   const updateStatus = (fn: (services: StatusService[]) => StatusService[]) =>
-    storage.update('connectors', (prev) => ({
-      ...prev,
-      status: { enabled: true, services: fn(statusServicesOf(prev.status as StatusConfig | undefined)) },
-    }))
+    storage.update('connectors', (prev) => {
+      const current = statusServicesOf(prev.status as StatusConfig | undefined)
+      const next = fn(current)
+      return next === current ? prev : { ...prev, status: { enabled: true, services: next } }
+    })
 
   // THE PACT's settings-side helper, named identically to IcsBody's own
   // clearIcsSnapshot for the identical reason (see that function's doc
@@ -1548,8 +2508,8 @@ function StatusBody({ config, storage }: BodyProps) {
   // doc comment above): sync validate (originPattern, https-only) ->
   // duplicate check on the RESOLVED url (a curated pick and a custom entry
   // collide exactly like two custom entries would, since both are checked
-  // against the same `services` list by url) -> cap check -> ensureOrigin as
-  // the FIRST await -> persist -> clear the snapshot. Returns whether the add
+  // against the same `services` list by url) -> cap check -> transaction
+  // acquisition -> persist -> clear the snapshot. Returns whether the add
   // actually landed, so each call site can decide its OWN post-success
   // behavior (the custom form clears its two inputs; the curated select has
   // already reset itself before calling this, gesture or no).
@@ -1567,34 +2527,47 @@ function StatusBody({ config, storage }: BodyProps) {
     }
     if (atCap) return false // guarded by the disabled select/inputs/button too; belt and braces
 
-    // ensureOrigin -> chrome.permissions.request is the first await, per the
-    // comment above.
-    let granted: boolean
-    try {
-      granted = await ensureOrigin(rawUrl)
-    } catch {
-      granted = false
-    }
-    if (!granted) {
-      setError('Permission to read that status page was denied, so nothing was saved.')
-      return false
-    }
-
+    // The transaction invokes chrome.permissions.request before this handler's
+    // first await, per the comment above.
     const trimmedName = rawName.trim()
-    await updateStatus((svcs) =>
-      // Re-checked HERE (not just the disabled controls, and not just the
-      // `atCap`/`services` closed over from render) — same belt-and-braces
-      // re-derivation IcsBody's handleAdd documents for its own write.
-      svcs.some((s) => s.url === rawUrl) || svcs.length >= MAX_SERVICES
-        ? svcs
+    const transaction = await runOriginTransaction(storage, [rawUrl], async () => {
+      let ownerCommitted = false
+      let abortMessage = 'That service is already in the list.'
+      await updateStatus((svcs) => {
+        // Re-checked HERE (not just the disabled controls, and not just the
+        // `atCap`/`services` closed over from render) — same belt-and-braces
+        // re-derivation IcsBody's handleAdd documents for its own write.
+        if (svcs.some((s) => s.url === rawUrl)) return svcs
+        if (svcs.length >= MAX_SERVICES) {
+          abortMessage = `Up to ${MAX_SERVICES} services.`
+          return svcs
+        }
         // Empty name -> the url's host, NOT "Service N": unlike a calendar
         // (IcsBody's own "Calendar N" default), a status page's host IS
         // meaningful information (which service this actually is), so
         // falling back to it loses nothing a numbered placeholder would have
         // hidden anyway.
-        : [...svcs, { name: trimmedName || hostOf(rawUrl), url: rawUrl }],
+        ownerCommitted = true
+        return [...svcs, { name: trimmedName || hostOf(rawUrl), url: rawUrl }]
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: abortMessage }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    const transactionMessage = transactionError(
+      transaction,
+      'Permission to read that status page was denied, so nothing was saved.',
     )
-    await clearStatusSnapshot()
+    if (transactionMessage) {
+      setError(transactionMessage)
+      return false
+    }
+    try {
+      await clearStatusSnapshot()
+    } catch {
+      setError('The service was saved, but its cached service statuses could not be cleared.')
+    }
     return true
   }
 
@@ -1623,23 +2596,49 @@ function StatusBody({ config, storage }: BodyProps) {
   }
 
   async function handleRemove(target: string) {
-    // Same before-record / write-result-survivors / releasableOrigins
-    // discipline as IcsBody's handleRemove above (see its doc comment for the
-    // full rationale) — snapshot cleared before the origin-revoke early
-    // return, since a bad/unparseable url still removes its service from the
-    // list regardless of whether an origin can be derived from it.
-    const before = await storage.get('connectors')
-    const next = await updateStatus((svcs) => svcs.filter((s) => s.url !== target))
-    await clearStatusSnapshot()
-    const origin = originOf(target)
-    if (!origin) return
-    const remaining = statusServicesOf(next.status as StatusConfig | undefined)
-    const stillUsed = remaining.some((s) => originOf(s.url) === origin)
-    if (!stillUsed && releasableOrigins('status', before).includes(origin)) await removeOrigin(origin)
+    // The removed row's descriptor-derived candidate is captured inside the
+    // authoritative owner write; cache invalidation and release follow
+    // independently so neither failure suppresses the other.
+    let candidates: string[] = []
+    const transaction = await runOriginTransaction(storage, [], async () => {
+      let ownerCommitted = false
+      await storage.update('connectors', (prev) => {
+        const previous = prev.status as StatusConfig | undefined
+        const current = statusServicesOf(previous)
+        const removed = current.find((service) => service.url === target)
+        if (!removed) return prev
+        ownerCommitted = true
+        candidates = descriptorCandidates('status', { ...previous, enabled: true, services: [removed] })
+        return {
+          ...prev,
+          status: { enabled: true, services: current.filter((service) => service.url !== target) },
+        }
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: 'That service is no longer in the list.' }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    if (transaction.status !== 'committed') {
+      setError(transactionError(transaction, 'Permission to read that status page was not removed.')!)
+      return
+    }
+    const [snapshot, release] = await Promise.allSettled([
+      clearStatusSnapshot(),
+      releaseUnownedOrigins(storage, candidates),
+    ])
+    if (snapshot.status === 'rejected') {
+      setError('The service was removed, but its cached service statuses could not be cleared.')
+    }
+    if (release.status === 'fulfilled') {
+      if (release.value.pending.length > 0) reportPendingCleanup(release.value.pending)
+    } else if (candidates.length > 0) {
+      reportPendingCleanup(candidates)
+    }
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3">
+    <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-1">
         {services.map((s) => (
           <li key={s.url} className="flex items-center justify-between gap-2">
@@ -1651,7 +2650,7 @@ function StatusBody({ config, storage }: BodyProps) {
               type="button"
               aria-label={`Remove ${s.name}`}
               onClick={() => void handleRemove(s.url)}
-              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
             >
               ✕
             </button>
@@ -1768,7 +2767,7 @@ function StatusBody({ config, storage }: BodyProps) {
 // mirroring StatusBody's clearStatusSnapshot (:1526-1531) exactly, so the
 // widget's next mount finds no stale cached snapshot and fetches the newly
 // picked entities immediately rather than serving up to ttlMs-stale data.
-function HomeAssistantBody({ config, storage }: BodyProps) {
+function HomeAssistantBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'homeassistant' — one documented
@@ -1794,6 +2793,11 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
   const [pickerStates, setPickerStates] = useState<HaState[]>([])
   const [pickerLoading, setPickerLoading] = useState(false)
   const [pickerError, setPickerError] = useState<string | null>(null)
+  const chooseEntitiesRef = useRef<HTMLButtonElement>(null)
+
+  function closePicker() {
+    setPickerOpen(false)
+  }
 
   // THE PACT's settings-side write (this function's doc comment has the full
   // rationale): rebuilds the config from prev's OWN current entry — never
@@ -1810,6 +2814,7 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
           instanceUrl: current?.instanceUrl,
           token: current?.token,
           locationName: current?.locationName,
+          snapshotEpoch: current?.snapshotEpoch,
           entities: nextEntities,
           actions: nextActions,
         },
@@ -1853,6 +2858,10 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
         </p>
       )}
       <TokenConnectForm
+        storage={storage}
+        reportPendingCleanup={reportPendingCleanup}
+        managedMode={mode}
+        onManagedClose={closeEditor}
         fields={[
           {
             id: 'instanceUrl',
@@ -1890,6 +2899,7 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
                 instanceUrl: values.instanceUrl,
                 token: values.token,
                 locationName: identity,
+                snapshotEpoch: newSnapshotEpoch(),
                 ...(prevHa?.entities ? { entities: prevHa.entities } : {}),
                 ...(prevHa?.actions ? { actions: prevHa.actions } : {}),
               },
@@ -1897,6 +2907,9 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
           })
         }}
         connectedAs={connectedAs}
+        initiallyCollapsed={
+          ha?.token === undefined && ha?.locationName === undefined && ha?.instanceUrl === undefined
+        }
         connectedExtras={
           <div>
             <p className="text-xs text-fg-muted">
@@ -1905,6 +2918,7 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
                 : `${entities.length} chips · ${actions.length} actions`}
             </p>
             <button
+              ref={chooseEntitiesRef}
               type="button"
               onClick={() => void handleChooseEntities()}
               disabled={pickerLoading}
@@ -1912,6 +2926,9 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
             >
               {pickerLoading ? 'Loading…' : 'Choose entities'}
             </button>
+            <p className="mt-2 text-xs text-fg-muted">
+              Choosing entities loads the full entity list from your Home Assistant instance for this picker only. Regular dashboard updates request only your selected entities.
+            </p>
             {pickerError && (
               <p role="alert" className="mt-2 text-xs text-fg-muted">
                 {pickerError}
@@ -1922,29 +2939,16 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
               states={pickerStates}
               entities={entities}
               actions={actions}
-              onCancel={() => setPickerOpen(false)}
+              restoreFocusRef={chooseEntitiesRef}
+              onCancel={closePicker}
               onSave={(nextEntities, nextActions) => {
-                setPickerOpen(false)
+                closePicker()
                 void handleSaveEntities(nextEntities, nextActions)
               }}
             />
           </div>
         }
-        onDisconnect={async () => {
-          // Compute what's safe to revoke BEFORE clearing the config
-          // (releasableOrigins needs homeassistant's own config present to
-          // derive its origin), then drop the entry and revoke each
-          // released origin — same ordering as GitlabBody's own
-          // onDisconnect (:675-691).
-          const current = await storage.get('connectors')
-          const releasable = releasableOrigins('homeassistant', current)
-          await storage.update('connectors', (prev) => {
-            const next = { ...prev }
-            delete next.homeassistant
-            return next
-          })
-          await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-        }}
+        onDisconnect={() => disconnectTokenConnector(storage, 'homeassistant')}
       />
     </>
   )

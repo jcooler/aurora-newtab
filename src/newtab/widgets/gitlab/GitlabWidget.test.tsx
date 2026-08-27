@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { GitlabData, Contributions } from '../../../services/connectors/gitlab'
 import type { GitlabConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import GitlabWidget from './GitlabWidget'
 
@@ -18,11 +19,13 @@ afterEach(() => __resetInFlight())
 const DATA: GitlabData = {
   mrs: [
     {
+      id: '204',
       title: 'Add rate limiting to the ingest API',
       url: 'https://gitlab.com/acme/platform/-/merge_requests/204',
       project: 'acme/platform',
     },
     {
+      id: '207',
       title: 'Bump vite to 6.x',
       url: 'https://gitlab.com/acme/platform/-/merge_requests/207',
       project: 'acme/platform',
@@ -52,19 +55,59 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { gitlab: config })
-  if (data) await storage.set('connectorSnapshots', { gitlab: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      gitlab: { scope: await connectorSnapshotScope('gitlab', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <GitlabWidget />
+      <GitlabWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'GitLab' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'GitLab' })
+}
+
 describe('GitlabWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'GitLab' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <GitlabWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('GitLab: 2 MRs, 6 to-dos')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the card entirely — no rows, no to-dos chip.
+    expect(screen.queryByText('Add rate limiting to the ingest API')).toBeNull()
+  })
+
+  it('Compact derives attention from selected MRs when to-dos are zero', async () => {
+    const selectedMrs: GitlabConfig = {
+      ...CONNECTED,
+      views: { mergeRequests: true, reviewAsks: false, todos: true, activityGraph: false },
+    }
+    mount(await seededStorage(selectedMrs, { ...DATA, todos: 0 }), 'compact')
+    expect(await screen.findByLabelText('GitLab: 2 open items')).toBeTruthy()
+    expect(screen.queryByText('All clear')).toBeNull()
+    expect(screen.queryByText('Add rate limiting to the ingest API')).toBeNull()
+  })
   it('renders MR rows plus the to-dos count from the seeded snapshot', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
@@ -73,6 +116,7 @@ describe('GitlabWidget', () => {
     expect(screen.getByText('Bump vite to 6.x')).toBeTruthy()
     // to-dos header chip.
     expect(screen.getByText('6 to-dos')).toBeTruthy()
+    expect(screen.getByLabelText('GitLab: 6 need attention').getAttribute('data-work-pulse-tone')).toBe('attention')
     // Project prefix rides above each title.
     expect(screen.getAllByText('acme/platform').length).toBeGreaterThan(0)
   })
@@ -95,6 +139,7 @@ describe('GitlabWidget', () => {
     const storage = await seededStorage(CONNECTED, { mrs: [], reviewMrs: [], todos: 0, contributions: null })
     mount(storage)
     expect(await screen.findByText('No MRs assigned to you.')).toBeTruthy()
+    expect(screen.getByLabelText('GitLab: All clear').getAttribute('data-work-pulse-tone')).toBe('quiet')
   })
 
   // Cap lowered 5 -> 3 (Task 55 fix round): this is a glance panel sharing
@@ -104,6 +149,7 @@ describe('GitlabWidget', () => {
   it('caps MR rows at 3', async () => {
     const many: GitlabData = {
       mrs: Array.from({ length: 4 }, (_, i) => ({
+        id: `mr-${i}`,
         title: `MR ${i}`,
         url: `https://gitlab.com/o/r/-/merge_requests/${i}`,
         project: 'o/r',
@@ -201,8 +247,8 @@ const CONTRIB: Contributions = {
 }
 
 const REVIEW_MRS: GitlabData['reviewMrs'] = [
-  { title: 'Review: refactor the auth guard', url: 'https://gitlab.com/acme/platform/-/merge_requests/300', project: 'acme/platform' },
-  { title: 'Review: drop the legacy shim', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
+  { id: '300', title: 'Review: refactor the auth guard', url: 'https://gitlab.com/acme/platform/-/merge_requests/300', project: 'acme/platform' },
+  { id: '301', title: 'Review: drop the legacy shim', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
 ]
 
 const FULL_DATA: GitlabData = { ...DATA, reviewMrs: REVIEW_MRS, contributions: CONTRIB }
@@ -238,7 +284,11 @@ async function seededMulti(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { gitlab, ...siblings })
-  if (data) await storage.set('connectorSnapshots', { gitlab: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      gitlab: { scope: await connectorSnapshotScope('gitlab', gitlab), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
@@ -250,6 +300,59 @@ const sectionHasTier = (tier: string) => {
 }
 
 describe('GitlabWidget — composed card (wave 2)', () => {
+  it.each([
+    ['compact', '10px', '7px', false],
+    ['standard', '16px', '10px', false],
+    ['full', '23px', '17px', true],
+  ] as const)('uses the centered %s contribution geometry', async (tier, width, height, showsMonths) => {
+    mount(await seededMulti(ALL_ON, FULL_DATA), tier)
+    const graph = await screen.findByRole('img', { name: /contribution activity/i })
+    expect(graph.style.gridAutoColumns).toBe(width)
+    expect(graph.style.gridTemplateRows).toBe(`repeat(7, ${height})`)
+    expect(graph.closest('[data-contribution-composition]')?.className).toContain('mx-auto')
+    expect(document.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
+  })
+
+  it('makes Full visibly richer than Standard while keeping assigned and review rows', async () => {
+    const standardView = mount(await seededMulti(ALL_ON, FULL_DATA), 'standard')
+    const standardFrame = await readyFrame()
+    expect(standardFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(1)
+    standardView.unmount()
+
+    mount(await seededMulti(ALL_ON, FULL_DATA), 'full')
+    const fullFrame = await readyFrame()
+    expect(fullFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(2)
+    expect(screen.getByText('Add rate limiting to the ingest API').className).not.toContain('dense:text-xs')
+    expect(screen.getByText('Review: refactor the auth guard')).toBeTruthy()
+  })
+
+  it('recomposes Full around the large graph with a header summary and side-by-side MR queues', async () => {
+    const browserFixture: GitlabData = {
+      ...FULL_DATA,
+      reviewMrs: [{ ...REVIEW_MRS[0], title: 'Approve calendar colors' }],
+    }
+    mount(await seededMulti(ALL_ON, browserFixture), 'full')
+
+    const frame = await readyFrame()
+    const header = frame.querySelector('header')
+    expect(header).not.toBeNull()
+    if (!header) return
+    expect(header.textContent).toContain('87 contributions')
+    expect(header.textContent).toContain('3 day streak')
+
+    const graph = within(frame).getByRole('img', { name: /contribution activity/i })
+    expect(graph.style.gridAutoColumns).toBe('23px')
+    expect(frame.querySelector('[data-contribution-months]')).toBeTruthy()
+
+    const queues = within(frame).getByRole('group', { name: 'GitLab merge request queues' })
+    expect(queues.className).toContain('grid-cols-2')
+    expect(within(queues).getByText('Assigned')).toBeTruthy()
+    expect(within(queues).getByText('Review asks')).toBeTruthy()
+    expect(within(queues).getByText('Add rate limiting to the ingest API')).toBeTruthy()
+    expect(within(queues).getByText('Approve calendar colors')).toBeTruthy()
+    expect(within(queues).getAllByText('acme/platform')).toHaveLength(2)
+  })
+
   it('renders the activity graph, MR rows, and review-asks rows (with the REVIEW ASKS eyebrow) when every view is on', async () => {
     mount(await seededMulti(ALL_ON, FULL_DATA))
 
@@ -286,6 +389,7 @@ describe('GitlabWidget — composed card (wave 2)', () => {
       ...DATA,
       mrs: [],
       reviewMrs: Array.from({ length: 3 }, (_, i) => ({
+        id: `review-${i}`,
         title: `Review ${i}`,
         url: `https://gitlab.com/o/r/-/merge_requests/${i}`,
         project: 'o/r',
@@ -339,32 +443,29 @@ describe('GitlabWidget — composed card (wave 2)', () => {
     expect(section().getAttribute('data-yield')).toBe('github')
   })
 
-  it('strictly graph-only, SOLE card → the whole SECTION carries `taller:block` (whole-card yield), not an inner wrapper', async () => {
+  it('strictly graph-only, SOLE card remains represented without a height tier', async () => {
     mount(await seededMulti(GRAPH_ONLY, FULL_DATA))
     const img = await screen.findByRole('img')
-    expect(sectionHasTier('taller')).toBe(true)
+    expect(sectionHasTier('taller')).toBe(false)
     expect(section().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
     expect(section().contains(img)).toBe(true)
   })
 
   it('strictly graph-only with NO contributions data → renders null (nothing it could ever show)', async () => {
     const { container } = mount(await seededMulti(GRAPH_ONLY, { ...DATA, contributions: null, todos: 0 }))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('strictly graph-only, stacked WITH github\'s graph → renders null (the graph never shows, so nothing would)', async () => {
     const { container } = mount(await seededMulti(GRAPH_ONLY, FULL_DATA, { github: GITHUB_GRAPH_ON }))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   // ── No-husk law ──
 
   it('to-dos-only with 0 to-dos → renders null (never a bare "GitLab" heading)', async () => {
     const { container } = mount(await seededMulti(TODOS_ONLY, { ...DATA, mrs: [], reviewMrs: [], todos: 0 }))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('to-dos-only WITH a positive count → the card renders (the chip carries it)', async () => {

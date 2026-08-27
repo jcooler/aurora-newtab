@@ -300,7 +300,8 @@
     "profile": "https://unsplash.com/@reednaliboff",
     "license": "Unsplash License",
     "width": 5472,
-    "height": 3648
+    "height": 3648,
+    "excluded": "Owner removal: catalog position 19 looked poor on the live UI"
   },
   {
     "num": 24,
@@ -410,6 +411,91 @@
     "profile": null,
     "license": "Public Domain (National Park Service)",
     "width": 6000,
-    "height": 4000
+    "height": 4000,
+    "excluded": "Owner removal: catalog position 23"
+  },
+  {
+    "num": 32,
+    "file": "32-qNXhVgRfU0E-original.jpg",
+    "id": "qNXhVgRfU0E",
+    "category": "night sky",
+    "description": "Milky Way above Yosemite mountain peaks",
+    "photographer": "Venti Views",
+    "source": "https://unsplash.com/photos/milky-way-shines-over-mountain-peaks-qNXhVgRfU0E",
+    "profile": null,
+    "license": "Unsplash License",
+    "width": 7008,
+    "height": 4672,
+    "original": true
+  },
+  {
+    "num": 33,
+    "file": "33-0hU6r-vMtao-original.jpg",
+    "id": "0hU6r-vMtao",
+    "category": "night sky",
+    "description": "Milky Way above the Matterhorn",
+    "photographer": "Oleg Demakov",
+    "source": "https://unsplash.com/photos/milky-way-over-a-snow-capped-mountain-peak-0hU6r-vMtao",
+    "profile": null,
+    "license": "Unsplash License",
+    "width": 3028,
+    "height": 2016,
+    "original": true
+  },
+  {
+    "num": 34,
+    "file": "34-P-wAARoptz8-original.jpg",
+    "id": "P-wAARoptz8",
+    "category": "night sky",
+    "description": "Milky Way above a dark Utah mountain landscape",
+    "photographer": "Troy Olson",
+    "source": "https://unsplash.com/photos/milky-way-over-a-dark-mountain-landscape-P-wAARoptz8",
+    "profile": null,
+    "license": "Unsplash License",
+    "width": 5347,
+    "height": 3460,
+    "original": true
+  },
+  {
+    "num": 35,
+    "file": "35-oYEGPZebzGw-original.jpg",
+    "id": "oYEGPZebzGw",
+    "category": "forest",
+    "description": "Misty forest valley with mountains beyond",
+    "photographer": "Roberto Shumski",
+    "source": "https://unsplash.com/photos/misty-forest-valley-with-mountains-in-background-oYEGPZebzGw",
+    "profile": null,
+    "license": "Unsplash License",
+    "width": 7008,
+    "height": 4672,
+    "original": true
+  },
+  {
+    "num": 36,
+    "file": "36-j3f1lwXBuAI-original.jpg",
+    "id": "j3f1lwXBuAI",
+    "category": "mountain",
+    "description": "Dramatic sunset over a dark mountain valley",
+    "photographer": "Patrick Untersee",
+    "source": "https://unsplash.com/photos/dramatic-sunset-over-a-dark-mountain-valley-j3f1lwXBuAI",
+    "profile": null,
+    "license": "Unsplash License",
+    "width": 6240,
+    "height": 4160,
+    "original": true
+  },
+  {
+    "num": 37,
+    "file": "37-V7EgUtCnvLY-original.jpg",
+    "id": "V7EgUtCnvLY",
+    "category": "mountain",
+    "description": "Sunrise over the Santis peak",
+    "photographer": "Pascal Debrunner",
+    "source": "https://unsplash.com/photos/santis-peak-in-alpstein-region-V7EgUtCnvLY",
+    "profile": null,
+    "license": "Unsplash License",
+    "width": 11235,
+    "height": 7490,
+    "original": true
   }
 ]

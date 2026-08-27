@@ -34,7 +34,7 @@ export default function Section({
     <section
       aria-label={title}
       aria-labelledby={labelledBy}
-      className={`py-6 first:pt-0 last:pb-0 ${className}`}
+      className={`py-4 first:pt-0 last:pb-0 ${className}`}
     >
       {title && <h3 className={eyebrow}>{title}</h3>}
       {children}

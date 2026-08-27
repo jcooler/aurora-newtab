@@ -7,8 +7,17 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
     name: '',
     use24Hour: false,
     panelColor: null,
+    widgetTextColor: null,
+    photoTextColor: null,
+    photoClockColor: null,
+    photoGreetingColor: null,
+    photoQuoteColor: null,
     units: 'metric',
     muted: false,
+    flowAmbience: 'off',
+    flowVolume: 15,
+    briefingSources: { calendar: true, assignments: true, deployments: true, rain: true },
+    layoutDensity: 'auto',
     widgets: {
       search: true,
       weather: true,
@@ -24,6 +33,10 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
       monthCal: false,
       sun: false,
       moon: false,
+      readingList: false,
+      recentlyClosed: false,
+      downloads: false,
+      tabGroups: false,
     },
   }
   return {

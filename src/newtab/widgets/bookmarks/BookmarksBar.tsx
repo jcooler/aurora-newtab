@@ -9,6 +9,8 @@ import {
 } from '../../../services/bookmarks'
 import { faviconUrl } from '../links/linksLogic'
 import FolderPopover, { FolderIcon } from './FolderPopover'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import type { WidgetPresentationMode } from '../../widgetRenderers'
 
 const MAX_VISIBLE_CHIPS = 8
 const OVERFLOW_ID = '__overflow__'
@@ -133,11 +135,12 @@ const CHIP_SLOT = 'relative min-w-0'
 // and in scripts/preview.mjs's per-label measurements.
 const CHIP_LABEL = 'min-w-[4ch] max-w-32 narrow:max-w-24 truncate compact:sr-only compact:min-w-0'
 
-/** The compact-mode mark for a FOLDER chip: its own initial.
+/** The compact-mode mark for a FOLDER chip: ONE initial, always.
  *
- *  A row of eight identical folder glyphs identifies nothing — it's the
- *  same failure as eight identical crumbs, one layer down. The initial is
- *  the one character of the title that was never in doubt, set in the
+ *  Batch-1 owner review (2026-08-18): "compact bookmarks should probably
+ *  just say N for news, D for docs, M for music" — a single letter per
+ *  folder, superseding the earlier one-or-two-character rule. The initial
+ *  is the one character of the title that was never in doubt, set in the
  *  page's display face (Space Grotesk — the clock and greeting speak it)
  *  so it reads as a MARK rather than as a label that lost the rest of
  *  itself. Loose bookmarks need none of this: their favicon is already a
@@ -146,14 +149,113 @@ const CHIP_LABEL = 'min-w-[4ch] max-w-32 narrow:max-w-24 truncate compact:sr-onl
  *  Split on code points, not UTF-16 units, so an emoji-prefixed folder
  *  ("📚 Reading") keeps its emoji instead of half a surrogate pair.
  *  toUpperCase() is the identity for CJK and emoji. */
-function folderInitial(title: string): string {
-  return Array.from(title.trim())[0]?.toUpperCase() ?? '•'
+export function folderMonogram(title: string): string {
+  const words = title.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '📁'
+  return Array.from(words[0])[0]?.toUpperCase() ?? '📁'
+}
+
+type BookmarkMarkInput =
+  | { kind: 'folder'; title: string }
+  | { kind: 'bookmark'; url: string; faviconFailed: boolean }
+
+export type BookmarkMark =
+  | { kind: 'monogram'; text: string }
+  | { kind: 'folder' }
+  | { kind: 'favicon'; src: string }
+  | { kind: 'globe' }
+
+/** One identity resolver owns every visible bookmark mark. It deliberately
+ * returns a discriminated union so a chip cannot render a folder glyph and
+ * monogram, or a broken favicon and fallback globe, at the same time. */
+export function resolveBookmarkMark(input: BookmarkMarkInput): BookmarkMark {
+  if (input.kind === 'folder') {
+    if (input.title.trim().length === 0) return { kind: 'folder' }
+    return { kind: 'monogram', text: folderMonogram(input.title) }
+  }
+  if (input.faviconFailed) return { kind: 'globe' }
+  return { kind: 'favicon', src: faviconUrl(input.url) }
 }
 
 type ChipEntry = { kind: 'folder'; folder: BookmarkFolder } | { kind: 'bookmark'; item: BookmarkItem }
 
+function GlobeMark() {
+  return (
+    <svg
+      aria-hidden
+      data-chip-mark
+      data-bookmark-mark="globe"
+      className="size-3 compact:size-4 shrink-0"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z" />
+    </svg>
+  )
+}
+
+function ChipMark({ chip }: { chip: ChipEntry }) {
+  const [faviconFailed, setFaviconFailed] = useState(false)
+  const mark = resolveBookmarkMark(
+    chip.kind === 'folder'
+      ? { kind: 'folder', title: chip.folder.title }
+      : { kind: 'bookmark', url: chip.item.url, faviconFailed },
+  )
+
+  if (mark.kind === 'monogram') {
+    // A named folder carries BOTH identity marks, media-gated so exactly
+    // one is ever visible: the V1 folder glyph beside the readable label
+    // above the compact width threshold, and the monogram alone inside the
+    // compact circle (<=720px, index.css) where no label fits. The owner's
+    // 1408px-wide window proved a monogram without its label reads as an
+    // unexplained one-letter circle, so the glyph owns the labelled state.
+    // Monogram first: the canonical harness's compact-mode popover click
+    // targets the first [data-chip-mark] match and needs the visible half
+    // of the swap to come first in DOM order.
+    return (
+      <>
+        <span
+          aria-hidden
+          data-chip-mark
+          data-bookmark-mark="monogram"
+          className="hidden compact:inline shrink-0 font-display font-medium"
+        >
+          {mark.text}
+        </span>
+        <FolderIcon data-chip-mark data-bookmark-mark="folder" className="compact:hidden" />
+      </>
+    )
+  }
+  if (mark.kind === 'folder') {
+    return <FolderIcon data-chip-mark data-bookmark-mark="folder" />
+  }
+  if (mark.kind === 'globe') return <GlobeMark />
+  return (
+    <img
+      src={mark.src}
+      alt=""
+      width={12}
+      height={12}
+      data-chip-mark
+      data-bookmark-mark="favicon"
+      className="size-3 compact:size-4 shrink-0"
+      onError={() => setFaviconFailed(true)}
+    />
+  )
+}
+
 export default function BookmarksBar({
   onPopoverOpenChange,
+  canvasSize,
+  presentation: _presentation,
+  docked: _docked,
 }: {
   // Bookmarks-stacking bug fix, part 2: notifies App.tsx whenever a
   // popover opens/closes (see the `toggle`/`setOpen` helper below for why
@@ -165,6 +267,10 @@ export default function BookmarksBar({
   // Optional so every existing call site/test that doesn't care about this
   // (nothing before this fix did) keeps compiling unchanged.
   onPopoverOpenChange?: (open: boolean) => void
+  canvasSize?: CanvasSize
+  /** Accepted for placement compatibility; the readable bar never changes face. */
+  presentation?: WidgetPresentationMode
+  docked?: boolean
 } = {}) {
   // Gate BEFORE the model-loading effect exists: disabled tabs (the default —
   // settings.widgets.bookmarks starts false) never call chrome.bookmarks at
@@ -172,17 +278,20 @@ export default function BookmarksBar({
   // satisfied regardless of the toggle.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.bookmarks) return null
-  return <BookmarksBarInner onPopoverOpenChange={onPopoverOpenChange} />
+  return <BookmarksBarInner onPopoverOpenChange={onPopoverOpenChange} canvasSize={canvasSize} />
 }
 
 function BookmarksBarInner({
   onPopoverOpenChange,
+  canvasSize,
 }: {
   onPopoverOpenChange?: (open: boolean) => void
+  canvasSize?: CanvasSize
 }) {
   const [model, setModel] = useState<BarModel | null>(null)
   // One popover open at a time: a folder chip's id, or OVERFLOW_ID, or null.
   const [openId, setOpenId] = useState<string | null>(null)
+  const [openAnchor, setOpenAnchor] = useState<HTMLElement | null>(null)
 
   // Read through a ref (same idiom as dialogStack.ts's useDialogEscape and
   // useLongPress.ts's onEngageRef) so the mount-once/unmount-once effect
@@ -250,14 +359,17 @@ function BookmarksBarInner({
   // useEffect keyed on `openId`) so App's mirrored state — and the wrapper
   // z-index it drives — updates in the SAME commit as the popover itself,
   // never a frame behind.
-  const setOpen = (next: string | null) => {
+  const setOpen = (next: string | null, anchor: HTMLElement | null = null) => {
     setOpenId(next)
+    setOpenAnchor(next === null ? null : anchor)
     onPopoverOpenChange?.(next !== null)
   }
-  const toggle = (id: string) => setOpen(openId === id ? null : id)
+  const toggle = (id: string, anchor: HTMLElement) => setOpen(openId === id ? null : id, anchor)
 
   return (
     <nav
+      data-canvas-size={canvasSize}
+      data-bookmarks-presentation="bar"
       aria-label="Bookmarks bar"
       // `relative` (bookmarks-stacking bug fix): z-index only has any effect
       // on a positioned element (CSS: "on non-positioned elements it will
@@ -272,47 +384,9 @@ function BookmarksBarInner({
       // does nothing regardless of value, so z-20/z-50 below have been
       // silently inert since that commit.
       //
-      // IMPORTANT — `relative` here is necessary but NOT sufficient on its
-      // own (found via the real-Chromium preview probe, not by inspection):
-      // `position: fixed` on the WRAPPER (App.tsx's PositionedBlock, still
-      // `fixed` after the transform-removal fix — it has to be, that's what
-      // makes the bar viewport-anchored at all) unconditionally creates a
-      // NEW STACKING CONTEXT for that wrapper, with NO explicit z-index of
-      // its own (CSS: `position: fixed`/`sticky` establishes a stacking
-      // context regardless of z-index — unlike `position: relative`, which
-      // only does when z-index isn't `auto`). Every explicit z-index inside
-      // that wrapper — this nav's z-20/z-50 included — is scoped to
-      // compete ONLY against the wrapper's own other descendants; from
-      // OUTSIDE, the whole wrapper subtree paints as a single atomic layer
-      // at z-index:auto (effectively 0), which ALWAYS loses to
-      // FolderPopover's body-portaled z-40 catcher, no matter what
-      // z-index anything inside the wrapper carries. `relative` fixes the
-      // LOCAL ordering this file can see (the open popover's own panel,
-      // z-50, painting above ITS sibling chips within this nav) — the
-      // wrapper itself also has to gain a matching elevated z-index while a
-      // popover is open, which is what `onPopoverOpenChange` above and
-      // App.tsx's conditional wrapper className are for. See the
-      // bookmarks PositionedBlock's comment in App.tsx for the full
-      // writeup and the minimal-repro measurements that found this.
-      //
-      // z-20 normally, z-50 while a popover is open — but (reviewer-noted
-      // stale comment, corrected) by ITSELF this only wins LOCAL
-      // comparisons inside the wrapper's own stacking context: concretely,
-      // the open popover's own panel (z-50) painting above ITS sibling
-      // chips within this nav. Outranking FolderPopover's z-40
-      // body-portaled catcher — and TodoPanel/TimerWidget's z-30 panels —
-      // while a popover is open is now the WRAPPER's job (App.tsx's
-      // `bookmarksPopoverOpen`-gated className, fed by `onPopoverOpenChange`
-      // above), not this class's; see the big comment above for why a class
-      // in here can never reach outside the wrapper on its own. Kept
-      // `openId`-scoped (matching the wrapper's own open-only elevation)
-      // rather than permanent for the same reason the wrapper is scoped
-      // that way: permanently at z-50, this nav would win its OWN local
-      // popover-vs-sibling-chip comparison even with nothing open (harmless
-      // there) but would also be one more thing to keep in sync with the
-      // wrapper's condition for no benefit — `openId` is already the single
-      // source of truth this reads from, so mirroring it here costs
-      // nothing and keeps both classes legible together.
+      // z-20 normally, z-50 while a popover is open. FolderPopover itself is
+      // portaled to body so the Dock scrollport cannot clip it; this local
+      // elevation only keeps the active chip above its sibling launchers.
       // WIDTH + ONE ROW, ALWAYS. This bar now owns the top band alone (the
       // timer pill and weather chip default BELOW it — see App.tsx and
       // index.css's `--top-band`), which changes both halves of the old
@@ -360,26 +434,20 @@ function BookmarksBarInner({
               // compact mode, where there is no label at all, this and the
               // popover are the only ways to read the name.
               title={chip.folder.title}
-              onClick={() => toggle(chip.folder.id)}
+              onClick={(event) => toggle(chip.folder.id, event.currentTarget)}
               className={CHIP}
             >
-              <FolderIcon className="compact:hidden" />
-              <span
-                aria-hidden
-                data-chip-mark
-                className="hidden compact:block font-display font-medium"
-              >
-                {folderInitial(chip.folder.title)}
-              </span>
+              <ChipMark chip={chip} />
               <span data-chip-label className={CHIP_LABEL}>
                 {chip.folder.title}
               </span>
             </button>
-            {openId === chip.folder.id && (
+            {openId === chip.folder.id && openAnchor && (
               <FolderPopover
                 title={chip.folder.title}
                 items={chip.folder.items}
                 folders={chip.folder.folders}
+                anchor={openAnchor}
                 onClose={() => setOpen(null)}
               />
             )}
@@ -395,14 +463,7 @@ function BookmarksBarInner({
                 width/height attributes stay for the intrinsic size before
                 CSS arrives; the size utilities are what the breakpoint can
                 actually address. */}
-            <img
-              src={faviconUrl(chip.item.url)}
-              alt=""
-              width={12}
-              height={12}
-              data-chip-mark
-              className="size-3 compact:size-4 shrink-0"
-            />
+            <ChipMark chip={chip} />
             <span data-chip-label className={CHIP_LABEL}>
               {chip.item.title}
             </span>
@@ -422,7 +483,7 @@ function BookmarksBarInner({
             aria-expanded={openId === OVERFLOW_ID}
             aria-label="More bookmarks"
             title="More bookmarks"
-            onClick={() => toggle(OVERFLOW_ID)}
+            onClick={(event) => toggle(OVERFLOW_ID, event.currentTarget)}
             className={CHIP}
           >
             {/* Wrapped rather than a bare text node so the compact-mode
@@ -432,11 +493,12 @@ function BookmarksBarInner({
               »
             </span>
           </button>
-          {openId === OVERFLOW_ID && (
+          {openId === OVERFLOW_ID && openAnchor && (
             <FolderPopover
               title="More"
               items={overflow.flatMap((c) => (c.kind === 'bookmark' ? [c.item] : []))}
               folders={overflow.flatMap((c) => (c.kind === 'folder' ? [c.folder] : []))}
+              anchor={openAnchor}
               onClose={() => setOpen(null)}
             />
           )}

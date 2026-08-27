@@ -20,4 +20,15 @@ describe('reverseGeocode', () => {
     const boom = vi.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch
     expect(await reverseGeocode(0, 0, boom)).toBeNull()
   })
+
+  it('forwards the caller AbortSignal and preserves abort rejection', async () => {
+    const controller = new AbortController()
+    const fetchFn = ok({ city: 'Dallas' })
+    await expect(reverseGeocode(34, -84, fetchFn, controller.signal)).resolves.toBe('Dallas')
+    expect(fetchFn).toHaveBeenCalledWith(expect.any(String), { signal: controller.signal })
+
+    const aborted = new DOMException('aborted', 'AbortError')
+    const rejecting = vi.fn().mockRejectedValue(aborted) as unknown as typeof fetch
+    await expect(reverseGeocode(34, -84, rejecting, controller.signal)).rejects.toBe(aborted)
+  })
 })

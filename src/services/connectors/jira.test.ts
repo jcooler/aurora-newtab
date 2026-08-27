@@ -554,4 +554,26 @@ describe('jiraDescriptor', () => {
       }),
     ).toEqual([])
   })
+
+  it('owns origins only for a complete validated connection, independent of enabled', () => {
+    expect(
+      jiraDescriptor.ownsOrigins({
+        enabled: false,
+        email: 'jon@acme.com',
+        apiToken: 't',
+        site: 'yoursite.atlassian.net',
+        displayName: 'Jon',
+      }),
+    ).toBe(true)
+    expect(
+      jiraDescriptor.ownsOrigins({
+        enabled: true,
+        email: '',
+        apiToken: 't',
+        site: 'yoursite.atlassian.net',
+        displayName: 'Jon',
+      }),
+    ).toBe(false)
+    expect(jiraDescriptor.ownsOrigins({ enabled: true } as never)).toBe(false)
+  })
 })

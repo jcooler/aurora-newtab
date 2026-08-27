@@ -13,8 +13,13 @@
 // type { ConnectorDescriptor } from './types'`: both sides erase at compile
 // time, so nothing survives to a load-order cycle at runtime.
 import type { HomeAssistantConfig } from './homeassistant'
+import type { CalendarColor } from './calendarColors'
 
-export const CONNECTOR_IDS = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant'] as const
+export const CONNECTOR_IDS = [
+  'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
+  'linear', 'sentry', 'todoist',
+  'onThisDay', 'publicHolidays', 'auroraKp',
+] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 
 // Task 79 (W3-SP1): the drawer (Task 80) groups connector cards by purpose
@@ -26,11 +31,12 @@ export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 // UI-layer lookup that could drift from it. `home` and `fun` have no
 // occupants yet (future sub-projects) — they exist here so the type and the
 // drawer's rendering are ready before the first connector lands in either.
-export type ConnectorCategory = 'development' | 'calendar-tasks' | 'home' | 'news-markets' | 'fun'
+export type ConnectorCategory = 'development' | 'calendar-tasks' | 'at-a-glance' | 'home' | 'news-markets' | 'fun'
 
 export const CATEGORY_LABELS: Record<ConnectorCategory, string> = {
   development: 'Development',
   'calendar-tasks': 'Calendar & tasks',
+  'at-a-glance': 'At a glance',
   home: 'Home',
   'news-markets': 'News & markets',
   fun: 'Fun',
@@ -42,12 +48,18 @@ export const CATEGORY_LABELS: Record<ConnectorCategory, string> = {
 export const CATEGORY_ORDER: readonly ConnectorCategory[] = [
   'development',
   'calendar-tasks',
+  'at-a-glance',
   'home',
   'news-markets',
   'fun',
 ]
 
-export interface RssConfig {
+export interface ConnectorCacheIdentity {
+  /** Non-secret lifecycle nonce. New token connections replace it. */
+  snapshotEpoch?: string
+}
+
+export interface RssConfig extends ConnectorCacheIdentity {
   enabled: boolean
   feeds: string[] // https URLs, max 5
   shownCount: number // 3-8, default 5
@@ -80,7 +92,7 @@ export interface Contributions {
   total: number
 }
 
-export interface GithubConfig {
+export interface GithubConfig extends ConnectorCacheIdentity {
   enabled: boolean
   token: string
   username: string
@@ -98,7 +110,7 @@ export type GitlabViews = {
   activityGraph: boolean
 }
 
-export interface GitlabConfig {
+export interface GitlabConfig extends ConnectorCacheIdentity {
   enabled: boolean
   token: string
   instanceUrl: string
@@ -118,7 +130,7 @@ export type JiraViews = {
   dueSoon: boolean
 }
 
-export interface JiraConfig {
+export interface JiraConfig extends ConnectorCacheIdentity {
   enabled: boolean
   email: string
   apiToken: string
@@ -135,7 +147,7 @@ export type VercelViews = {
   statusSummary: boolean
 }
 
-export interface VercelConfig {
+export interface VercelConfig extends ConnectorCacheIdentity {
   enabled: boolean
   token: string
   username: string
@@ -144,15 +156,16 @@ export interface VercelConfig {
   // the full rule). See DEFAULT_VERCEL_VIEWS (Task 74).
   views?: VercelViews
 }
-export interface CryptoConfig {
+export interface CryptoConfig extends ConnectorCacheIdentity {
   enabled: boolean
   coins: string[] // 2-5 CoinGecko ids
 }
 export interface IcsCalendar {
   name: string // display name, e.g. "Personal" — shown in settings; dots key by list position
   url: string // https-only at rest (webcal:// is converted before persist); the WHOLE url is the secret
+  color?: CalendarColor // absent is Auto; explicit selections follow this calendar through reorder
 }
-export interface IcsConfig {
+export interface IcsConfig extends ConnectorCacheIdentity {
   enabled: boolean
   url?: string // LEGACY pre-multi-calendar shape; read by icsCalendarsOf, never written by new saves
   calendars?: IcsCalendar[] // max 5 (MAX_CALENDARS in Connectors.tsx)
@@ -169,9 +182,49 @@ export interface StatusService {
   name: string
   url: string
 }
-export interface StatusConfig {
+export interface StatusConfig extends ConnectorCacheIdentity {
   enabled: boolean
   services?: StatusService[] // up to MAX_SERVICES (status.ts); absent/malformed → [] (statusServicesOf)
+}
+
+export interface LinearConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  token: string
+  displayName: string
+  teamIds?: string[]
+  itemLimit?: number
+}
+
+export type SentryRegion = 'global' | 'us' | 'de'
+
+export interface SentryConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  token: string
+  organization: string
+  region: SentryRegion
+  projectSlugs?: string[]
+  itemLimit?: number
+}
+
+export interface TodoistConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  token: string
+  accountLabel: string
+  projectIds?: string[]
+  itemLimit?: number
+}
+
+export interface OnThisDayConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+}
+
+export interface PublicHolidaysConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  countryCode: string
+}
+
+export interface AuroraKpConfig extends ConnectorCacheIdentity {
+  enabled: boolean
 }
 
 export type ConnectorConfig =
@@ -184,8 +237,16 @@ export type ConnectorConfig =
   | IcsConfig
   | StatusConfig
   | HomeAssistantConfig
+  | LinearConfig
+  | SentryConfig
+  | TodoistConfig
+  | OnThisDayConfig
+  | PublicHolidaysConfig
+  | AuroraKpConfig
 
 export interface ConnectorSnapshot {
+  /** Missing only on legacy v1 caches; the hook treats those as absent. */
+  scope?: string
   fetchedAt: number // epoch ms
   data: unknown // per-connector shape, typed at the service boundary
 }
@@ -217,7 +278,17 @@ export interface ConnectorDescriptor<C extends ConnectorConfig = ConnectorConfig
   auth: 'none' | 'token' | 'oauth'
   ttlMs: number
   secretFields: (keyof C & string)[]
+  /** Optional pure second-stage backup redaction for nested or conservative
+   *  config values after generic descriptor-declared secret fields are gone. */
+  redactForBackup?(config: C): Partial<C>
+  /** Optional pure policy for whether a cleaned/redacted config needs user
+   *  re-entry after restore. */
+  backupReentryRequired?(config: C): boolean
   origins(config: C): string[] // every URL the service will fetch, for grant/revoke bookkeeping
+  /** True only once this connector's persisted config is complete enough to
+   *  own its derived origins. Deliberately independent from `enabled`: a
+   *  disabled configured connector can be re-enabled without a new prompt. */
+  ownsOrigins(config: C): boolean
   /** Config field holding the human identity shown as "Connected as X" on the
    *  card shell (token connectors). Absent for auth 'none'. The shell derives
    *  auth-state: secret present + identity present → connected; identity

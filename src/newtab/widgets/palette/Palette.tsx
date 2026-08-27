@@ -80,6 +80,11 @@ export default function Palette({
   const active = results[activeIndex]
   const activeId = active ? `palette-option-${active.id}` : undefined
 
+  useEffect(() => {
+    if (!activeId) return
+    document.getElementById(activeId)?.scrollIntoView?.({ block: 'nearest' })
+  }, [activeId])
+
   return (
     <>
       {/* Backdrop is a SIBLING of the dialog, not an ancestor: nesting
@@ -90,7 +95,7 @@ export default function Palette({
           pointer-events-none so clicks in its empty padding fall through to
           this backdrop and still close the palette. */}
       <div aria-hidden onClick={onClose} className="fixed inset-0 z-40 bg-black/30" />
-      <div className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center pt-[18vh]">
+      <div className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center pt-[18vh] [@media(max-height:300px)]:p-2">
         <div
           ref={panelRef}
           role="dialog"
@@ -108,7 +113,7 @@ export default function Palette({
               runResult(activeIndex)
             }
           }}
-          className="pointer-events-auto w-full max-w-lg overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+          className="pointer-events-auto flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-lg flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
         >
           <input
             role="combobox"
@@ -122,7 +127,7 @@ export default function Palette({
             placeholder='Type a command, a link, or "todo: buy milk"'
             className="w-full border-b border-panel-border bg-transparent px-4 py-3 text-fg outline-none placeholder:text-fg-muted"
           />
-          <ul id="palette-listbox" role="listbox" aria-label="Commands" className="max-h-80 overflow-y-auto py-1">
+          <ul id="palette-listbox" role="listbox" aria-label="Commands" className="max-h-80 min-h-0 flex-1 overflow-y-auto py-1 [@media(max-height:300px)]:max-h-20">
             {results.length === 0 && <li className="px-4 py-3 text-sm text-fg-muted">No matches</li>}
             {results.map((cmd, i) => (
               <li
@@ -132,12 +137,12 @@ export default function Palette({
                 aria-selected={i === activeIndex}
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => runResult(i)}
-                className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2 text-sm ${
+                className={`flex min-h-9 cursor-pointer items-center justify-between gap-3 px-4 py-2 text-sm ${
                   i === activeIndex ? 'bg-control-bg-hover text-fg' : 'text-fg-muted'
                 }`}
               >
                 <span className="truncate">{cmd.label}</span>
-                {cmd.hint && <span className="ml-4 shrink-0 truncate text-xs text-fg-muted">{cmd.hint}</span>}
+                {cmd.hint && <span className="ml-4 min-w-0 max-w-[50%] truncate text-xs text-fg-muted">{cmd.hint}</span>}
               </li>
             ))}
           </ul>

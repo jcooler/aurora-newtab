@@ -164,4 +164,10 @@ describe('cryptoDescriptor', () => {
       'https://api.coingecko.com/*',
     ])
   })
+
+  it('owns its constant origin only when at least one coin is configured, independent of enabled', () => {
+    expect(cryptoDescriptor.ownsOrigins({ enabled: false, coins: ['bitcoin'] })).toBe(true)
+    expect(cryptoDescriptor.ownsOrigins({ enabled: true, coins: [] })).toBe(false)
+    expect(cryptoDescriptor.ownsOrigins({ enabled: true } as never)).toBe(false)
+  })
 })

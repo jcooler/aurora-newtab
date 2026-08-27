@@ -1,4 +1,4 @@
-import { derivedFg, isPanelColor } from '../lib/color'
+import { derivedFg, isPanelColor, mutedInk } from '../lib/color'
 
 // The three-theme system (aurora/glass/mono, keyed by [data-theme]) collapsed
 // into one surface in Task 60 — there is no THEMES array or applyTheme() any
@@ -34,6 +34,7 @@ export function applyPanelColor(el: HTMLElement, hex: string | null): void {
     el.style.removeProperty('--panel')
     el.style.removeProperty('--fg')
     el.style.removeProperty('--fg-muted')
+    el.style.removeProperty('--panel-accent')
     el.removeAttribute('data-scheme')
     return
   }
@@ -42,6 +43,54 @@ export function applyPanelColor(el: HTMLElement, hex: string | null): void {
   const { fg, fgMuted, scheme } = derivedFg(hex)
   el.style.setProperty('--fg', fg)
   el.style.setProperty('--fg-muted', fgMuted)
+  el.style.setProperty('--panel-accent', fg)
   if (scheme === 'light') el.setAttribute('data-scheme', 'light')
   else el.removeAttribute('data-scheme')
+}
+
+/** The five appearance ink overrides (owner-approved 2026-08-18; every value
+ *  `null` = auto). Same DOM seam and determinism contract as applyPanelColor
+ *  above — every property is set or removed on every call. */
+export interface AppearanceInks {
+  /** Re-inks every panel surface: overrides the panel-derived --fg pair. */
+  widgetText: string | null
+  /** Re-inks text on the photograph via the --photo-ink chain (themes.css
+   *  routes --canvas-fg through it). */
+  photoText: string | null
+  /** Per-element photo overrides: index.css scopes each block's --canvas-fg
+   *  through its own --photo-ink-<element> chain, so an element pick beats
+   *  the global photo pick for that block only. */
+  clock: string | null
+  greeting: string | null
+  quote: string | null
+}
+
+/** Applies the ink overrides AFTER applyPanelColor (a custom widget ink wins
+ *  over the panel-derived pair; the muted tier DERIVES from the pick at the
+ *  standing 0.68 alpha — never tuned to any particular panel color). */
+export function applyInkColors(el: HTMLElement, inks: AppearanceInks): void {
+  const pairs: readonly [string, string | null][] = [
+    ['--fg-custom', inks.widgetText],
+    ['--photo-ink', inks.photoText],
+    ['--photo-ink-clock', inks.clock],
+    ['--photo-ink-greeting', inks.greeting],
+    ['--photo-ink-quote', inks.quote],
+  ]
+  for (const [name, value] of pairs) {
+    if (isPanelColor(value)) {
+      el.style.setProperty(name, value)
+      el.style.setProperty(`${name}-muted`, mutedInk(value))
+    } else {
+      el.style.removeProperty(name)
+      el.style.removeProperty(`${name}-muted`)
+    }
+  }
+  // --fg-custom exists so the widget-text override composes with (and beats)
+  // whatever applyPanelColor derived, without the two functions fighting
+  // over one property: the real --fg pair only moves when a custom ink is
+  // present.
+  if (isPanelColor(inks.widgetText)) {
+    el.style.setProperty('--fg', inks.widgetText)
+    el.style.setProperty('--fg-muted', mutedInk(inks.widgetText))
+  }
 }

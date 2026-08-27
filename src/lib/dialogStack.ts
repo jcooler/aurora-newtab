@@ -6,19 +6,26 @@ import { useEffect, useRef } from 'react'
 // the stack empties, so there's exactly one `keydown` subscriber no matter
 // how many dialogs exist across the app — Escape always closes whichever one
 // registered most recently, and each press pops exactly one.
+export type DialogCloseResult = void | boolean | Promise<boolean>
+
 interface StackEntry {
-  onClose: () => void
+  onClose: () => DialogCloseResult
 }
 
 const stack: StackEntry[] = []
 let attached = false
+let closeAllPromise: Promise<boolean> | null = null
 
 function onKeyDown(e: KeyboardEvent) {
   if (e.key !== 'Escape' || e.defaultPrevented) return
   const top = stack[stack.length - 1]
   if (!top) return
   e.preventDefault()
-  top.onClose()
+  try {
+    void Promise.resolve(top.onClose()).catch(() => false)
+  } catch {
+    // A rejected close intentionally leaves the entry registered for retry.
+  }
 }
 
 function attach() {
@@ -36,29 +43,48 @@ function detach() {
 /**
  * Closes every currently-registered dialog, newest-first — the same order
  * Escape pops them in, one press at a time, except this fires all of them in
- * one call. Used when arrange mode engages (ArrangeController): the overlay
+ * one call. Built for full-page mode entries (the retired Arrange overlay
+ * used it; NL-P3's live edit session is the next owner): such an overlay
  * makes the rest of the page `inert`, so nothing open underneath it could be
  * closed by the user anymore anyway; this guarantees mode entry itself never
  * leaves a stale open panel (Notes/Todo/Timer/Drawer/Palette/...) stranded
  * there.
  *
- * The stack is snapshotted and cleared FIRST, before any `onClose` runs:
- * `onClose` handlers are typically a React `setState`, so the dialog's own
- * `useDialogEscape` cleanup effect (which would otherwise splice its entry
- * back out of `stack`) doesn't actually run until a later commit — clearing
- * up front means (a) that later no-op splice is safe (its entry is already
- * gone) and (b) anything registered fresh afterward (e.g. ArrangeController's
- * own `useDialogEscape(exit, mode === 'on')`, once `mode` flips) starts from
- * a genuinely empty stack, becoming the new top naturally. Only entries that
- * were actually active (registered) at call time are ever invoked — an entry
- * that already unregistered itself (closed by other means) is simply gone
- * from `stack` and is silently skipped, same as `onKeyDown` above would.
+ * Each close is awaited before its entry is removed and the next-oldest one
+ * begins. A false result or rejection means the dialog stayed open, so the
+ * entry remains on top and the transaction stops. Concurrent callers share
+ * one transaction, preventing a slow persistence-backed close from running
+ * twice.
  */
-export function closeAllDialogs(): void {
-  const active = stack.slice().reverse()
-  stack.length = 0
-  detach()
-  for (const entry of active) entry.onClose()
+export function closeAllDialogs(): Promise<boolean> {
+  if (closeAllPromise) return closeAllPromise
+
+  const operation = (async () => {
+    while (stack.length > 0) {
+      const entry = stack[stack.length - 1]
+      let result: void | boolean
+      try {
+        result = await entry.onClose()
+      } catch {
+        return false
+      }
+      if (result === false) return false
+
+      const index = stack.indexOf(entry)
+      if (index !== -1) stack.splice(index, 1)
+      if (stack.length === 0) detach()
+    }
+    return true
+  })()
+
+  closeAllPromise = operation.finally(() => {
+    closeAllPromise = null
+  })
+  return closeAllPromise
+}
+
+export function hasOpenDialogs(): boolean {
+  return stack.length > 0
 }
 
 /**
@@ -72,7 +98,7 @@ export function closeAllDialogs(): void {
  * re-registers the entry — only `active` flipping mounts/unmounts it, which
  * is what should determine stack position.
  */
-export function useDialogEscape(onClose: () => void, active = true): void {
+export function useDialogEscape(onClose: () => DialogCloseResult, active = true): void {
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 

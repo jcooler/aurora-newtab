@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { AssertiveAlert, PoliteStatus } from '../../../components/StateFeedback'
+import type { OperationState } from '../../../lib/asyncState'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import {
@@ -13,6 +16,22 @@ import {
   type HomeAssistantData,
 } from '../../../services/connectors/homeassistant'
 import type { ConnectorConfig } from '../../../services/connectors/types'
+import type { WidgetVariant } from '../../../lib/layout/types'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import DockLine from '../shared/DockLine'
+import TierFrame, { ResourceFrameStatus, resourceFrameState, type TierFrameTier } from '../shared/TierFrame'
+
+const HA_VARIANT_LIMITS: Readonly<Record<WidgetVariant, Readonly<{ states: number; actions: number }>>> = {
+  compact: { states: 2, actions: 0 },
+  standard: { states: 4, actions: 2 },
+  expanded: { states: 6, actions: 3 },
+}
+
+const HA_FRAME_TIER: Readonly<Record<WidgetVariant, TierFrameTier>> = {
+  compact: 'compact',
+  standard: 'standard',
+  expanded: 'full',
+}
 
 // The Home Assistant widget — Task 102 (W3-SP5), the ninth connector's board
 // face: up to MAX_CHIP_ENTITIES=6 state chips and up to MAX_ACTIONS=3
@@ -29,15 +48,9 @@ import type { ConnectorConfig } from '../../../services/connectors/types'
 // it failed. This is why the inner gate below checks `data.entities === null`
 // rather than rendering the buttons unconditionally once picked.
 //
-// This widget is modeled on StatusWidget.tsx's own shape (a snapshot-backed
-// connector widget with NO settings-tab toggle — see registry.ts's own
-// homeassistantDescriptor comment: `settings.widgets` has no `homeassistant`
-// member, this is a connector card, not a Widgets-tab entry), not on
-// GitlabWidget's panel-card shape: the section below floats DIRECTLY on the
-// photo (no bg-panel-solid/rounded-2xl/shadow-lg), the same "slim floating
-// strip, not a panel" idiom CryptoWidget.tsx's own doc comment documents —
-// see its ink discipline note on ActionButton below for why the chips need
-// the fixed `-canvas-` ink family and the buttons don't.
+// This widget is snapshot-backed with no Widgets-tab toggle. The shared tier
+// frame owns its panel-adaptive surface and ink; the utility tray remains a
+// portal fed by this same mounted snapshot owner.
 
 /** Narrow `connectors.homeassistant` (a ConnectorConfig union member, or
  *  undefined) to a CONNECTED HomeAssistantConfig, defensively — same shape as
@@ -85,7 +98,11 @@ export function chipCopy(s: HaState): string {
   return `${s.friendlyName} ${s.state}${s.unit ?? ''}`
 }
 
-export default function HomeAssistantWidget() {
+export default function HomeAssistantWidget({
+  stageVariant = 'standard',
+  utilityTray,
+  docked,
+}: { stageVariant?: WidgetVariant; utilityTray?: UtilityTrayBridge; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (StatusWidget.tsx's own doc comment): the one useStoredKey read runs
   // every render (Rules of Hooks stay satisfied), but a disabled/unconnected
@@ -112,24 +129,36 @@ export default function HomeAssistantWidget() {
   return (
     <HomeAssistantInner
       key={remountKey(picked, actions)}
+      config={ha}
       instanceUrl={ha.instanceUrl}
       token={ha.token}
       picked={picked}
       actions={actions}
+      stageVariant={stageVariant}
+      utilityTray={utilityTray}
+      docked={docked}
     />
   )
 }
 
 function HomeAssistantInner({
+  config,
   instanceUrl,
   token,
   picked,
   actions,
+  stageVariant,
+  utilityTray,
+  docked,
 }: {
+  config: HomeAssistantConfig
   instanceUrl: string
   token: string
   picked: HaEntityRef[]
   actions: HaAction[]
+  stageVariant: WidgetVariant
+  utilityTray?: UtilityTrayBridge
+  docked?: boolean
 }) {
   // NO prev arg, by design (plan-pinned ruling 2, this file's header
   // comment): fetchHomeAssistant itself takes no `prev` parameter at all
@@ -137,8 +166,10 @@ function HomeAssistantInner({
   // accepts one (useConnectorSnapshot's own signature requires it) but
   // deliberately ignores it rather than threading it anywhere, so a
   // reviewer scanning call sites never mistakes this for a carry-forward.
-  const { data } = useConnectorSnapshot<HomeAssistantData>('homeassistant', (_prev) =>
-    fetchHomeAssistant(instanceUrl, token, picked),
+  const { data, state } = useConnectorSnapshot<HomeAssistantData>(
+    'homeassistant',
+    config,
+    (_prev) => fetchHomeAssistant(instanceUrl, token, picked),
   )
   // Anti-staleness, all-or-nothing (plan-pinned ruling 2): a failed poll
   // (`data === null`, never fetched yet) OR an outright failed one
@@ -146,7 +177,23 @@ function HomeAssistantInner({
   // See this file's header comment for why the buttons aren't spared: a dead
   // instance must never turn a still-rendered button into a guaranteed error
   // tint on every press.
-  if (!data || data.entities === null) return null
+  if (!data || data.entities === null) {
+    const tray = utilityTray?.activeTool === 'homeassistant' && utilityTray.host
+      ? createPortal(<p className="text-sm text-fg-muted">Home Assistant actions are unavailable.</p>, utilityTray.host)
+      : null
+    if (docked) return tray
+    const frameState = data?.entities === null ? 'hard-error' : resourceFrameState(state)
+    return (
+      <>
+        <ResourceFrameStatus
+          label="Home Assistant"
+          tier={HA_FRAME_TIER[stageVariant]}
+          state={frameState === 'hard-error' ? 'hard-error' : 'loading'}
+        />
+        {tray}
+      </>
+    )
+  }
 
   const chips = data.entities
 
@@ -157,48 +204,111 @@ function HomeAssistantInner({
   // `actions` never depends on the poll (it's static config, not fetched
   // state), so it alone can still justify rendering — this only returns null
   // when NEITHER would leave anything visible.
-  if (chips.length === 0 && actions.length === 0) return null
+  if (chips.length === 0 && actions.length === 0) {
+    if (docked) return null
+    return (
+      <ResourceFrameStatus
+        label="Home Assistant"
+        tier={HA_FRAME_TIER[stageVariant]}
+        state="empty"
+        message="No selected Home Assistant items are available."
+      />
+    )
+  }
 
-  return (
-    // A slim floating card, not a panel — no bg-panel-solid/rounded-2xl/
-    // shadow-lg (unlike GithubWidget/GitlabWidget/JiraWidget/VercelWidget in
-    // this same rail column): CryptoWidget.tsx's own "slim floating STRIP,
-    // not a panel" idiom, `w-80` only for width parity with the panel cards
-    // stacked above it in this column (ics/rss/vercel), not for a shared
-    // surface. Left-aligned (this column's own `items-start`), not
-    // text-center (unlike the bottom band's centered strips).
-    <section aria-label="Home Assistant" className="w-80 text-fg">
-      {chips.length > 0 && (
-        <ul className="flex flex-wrap gap-x-3 gap-y-1">
-          {chips.map((s) => (
-            // Photo-floating text — `-canvas-` ink (StatusWidget.tsx:134-151's
-            // own "the trap": a panel-adaptive `text-fg` here would silently
-            // re-tint toward black under a light panelColor pick, since this
-            // chip has no panel surface of its own to carry that tint against)
-            // plus `text-photo`'s edge-definition shadow, the same pairing
-            // every other direct-on-photo text in this app uses (Clock,
-            // Greeting, CryptoWidget's own coin cells).
-            <li key={s.id} className="text-photo text-sm text-canvas-fg">
-              {chipCopy(s)}
-            </li>
-          ))}
-        </ul>
-      )}
-      {actions.length > 0 && (
-        <div className={`flex flex-wrap gap-2${chips.length > 0 ? ' mt-2' : ''}`}>
-          {actions.map((a) => (
-            <ActionButton key={a.id} action={a} instanceUrl={instanceUrl} token={token} />
-          ))}
-        </div>
-      )}
-    </section>
+  // Docked tier (NL-P5 batch 2): the first chip's own copy (or the actions
+  // count when only actions are picked) as one dense line — the SAME
+  // poll-backed chips/static actions the dashboard renders, no second fetch.
+  if (docked) {
+    return (
+      <DockLine
+        label="Home Assistant"
+        facts={[chips.length > 0 ? chipCopy(chips[0]) : `${actions.length} actions`]}
+      />
+    )
+  }
+
+  const limits = HA_VARIANT_LIMITS[stageVariant]
+  const visibleChips = chips.slice(0, limits.states)
+  // An action-only Compact allocation still needs one useful operation;
+  // when current states exist, Compact stays a passive summary as specified.
+  const actionLimit = stageVariant === 'compact' && chips.length === 0 ? 1 : limits.actions
+  const visibleActions = actions.slice(0, actionLimit)
+  const fullLayout = stageVariant === 'expanded'
+
+  const selectionSummary = [
+    chips.length > 0 ? `${chips.length} states` : null,
+    actions.length > 0 ? `${actions.length} actions` : null,
+  ].filter((value): value is string => value !== null).join(' · ')
+  const dashboard = (
+    <TierFrame
+      label="Home Assistant"
+      tier={HA_FRAME_TIER[stageVariant]}
+      state={resourceFrameState(state)}
+      data-ha-content-variant={stageVariant}
+      className="flex min-h-0 flex-col"
+    >
+      <header className="flex min-h-9 items-center justify-between gap-3 border-b border-hairline px-3 py-2">
+        <h2 className="text-sm font-semibold">Home Assistant</h2>
+        <span className="text-[11px] text-fg-muted">{selectionSummary}</span>
+      </header>
+      <div
+        data-ha-full-layout={fullLayout ? '' : undefined}
+        className={fullLayout
+          ? 'grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] gap-4 overflow-hidden p-3'
+          : 'min-h-0 flex-1 overflow-hidden p-3'}
+      >
+        {visibleChips.length > 0 && (
+          <ul className={fullLayout ? 'grid content-start gap-y-2' : 'flex flex-wrap gap-x-3 gap-y-1'}>
+            {visibleChips.map((s) => (
+              <li key={s.id} className={fullLayout ? 'text-base leading-6 text-fg' : 'text-sm text-fg'}>
+                {chipCopy(s)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {visibleActions.length > 0 && (
+          <div
+            data-ha-full-actions={fullLayout ? '' : undefined}
+            className={fullLayout
+              ? 'grid content-start gap-2'
+              : `flex flex-wrap gap-2${visibleChips.length > 0 ? ' mt-2' : ''}`}
+          >
+            {visibleActions.map((a) => (
+              <ActionButton
+                key={a.id}
+                action={a}
+                instanceUrl={instanceUrl}
+                token={token}
+                snapshotEpoch={config.snapshotEpoch}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </TierFrame>
   )
+  const tray = utilityTray?.activeTool === 'homeassistant' && utilityTray.host
+    ? createPortal(
+        <section aria-label="Home Assistant actions" className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold">Home Assistant actions</h3>
+          <div className="flex flex-wrap gap-2">
+            {actions.map((action) => (
+              <ActionButton
+                key={action.id}
+                action={action}
+                instanceUrl={instanceUrl}
+                token={token}
+                snapshotEpoch={config.snapshotEpoch}
+              />
+            ))}
+          </div>
+        </section>,
+        utilityTray.host,
+      )
+    : null
+  return <>{dashboard}{tray}</>
 }
-
-// How long a failed press's error tint stays up before auto-clearing back to
-// idle — brief-pinned at 1200ms. No dialog, no error text anywhere on this
-// card (brief-pinned): the tint IS the entire error UI.
-const ERROR_TINT_MS = 1200
 
 // Every button state's COMPLETE literal class string — never a template
 // interpolation. GitlabWidget.tsx:42-56's own fix-round story is the reason:
@@ -222,68 +332,103 @@ const ERROR_TINT_MS = 1200
 // `-canvas-` family — the trap StatusWidget.tsx:134-151 documents is about
 // text with NO surface of its own sitting directly on the photo, which a
 // button here never is. `error` reuses the app's one established danger
-// convention, `text-red-400` (ArrangeController.tsx's own Reset button),
+// convention, `text-red-400` (the shared Reset confirm's danger styling),
 // adapted onto this control's own surface rather than a bare-text button.
-// `pressed` is a brief, self-contained brightness/scale nudge — no color
+// `pending` is a brief, self-contained brightness/scale nudge — no color
 // change, so a press reads as "acknowledged" a beat before the real
 // success/error tint lands.
 const BTN_TINT = {
-  idle: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
-  pressed: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] scale-95 brightness-125 transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:scale-100',
-  error: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-red-400 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
-} as const
+  idle: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-sm text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
+  pending: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-sm text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] scale-95 brightness-125 transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:scale-100',
+  success: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-sm text-accent shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
+  error: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-sm text-red-400 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
+} as const satisfies Record<OperationState, string>
 
-type BtnTintState = keyof typeof BTN_TINT
-
-/** One of the three service-call buttons. Fire-and-forget optimistic tap
- *  (homeassistant.ts's own callHaService doc comment): press -> pressed tint
- *  immediately -> the real POST resolves -> idle on success, error tint on
- *  failure, auto-clearing after ERROR_TINT_MS. No dialog, no error text
- *  anywhere (brief-pinned) — the tint IS the entire error UI. */
-function ActionButton({
+/** One independently guarded Home Assistant service call. Configuration
+ * changes advance the generation in a committed layout effect: stale promise
+ * continuations can therefore neither overwrite feedback nor release a newer
+ * request's synchronous pending guard. */
+export function ActionButton({
   action,
   instanceUrl,
   token,
+  snapshotEpoch,
 }: {
   action: HaAction
   instanceUrl: string
   token: string
+  snapshotEpoch?: string
 }) {
-  const [state, setState] = useState<BtnTintState>('idle')
-  // The pending error-clear timeout, so a press mid-error-tint (or an
-  // unmount, e.g. a picker save remounting this whole card via the key
-  // above) cancels it instead of leaving a stray setState-after-unmount call
-  // scheduled — the exact "store the timeout id, clear on unmount" the brief
-  // pins.
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [state, setState] = useState<OperationState>('idle')
+  const feedbackId = useId()
+  const pendingRef = useRef<number | null>(null)
+  const mountedRef = useRef(false)
+  const generationRef = useRef(0)
+
+  useLayoutEffect(() => {
+    generationRef.current += 1
+    pendingRef.current = null
+    setState('idle')
+  }, [snapshotEpoch, instanceUrl, token, action.id, action.domain])
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
-      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current)
+      mountedRef.current = false
     }
   }, [])
 
   async function handlePress() {
-    if (timeoutRef.current !== null) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
+    if (pendingRef.current !== null) return
+
+    const generation = generationRef.current
+    pendingRef.current = generation
+    setState('pending')
+
+    let ok = false
+    try {
+      ok = await callHaService(instanceUrl, token, action)
+    } catch {
+      ok = false
     }
-    setState('pressed')
-    const ok = await callHaService(instanceUrl, token, action)
-    if (ok) {
-      setState('idle')
-      return
-    }
-    setState('error')
-    timeoutRef.current = setTimeout(() => {
-      timeoutRef.current = null
-      setState('idle')
-    }, ERROR_TINT_MS)
+
+    if (generation !== generationRef.current || pendingRef.current !== generation) return
+    pendingRef.current = null
+    if (!mountedRef.current) return
+    setState(ok ? 'success' : 'error')
   }
 
+  const feedback =
+    state === 'pending'
+      ? `Running ${action.name}…`
+      : state === 'success'
+        ? `${action.name} completed.`
+        : state === 'error'
+          ? `Couldn't run ${action.name}. Try again.`
+          : null
+
   return (
-    <button type="button" aria-label={`Run ${action.name}`} onClick={() => void handlePress()} className={BTN_TINT[state]}>
-      {action.name}
-    </button>
+    <div className="flex flex-col items-start gap-1">
+      <button
+        type="button"
+        aria-label={`Run ${action.name}`}
+        aria-busy={state === 'pending' ? 'true' : undefined}
+        aria-describedby={feedback ? feedbackId : undefined}
+        disabled={state === 'pending'}
+        onClick={() => void handlePress()}
+        className={BTN_TINT[state]}
+      >
+        {action.name}
+      </button>
+      {state === 'error' ? (
+        <AssertiveAlert id={feedbackId} className="text-photo text-xs text-canvas-fg">
+          {feedback}
+        </AssertiveAlert>
+      ) : (
+        <PoliteStatus id={feedbackId} className="text-photo text-xs text-canvas-fg">
+          {feedback}
+        </PoliteStatus>
+      )}
+    </div>
   )
 }

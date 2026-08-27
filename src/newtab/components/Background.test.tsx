@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import Background from './Background'
 import { listUploads } from '../../lib/idb'
 import { createStorage, type AuroraStorage } from '../../lib/storage/index'
@@ -8,6 +8,15 @@ import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
 import { fetchApod } from '../../services/apod'
 import type { ApodPhoto, PhotoPrefs } from '../../lib/storage/schema'
+
+const localDay = vi.hoisted(() => ({
+  sample: { key: '2026-07-26', timeZone: 'America/New_York', now: new Date('2026-07-26T12:00:00Z') },
+}))
+
+vi.mock('../../lib/hooks/useLocalDay', () => ({
+  useLocalDay: () => localDay.sample,
+  readLocalDay: () => localDay.sample,
+}))
 
 // Only 'upload' mode touches IndexedDB; mock the whole module so the two
 // upload-mode cases below don't need real IndexedDB (unavailable in jsdom).
@@ -45,10 +54,11 @@ async function renderBg(
   onPrefsChange: (next: PhotoPrefs) => void = vi.fn(),
   seed: Record<string, unknown> = {},
 ) {
-  const storage: AuroraStorage = createStorage(memoryDriver(seed))
+  const storage: AuroraStorage = createStorage(memoryDriver({ ...seed, photoPrefs: prefs }))
+  storage.subscribe('photoPrefs', onPrefsChange)
   const view = render(
     <StorageProvider storage={storage}>
-      <Background prefs={prefs} onPrefsChange={onPrefsChange} />
+      <Background prefs={prefs} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -61,11 +71,10 @@ async function renderBg(
     // present again, not just the inner Background.
     rerender: async (
       nextPrefs: PhotoPrefs,
-      nextOnPrefsChange: (next: PhotoPrefs) => void = onPrefsChange,
     ) => {
       view.rerender(
         <StorageProvider storage={storage}>
-          <Background prefs={nextPrefs} onPrefsChange={nextOnPrefsChange} />
+          <Background prefs={nextPrefs} />
         </StorageProvider>,
       )
       await act(async () => {})
@@ -85,6 +94,11 @@ describe('Background', () => {
     // the wall-clock date the suite happens to run on.
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-26T12:00:00'))
+    localDay.sample = {
+      key: '2026-07-26',
+      timeZone: 'America/New_York',
+      now: new Date('2026-07-26T12:00:00Z'),
+    }
     vi.mocked(listUploads).mockReset()
     vi.mocked(listUploads).mockResolvedValue([])
     vi.mocked(fetchApod).mockReset()
@@ -131,6 +145,31 @@ describe('Background', () => {
     expect(onPrefsChange).toHaveBeenCalledTimes(1)
   })
 
+  it('manual refresh advances the current photo without clearing its lock', async () => {
+    const onPrefsChange = vi.fn()
+    const prefs: PhotoPrefs = {
+      mode: 'auto',
+      index: 0,
+      lastRotated: '2026-07-26',
+      locked: true,
+    }
+    const { storage } = await renderBg(prefs, onPrefsChange)
+    const changed = new Promise<PhotoPrefs>((resolve) => storage.subscribe('photoPrefs', resolve))
+
+    let saved!: PhotoPrefs
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'New background photo' }))
+      saved = await changed
+    })
+
+    expect(saved).toEqual({
+      mode: 'auto',
+      index: 1,
+      lastRotated: '2026-07-26',
+      locked: true,
+    })
+  })
+
   it('upload mode with a populated gallery shows the current photo and the refresh control', async () => {
     vi.mocked(listUploads).mockResolvedValue([
       { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
@@ -149,6 +188,20 @@ describe('Background', () => {
     // (jsdom-absent) original before the suite's automatic post-test cleanup
     // would otherwise unmount it.
     unmount()
+  })
+
+  it('keeps the photograph but suppresses photo controls for an immersive surface', async () => {
+    const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+    const storage = createStorage(memoryDriver())
+    render(
+      <StorageProvider storage={storage}>
+        <Background prefs={prefs} showControls={false} />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    expect(document.querySelector('img')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'New background photo' })).toBeNull()
   })
 
   it('upload mode with an empty gallery falls back to the bundled photo set', async () => {
@@ -456,6 +509,53 @@ describe('Background', () => {
       expect(fetchApod).toHaveBeenCalledTimes(1)
       expect(await storage.get('apodCache')).toEqual({ date: '2026-07-26', photo: null })
       expect(container.querySelector('img')?.getAttribute('src')).toContain('/photos/')
+    })
+
+    it('rolls APOD to the next local day without reloading the tab', async () => {
+      vi.mocked(fetchApod).mockResolvedValue(APOD_PHOTO)
+      const prefs: PhotoPrefs = { mode: 'apod', index: 0, lastRotated: '' }
+      const { storage, rerender } = await renderBg(prefs, vi.fn(), {
+        apodCache: { date: '2026-07-26', photo: APOD_PHOTO },
+      })
+
+      localDay.sample = {
+        key: '2026-07-27',
+        timeZone: 'America/New_York',
+        now: new Date('2026-07-27T04:00:01Z'),
+      }
+      await rerender(prefs)
+
+      expect(fetchApod).toHaveBeenCalledTimes(1)
+      expect(await storage.get('apodCache')).toEqual({ date: '2026-07-27', photo: APOD_PHOTO })
+    })
+
+    it('starts the new local-day APOD request while the prior day is pending and rejects the stale completion', async () => {
+      let resolveFirst!: (photo: ApodPhoto | null) => void
+      let resolveSecond!: (photo: ApodPhoto | null) => void
+      vi.mocked(fetchApod)
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve }))
+      const prefs: PhotoPrefs = { mode: 'apod', index: 0, lastRotated: '' }
+      const { storage, rerender } = await renderBg(prefs, vi.fn(), {})
+      expect(fetchApod).toHaveBeenCalledTimes(1)
+
+      localDay.sample = {
+        key: '2026-07-27',
+        timeZone: 'America/New_York',
+        now: new Date('2026-07-27T04:00:01Z'),
+      }
+      await rerender(prefs)
+      expect(fetchApod).toHaveBeenCalledTimes(2)
+
+      const nextPhoto: ApodPhoto = {
+        url: 'https://apod.nasa.gov/apod/image/2607/tomorrow.jpg',
+        title: 'Tomorrow',
+      }
+      await act(async () => { resolveSecond(nextPhoto) })
+      expect(await storage.get('apodCache')).toEqual({ date: '2026-07-27', photo: nextPhoto })
+
+      await act(async () => { resolveFirst(APOD_PHOTO) })
+      expect(await storage.get('apodCache')).toEqual({ date: '2026-07-27', photo: nextPhoto })
     })
 
     it('non-apod modes never call fetchApod, even with a stale or absent cache', async () => {

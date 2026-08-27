@@ -1,7 +1,43 @@
-import type { Layout } from '../layout/types'
+import { emptyLayoutV3, type StoredLayout } from '../layout/canvasTypes'
+import type { CalendarLayoutPreferences, CalendarWeekStart, LayoutsDocument } from '../layout/namedLayouts'
+import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 9
+export const CURRENT_VERSION = 19
+
+export const FLOW_AMBIENCE_VALUES = ['off', 'creek', 'rain', 'ocean', 'forest'] as const
+export type FlowAmbience = typeof FLOW_AMBIENCE_VALUES[number]
+
+export const DEFAULT_BRIEFING_SOURCES = {
+  calendar: true,
+  assignments: true,
+  deployments: true,
+  rain: true,
+} as const
+
+export interface BriefingSources {
+  calendar: boolean
+  assignments: boolean
+  deployments: boolean
+  rain: boolean
+}
+
+export type AttentionAssignmentSource = 'github' | 'gitlab' | 'jira' | 'linear'
+
+export interface AttentionLedgerItem {
+  firstSeenAt: number | null
+}
+
+export interface AttentionLedgerSource {
+  generation?: string
+  observedAt: number
+  items: Record<string, AttentionLedgerItem>
+}
+
+export interface AttentionLedger {
+  version: 1
+  sources: Partial<Record<AttentionAssignmentSource, AttentionLedgerSource>>
+}
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -34,11 +70,20 @@ export interface WidgetToggles {
   monthCal: boolean
   sun: boolean
   moon: boolean
+  readingList: boolean
+  recentlyClosed: boolean
+  downloads: boolean
+  tabGroups: boolean
 }
 
 export interface Settings {
   name: string
   use24Hour: boolean
+  /** Opt-in Canvas briefing. Missing remains equivalent to false so existing
+   *  settings load without a migration or eager rewrite. */
+  briefingEnabled?: boolean
+  /** Independently controllable sources within the Greeting helper. */
+  briefingSources: BriefingSources
   /** The widget-color customizer (Task 60, which retired the three-theme
    *  system). `null` = the default surface defined by themes.css's :root. A
    *  `#rrggbb` string re-tints every widget's panel at runtime
@@ -58,8 +103,30 @@ export interface Settings {
    *  requires panelColor present-and-valid (`null` or `#rrggbb`), so any backup
    *  captured before this field existed gets rejected WHOLESALE on import. */
   panelColor: string | null
+  /** Appearance ink overrides (owner-approved 2026-08-18 color system, all
+   *  `null` = auto). Nested Settings fields, so per the STANDING RULE above
+   *  they shipped WITH the v13->v14 bump, migrations[13], the
+   *  METADATA_ONLY_FLOOR move to 14, and backup isSettings coverage.
+   *  widgetTextColor re-inks every panel surface (--fg; muted derives at 68%
+   *  alpha — DERIVED from the pick, never tuned to any one panel color);
+   *  photoTextColor re-inks text on the photograph (--canvas-fg via the
+   *  --photo-ink chain); the three per-element overrides beat photoTextColor
+   *  for their own block only. */
+  widgetTextColor: string | null
+  photoTextColor: string | null
+  photoClockColor: string | null
+  photoGreetingColor: string | null
+  photoQuoteColor: string | null
   units: 'metric' | 'imperial'
   muted: boolean
+  /** Ambient audio used only while the persisted Flow timer is running. */
+  flowAmbience: FlowAmbience
+  /** Persisted 0-100 percentage; the audio element receives this as 0-1. */
+  flowVolume: number
+  /** Independent Adaptive Stage preference. Auto Fit resolves the roomiest
+   *  density that keeps automatic items on the board; manual choices persist
+   *  unchanged across placement resets. */
+  layoutDensity: LayoutDensityPreference
   widgets: WidgetToggles
 }
 
@@ -93,6 +160,19 @@ export interface TimerConfig {
   breakMinutes: number
 }
 
+/** One persisted timer authority shared by the dashboard Timer and Flow.
+ *  `endsAt` is the running phase's absolute deadline; paused sessions retain
+ *  `remainingMs` instead. `null` at the AuroraData key is the canonical idle,
+ *  non-Flow state. */
+export interface TimerSession {
+  mode: 'work' | 'break'
+  running: boolean
+  endsAt: number | null
+  remainingMs: number
+  cycles: number
+  flow: boolean
+}
+
 export interface PhotoPrefs {
   // 'apod' (Task 96): NASA's Astronomy Picture of the Day — the fourth
   // source, sitting alongside auto/upload/gradient. Its own cache lives in
@@ -102,6 +182,8 @@ export interface PhotoPrefs {
   mode: 'auto' | 'upload' | 'gradient' | 'apod'
   index: number
   lastRotated: string
+  /** Stops the bundled daily rotation while preserving manual refresh. */
+  locked?: boolean
   /** Bumped on every new upload so the write is never deep-equal (chrome.storage
    *  emits no onChanged event for equal writes). */
   uploadedAt?: string
@@ -119,6 +201,10 @@ export interface CurrentWeather {
   feelsLikeC: number
   code: number // WMO weather code
   windKmh: number
+  /** Meteorological bearing in degrees — the direction the wind blows FROM.
+   *  Optional: caches captured before this field was requested remain
+   *  valid, and the widget simply omits the compass point for them. */
+  windDirection?: number
   humidity: number
   /** From Open-Meteo is_day; optional so pre-existing caches stay valid
    *  (missing = treat as day; caches self-heal within the 30-min SWR window). */
@@ -133,13 +219,74 @@ export interface HourlyPoint {
   isDay?: boolean // see CurrentWeather.isDay
 }
 
+export type PollenSpecies = 'alder' | 'birch' | 'grass' | 'mugwort' | 'olive' | 'ragweed'
+
+export interface PollenReading {
+  species: PollenSpecies
+  grainsPerCubicMeter: number
+}
+
+export type WeatherPollenSnapshot =
+  | { status: 'available'; readings: PollenReading[] }
+  | { status: 'unavailable' }
+
+export type WeatherEnvironmentSnapshot =
+  | {
+      requestIdentity: string
+      fetchedAt: number
+      status: 'available'
+      usAqi: number | null
+      uvIndex: number | null
+      pollen: WeatherPollenSnapshot
+    }
+  | {
+      requestIdentity: string
+      fetchedAt: number
+      status: 'unavailable'
+      usAqi: null
+      uvIndex: null
+      pollen: { status: 'unavailable' }
+    }
+
 export interface WeatherSnapshot {
   current: CurrentWeather
   hourly: HourlyPoint[] // next ~12h
   fetchedAt: number // epoch ms
   locationLabel: string
+  /** Versioned normalized provider request identity. Legacy caches omit this
+   *  and remain parseable, but are never reusable by the Weather hook. */
+  requestIdentity?: string
   sunriseISO?: string
   sunsetISO?: string
+  /** Separately identified optional provider leg. Pre-enrichment caches omit
+   *  it and remain usable for forecast display while the hook self-heals. */
+  environment?: WeatherEnvironmentSnapshot
+}
+
+export type WeatherAlertSeverity = 'Extreme' | 'Severe' | 'Moderate' | 'Minor' | 'Unknown'
+
+export interface WeatherAlert {
+  id: string
+  event: string
+  severity: WeatherAlertSeverity
+  urgency: string
+  headline: string
+  areaDescription: string
+  effective: string | null
+  onset: string | null
+  expires: string | null
+  description: string
+  instruction: string
+}
+
+/** Independent five-minute NWS enrichment. It is intentionally separate from
+ *  WeatherSnapshot because alert coverage, failure, and freshness must never
+ *  suppress the useful Open-Meteo forecast or environmental data. */
+export interface WeatherAlertCache {
+  requestIdentity: string
+  fetchedAt: number
+  status: 'supported' | 'unsupported'
+  alerts: WeatherAlert[]
 }
 
 export interface Notes {
@@ -199,15 +346,35 @@ export interface AuroraData {
   todoLists: TodoList[]
   links: QuickLink[]
   timerConfig: TimerConfig
+  timerSession: TimerSession | null
   photoPrefs: PhotoPrefs
   location: StoredLocation | null
   weatherCache: WeatherSnapshot | null
+  weatherAlertCache: WeatherAlertCache | null
   notes: Notes
   worldClocks: WorldClock[]
   countdowns: Countdown[]
-  layout: Layout
+  layout: StoredLayout
+  /** Named-layouts document (NL-P1, 2026-08-17 named-layouts design spec §4).
+   *  A TOP-LEVEL key: like apodCache, missing values are backfilled by
+   *  migrate()'s default-merge, so no data-rewriting migration step exists
+   *  (migrations[12] is the identity and live init stamps only the version).
+   *  `null` means the user has never explicitly saved a layouts document; the
+   *  runtime derives an in-memory "My layout" from the legacy `layout` key
+   *  (lib/layout/myLayoutAdapter.ts) and MUST NOT write it at boot. The
+   *  legacy `layout` key above stays byte-for-byte as recovery input and is
+   *  never written by named-layouts code. */
+  layouts: LayoutsDocument | null
+  /** Presentation-only Calendar choices keyed by stable named-layout id.
+   *  Separate from `layouts` so ordinary Agenda/Month switching never writes
+   *  placement geometry or bypasses edit-mode Save/Cancel. */
+  calendarPreferences: CalendarLayoutPreferences
+  /** Global Calendar convention; top-level so old stores default safely. */
+  calendarWeekStart: CalendarWeekStart
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>
   connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
+  /** Device-local derived first-observation state. Excluded from backups. */
+  attentionLedger: AttentionLedger
   habits: Habit[]
   // apodCache (Task 95): a top-level key, so it needs neither a
   // CURRENT_VERSION bump nor a new migrations.ts step — migrate()'s own
@@ -228,8 +395,17 @@ export function defaults(): AuroraData {
       name: '',
       use24Hour: false,
       panelColor: null,
+      widgetTextColor: null,
+      photoTextColor: null,
+      photoClockColor: null,
+      photoGreetingColor: null,
+      photoQuoteColor: null,
       units: 'metric',
       muted: false,
+      flowAmbience: 'off',
+      flowVolume: 15,
+      briefingSources: { ...DEFAULT_BRIEFING_SOURCES },
+      layoutDensity: 'auto',
       widgets: {
         search: true,
         weather: true,
@@ -245,21 +421,31 @@ export function defaults(): AuroraData {
         monthCal: false,
         sun: false,
         moon: false,
+        readingList: false,
+        recentlyClosed: false,
+        downloads: false,
+        tabGroups: false,
       },
     },
     focus: null,
     todoLists: [],
     links: [],
     timerConfig: { workMinutes: 25, breakMinutes: 5 },
+    timerSession: null,
     photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
     location: null,
     weatherCache: null,
+    weatherAlertCache: null,
     notes: { text: '', updatedAt: 0 },
     worldClocks: [],
     countdowns: [],
-    layout: {},
+    layout: emptyLayoutV3(),
+    layouts: null,
+    calendarPreferences: {},
+    calendarWeekStart: 'locale',
     connectors: {},
     connectorSnapshots: {},
+    attentionLedger: { version: 1, sources: {} },
     habits: [],
     apodCache: null,
   }

@@ -25,7 +25,7 @@
 // res.json() call (http.ts:93) is UNCONDITIONAL and can reject on a
 // malformed body, so every postJson/getJson call here is wrapped in its own
 // try/catch (status.ts:103's fetchOneStatus precedent), not left to bubble.
-import type { ConnectorDescriptor } from './types'
+import type { ConnectorCacheIdentity, ConnectorDescriptor } from './types'
 import { getJson, postJson } from './http'
 import { originPattern } from '../permissions'
 
@@ -47,7 +47,7 @@ export interface HaAction {
   domain: 'scene' | 'script' | 'switch'
 }
 
-export interface HomeAssistantConfig {
+export interface HomeAssistantConfig extends ConnectorCacheIdentity {
   enabled: boolean
   instanceUrl?: string
   token?: string
@@ -194,29 +194,59 @@ export async function fetchAllStates(
   }
 }
 
-/** The widget's fetch: fetchAllStates, filtered down to the picked entity
- *  ids. NEVER throws (every failure inside fetchAllStates already resolves
- *  null, and there's no further step here that can reject) and NEVER carries
- *  a `prev` — no `prev` parameter exists at all, unlike gitlab.ts's
- *  fetchGitlab. See this module's header comment (citing status.ts:117-131)
- *  for why: a stale "on" for a light that's actually off by the time this
- *  renders is the same class of lie status.ts refuses to tell with a cached
- *  green dot. A picked id absent from the fetched states (deleted/renamed in
- *  HA since it was picked) is silently omitted, not an error — the chip row
- *  just shows fewer entities than were picked. An empty `picked` list short-
- *  circuits to `{ entities: [] }` without a network call at all: nothing to
- *  filter for, so nothing to fetch. */
+/** Authenticated availability probe used when no entities are selected. */
+export async function checkHomeAssistantHealth(
+  instanceUrl: string,
+  token: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const result = await getJson<unknown>(`${apiBase(instanceUrl)}/api/`, authHeaders(token), fetchFn)
+    if (!result.ok || typeof result.body !== 'object' || result.body === null || Array.isArray(result.body)) return false
+    const { message } = result.body as { message?: unknown }
+    return typeof message === 'string' && message.length > 0
+  } catch {
+    return false
+  }
+}
+
+type SelectedStateResult = { kind: 'found'; state: HaState } | { kind: 'missing' } | { kind: 'failed' }
+
+async function fetchSelectedState(
+  instanceUrl: string,
+  token: string,
+  entityId: string,
+  fetchFn: typeof fetch,
+): Promise<SelectedStateResult> {
+  try {
+    const result = await getJson<unknown>(
+      `${apiBase(instanceUrl)}/api/states/${encodeURIComponent(entityId)}`,
+      authHeaders(token),
+      fetchFn,
+    )
+    if (!result.ok) return result.status === 404 ? { kind: 'missing' } : { kind: 'failed' }
+    if (typeof result.body !== 'object' || result.body === null || Array.isArray(result.body)) return { kind: 'failed' }
+    const [state] = parseStates([result.body])
+    return state && state.id === entityId ? { kind: 'found', state } : { kind: 'failed' }
+  } catch {
+    return { kind: 'failed' }
+  }
+}
+
+/** The widget fetches each distinct selected endpoint in parallel. A 404 is omitted; any other request or parsing failure returns the null anti-staleness sentinel. Empty selections make a narrow authenticated health request instead of calling the picker-only bulk endpoint. */
 export async function fetchHomeAssistant(
   instanceUrl: string,
   token: string,
   picked: HaEntityRef[],
   fetchFn: typeof fetch = fetch,
 ): Promise<HomeAssistantData> {
-  if (picked.length === 0) return { entities: [] }
-  const all = await fetchAllStates(instanceUrl, token, fetchFn)
-  if (all === null) return { entities: null }
-  const pickedIds = new Set(picked.map((p) => p.id))
-  return { entities: all.filter((state) => pickedIds.has(state.id)) }
+  const pickedIds = [...new Set(picked.map((p) => p.id))]
+  if (pickedIds.length === 0) {
+    return (await checkHomeAssistantHealth(instanceUrl, token, fetchFn)) ? { entities: [] } : { entities: null }
+  }
+  const results = await Promise.all(pickedIds.map((id) => fetchSelectedState(instanceUrl, token, id, fetchFn)))
+  if (results.some((result) => result.kind === 'failed')) return { entities: null }
+  return { entities: results.flatMap((result) => result.kind === 'found' ? [result.state] : []) }
 }
 
 /** Maps an action's domain to the HA service it calls: scene/script both
@@ -333,6 +363,19 @@ export const homeassistantDescriptor: ConnectorDescriptor<HomeAssistantConfig> =
       return config.instanceUrl ? [originPattern(config.instanceUrl)] : []
     } catch {
       return []
+    }
+  },
+  ownsOrigins: (config) => {
+    if (
+      typeof config.instanceUrl !== 'string' || config.instanceUrl.length === 0 ||
+      typeof config.token !== 'string' || config.token.length === 0 ||
+      typeof config.locationName !== 'string' || config.locationName.length === 0
+    ) return false
+    try {
+      originPattern(config.instanceUrl)
+      return true
+    } catch {
+      return false
     }
   },
 }

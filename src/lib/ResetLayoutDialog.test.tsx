@@ -88,4 +88,14 @@ describe('ResetLayoutDialog', () => {
     const labels = buttons.map((b) => b.textContent)
     expect(labels.indexOf('Cancel')).toBeLessThan(labels.indexOf('Reset layout'))
   })
+
+  it('fits the short viewport with one owned scrollport and 36px actions', () => {
+    render(<ResetLayoutDialog open={true} onCancel={vi.fn()} onConfirm={vi.fn()} />)
+    const dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
+    expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(dialog.classList.contains('overflow-y-auto')).toBe(true)
+    expect(dialog.querySelectorAll('.overflow-y-auto')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Cancel' }).classList.contains('min-h-9')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Reset layout' }).classList.contains('min-h-9')).toBe(true)
+  })
 })

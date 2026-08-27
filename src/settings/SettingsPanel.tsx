@@ -1,20 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { useStorage } from '../lib/storage/context'
 import { useUploads } from '../lib/hooks/useUploads'
 import type { Settings } from '../lib/storage/schema'
+import type { LayoutsDocument, NamedLayout } from '../lib/layout/namedLayouts'
 import General from './sections/General'
 import Background from './sections/Background'
-import Weather from './sections/Weather'
 import Widgets from './sections/Widgets'
-import WorldClocks from './sections/WorldClocks'
-import Countdowns from './sections/Countdowns'
 import Data from './sections/Data'
 import Layout from './sections/Layout'
 import About from './sections/About'
 import Connectors from './sections/Connectors'
 import Tabs from './Tabs'
 import { isPremium } from '../lib/premium'
+import PermissionCleanupAlert from './PermissionCleanupAlert'
+import { usePermissionCleanup } from './usePermissionCleanup'
+import { calendarPreferenceFor } from '../lib/layout/calendarConsolidation'
 
 type TabId = 'general' | 'widgets' | 'connectors' | 'data'
 
@@ -33,16 +34,27 @@ function tabsFor(premium: boolean): readonly { id: TabId; label: string }[] {
 }
 
 export default function SettingsPanel({
-  onArrangeLayout,
   // Whether the Drawer wrapping this panel is currently open — threaded down
   // to the Layout section so its armed Reset button can disarm the instant
   // the drawer closes (review fix; see Layout.tsx). Defaults to `true` so
   // every OTHER test/call site that doesn't care about this specific
   // behavior doesn't need to pass it; App always passes the real value.
   open = true,
+  focusAnchor = null,
+  layoutsDocument = null,
+  calendarConsolidationLayout = null,
 }: {
-  onArrangeLayout: () => void
   open?: boolean
+  /** Deep link from a widget's gear (named-layouts spec 2.5): on nonce
+   *  change, activate the tab and move focus to the matching
+   *  [data-settings-anchor] element. */
+  focusAnchor?: { tab: 'widgets' | 'connectors'; anchor: string; nonce: number } | null
+  /** The resolved named-layouts document (App owns resolution); the Layout
+   *  section's management list operates on it (spec 2.1). */
+  layoutsDocument?: LayoutsDocument | null
+  /** The persisted active layout, supplied only when storage owns a named
+   *  layouts document that the Calendar consolidation may safely rewrite. */
+  calendarConsolidationLayout?: NamedLayout | null
 }) {
   const storage = useStorage()
   // Which tab's sections are mounted. Deliberately NOT persisted anywhere: a
@@ -52,13 +64,45 @@ export default function SettingsPanel({
   // — see Layout.tsx's `open` prop, which exists for exactly that reason), so
   // this state is never torn down between opens.
   const [tab, setTab] = useState<TabId>('general')
+  const openRef = useRef(open)
+  openRef.current = open
+
+  useEffect(() => {
+    if (!focusAnchor) return
+    setTab(focusAnchor.tab === 'connectors' && isPremium() ? 'connectors' : 'widgets')
+    // The tab's sections mount on the next render, and the Drawer runs its
+    // own focus management when it opens — retry briefly so the anchor
+    // focus lands AFTER both, not in a race with them.
+    let cancelled = false
+    const attempt = (remaining: number) => {
+      // Never steal focus after the drawer closed mid-retry (review fix M8).
+      if (cancelled || !openRef.current) return
+      const target = document.querySelector<HTMLElement>(
+        `[data-settings-anchor="${focusAnchor.anchor}"]`,
+      )
+      if (target) {
+        target.scrollIntoView({ block: 'center' })
+        target.focus()
+        if (document.activeElement === target || remaining <= 0) return
+      }
+      if (remaining > 0) setTimeout(() => attempt(remaining - 1), 80)
+    }
+    const frame = requestAnimationFrame(() => attempt(5))
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+    }
+  }, [focusAnchor])
   const [settings, save] = useStoredKey('settings')
-  const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
+  const [photoPrefs] = useStoredKey('photoPrefs')
   const [location] = useStoredKey('location')
   const [worldClocks] = useStoredKey('worldClocks')
   const [countdowns] = useStoredKey('countdowns')
   const [habits] = useStoredKey('habits')
   const [connectors] = useStoredKey('connectors')
+  const [calendarWeekStart, saveCalendarWeekStart] = useStoredKey('calendarWeekStart')
+  const [calendarPreferences] = useStoredKey('calendarPreferences')
+  const cleanup = usePermissionCleanup(storage)
   const [galleryError, setGalleryError] = useState<string | null>(null)
   // Reload the gallery whenever mode enters 'upload' or the uploadedAt nonce
   // bumps (every add/remove) — same "fresh read on nonce change" pattern the
@@ -95,22 +139,27 @@ export default function SettingsPanel({
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
   const premium = isPremium()
   const TABS = tabsFor(premium)
-
   // Only the ACTIVE tab's sections are rendered — inactive ones are
   // unmounted, not hidden, so their hooks and effects don't run off screen
   // (Data's pending-import state, Layout's confirm dialog, Background's
   // thumbnail grid). The keys SettingsPanel itself reads stay above this
   // split, so switching tabs never re-reads storage.
   return (
-    <Tabs tabs={TABS} active={tab} onChange={setTab}>
+    <>
+      <PermissionCleanupAlert
+        pendingPatterns={cleanup.pendingPatterns}
+        onRetry={() => void cleanup.retryPermissionCleanup()}
+        retrying={cleanup.retrying}
+      />
+      <Tabs tabs={TABS} active={tab} onChange={setTab}>
       {tab === 'general' && (
         <>
           <General settings={settings} patch={patch} />
 
           <Background
             storage={storage}
+            reportPendingCleanup={cleanup.reportPendingCleanup}
             photoPrefs={photoPrefs}
-            savePhotoPrefs={savePhotoPrefs}
             uploads={uploads}
             thumbUrls={thumbUrls}
             galleryError={galleryError}
@@ -121,27 +170,46 @@ export default function SettingsPanel({
 
       {tab === 'widgets' && (
         <>
-          <Widgets settings={settings} patch={patch} habits={habits} storage={storage} location={location} />
+          <Widgets
+            settings={settings}
+            patch={patch}
+            habits={habits}
+            worldClocks={worldClocks}
+            countdowns={countdowns}
+            storage={storage}
+            location={location}
+            calendarWeekStart={calendarWeekStart ?? 'locale'}
+            saveCalendarWeekStart={saveCalendarWeekStart}
+            calendarConsolidationLayout={calendarConsolidationLayout}
+            calendarConsolidationPreference={calendarPreferenceFor(
+              calendarPreferences,
+              calendarConsolidationLayout?.id,
+            )}
+          />
 
-          {location && <Weather location={location} storage={storage} />}
-
-          <WorldClocks worldClocks={worldClocks} storage={storage} />
-
-          <Countdowns countdowns={countdowns} storage={storage} />
-
-          <Layout storage={storage} onArrangeLayout={onArrangeLayout} open={open} />
+          <Layout storage={storage} open={open} layoutsDocument={layoutsDocument} />
         </>
       )}
 
-      {tab === 'connectors' && premium && <Connectors connectors={connectors} storage={storage} />}
+      {tab === 'connectors' && premium && (
+        <Connectors
+          connectors={connectors}
+          storage={storage}
+          reportPendingCleanup={cleanup.reportPendingCleanup}
+        />
+      )}
 
       {tab === 'data' && (
         <>
-          <Data storage={storage} />
+          <Data
+            storage={storage}
+            reportPendingCleanup={cleanup.reportPendingCleanup}
+          />
 
           <About />
         </>
       )}
-    </Tabs>
+      </Tabs>
+    </>
   )
 }

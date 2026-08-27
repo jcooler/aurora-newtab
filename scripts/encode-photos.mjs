@@ -51,7 +51,7 @@
 // exact crop that ships (the 2560 tier is 16:10 and so is 32x20, making the
 // downscale a pure resize with no second attention-crop decision that could
 // frame it differently from the photo it sits under).
-import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, writeFile, rm, stat } from 'node:fs/promises'
 import sharp from 'sharp'
 
 const CANDIDATES_DIR = '.photo-work/candidates'
@@ -73,6 +73,8 @@ const LQIP_SOURCE_TIER = '2560x1600'
 // almost irrelevant here since the layer is rendered under `blur(40px)`.
 const LQIP_SIZE = { width: 32, height: 20 }
 const LQIP_QUALITY = 60
+const PREVIEW_WIDTH = 320
+const PREVIEW_QUALITY = 78
 
 // Default AVIF quality (sharp's 1-100 scale, higher = better/larger),
 // targeting per-image visual transparency: for every kept candidate, a
@@ -115,12 +117,20 @@ async function encodeTier(candidate, tierName, tierSize, quality) {
 }
 
 /** Inline base64 data URI of a 32x20 WebP downscale of the given tier file. */
-async function encodeLqip(tierFile) {
-  const buf = await sharp(`${OUT_DIR}/${tierFile}`)
+async function encodeLqip(photoFile) {
+  const buf = await sharp(`${OUT_DIR}/${photoFile}`)
     .resize(LQIP_SIZE.width, LQIP_SIZE.height, { fit: 'cover' })
     .webp({ quality: LQIP_QUALITY, effort: 6 })
     .toBuffer()
   return `data:image/webp;base64,${buf.toString('base64')}`
+}
+
+async function encodePreview(photoFile, previewFile) {
+  await sharp(`${OUT_DIR}/${photoFile}`)
+    .resize({ width: PREVIEW_WIDTH, withoutEnlargement: true })
+    .webp({ quality: PREVIEW_QUALITY, effort: 5 })
+    .toFile(`${OUT_DIR}/${previewFile}`)
+  return previewFile
 }
 
 async function main() {
@@ -134,7 +144,7 @@ async function main() {
     const manifest = JSON.parse(await readFile('src/services/photos/photos.json', 'utf8'))
     let total = 0
     for (const photo of manifest) {
-      photo.lqip = await encodeLqip(photo.tiers[LQIP_SOURCE_TIER])
+      photo.lqip = await encodeLqip(photo.original ?? photo.tiers[LQIP_SOURCE_TIER])
       total += photo.lqip.length
       console.log(`lqip ${photo.id}: ${photo.lqip.length} B (data URI)`)
     }
@@ -148,7 +158,30 @@ async function main() {
 
   const manifest = []
   for (const c of kept) {
+    if (c.original) {
+      const original = `${slug(c)}-original.jpg`
+      const preview = `${slug(c)}-preview.webp`
+      await copyFile(`${CANDIDATES_DIR}/${c.file}`, `${OUT_DIR}/${original}`)
+      await encodePreview(original, preview)
+      const fileStats = await stat(`${OUT_DIR}/${original}`)
+      manifest.push({
+        id: c.id,
+        original,
+        preview,
+        bytes: fileStats.size,
+        width: c.width,
+        height: c.height,
+        label: `Photo by ${c.photographer}`,
+        photographer: c.photographer,
+        license: c.license,
+        source: c.source,
+        lqip: await encodeLqip(original),
+      })
+      console.log(`copied original ${c.id}: ${original} [${(fileStats.size / 1024).toFixed(0)}KB]`)
+      continue
+    }
     const quality = QUALITY_OVERRIDES[c.id] ?? DEFAULT_QUALITY
+    const preview = `${slug(c)}-preview.webp`
     const tiers = {}
     const bytes = {}
     for (const [tierName, tierSize] of Object.entries(TIERS)) {
@@ -156,9 +189,11 @@ async function main() {
       tiers[tierName] = outFile
       bytes[tierName] = size
     }
+    await encodePreview(tiers[LQIP_SOURCE_TIER], preview)
     manifest.push({
       id: c.id,
       tiers,
+      preview,
       q: quality,
       bytes,
       label: `Photo by ${c.photographer}`,

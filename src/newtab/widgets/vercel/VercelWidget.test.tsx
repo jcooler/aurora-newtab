@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { VercelData } from '../../../services/connectors/vercel'
 import type { VercelConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import VercelWidget from './VercelWidget'
 
@@ -53,19 +54,69 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { vercel: config })
-  if (data) await storage.set('connectorSnapshots', { vercel: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      vercel: { scope: await connectorSnapshotScope('vercel', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <VercelWidget />
+      <VercelWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
 
+async function readyFrame() {
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Vercel' }).getAttribute('data-tier-frame-state')).toBe('ready'))
+  return screen.getByRole('region', { name: 'Vercel' })
+}
+
 describe('VercelWidget', () => {
+  it('preserves the exact frame while the first snapshot is loading', async () => {
+    mount(await seededStorage(CONNECTED, null), 'compact')
+    const frame = await screen.findByRole('region', { name: 'Vercel' })
+    expect(frame.getAttribute('data-tier-frame')).toBe('compact')
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('loading')
+  })
+
+  it.each([
+    ['compact', 0],
+    ['standard', 2],
+    ['full', 3],
+  ] as const)('uses the exact %s frame and bounds failed-first named deployments to %i', async (tier, rowCount) => {
+    mount(await seededStorage(CONNECTED, DATA), tier)
+    const frame = await readyFrame()
+    expect(frame.getAttribute('data-tier-frame')).toBe(tier)
+    expect(frame.getAttribute('data-tier-frame-state')).toBe('ready')
+    expect(frame.className).toContain(`tier-frame--${tier}`)
+    expect(frame.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/)
+    expect(frame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(rowCount)
+    if (rowCount > 0) expect(screen.getByText('api-broken').className).not.toContain('dense:text-xs')
+  })
+
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <VercelWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Vercel: 1 failure, 3 deployments')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the card entirely — no deployment rows.
+    expect(screen.queryByText('api-broken')).toBeNull()
+  })
+
+  it('Compact keeps a real deployment health primary value and never claims there are no deployments', async () => {
+    mount(await seededStorage(CONNECTED, DATA), 'compact')
+    expect(await screen.findByLabelText('Vercel: 1 failure, 3 deployments')).toBeTruthy()
+    expect(screen.queryByText('No deployments yet.')).toBeNull()
+  })
   it('renders deployment rows (project, state chip, relative age) from the seeded snapshot, failed-first', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)
@@ -83,6 +134,7 @@ describe('VercelWidget', () => {
     expect(screen.getByText('1h')).toBeTruthy()
     expect(screen.getByText('3m')).toBeTruthy()
     expect(screen.getByText('1d')).toBeTruthy()
+    expect(screen.getByLabelText('Vercel: 1 failure, 3 deployments').getAttribute('data-work-pulse-tone')).toBe('critical')
   })
 
   it('the failed-first order is exactly the DOM order (ERROR row precedes a chronologically-newer READY row)', async () => {
@@ -114,6 +166,7 @@ describe('VercelWidget', () => {
     const storage = await seededStorage(CONNECTED, { deployments: [] })
     mount(storage)
     expect(await screen.findByText('No deployments yet.')).toBeTruthy()
+    expect(screen.getByLabelText('Vercel: No deployments').getAttribute('data-work-pulse-tone')).toBe('quiet')
   })
 
   it('caps rows at 5', async () => {
@@ -251,14 +304,12 @@ describe('VercelWidget — composed card (wave 2)', () => {
 
   it('both views off → renders null (never a bare "Vercel" heading)', async () => {
     const { container } = mount(await seededStorage(BOTH_OFF, SUMMARY_DATA))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('statusSummary-only with NO deployments → renders null', async () => {
     const { container } = mount(await seededStorage(SUMMARY_ONLY, { deployments: [] }))
-    await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    await waitFor(() => expect(container.firstChild).toBeNull())
   })
 
   it('statusSummary-only WITH deployments present → the card renders (the summary line carries it, no rows, no empty line)', async () => {
@@ -289,7 +340,11 @@ async function seededMulti(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { vercel, ...siblings })
-  if (data) await storage.set('connectorSnapshots', { vercel: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      vercel: { scope: await connectorSnapshotScope('vercel', vercel), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
@@ -318,10 +373,10 @@ describe('VercelWidget — left-column-crowded reveal tier (Task 77 fix wave, Fi
     expect(hasRoomyTier(vercelSection())).toBe(false)
   })
 
-  it('statusSummary on, BOTH ics and rss enabled → the section carries `hidden roomy:block` (the two-card-crowded composition C1\'s sibling I2 found unsafe)', async () => {
+  it('statusSummary on with both former rail siblings stays represented without a height tier', async () => {
     mount(await seededMulti(SUMMARY_ON, SUMMARY_DATA, { ics: ICS_SIBLING, rss: RSS_SIBLING }))
     await screen.findByText('3 ready')
-    expect(hasRoomyTier(vercelSection())).toBe(true)
+    expect(hasRoomyTier(vercelSection())).toBe(false)
   })
 
   it('statusSummary OFF, both ics and rss enabled → still untiered (the default path stays byte-identical — only statusSummary can ever trigger this tier)', async () => {

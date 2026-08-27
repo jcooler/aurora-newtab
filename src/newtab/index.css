@@ -1,6 +1,1230 @@
 @import "tailwindcss";
 @import "../theme/themes.css";
 
+/* SF-P1 shared framed-widget foundation: exact desktop geometry is owned by
+   the tier, while only a viewport narrower than the frame plus 24px can scale
+   it down. This surface uses the panel-adaptive ink chain rather than photo
+   ink, so every user-selected panel color remains legible. */
+.tier-frame {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 auto;
+  width: var(--tier-frame-width);
+  max-width: calc(100vw - 24px);
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  aspect-ratio: var(--tier-frame-ratio);
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  color: var(--fg);
+  --tier-frame-muted: var(--fg-muted);
+  --tier-frame-accent: var(--panel-accent);
+  --accent: var(--tier-frame-accent);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.25);
+  transition: box-shadow 120ms ease;
+}
+.tier-frame[data-tier-surface="none"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.tier-frame > * {
+  min-width: 0;
+  min-height: 0;
+}
+.weather-tier-summary {
+  justify-content: space-between;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+}
+.tier-frame--compact .weather-tier-summary {
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+}
+.tier-frame--compact .weather-tier-summary [data-weather-summary-row="current"] {
+  gap: 0.5rem;
+}
+.tier-frame--full .weather-tier-summary {
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+.tier-frame--full:is([data-tier-frame-state="stale"], [data-tier-frame-state="partial"], [data-tier-frame-state="loading"]) .weather-tier-summary {
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+}
+.tier-frame--full .weather-tier-summary [data-weather-current] {
+  font-size: 2.75rem;
+}
+.tier-frame .weather-tier-summary [data-weather-current] [data-canvas-type-role="metadata"] {
+  font-size: 12px;
+}
+.tier-frame .weather-tier-summary [data-weather-freshness] {
+  font-size: 12px;
+}
+.weather-tier-summary [data-weather-summary-metrics] {
+  min-height: 3.25rem;
+  align-items: center;
+}
+.weather-tier-summary [data-weather-summary-hourly] > span {
+  display: grid;
+  min-height: 3.25rem;
+  place-items: center;
+  grid-template-rows: auto auto 1fr;
+}
+.weather-tier-summary [data-weather-summary-hourly] svg {
+  margin-top: 0.125rem;
+}
+.tier-frame--full .weather-tier-summary [data-weather-summary-metrics] {
+  min-height: 2.25rem;
+}
+.tier-frame--full .weather-tier-summary [data-weather-summary-hourly] > span {
+  min-height: 2.75rem;
+}
+.weather-summary-full-context dt {
+  overflow: hidden;
+  color: var(--tier-frame-muted);
+  font-size: 11px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.weather-summary-full-context dd {
+  overflow: hidden;
+  margin-top: 0.125rem;
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 483px) {
+  .tier-frame--full .weather-tier-summary [data-weather-kicker] {
+    display: none;
+  }
+  .tier-frame--full .weather-tier-summary {
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+  }
+  .tier-frame--full .weather-tier-summary [data-weather-current] {
+    font-size: 2.5rem;
+  }
+  .tier-frame--full .weather-tier-summary [data-weather-summary-metrics],
+  .tier-frame--full .weather-tier-summary [data-weather-summary-hourly] > span {
+    min-height: 2.5rem;
+  }
+  .tier-frame--full .weather-tier-summary [data-weather-summary-metrics] {
+    min-height: 2.25rem;
+  }
+}
+.weather-tier-state {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 1rem;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.weather-tier-state__header h2 {
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+}
+.weather-tier-state__header p {
+  color: var(--tier-frame-muted);
+  font-size: 12px;
+}
+.weather-tier-state__skeleton {
+  display: grid;
+  gap: 0.5rem;
+}
+.weather-tier-state__skeleton span,
+.on-this-day-tier-skeleton i,
+.on-this-day-tier-skeleton b {
+  display: block;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--fg) 13%, transparent);
+}
+.weather-tier-state__skeleton span { height: 0.625rem; }
+.weather-tier-state__skeleton span:nth-child(1) { width: 42%; }
+.weather-tier-state__skeleton span:nth-child(2) { width: 76%; }
+.weather-tier-state__skeleton span:nth-child(3) { width: 58%; }
+.tier-frame--compact .weather-tier-state {
+  gap: 0.25rem;
+  padding: 0.5rem 0.625rem;
+}
+.tier-frame--compact .weather-tier-state--setup {
+  justify-content: flex-start;
+}
+.tier-frame--compact .weather-tier-state--setup .location-setup__controls {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.tier-frame--compact .weather-tier-state--setup [data-location-label="full"] {
+  display: none;
+}
+.tier-frame--compact .weather-tier-state--setup [data-location-label="compact"] {
+  display: inline;
+}
+.tier-frame--compact .weather-tier-state--setup .location-setup__search {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 0%;
+}
+.location-setup[data-location-tier="compact"] .location-setup__prompt {
+  display: none;
+}
+.location-setup[data-location-tier="compact"] .location-setup__controls {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.location-setup[data-location-tier="compact"] .location-setup__device {
+  order: 2;
+  flex-shrink: 0;
+}
+.location-setup[data-location-tier="compact"] .location-setup__search {
+  order: 1;
+  width: auto;
+  min-width: 0;
+  flex: 1 1 0%;
+}
+.location-setup[data-location-tier="compact"] input {
+  width: 100%;
+}
+.location-setup[data-location-tier="compact"] [data-location-label="full"] { display: none; }
+.location-setup[data-location-tier="compact"] [data-location-label="compact"] { display: inline; }
+.tier-frame--compact .weather-tier-state--setup input {
+  width: 100%;
+}
+.on-this-day-tier-header {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--panel-border);
+  padding: 0.25rem 0.75rem 0.1875rem;
+}
+.on-this-day-tier-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.on-this-day-tier-header p {
+  margin-top: 0.125rem;
+  color: var(--tier-frame-muted);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.on-this-day-tier-content {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: 0.1875rem 0.75rem;
+}
+.on-this-day-tier-state {
+  justify-content: center;
+}
+.on-this-day-tier-content--loading {
+  justify-content: flex-start;
+  gap: 0.625rem;
+}
+.on-this-day-tier-skeleton {
+  display: grid;
+  gap: 0.5rem;
+}
+.on-this-day-tier-skeleton > span {
+  display: grid;
+  min-height: 1.5rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+.on-this-day-tier-skeleton i { height: 0.5rem; }
+.on-this-day-tier-skeleton b { height: 0.625rem; }
+.on-this-day-tier-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.on-this-day-tier-item {
+  gap: 0.5rem;
+}
+.on-this-day-tier-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--panel-border);
+}
+.on-this-day-tier-provider {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-top: auto;
+  color: var(--tier-frame-muted);
+  font-size: 12px;
+  line-height: 1.25;
+  cursor: pointer;
+  align-items: center;
+}
+.on-this-day-tier-provider:hover {
+  color: var(--tier-frame-accent);
+}
+.on-this-day-tier-provider:focus-visible {
+  outline: 2px solid var(--tier-frame-accent);
+}
+.tier-frame--compact .on-this-day-tier-header {
+  padding: 0.375rem 0.625rem 0.25rem;
+}
+.tier-frame--compact .on-this-day-tier-content {
+  padding: 0.25rem 0.625rem;
+}
+.tier-frame--compact .on-this-day-tier-list {
+  gap: 0.25rem;
+}
+.tier-frame--compact .on-this-day-tier-item > :last-child {
+  line-height: 18px;
+}
+.tier-frame--full .on-this-day-tier-header {
+  padding: 0.5rem 1rem 0.375rem;
+}
+.tier-frame--full .on-this-day-tier-content {
+  padding: 0.375rem 1rem 0.5rem;
+}
+.tier-frame--full .on-this-day-tier-list {
+  gap: 0.25rem;
+}
+.tier-frame--full .on-this-day-tier-item > :last-child {
+  line-height: 18px;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-header {
+  padding-block: 0.1875rem;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-content {
+  padding-block: 0.1875rem;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-content > div:last-child {
+  margin-top: 0.125rem;
+  padding-top: 0.125rem;
+}
+.on-this-day-tier-frame[data-tier-frame-state="stale"] .on-this-day-tier-content > div:last-child button {
+  margin-top: 0.125rem;
+}
+@media (max-width: 483px) {
+  .tier-frame--full .on-this-day-tier-header {
+    padding: 0.1875rem 0.75rem;
+  }
+  .tier-frame--full .on-this-day-tier-content {
+    padding: 0.1875rem 0.75rem;
+  }
+  .tier-frame--full .on-this-day-tier-content > .on-this-day-tier-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.125rem 0.5rem;
+  }
+  .tier-frame--full .on-this-day-tier-content > .on-this-day-tier-list > :last-child {
+    grid-column: 1 / -1;
+  }
+  .tier-frame--full .on-this-day-tier-sections {
+    margin-top: 0.125rem;
+    padding-top: 0.125rem;
+  }
+}
+.tier-frame--compact { --tier-frame-width: 216px; --tier-frame-ratio: 216 / 132; }
+.tier-frame--standard { --tier-frame-width: 320px; --tier-frame-ratio: 320 / 200; }
+.tier-frame--full { --tier-frame-width: 460px; --tier-frame-ratio: 460 / 284; }
+.tier-frame:focus-within {
+  outline: 2px solid var(--tier-frame-accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tier-frame { transition: none; }
+}
+
+/* The Settings Drawer already composites --panel-solid over the active
+   background. Repainting that translucent token on its sticky child blends
+   the same color twice and produces the unrelated dark slab seen in the
+   withdrawn candidate. Preserve the configured panel hue while stripping
+   only its alpha so scrolling content cannot show through the sticky header. */
+.settings-sticky-surface {
+  background: rgb(from var(--panel-solid) r g b / 1);
+}
+
+.aurora-canvas {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  --clock-font: clamp(3rem, min(12vw, 20vh), 10rem);
+  --canvas-type-clock: var(--clock-font);
+  --canvas-type-date: clamp(16px, min(1.1vw, 2vh), 18px);
+  --canvas-type-greeting: clamp(32px, min(2.5vw, 5vh), 40px);
+  --canvas-type-support: clamp(16px, min(1.05vw, 2.2vh), 18px);
+  --canvas-type-quote: clamp(15px, min(1vw, 2vh), 18px);
+  --canvas-type-attribution: 13px;
+  --canvas-type-body: clamp(14px, min(0.9vw, 1.8vh), 16px);
+  --canvas-type-metadata: 12px;
+}
+
+.aurora-canvas[data-canvas-text-scale="large"] {
+  --clock-font: clamp(72px, min(9vw, 14vh), 216px);
+  --canvas-type-date: clamp(20px, min(0.7vw, 1.4vh), 22px);
+  --canvas-type-greeting: clamp(48px, min(2vw, 4vh), 56px);
+  --canvas-type-support: clamp(18px, min(0.75vw, 1.5vh), 20px);
+  --canvas-type-quote: clamp(18px, min(0.75vw, 1.5vh), 20px);
+  --canvas-type-attribution: 16px;
+  --canvas-type-body: clamp(16px, min(0.65vw, 1.3vh), 18px);
+  --canvas-type-metadata: 14px;
+}
+
+.canvas-root,
+.canvas-surface {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.canvas-surface {
+  isolation: isolate;
+}
+
+/* The photo wash dims the image for legibility and is a property of the
+   PHOTOGRAPH, not of the configurable widget surface — it uses the fixed
+   --canvas-wash, never --panel-solid, so a widget color pick can never
+   tint the background image (owner-reported 2026-08-18). */
+.canvas-legibility-layer {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--canvas-wash) 56%, transparent) 0%, color-mix(in srgb, var(--canvas-wash) 32%, transparent) 14%, transparent 32%),
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--canvas-wash) 68%, transparent) 0%, color-mix(in srgb, var(--canvas-wash) 48%, transparent) 34%, color-mix(in srgb, var(--canvas-wash) 16%, transparent) 68%),
+    linear-gradient(to right, color-mix(in srgb, var(--canvas-wash) 34%, transparent) 0%, transparent 24%, transparent 76%, color-mix(in srgb, var(--canvas-wash) 34%, transparent) 100%),
+    linear-gradient(to top, color-mix(in srgb, var(--canvas-wash) 42%, transparent) 0%, color-mix(in srgb, var(--canvas-wash) 14%, transparent) 14%, transparent 32%);
+}
+
+.canvas-item {
+  box-sizing: border-box;
+  display: flex;
+  /* Content-tight (named-layouts spec 2.2): the item box is the rendered
+     content, never an imposed geometry table. NO container-type here:
+     inline-size containment zeroes an element's intrinsic inline size (the
+     bottom-bar rule below documents the same trap), which would collapse
+     every max-content wrapper to 0. The old emergency-fit container queries
+     targeted the deleted imposed boxes; content-tight boxes cannot clip
+     their own content, and the NL-P5 tier catalog owns per-tier interiors. */
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+/* Manual widget stacks reserve the largest mounted member in one shared
+   grid cell. The stack adds no panel of its own: every widget keeps its
+   native surface while the quiet controls float just outside that surface. */
+.stack-card {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  touch-action: pan-y;
+  user-select: none;
+  transition: filter 120ms ease;
+}
+.stack-card__members {
+  display: grid;
+  place-items: center;
+}
+.stack-card__member {
+  grid-area: 1 / 1;
+  align-self: center;
+  justify-self: center;
+}
+.stack-card__member[data-stack-active="false"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+.stack-card__arrow {
+  position: absolute;
+  z-index: 2;
+  top: calc(50% - 18px);
+  display: grid;
+  width: 36px;
+  height: 36px;
+  translate: 0 -50%;
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--panel-solid) 72%, transparent);
+  color: var(--fg-muted);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  cursor: pointer;
+  transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+.stack-card__arrow--previous { left: 6px; }
+.stack-card__arrow--next { right: 6px; }
+.stack-card:hover .stack-card__arrow,
+.stack-card:focus-within .stack-card__arrow {
+  opacity: 0.9;
+  visibility: visible;
+  pointer-events: auto;
+}
+.stack-card__arrow:hover {
+  background: var(--panel-solid);
+  color: var(--fg);
+}
+.stack-card__dots {
+  position: absolute;
+  z-index: 2;
+  bottom: 4px;
+  left: 50%;
+  display: flex;
+  translate: -50% 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.stack-card:hover .stack-card__dots,
+.stack-card:focus-within .stack-card__dots,
+.stack-card__dots--editing {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.stack-card__dot {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.stack-card__dot::before {
+  position: absolute;
+  inset: 15px;
+  border-radius: 9999px;
+  background: var(--fg-muted);
+  content: "";
+}
+.stack-card__dot[aria-pressed="true"]::before {
+  background: var(--fg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel-solid) 75%, transparent);
+}
+.stack-card:focus-visible {
+  outline: 2px solid var(--panel-accent);
+  outline-offset: 2px;
+}
+.stack-card__arrow:focus-visible,
+.stack-card__dot:focus-visible {
+  outline: 2px solid var(--panel-accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stack-card,
+  .stack-card__arrow,
+  .stack-card__dots { transition: none; }
+}
+
+.focus-celebration {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.focus-celebration i {
+  --focus-x: 48px;
+  --focus-y: -42px;
+  --focus-rotate: 140deg;
+  position: absolute;
+  width: 5px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--panel-accent);
+  animation: focus-confetti 850ms cubic-bezier(.16,.84,.31,1) both;
+}
+.focus-celebration i:nth-child(2n) { background: #38bdf8; }
+.focus-celebration i:nth-child(3n) { background: #f0abfc; }
+.focus-celebration i:nth-child(4n) { background: #facc15; }
+.focus-celebration i:nth-child(2) { --focus-x: -52px; --focus-y: -36px; --focus-rotate: -110deg; }
+.focus-celebration i:nth-child(3) { --focus-x: 70px; --focus-y: -12px; --focus-rotate: 220deg; }
+.focus-celebration i:nth-child(4) { --focus-x: -68px; --focus-y: -8px; --focus-rotate: -190deg; }
+.focus-celebration i:nth-child(5) { --focus-x: 38px; --focus-y: 38px; --focus-rotate: 175deg; }
+.focus-celebration i:nth-child(6) { --focus-x: -42px; --focus-y: 42px; --focus-rotate: -145deg; }
+.focus-celebration i:nth-child(7) { --focus-x: 18px; --focus-y: -58px; --focus-rotate: 250deg; }
+.focus-celebration i:nth-child(8) { --focus-x: -18px; --focus-y: -60px; --focus-rotate: -235deg; }
+.focus-celebration i:nth-child(9) { --focus-x: 76px; --focus-y: 22px; --focus-rotate: 310deg; }
+.focus-celebration i:nth-child(10) { --focus-x: -78px; --focus-y: 18px; --focus-rotate: -300deg; }
+.focus-celebration i:nth-child(11) { --focus-x: 12px; --focus-y: 52px; --focus-rotate: 125deg; }
+.focus-celebration i:nth-child(12) { --focus-x: -10px; --focus-y: 54px; --focus-rotate: -120deg; }
+@keyframes focus-confetti {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0); }
+  16% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--focus-x), var(--focus-y)) rotate(var(--focus-rotate)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-celebration { display: none; }
+}
+
+.status-service-tooltip {
+  position: fixed;
+  z-index: 90;
+  display: block;
+  width: min(280px, calc(100vw - 16px));
+  padding: 7px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  color: var(--fg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+/* The Docked tier's dense line (named-layouts spec 2.3): one text-first row,
+   middle dots separating facts, never wrapping — the strip owns overflow. */
+/* Dock lines wear the SAME chip metrics as the Tasks/Notes launchers
+   (owner direction 2026-08-18: "make it the same size in the bottom dock as
+   tasks notes etc") — 14px text, matching padding, panel pill. */
+.dock-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 20px;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  background: var(--panel-solid);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.25);
+}
+/* The chip law (owner-approved 2026-08-18, direction (a)): every one-line
+   chip and dock line rests at the SOFT ink tier and brightens to full on
+   hover/focus — one consistent tier across siblings instead of the ad-hoc
+   per-widget split (bookmarks soft, Tasks bright) the owner caught. Spans
+   with explicit muted/tone classes keep their own color; everything else
+   inherits this. */
+.dock-line {
+  color: var(--fg-muted);
+  transition: color 120ms ease;
+}
+.dock-line:hover,
+.dock-line:focus-visible,
+.canvas-item:hover .dock-line {
+  color: var(--fg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-line { transition: none; }
+}
+
+/* The chip metrics OWN the line's typography: the fluid canvas type roles
+   (body ~14-16px, metadata 12px) must not resize dock facts, or the weather
+   line drifts smaller than its Tasks/Notes neighbours and the unit letter
+   outweighs the digits (owner-reported 2026-08-18, THREE times — the first
+   pin lost the cascade: `.aurora-canvas [data-canvas-type-role="body"]`
+   has equal specificity and sits later in the file, so these carry the
+   extra .aurora-canvas ancestor to genuinely outrank it). */
+.aurora-canvas .dock-line [data-canvas-type-role] {
+  font-size: 14px;
+  line-height: 20px;
+}
+.aurora-canvas .dock-line [data-canvas-type-role="metadata"] {
+  font-size: 11px;
+}
+
+/* The old `.canvas-item > * { max-width: 100% }` fitted interiors into the
+   deleted imposed boxes. Against a content-tight max-content wrapper that
+   percentage resolves cyclically and collapses text widgets (the Quote
+   rendered 8px wide); interiors now own their measure (e.g. Quote's
+   max-w-xl), and the wrapper's own viewport max-width still bounds them. */
+
+/* NL-P6 finding F7: an enabled widget that rendered NOTHING (unconfigured
+   World clocks / Countdown / Habits, a polar-day Sun) leaves this wrapper
+   with no content. It must behave as if it were not there: no hit area, and
+   no gap in the narrow stack's flow. */
+.canvas-item[data-canvas-empty] {
+  pointer-events: none;
+}
+.canvas-surface--stack .canvas-item[data-canvas-empty] {
+  display: none;
+}
+
+.canvas-item--elevated {
+  z-index: 50 !important;
+}
+
+/* Hover chrome (named-layouts spec 2.5): the grip and gear fade in on hover
+   or keyboard focus and never affect the widget's own hit area or layout —
+   absolutely positioned above the top-right corner of the content box. */
+.canvas-item-chrome {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  /* Above every widget interior INSIDE the item (Bookmarks' own bar runs
+     z-20/z-50): at z-index 1 the chips beat the grip in hit-testing and a
+     grip press opened a bookmark (witness stage 9). */
+  z-index: 60;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.canvas-item:hover > .canvas-item-chrome,
+.canvas-item:focus-within > .canvas-item-chrome {
+  opacity: 1;
+  pointer-events: none;
+}
+.canvas-item:hover > .canvas-item-chrome .canvas-item-chrome__button,
+.canvas-item:focus-within > .canvas-item-chrome .canvas-item-chrome__button {
+  pointer-events: auto;
+}
+/* Docked members keep the same grip + gear (spec 2.5: the grip is the
+   visible way OUT of a dock). The chrome floats ABOVE the pill — sitting
+   inside the pill covered the label on short chips like Tasks (owner-
+   reported 2026-08-18). The scroller reserves invisible headroom (its
+   transparent top padding below) so the overhang isn't clipped. */
+.canvas-item[data-canvas-mode="docked"] > .canvas-item-chrome {
+  top: -12px;
+  right: -4px;
+}
+/* Normal-mode hover: a whisper of a boundary alongside the grip + gear so
+   it is always obvious WHICH widget the controls belong to — hovering near
+   a wide transparent box no longer reads as icons floating in space
+   (owner-reported 2026-08-18: quote icons "on the top left side"). Never a
+   selection ring: 1px, low-alpha, gone on mouse-out. */
+.canvas-item:not(.canvas-item--editing):hover:has(> .canvas-item-chrome) {
+  outline: 1px solid rgb(255 255 255 / 0.18);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-item-chrome { transition: none; }
+}
+.canvas-item-chrome__button {
+  display: flex;
+  min-width: 20px;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid var(--control-border);
+  background: var(--panel-solid);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.canvas-item-chrome__button:hover {
+  color: var(--fg);
+}
+.canvas-item-chrome__button[aria-label^="Move "] {
+  cursor: grab;
+  touch-action: none;
+}
+
+/* Edit session chrome (named-layouts spec 2.5). The page dims slightly and
+   widget interiors are inert; the content-tight wrapper IS the content
+   rect, so these outlines trace real bounds by construction. Never applied
+   outside a session — plain clicks in normal use paint nothing. */
+.edit-scrim {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  background: rgb(0 0 0 / 0.25);
+  pointer-events: none;
+}
+.canvas-item--editing:hover {
+  outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+.canvas-item--selected,
+.canvas-item--selected:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.canvas-item--stack-target,
+.canvas-item--stack-target:hover {
+  outline: 2px dashed var(--accent);
+  outline-offset: 5px;
+}
+.canvas-item-stack-target {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  translate: -50% 0;
+  width: max-content;
+  max-width: min(15rem, calc(100vw - 24px));
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, var(--panel-border));
+  border-radius: 9999px;
+  background: var(--panel-solid);
+  padding: 4px 9px;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+}
+
+/* The layout badge and its switcher menu (spec 2.1), sitting with the fixed
+   utility cluster. */
+.layout-badge-host {
+  position: fixed;
+  z-index: 30;
+  /* Hugs the always-visible Chrome-tab shortcut; slides farther left only
+     while the utility-tray trigger actually renders before it
+     (owner-reported 2026-08-19: the fixed offset left a dead gap). */
+  right: 108px;
+  bottom: 16px;
+}
+.layout-badge-host[data-clears-tray] {
+  right: 156px;
+}
+.layout-badge {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid var(--control-border);
+  background: var(--panel-solid);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+}
+.layout-badge:hover {
+  color: var(--fg);
+}
+.layout-badge-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  min-width: 180px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  background: var(--panel-solid);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+
+/* Dashed expansion footprint (spec 2.6): advisory edit-mode chrome for
+   expandable widgets, pointer-transparent, never a placement restriction. */
+.canvas-item-footprint {
+  position: absolute;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius-panel);
+  pointer-events: none;
+}
+
+/* Dock drop boundary during an edit-mode drag: it traces the same transparent
+   responsive band that owns placement, never a full-width painted strip. */
+.dock-drop-zone {
+  position: fixed;
+  z-index: 45;
+  right: 5px;
+  left: 5px;
+  height: clamp(60px, 10vh, 78px);
+  border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  border-radius: var(--radius-panel);
+  pointer-events: none;
+}
+.dock-drop-zone[data-edge="top"] { top: 5px; }
+.dock-drop-zone[data-edge="bottom"] { bottom: 5px; }
+
+/* The floating inspector beside the selection (spec 2.5). */
+.edit-inspector {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  width: 248px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  background: var(--panel-solid);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+  /* Modeless: empty/text panel surface must not make a widget behind it
+     impossible to select in a short window. Real controls opt back in. */
+  pointer-events: none;
+}
+.edit-inspector :is(button, input, select, textarea, a, summary) {
+  pointer-events: auto;
+}
+.edit-inspector--stack {
+  width: 280px;
+}
+.stack-inspector__members {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stack-inspector__member {
+  display: grid;
+  min-height: 32px;
+  grid-template-columns: 28px minmax(0, 1fr) 28px 28px auto;
+  align-items: center;
+  border-top: 1px solid color-mix(in srgb, var(--control-border) 65%, transparent);
+  pointer-events: auto;
+}
+.stack-inspector__member:first-child {
+  border-top: 0;
+}
+.stack-inspector__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stack-inspector__drag,
+.stack-inspector__icon,
+.stack-inspector__remove {
+  min-width: 28px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.stack-inspector__drag {
+  display: grid;
+  cursor: grab;
+  place-items: center;
+  touch-action: none;
+}
+.stack-inspector__icon,
+.stack-inspector__remove {
+  cursor: pointer;
+}
+.stack-inspector__remove {
+  padding-inline: 6px;
+  font-size: 10.5px;
+}
+.stack-inspector__drag:hover,
+.stack-inspector__icon:hover,
+.stack-inspector__remove:hover {
+  background: var(--control-bg);
+  color: var(--fg);
+}
+.stack-inspector__icon:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+.stack-inspector__drag:focus-visible,
+.stack-inspector__icon:focus-visible,
+.stack-inspector__remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.edit-inspector__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--control-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.edit-inspector__context {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+.edit-inspector__row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.edit-inspector__label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.edit-segment {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+}
+.edit-segment__option {
+  flex: 1;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.edit-segment__option + .edit-segment__option {
+  border-left: 1px solid var(--control-border);
+}
+.edit-segment__option:hover {
+  color: var(--fg);
+}
+.edit-segment__option[aria-checked="true"] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-weight: 500;
+}
+.edit-inspector__actions {
+  display: flex;
+  gap: 6px;
+}
+.edit-inspector__button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: var(--control-bg);
+  font-size: 11.5px;
+  color: var(--fg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.edit-inspector__button:hover {
+  background: var(--control-bg-hover);
+}
+.edit-inspector__footer {
+  display: flex;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--control-border);
+}
+.edit-inspector__button--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.edit-inspector__button--quiet:hover {
+  background: var(--control-bg);
+  color: var(--fg);
+}
+.edit-inspector__note {
+  margin: 0;
+  font-size: 11.5px;
+  color: rgb(252 211 77);
+}
+
+/* Magnetic alignment guides (spec 2.5): surface-local hairlines. */
+.edit-guides {
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  pointer-events: none;
+}
+.edit-guide {
+  position: absolute;
+  background: var(--accent);
+  opacity: 0.7;
+}
+.edit-guide[data-axis="x"] {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.edit-guide[data-axis="y"] {
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.edit-toolbar {
+  position: fixed;
+  z-index: 60;
+  top: 12px;
+  right: 50%;
+  display: flex;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  translate: 50% 0;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9999px;
+  background: var(--panel-solid);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+.edit-toolbar [aria-label="Hidden in this layout"] {
+  min-width: 0;
+}
+.edit-toolbar__hidden {
+  position: relative;
+}
+.edit-toolbar__hidden > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.edit-toolbar__hidden > summary::-webkit-details-marker {
+  display: none;
+}
+.edit-toolbar__hidden-menu {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 24px));
+  max-height: min(20rem, 55vh);
+  gap: 4px;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel-solid);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+  /* The panel is modeless. Its empty/text surface must not make a widget
+     behind it impossible to select in a short window; only real controls
+     retain a hit target. */
+  pointer-events: none;
+}
+.edit-toolbar__hidden-menu > button {
+  pointer-events: auto;
+  width: 100%;
+  text-align: left;
+}
+@media (max-width: 900px) {
+  .edit-toolbar {
+    border-radius: 16px;
+  }
+}
+@media (max-width: 640px) {
+  /* The full edit vocabulary cannot fit honestly in one 600px row. Keep the
+     explanatory layout and bulk-size controls together, then give the four
+     session actions a centered second row. Every target stays visible; no
+     hidden horizontal scroller or clipped Save button. */
+  .edit-toolbar {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    translate: 0 0;
+    gap: 6px;
+    border-radius: 16px;
+  }
+  .edit-toolbar > span:last-child {
+    flex: 1 0 100%;
+    justify-content: center;
+  }
+  /* Below the mechanical stack floor, reserve the wrapped toolbar's second
+     row in document flow so the first stacked widget remains reachable. */
+  [data-editing="true"] .canvas-surface--stack {
+    padding-top: 72px;
+  }
+}
+
+/* Dock strips (A2-D071, owner-refined 2026-08-22): transparent two-axis
+   bands. The outer band owns only the 5px viewport safety geometry; it never paints or catches
+   a pointer. Legacy absent-Y members live in their exact old edge grid while
+   explicit-Y members use the full band independently. */
+.canvas-bottom-bar,
+.canvas-top-bar {
+  position: fixed;
+  z-index: 30;
+  right: 5px;
+  left: 5px;
+  height: clamp(60px, 10vh, 78px);
+  display: flex;
+  /* The full-width lane is pointer-TRANSPARENT: only its members catch
+     events, so the empty stretches never block launchers, the settings
+     gear, or canvas widgets beneath the band (witness-caught when the
+     lane went full-width). */
+  pointer-events: none;
+}
+.canvas-bottom-bar { bottom: 5px; }
+.canvas-top-bar { top: 5px; }
+
+.dock-lane {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 100%;
+  pointer-events: none;
+}
+.dock-lane[data-edge="top"] { grid-template-rows: max-content 1fr; }
+.dock-lane[data-edge="bottom"] { grid-template-rows: 1fr max-content; }
+/* One DOM sequence owns reading and keyboard order for mixed legacy/explicit
+   docks. Absent-Y members remain grid items with the exact old 16/2px block
+   padding represented as margins; explicit members are absolute and leave
+   that max-content row untouched. */
+.dock-lane > .canvas-item[data-dock-positioning="legacy"] {
+  align-self: end;
+  margin-top: 16px;
+  margin-right: 2px;
+  margin-bottom: 2px;
+}
+.dock-lane .canvas-item {
+  pointer-events: auto;
+}
+/* Dock launchers must publish their intrinsic button width. Inline-size
+   containment makes every wrapper report a zero base and lets later
+   launchers paint over earlier siblings. */
+.dock-lane .canvas-item {
+  container-type: normal;
+  width: max-content;
+}
+
+/* The scroller/nub/fade machinery of the ordered-row strip died with free-x
+   placement (owner-refined 2026-08-18): members no longer flow, so nothing
+   scrolls or clips — and the top-dock weather pill can no longer be
+   squeezed into truncation by section tracks. */
+
+/* Narrow floor (named-layouts spec 2.2): below 600px the layout renders as
+   one mechanical vertical stack - docks first, then free widgets in layer
+   order. The only automatic behavior in the system. */
+.canvas-surface--stack {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 8px;
+}
+.canvas-surface--stack .canvas-item {
+  position: relative;
+}
+
+/* Direct tool panels anchor to their launchers and clamp to the viewport
+   (anchorPanel, 8px gutters). The retired stage-profile phone sheet that
+   overrode this was keyed on a root attribute no longer published and had
+   been dead at runtime; NL-P3 edit surfaces own any future sheet modality. */
+
 /* Locally-bundled fonts (SIL OFL — see README's Font credits section). Both
    are variable-font woff2 files (latin subset only — this is an English-first
    UI; see the type-scale comment further down), fetched once at build time
@@ -243,10 +1467,6 @@
                        bottoms at 164px, so the right rail starts at 180; the
                        shorter timer pill bottoms at ~100px, so the left rail
                        starts at 120. */
-  --center-reserve: calc(425px + 2 * 16px);
-  --rail-w: calc((100vw - var(--center-reserve)) / 2 - 2rem);
-  --rail-top-left: 120px;
-  --rail-top-right: 180px;
 
   /* ── The clock's own footprint (short-wide fix) ─────────────────────────
      Single source of truth for the centred clock's rendered box, so any
@@ -296,6 +1516,7 @@
     --bookmarks-chip-px: 0.5rem;
     --bookmarks-gap: 0.25rem;
   }
+
 }
 
 /* Same threshold as the `compact` variant below; see the note on the
@@ -306,6 +1527,7 @@
     --bookmarks-chip-px: 0;
     --bookmarks-gap: 0.375rem;
   }
+
 }
 
 /* Same threshold as the `xshort` variant below, spelled out as a raw media
@@ -315,6 +1537,7 @@
   :root {
     --top-band-gap: 0.5rem;
   }
+
 }
 
 /* Responsive breakpoints — the owner's ~1420x437 short-wide browser window
@@ -803,10 +2026,6 @@
    against the aside box exactly the same way. The zone's default centring is
    transform-free (`inset-x-0 mx-auto w-fit` + `flex`) precisely so it never
    does. */
-[data-zone='left'],
-[data-zone='right'] {
-  container: aurora-rail / inline-size;
-}
 
 /* ── THE FADE LAW (resize-continuity task) ────────────────────────────────
    Jon: "the quote and crypto literally disappear ... reappear and disappear.
@@ -831,32 +2050,6 @@
    measure fully-settled rects (display has flipped, opacity has landed),
    never a mid-fade frame. Opacity does not affect getBoundingClientRect, so
    the fade is invisible to every rect/clearance probe by construction. */
-.tier-fade {
-  transition: opacity 180ms ease, display 180ms allow-discrete;
-}
-@starting-style {
-  .tier-fade {
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tier-fade {
-    transition: none;
-  }
-}
-
-.rail-col2 {
-  display: none;
-  opacity: 0;
-}
-@container aurora-rail (min-width: 536px) {
-  @media (min-height: 680px) {
-    .rail-col2 {
-      display: block;
-      opacity: 1;
-    }
-  }
-}
 
 /* PRIMARY rail cards (left col-1 + the whole right column) hide when their zone
    can no longer hold the column's WIDEST card plus the house 16px clearance to
@@ -876,12 +2069,6 @@
    construction, no magic number in source, same as the col-2 boundary above).
    Per-block `.rail-primary` (dropped by PositionedBlock on the arranged branch,
    exactly like `.rail-col2`), so an ARRANGED card is never hidden by width. */
-@container aurora-rail (width < 336px) {
-  .rail-primary {
-    display: none;
-    opacity: 0;
-  }
-}
 
 /* ── The quote's MONOTONIC fade-out (resize-continuity task) ───────────────
    The quote's old `mid:hidden` (601-864) was the worst offender Jon named: it
@@ -904,15 +2091,6 @@
    reasoned 8px floor (scripts/preview.mjs's quote fencepost asserts 671/672).
    DROPPED on the arranged branch like every tier class, so a dragged quote is
    never height-hidden. */
-.quote-gate {
-  opacity: 1;
-}
-@media (max-height: 671px) {
-  .quote-gate {
-    display: none;
-    opacity: 0;
-  }
-}
 
 /* A self-gated-off widget still renders its (empty) PositionedBlock wrapper;
    drop it from the flex column so ENABLED cards stack flush instead of
@@ -921,12 +2099,999 @@
    (out of flex flow) AND non-empty, so this never touches one. Higher
    specificity than `.rail-col2` above, so an empty-but-shown col-2 slot is
    still correctly removed. */
-[data-zone] [data-block-id]:empty {
-  display: none;
-}
-
 /* Belt and braces for platforms that style option rows from the page: */
 select > option {
   background-color: #17171c;
   color: #f5f5f4;
 }
+
+/* Legacy CSS mirror of the retired profile fenceposts. Runtime rendering no
+   longer selects profiles (named-layouts NL-P2); only the legacy canonical
+   harness cross-checks this custom property. Width-only for compact, per the
+   a325891 short-height fix — the harness contract must keep agreeing. */
+:root { --stage-css-profile: standard; }
+@media (min-width: 2200px) and (min-height: 1100px) { :root { --stage-css-profile: display; } }
+@media (min-width: 1600px) and (min-aspect-ratio: 21/10) { :root { --stage-css-profile: ultrawide; } }
+@media (max-width: 899px) { :root { --stage-css-profile: compact; } }
+
+/* Ultrawide retains five Now rows at the 1600px height fencepost. Its former
+   20vh clock curve can paint across the adjacent automatic greeting/focus
+   allocations even when their grid rectangles are disjoint. Keep the large
+   display cap, but use the profile's denser 16vh curve at this aspect ratio. */
+@media (min-width: 1600px) and (min-aspect-ratio: 21/10) {
+  :root { --clock-font: clamp(3rem, min(10vw, 16vh), 10rem); }
+
+}
+
+@media (max-height: 200px) {
+
+  /* Calm Canvas keeps the semantic Now -> Day -> Pulse -> Dock order even at
+     the 180px emergency fencepost. The Stage owns vertical scrolling, so an
+     open Weather setup stays in normal grid flow instead of becoming a fixed
+     overlay across the Clock and Dock. Relative positioning preserves its
+     elevated suggestion-list stack without taking it out of that flow. */
+  .canvas-item[data-block-id="weather"].z-30 {
+    position: relative;
+    inset: auto;
+    width: auto;
+    height: max-content;
+    z-index: 30;
+  }
+
+}
+
+/* An empty Day region still answers "what day is it?" without minting a
+   registry identity or consuming planner capacity. Once any Day allocation
+   exists App removes this render-only context, so it can never overlap a
+   Weather/Calendar/sky BoardItem. */
+.day-context {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  display: flex;
+  min-width: 0;
+  max-width: calc(100% - 24px);
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  pointer-events: none;
+}
+.day-context__eyebrow {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--canvas-fg-muted);
+}
+.day-context time {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.day-context [data-day-context-long] { display: none; }
+/* The stage profile attribute is no longer published, so the long form is
+   the one live presentation (the compact span stays for NL-P5 tiers). */
+.day-context [data-day-context-compact] { display: none; }
+.day-context [data-day-context-long] { display: inline; }
+
+/* The Clock owns the primary Now value. Its long local date is useful extra
+   context only when the semantic renderer is Expanded; Compact/Standard keep
+   the established quiet hierarchy and identical accessible time value. */
+.clock-face {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.clock-face [data-clock-date] {
+  display: none;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.canvas-item[data-canvas-size="full"][data-block-id="clock"] .clock-face [data-clock-date] {
+  display: block;
+}
+
+/* Greeting and Briefing share the existing Greeting BoardItem. Briefing is
+   render-only local synthesis, so it receives no registry identity, track, or
+   planner capacity and cannot displace the frozen Now allocations. */
+.aurora-greeting {
+  display: flex;
+  /* Keep all Briefing profiles on the Greeting allocation's real width. */
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.aurora-briefing {
+  min-width: 0;
+  max-width: min(100%, 44rem);
+  margin-top: 6px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.aurora-briefing__trigger {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aurora-briefing__trigger:hover,
+.aurora-briefing__trigger:focus-visible {
+  color: var(--canvas-fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.aurora-briefing__trigger:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.aurora-attention-panel {
+  z-index: 1000;
+  width: min(22rem, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  color: var(--fg);
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.35);
+  text-align: left;
+}
+.aurora-attention-panel__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.aurora-attention-panel__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 8px;
+  border-radius: calc(var(--radius) - 4px);
+}
+.aurora-attention-panel__row + .aurora-attention-panel__row {
+  border-top: 1px solid var(--panel-border);
+}
+.aurora-attention-panel__source {
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.aurora-attention-panel__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.aurora-attention-panel__title:hover {
+  text-decoration: underline;
+}
+a.aurora-attention-panel__title:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--panel-accent);
+  outline-offset: 2px;
+}
+.aurora-attention-panel__detail {
+  grid-column: 1 / -1;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Closed Bookmarks remains in the normal grid stacking order. Elevation is
+   reserved for its live popover; otherwise the wrapper's full allocation can
+   intercept controls that paint in another semantic zone. */
+.canvas-item[data-block-id="bookmarks"] {
+  pointer-events: none;
+}
+.canvas-item[data-block-id="bookmarks"] > nav {
+  pointer-events: auto;
+}
+/* In an edit session the wrapper IS the drag/selection target and the inner
+   nav is inert — without this override every point on the bar fell through
+   both layers and the bar could not be grabbed at all (owner-reported
+   2026-08-18, witness stage 9c). */
+.canvas-item--editing[data-block-id="bookmarks"] {
+  pointer-events: auto;
+}
+.canvas-item[data-block-id="bookmarks"].z-50 {
+  z-index: 50;
+}
+
+/* Per-element photo ink (owner-approved 2026-08-18): each block re-routes
+   its --canvas-fg through its OWN override chain, so a clock/greeting/quote
+   pick beats the global photo ink for that block only, and everything falls
+   back to the global pick, then the fixed default. */
+.canvas-item[data-block-id="clock"] {
+  --canvas-fg: var(--photo-ink-clock, var(--photo-ink, #f5f5f4));
+  --canvas-fg-muted: var(--photo-ink-clock-muted, var(--photo-ink-muted, rgb(245 245 244 / 0.68)));
+}
+.canvas-item[data-block-id="greeting"] {
+  --canvas-fg: var(--photo-ink-greeting, var(--photo-ink, #f5f5f4));
+  --canvas-fg-muted: var(--photo-ink-greeting-muted, var(--photo-ink-muted, rgb(245 245 244 / 0.68)));
+}
+.canvas-item[data-block-id="quote"] {
+  --canvas-fg: var(--photo-ink-quote, var(--photo-ink, #f5f5f4));
+  --canvas-fg-muted: var(--photo-ink-quote-muted, var(--photo-ink-muted, rgb(245 245 244 / 0.68)));
+}
+
+/* These canvas-only widget interiors intentionally have no controls. Let
+   pointer hit testing fall through their glyphs to the CanvasItem without
+   disabling that item's sibling Move and Settings hover controls. */
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="clock"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="greeting"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="worldClocks"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="countdown"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="quote"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="sun"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="moon"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="status"] > section {
+  pointer-events: none;
+}
+/* Greeting gained one real control: its summary must opt back into hit
+   testing even though the surrounding display-only text stays transparent. */
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="greeting"] .aurora-briefing__trigger {
+  pointer-events: auto;
+}
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="status"] [data-status-service] {
+  pointer-events: auto;
+}
+@media (max-width: 480px) {
+  body.aurora-attention-open .canvas-item:not([data-block-id="greeting"]) {
+    visibility: hidden;
+  }
+}
+.edit-guides--dock {
+  z-index: 40;
+}
+
+/* Compact registry variants must honor the planner-owned inline size. The
+   legacy Weather chip and Quote figure both sized themselves against the
+   viewport, which let their painted/hit-test areas escape into the adjacent
+   allocation even though the BoardItem rectangles themselves did not overlap. */
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) {
+  width: 100%;
+  max-width: 100%;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button {
+  padding-inline: 4px;
+  padding-block: 4px;
+  gap: 2px;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span {
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3) {
+  order: 2;
+  flex-basis: 100%;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > svg:first-child {
+  width: 20px;
+  height: 20px;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) {
+  font-size: 20px;
+}
+/* Batch-1 owner review: the compact chip's F/C scale letter was "a smidge
+   too large" at its inherited 0.7em (14px of the 20px digits). Pin it to
+   the documented 12px metadata floor instead. */
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) > span {
+  font-size: 12px;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span:not(:first-child) {
+  /* A collapsed rain callout and stale-status line are both meaningful, so
+     retain them in compact rather than hiding either. Keep each line local
+     to the allocated card and trim only text that exceeds its inline track. */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 12px;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div,
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
+  max-width: 100%;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
+  flex-direction: column;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+  padding: 4px;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div {
+  flex-direction: column;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] [data-location-label="full"] {
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] [data-location-label="compact"] {
+  display: inline;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) input,
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) button,
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) [role="listbox"] {
+  width: 100%;
+  max-width: 100%;
+}
+.canvas-item[data-block-id="weather"].z-30 > section {
+  max-width: none;
+}
+
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame),
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
+  width: 100%;
+  max-width: 100%;
+}
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) input,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) button,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) [role="listbox"] {
+  max-width: 100%;
+}
+@media (min-height: 201px) {
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]),
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div {
+    width: 100%;
+    max-width: 100%;
+  }
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) input,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) button,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) [role="listbox"] {
+    width: 100%;
+    max-width: 100%;
+  }
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) div {
+    max-width: 100%;
+  }
+
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="quote"] > figure {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding-inline: 8px;
+}
+
+/* The retired container-width glyph cap (37.6471% of the imposed box's
+   inline size) died with the box tables and its size container: a
+   content-tight wrapper sizes to the clock, so a container-relative cap is
+   circular by definition.
+   Full keeps the intentionally large presentation. The one real remaining
+   safety cap is vertical: a compact Board clock stays within short windows
+   via 17vh (the 1420x550 causal fixture: 110px -> 93.5px). The NL-P5 tier
+   catalog owns the designed compact/standard clock scales. */
+/* Clock tier scales (owner-reported 2026-08-18: Standard and Full rendered
+   identically — a tier-differentiation defect, the same law the batch-2
+   GitHub/GitLab Full refinement enforced). Compact is a genuinely smaller
+   time-only glance; Standard keeps the base curve; Full is the large
+   legible face its contract promises. Ratios scale the shared base curve so
+   every tier inherits the two-mechanism width/height degradation. */
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time {
+  font-size: min(calc(var(--clock-font) * 0.62), 14vh);
+}
+.canvas-item[data-canvas-size="full"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time {
+  font-size: min(calc(var(--clock-font) * 1.3), 30vh);
+}
+
+/* A compact allocation is a real renderer variant, not a smaller hole cut
+   around the legacy card. Keep each passive surface on its BoardItem's inline
+   axis, then choose the highest-value glance content that fits the frozen
+   one-track footprint. Lower-priority rows remain mounted but non-rendered;
+   controls that stay visible retain their native hit targets and tab order.
+   No BoardItem/card gets overflow clipping, so a future oversized descendant
+   remains visible to the paint-containment harness instead of being hidden. */
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"]):is(
+  [data-block-id="ics"],
+  [data-block-id="monthCal"],
+  [data-block-id="sun"],
+  [data-block-id="moon"],
+  [data-block-id="links"],
+  [data-block-id="habits"],
+  [data-block-id="status"],
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"],
+  [data-block-id="vercel"],
+  [data-block-id="homeassistant"],
+  [data-block-id="rss"]
+) > :not(.tier-frame) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+/* crypto left this list (owner direction 2026-08-18): the strip is
+   content-tight — one quote-like line as wide as its cells. */
+
+/* Calendar's compact glance is the next event. The longer agenda remains the
+   standard/expanded variant; a live Join affordance wraps below the summary
+   instead of painting into the next grid cell. */
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section {
+  padding: 8px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section > p {
+  flex-wrap: wrap;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section > ul {
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section {
+  padding: 8px;
+  font-size: 11px;
+  line-height: 14px;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="sun"] [data-sun-golden] {
+  /* Golden hour remains available in standard/expanded and Dock renderers;
+     the 1x1 Board glance spends its finite lines on sunrise and sunset. */
+  display: none;
+}
+
+/* Quote compact is a three-line excerpt plus attribution. This is a local
+   text presentation (the existing figure still owns the quote), never an
+   overflow rule on the BoardItem or Stage. */
+.canvas-item[data-canvas-size="compact"][data-block-id="quote"] blockquote {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="quote"] figcaption {
+  margin-top: 2px;
+}
+
+/* Quick Links no longer spends forty compact pixels on the former centered
+   rail offset. Its existing wrap and controls then fit the owned cell. */
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) {
+  margin-top: 0;
+  gap: 4px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div {
+  width: 36px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div > span {
+  width: 36px;
+  font-size: 14px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div > a,
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > button {
+  width: 36px;
+  height: 36px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section:not(.tier-frame) > div > a > img {
+  width: 16px;
+  height: 16px;
+}
+
+/* Compact Board bookmarks are a three-chip launcher. Dock bookmarks retain
+   the full intrinsic row and its horizontal scroller. */
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > :nth-child(n + 4) {
+  display: none;
+}
+
+/* Batch-1 owner review (2026-08-18): choosing the compact TIER is the
+   explicit opt-in for the one-letter mark form (spec 2.3: "the one-letter
+   form is opt-in or tiny-viewport only") — N for News, D for Docs, M for
+   Music. The ≤720px media variant remains the tiny-viewport floor. The
+   dock strip DEFAULTS to the full readable bar (the exemption rides on the
+   docked default size 'standard'); a docked bar the user explicitly sizes
+   compact wears the marks too (owner-confirmed 2026-08-18). */
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-bookmark-mark="monogram"] {
+  display: inline;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-bookmark-mark="folder"] {
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-chip-label] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] nav > a,
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] nav > button {
+  width: var(--bookmarks-chip-h);
+  justify-content: center;
+  padding-inline: 0;
+}
+
+/* Search's legacy 16rem input is nested below the BoardItem's direct child;
+   cap that control to the semantic track just as Focus does. */
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="search"] input {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Connector cards retain their header, compact status, and first actionable
+   row from each enabled section. Metadata prefixes yield before the linked
+   title. GitHub keeps its coherent compact heatmap; GitLab retains its older
+   summary-only compact treatment until it is reviewed independently. */
+.canvas-item[data-canvas-size="compact"]:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"]
+) > section {
+  padding: 8px;
+}
+.canvas-item[data-canvas-size="compact"]:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"]
+) > section > div:first-child {
+  margin-bottom: 4px;
+  min-width: 0;
+  gap: 2px;
+}
+.canvas-item[data-canvas-size="compact"]:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"]
+) > section > div:first-child > h2 {
+  min-width: 0;
+  font-size: 11px;
+  line-height: 14px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="github"] > section > div:first-child > span.text-xs {
+  /* The notification fact is short and essential; do not turn "4 unread"
+     into an unexplained "4 u…" while the compact graph uses the lower row. */
+  max-width: none;
+}
+.canvas-item[data-canvas-size="compact"]:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"]
+) > section > div:first-child > span {
+  min-width: 0;
+  max-width: 28px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 14px;
+}
+.canvas-item[data-canvas-size="compact"]:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"]
+) section li:nth-child(n + 2) {
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"]:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"]
+) section li a > span:first-child:not(:last-child) {
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="github"] > section > ul ~ ul,
+.canvas-item[data-canvas-size="compact"][data-block-id="gitlab"] > section > ul ~ div:not(:has([role="img"])),
+.canvas-item[data-canvas-size="compact"][data-block-id="jira"] > section > ul ~ div {
+  /* One compact action row is kept directly usable. Additional enabled
+     sections remain available in standard/expanded variants instead of
+     increasing the frozen one-track card's paint footprint. */
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"]:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"]
+) section .border-t {
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section > div.hidden:has([role="img"]) {
+  /* Rows-bearing and quiet compositions place the same legacy height tier on
+     the inner graph wrapper. Compact keeps the heatmap and its stat summary
+     inside that visible wrapper. */
+  display: block;
+}
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"] ~ p {
+  margin-top: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.canvas-item[data-canvas-size="compact"][data-block-id="rss"] > section {
+  padding: 8px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="rss"] li:nth-child(n + 3),
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] li:nth-child(n + 3) {
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] li:nth-child(n + 2) {
+  /* Summary + one live deployment is the compact status/action glance. The
+     standard/expanded card retains the complete capped deployment list. */
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section {
+  /* The legacy fixed-rail tier hid the entire connector below 995px. The
+     Adaptive Stage has already allocated a compact BoardItem here, so expose
+     its status summary and deployment action inside that owned footprint. */
+  display: block;
+  padding: 8px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > h2,
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > p {
+  margin-bottom: 4px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > p {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 14px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] li a {
+  min-width: 0;
+  gap: 2px;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] li a > span:last-child {
+  /* Relative age is lower-value metadata in the compact action row. The
+     project link and deployment state remain visible and actionable. */
+  display: none;
+}
+
+/* Home Assistant's compact card preserves every configured service action.
+   Auto-fit uses two 36px columns in a 72px track and one column below that;
+   the buttons therefore keep the W2 target floor without escaping the frozen
+   footprint. Passive entity chips yield only in the very narrow Board cells,
+   while the full chip/action composition remains available in wider variants. */
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(36px, 1fr));
+  gap: 0;
+  margin-top: 0;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section > div > div {
+  min-width: 0;
+}
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] button[aria-label^="Run "] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 36px;
+  min-height: 36px;
+  padding-inline: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+/* A sparse short Ultrawide board resolves Balanced and therefore uses the
+   registry's 2x1 standard footprints. Honor those finite tracks locally for
+   intrinsic faces, while a redesigned TierFrame keeps its own exact width:
+   Quote spends its width on the complete text instead of legacy 64px side
+   gutters, Links keeps every fixture control at the 36px target floor, and
+   Crypto exposes two complete numeric cells (compact exposes one; Dock keeps
+   all configured cells). No BoardItem, zone, or numeric value is clipped. */
+.canvas-item[data-canvas-size="standard"]:not([data-canvas-mode="docked"]):is(
+  [data-block-id="quote"],
+  [data-block-id="links"]
+) > :not(.tier-frame) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+.canvas-item[data-canvas-size="standard"][data-block-id="quote"] > figure {
+  padding-inline: 4px;
+}
+.canvas-item[data-canvas-size="standard"][data-block-id="quote"] figcaption {
+  margin-top: 2px;
+}
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) {
+  margin-top: 0;
+  gap: 4px;
+}
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div,
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div > span {
+  width: 36px;
+}
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div > span {
+  font-size: 14px;
+}
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div > a,
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > button {
+  width: 36px;
+  height: 36px;
+}
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section:not(.tier-frame) > div > a > img {
+  width: 16px;
+  height: 16px;
+}
+/* Focus's form is the finite BoardItem child, but its input owns the legacy
+   w-72 width. Cap that nested control to the semantic allocation; the Dock's
+   intrinsic column still expands to its natural width. */
+.canvas-item[data-block-id="focus"] #focus-input {
+  max-width: 100%;
+}
+.canvas-item[data-block-id="focus"] > form {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding-inline: 8px;
+}
+.canvas-item[data-block-id="focus"] > form > label[for="focus-input"] {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.canvas-item[data-canvas-mode="docked"][data-block-id="focus"] #focus-input {
+  margin-bottom: 0;
+}
+
+/* A content-driven Tasks dialog can be taller than its initial preferred
+   anchor size. At the Compact height floor, keep its live portal box inside
+   the viewport while the shared ResizeObserver converges. */
+@media (max-height: 450px) {
+  [role="dialog"][aria-label="Tasks"] {
+    top: 8px !important;
+    bottom: auto !important;
+  }
+
+}
+
+@media (max-width: 320px) and (max-height: 200px) {
+  .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+    padding-inline: 48px;
+  }
+
+}
+
+/* Canvas role typography is declared after the retired Adaptive Stage layer so
+   live Canvas content wins the cascade without depending on old zone or density
+   selectors. The scale remains bounded by both viewport axes. */
+.aurora-canvas [data-canvas-type-role="clock"] {
+  font-size: var(--canvas-type-clock);
+  line-height: 0.92;
+}
+
+.aurora-canvas [data-canvas-type-role="date"] {
+  font-size: var(--canvas-type-date);
+  line-height: 1.35;
+  color: var(--canvas-fg);
+}
+
+.aurora-canvas [data-canvas-type-role="greeting"] {
+  font-size: var(--canvas-type-greeting);
+  line-height: 1.08;
+}
+
+.aurora-canvas [data-canvas-type-role="support"] {
+  font-size: var(--canvas-type-support);
+  line-height: 1.4;
+  color: var(--canvas-fg);
+}
+
+.aurora-canvas [data-canvas-type-role="quote"] {
+  font-size: var(--canvas-type-quote);
+  line-height: 1.45;
+}
+
+.aurora-canvas [data-canvas-type-role="attribution"] {
+  font-size: var(--canvas-type-attribution);
+  line-height: 1.4;
+}
+
+.aurora-canvas [data-canvas-type-role="body"] {
+  font-size: var(--canvas-type-body);
+  line-height: 1.45;
+}
+
+.aurora-canvas [data-canvas-type-role="metadata"] {
+  font-size: var(--canvas-type-metadata);
+  line-height: 1.4;
+}
+
+.canvas-item[data-block-id="clock"]:not([data-canvas-size="compact"]) [data-clock-date] {
+  display: block;
+}
+
+/* Complete widget redesign, production family 1. These are authored stack
+   faces for the existing intrinsic owners. Free faces retain their photo-first
+   composition and docked faces retain the shared dense-line contract. */
+.core-clock-stack { padding: 16px; }
+.core-clock-stack--standard { padding: 20px; }
+.core-clock-stack--full { padding: 24px; }
+.core-clock-stack__face { display: grid; width: 100%; height: 100%; align-content: end; }
+.core-clock-stack__time {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 0.9;
+}
+.core-clock-stack--standard .core-clock-stack__time { font-size: 62px; }
+.core-clock-stack--full .core-clock-stack__time { font-size: 92px; }
+.core-clock-stack__time small { margin-left: 8px; color: var(--tier-frame-accent); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 16px; letter-spacing: 0; }
+.core-clock-stack__date { margin-top: 8px; color: var(--tier-frame-muted); font-size: 13px; }
+.core-clock-stack__zone {
+  margin-top: auto;
+  padding-top: 12px;
+  overflow: hidden;
+  color: var(--tier-frame-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.core-search-stack { justify-content: center; padding: 18px; }
+.core-search-stack__form {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--fg) 16%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--panel-solid) 72%, transparent);
+}
+.core-search-stack__icon { color: var(--tier-frame-accent); font-size: 24px; line-height: 1; }
+.core-search-stack__input { min-width: 0; border: 0; background: transparent; color: var(--fg); font-size: 13px; }
+.core-search-stack__input::placeholder { color: var(--tier-frame-muted); opacity: 1; }
+.core-search-stack kbd {
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent);
+  border-radius: 5px;
+  color: var(--tier-frame-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.core-focus-stack { justify-content: center; padding: 18px; }
+.core-focus-stack [data-focus-footprint] { place-items: center start; }
+.core-focus-stack .text-canvas-fg { color: var(--fg); text-shadow: none; }
+.core-focus-stack .text-canvas-fg-muted { color: var(--tier-frame-muted); text-shadow: none; }
+.core-focus-stack .text-photo { text-shadow: none; }
+
+.core-links-stack { gap: 8px; padding: 10px 12px; }
+.core-links-stack__heading {
+  display: flex;
+  min-height: 20px;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--tier-frame-accent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.core-links-stack__add { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 8px; color: var(--fg); }
+.core-links-stack__heading-actions { display: flex; align-items: center; gap: 3px; }
+.core-links-stack__heading-actions > button { display: grid; width: 24px; height: 28px; place-items: center; border-radius: 7px; color: var(--fg); font-size: 14px; }
+.core-links-stack__heading-actions > span { color: var(--tier-frame-muted); font-size: 9px; }
+.core-links-stack__grid { display: grid; min-height: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: center; }
+.core-links-stack--standard .core-links-stack__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
+.core-quick-link { position: relative; min-width: 0; }
+.core-quick-link > a {
+  display: grid;
+  min-width: 0;
+  min-height: 30px;
+  place-items: center;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-solid) 76%, transparent);
+  color: var(--fg);
+}
+.core-links-stack--standard .core-quick-link > a { min-height: 40px; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; place-items: center start; padding: 5px 8px; }
+.core-quick-link b {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
+  border-radius: 7px;
+  color: var(--tier-frame-accent);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+.core-quick-link__copy { display: grid; min-width: 0; }
+.core-quick-link strong,
+.core-quick-link small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.core-quick-link strong { font-size: 11px; font-weight: 500; }
+.core-quick-link small { color: var(--tier-frame-muted); font-size: 10px; }
+.core-quick-link__remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel-solid);
+  color: var(--tier-frame-muted);
+  font-size: 11px;
+  opacity: 0;
+}
+.core-links-stack__editor { display: grid; gap: 8px; }
+.core-links-stack__editor input { min-height: 34px; border-bottom: 1px solid var(--panel-border); background: transparent; color: var(--fg); outline: none; }
+.core-links-stack__editor > div { display: flex; gap: 12px; color: var(--tier-frame-accent); }
+.core-links-stack__empty { margin: auto; color: var(--tier-frame-muted); font-size: 13px; text-align: center; }
+
+.core-quote-stack { justify-content: center; padding: 18px 20px; }
+.core-quote-stack__figure { display: grid; width: 100%; gap: 12px; margin: 0; }
+.core-quote-stack__copy {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 18px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+.core-quote-stack__author { color: var(--tier-frame-accent); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.core-quote-stack__figure--long .core-quote-stack__copy { font-size: 15px; line-height: 1.32; -webkit-line-clamp: 6; }
+
+.core-world-clocks-stack { padding: 14px 18px; }
+.core-world-clocks-stack__rows { display: grid; width: 100%; align-content: center; gap: 8px; }
+.core-world-clock-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding-bottom: 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 9%, transparent);
+}
+.core-world-clock-row:last-child { padding-bottom: 0; border-bottom: 0; }
+.core-world-clock-row span { display: grid; min-width: 0; }
+.core-world-clock-row strong,
+.core-world-clock-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.core-world-clock-row strong { font-size: 12px; }
+.core-world-clock-row small { color: var(--tier-frame-muted); font-size: 10px; }
+.core-world-clock-row b { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 16px; font-weight: 500; }
+.core-world-clocks-stack--compact .core-world-clock-row b { font-family: var(--font-display); font-size: 30px; }
+
+.core-countdown-stack { justify-content: flex-end; padding: 18px 20px; }
+.core-countdown-stack__face,
+.core-countdown-stack__empty { display: grid; width: 100%; gap: 5px; }
+.core-countdown-stack__face > strong { font-family: var(--font-display); font-size: 38px; font-weight: 500; letter-spacing: -0.04em; line-height: 0.95; }
+.core-countdown-stack__face > span { font-size: 13px; }
+.core-countdown-stack__face > small,
+.core-countdown-stack__empty > span { color: var(--tier-frame-muted); font-size: 11px; }

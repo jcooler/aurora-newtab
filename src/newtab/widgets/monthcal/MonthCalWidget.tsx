@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { useNow } from '../../../lib/hooks/useNow'
-import { localDateKey } from '../../../lib/habits'
+import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { monthGrid, type MonthCell } from '../../../lib/monthGrid'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import type { WidgetVariant } from '../../../lib/layout/types'
+import TierFrame from '../shared/TierFrame'
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] // Sunday-origin, matching monthGrid's own fixed row-0 weekday
 const MONTH_NAMES = [
@@ -16,7 +18,14 @@ function monthLabel(y: number, m0: number): string {
   return `${MONTH_NAMES[m0]} ${y}`
 }
 
-export default function MonthCalWidget() {
+export default function MonthCalWidget(
+  // Size props are accepted for renderer-interface parity but content is
+  // size-invariant: the complete month is Month's only composition.
+  _props: {
+    canvasSize?: CanvasSize
+    stageVariant?: WidgetVariant
+  } = {},
+) {
   // Gate BEFORE any other hook exists — same "zero hooks in the gate" split
   // every other toggle-gated widget in this app uses (RssWidget/HabitsWidget
   // own doc comments): the one useStoredKey read runs unconditionally every
@@ -29,24 +38,18 @@ export default function MonthCalWidget() {
 
 function MonthCalInner() {
   const [countdowns] = useStoredKey('countdowns')
-  // Ticking "today" — the ring (and the current-month check it depends on)
-  // re-derives every 60s so the widget rolls over local midnight without a
-  // reload, same cadence and rationale as HabitsWidget.tsx's own useNow(60_000).
-  const now = useNow(60_000)
-  const todayKey = localDateKey(now)
+  // Coherent local-day identity for the ring and current-month control. The
+  // scheduler covers midnight, restoration, and runtime timezone changes.
+  const { key: todayKey } = useLocalDay()
+  const [todayYear, todayMonth] = todayKey.split('-').map(Number) as [number, number, number]
 
-  // The ONE mount-time impure boundary in this widget: which month the grid
-  // OPENS on. A lazy initializer so `new Date()` is read exactly once, at
-  // first mount — navigating with prev/next/Today below never re-reads the
-  // system clock again (Today explicitly re-derives from the ticking `now`
-  // above instead, so it still lands on the right month even if the widget
-  // has been open across a midnight rollover).
+  // The grid opens on the hook's local calendar month. Navigation remains
+  // user-owned; only the Today control re-derives from later day samples.
   const [view, setView] = useState<{ y: number; m0: number }>(() => {
-    const d = new Date()
-    return { y: d.getFullYear(), m0: d.getMonth() }
+    return { y: todayYear, m0: todayMonth - 1 }
   })
 
-  const isCurrentMonth = view.y === now.getFullYear() && view.m0 === now.getMonth()
+  const isCurrentMonth = view.y === todayYear && view.m0 === todayMonth - 1
 
   // Normalize (y, m0) through Date's own rollover on EVERY step, the same
   // technique monthGrid.ts's own top-of-function normalization uses (bug
@@ -74,14 +77,19 @@ function MonthCalInner() {
       const d = new Date(v.y, v.m0 + 1, 1)
       return { y: d.getFullYear(), m0: d.getMonth() }
     })
-  const goToday = () => setView({ y: now.getFullYear(), m0: now.getMonth() })
+  const goToday = () => setView({ y: todayYear, m0: todayMonth - 1 })
 
+  // The complete month is Month's ONLY composition (batch-2 owner review
+  // removed the compact week: "takes up way too much space, just remove
+  // it"). Size props are accepted for renderer-interface parity but never
+  // change what renders — a stale stored 'compact' tier or the docked size
+  // fallback still gets the real month.
   const weeks = monthGrid(view.y, view.m0)
   const countdownKeys = new Set((countdowns ?? []).map((c) => c.date))
   const label = monthLabel(view.y, view.m0)
 
   return (
-    <div className="w-[200px] rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    <TierFrame label="Month" tier="standard" state="ready" className="p-3">
       {/* data-monthcal-header — a stable hook (same convention as
           data-cell-key below) for this file's own tests and the harness's
           zero-height-guarantee probe: the Today affordance (below) lives
@@ -99,49 +107,13 @@ function MonthCalInner() {
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        {/* Label + (conditionally) the Today control share ONE line in the
-            header row — a fix-wave correction (final review, MERGE-
-            BLOCKING): this button used to render on its OWN line below the
-            header, which added 21px of card height whenever it appeared
-            (i.e. on any off-current month) and silently collapsed this
-            column's floor to this widget's neighbor below in an off-current
-            6-row month. Living here instead means the button changes WHICH
-            controls the header row contains, never how TALL the row is —
-            navigating months (or the widget sitting open across a midnight
-            rollover into a new month) can no longer move anything below it.
-            `min-w-0` lets this flex item shrink below its content's natural
-            width (the flex default is `min-width: auto`, which would
-            otherwise refuse to shrink and push the Next button off the
-            right edge); `truncate` on the label span (data-monthcal-label,
-            below) is a defensive floor for that same squeeze, not a design
-            choice — scripts/preview.mjs's own monthCal block forces the
-            header to "September" (this file's own MONTH_NAMES' longest
-            entry) with the Today button showing and asserts the label
-            renders in FULL (`scrollWidth === clientWidth`, i.e. `truncate`
-            never actually engages) and the Next button stays inside the
-            card's own right edge — if a future change ever makes it
-            engage, that's the signal to revisit this layout (option (a) in
-            the fix-wave ledger: raise the whole widget instead of
-            shrinking the header), not to let the month name silently
-            clip.
-
-            LABEL FONT DROPPED text-sm -> text-xs (App.tsx's monthCal
-            PositionedBlock comment, "WIDE-CLOCK FIX") when the card itself
-            narrowed 224px -> 200px to clear the clock's real forced-wide
-            left edge: at the old text-sm, "September 2026" + a visible
-            Today button no longer fit the narrower 176px content row
-            (176px = 200px card - the p-3 padding) — scrollWidth(104) >
-            clientWidth(91), i.e. `truncate` actually DID engage, exactly
-            the regression this comment's own probe exists to catch. text-xs
-            (already the day-cell digits' own size, two lines down) closes
-            it with real margin, not a squeak-by: measured (a throwaway
-            harness run, numbers not asserted anywhere) at 89.4px label +
-            22px x2 chevrons + 26.9px Today = 160.3px of actual content
-            against the 176px row, 15.7px of which is the row's own
-            intentional gaps (gap-1 x2 + gap-1.5 here) rendering exactly as
-            designed, not stretched or squeezed to fit. */}
+        {/* Label and conditional Today action share one fixed-height row.
+            min-w-0/truncate protect the Standard frame while retaining the
+            14px routine-text floor. */}
         <span className="flex min-w-0 items-center justify-center gap-1.5">
-          <span data-monthcal-label className="truncate text-xs font-medium text-fg">{label}</span>
+          <span data-monthcal-label aria-label={label} className="truncate text-sm font-medium text-fg">
+            {label}
+          </span>
           {/* Re-derived from the ticking `now` (not the mount-time `view`
               seed), so it's correct even across a midnight rollover while
               the widget sat open on a past/future month. This, plus the two
@@ -152,7 +124,7 @@ function MonthCalInner() {
               type="button"
               onClick={goToday}
               aria-label="Back to today"
-              className="shrink-0 rounded text-[10px] font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+              className="shrink-0 rounded text-[11px] font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
             >
               Today
             </button>
@@ -185,7 +157,7 @@ function MonthCalInner() {
           half-implemented roving-tabindex trap. If a future task ever makes
           a cell actionable (e.g. click-to-add-event), THAT is the moment to
           upgrade to the full grid pattern — not before. */}
-      <table className="mt-2 dense:mt-1 w-full border-collapse text-center">
+      <table className="mt-1 w-full border-collapse text-center">
         <caption className="sr-only">Calendar: {label}</caption>
         <thead>
           <tr>
@@ -193,7 +165,7 @@ function MonthCalInner() {
               // Sunday..Saturday all need their own key; the initial alone
               // collides twice (Sun/Sat both 'S', Tue/Thu both 'T') so the
               // index is the key, not the label.
-              <th key={i} scope="col" className="pb-1 text-[10px] font-normal text-fg-muted">
+              <th key={i} scope="col" data-stage-text-tier="metadata" className="pb-0.5 text-[11px] font-normal text-fg-muted">
                 {initial}
               </th>
             ))}
@@ -201,7 +173,10 @@ function MonthCalInner() {
         </thead>
         <tbody>
           {weeks.map((week, wi) => (
-            <tr key={wi}>
+            <tr
+              key={wi}
+              data-current-week={week.some((cell) => cell.key === todayKey) ? '' : undefined}
+            >
               {week.map((c) => (
                 <MonthCalCell
                   key={c.key}
@@ -214,7 +189,7 @@ function MonthCalInner() {
           ))}
         </tbody>
       </table>
-    </div>
+    </TierFrame>
   )
 }
 
@@ -236,10 +211,10 @@ function MonthCalCell({
     // never collides the way querying by visible day-number text would
     // (day 15 appears at most once per grid, but day 1 can appear twice —
     // once in-month, once trailing into next month's first week).
-    <td data-cell-key={cell.key} className="py-0.5">
+    <td data-cell-key={cell.key} className="py-0">
       <div className="flex flex-col items-center gap-0.5">
         <span
-          className={`flex size-5 items-center justify-center rounded-full text-xs ${
+          className={`flex size-5 items-center justify-center rounded-full text-sm ${
             cell.inMonth ? 'text-fg' : 'text-fg-muted/50'
           } ${isToday ? 'ring-1 ring-accent' : ''}`}
         >

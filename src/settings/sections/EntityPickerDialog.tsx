@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../lib/dialogStack'
 import { useFocusTrap } from '../../lib/hooks/useFocusTrap'
@@ -84,6 +84,7 @@ export default function EntityPickerDialog({
   actions,
   onCancel,
   onSave,
+  restoreFocusRef,
 }: {
   open: boolean
   states: HaState[]
@@ -91,14 +92,39 @@ export default function EntityPickerDialog({
   actions: HaAction[]
   onCancel: () => void
   onSave: (entities: HaEntityRef[], actions: HaAction[]) => void
+  restoreFocusRef?: RefObject<HTMLElement | null>
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const wasOpenRef = useRef(false)
+  const idPrefix = useId()
+  const dialogHeadingId = `${idPrefix}-heading`
+  const instructionsId = `${idPrefix}-instructions`
+  const countId = `${idPrefix}-count`
+  const showHeadingId = `${idPrefix}-show`
+  const actionHeadingId = `${idPrefix}-action`
   const [query, setQuery] = useState('')
   const [pickedEntityIds, setPickedEntityIds] = useState<Set<string>>(() => new Set())
   const [pickedActionIds, setPickedActionIds] = useState<Set<string>>(() => new Set())
 
   useFocusTrap(dialogRef, open)
   useDialogEscape(onCancel, open)
+
+  // Fetch-first callers can temporarily disable their invoker before this
+  // dialog mounts, which lets the browser move focus to BODY before the
+  // shared trap snapshots it. Keep the real caller-owned trigger explicit
+  // and restore it only after the trap's open -> closed cleanup has run.
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true
+      return
+    }
+    if (!wasOpenRef.current) return
+    wasOpenRef.current = false
+    const target = restoreFocusRef?.current
+    if (target?.isConnected && !target.hasAttribute('disabled') && target.closest('[inert]') === null) {
+      target.focus()
+    }
+  }, [open, restoreFocusRef])
 
   // Reseed on every false->true (or already-true-at-mount) transition only —
   // see the doc comment above for why entities/actions themselves aren't in
@@ -182,14 +208,21 @@ export default function EntityPickerDialog({
   return createPortal(
     <>
       <div aria-hidden onClick={onCancel} className="fixed inset-0 z-[70] bg-black/30" />
-      <div className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <div className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4 [@media(max-height:300px)]:p-2">
         <div
           ref={dialogRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Pick entities"
-          className="pointer-events-auto flex w-full max-w-md flex-col rounded-panel border border-panel-border bg-panel-solid p-5 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+          aria-labelledby={dialogHeadingId}
+          aria-describedby={`${instructionsId} ${countId}`}
+          className="pointer-events-auto flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-md flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid p-5 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] [@media(max-height:300px)]:p-2"
         >
+          <h2 id={dialogHeadingId} className="shrink-0 text-base font-medium text-fg">
+            Pick entities
+          </h2>
+          <p id={instructionsId} className="mt-1 shrink-0 text-xs text-fg-muted [@media(max-height:300px)]:hidden">
+            Choose which entities appear as status chips or actions.
+          </p>
           <input
             type="search"
             aria-label="Search entities"
@@ -197,65 +230,76 @@ export default function EntityPickerDialog({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search entities…"
-            className="h-8 rounded-lg border border-control-border bg-control-bg px-2.5 text-sm text-fg outline-none placeholder:text-fg-muted focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent"
+            className="mt-3 h-9 shrink-0 rounded-lg border border-control-border bg-control-bg px-2.5 text-sm text-fg outline-none placeholder:text-fg-muted focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent [@media(max-height:300px)]:mt-1"
           />
 
-          <div className="mt-3 max-h-96 overflow-y-auto">
+          <div className="mt-3 grid shrink-0 grid-cols-[2.25rem_2.25rem_minmax(0,1fr)] items-center gap-3 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted [@media(max-height:300px)]:hidden">
+            <span id={showHeadingId} className="text-center">Show</span>
+            <span id={actionHeadingId} className="text-center">Action</span>
+            <span>Entity</span>
+          </div>
+
+          <div className="mt-1 min-h-0 flex-1 overflow-y-auto">
             {groups.length === 0 ? (
               <p className="py-3 text-sm text-fg-muted">No matches</p>
             ) : (
-              groups.map(([domain, list]) => (
-                <div key={domain} className="mb-3 last:mb-0">
-                  <p className={eyebrow}>{domain.charAt(0).toUpperCase() + domain.slice(1)}</p>
+              groups.map(([domain, list]) => {
+                const domainHeadingId = `${idPrefix}-domain-${domain}`
+                return (
+                <section key={domain} role="group" aria-labelledby={domainHeadingId} className="mb-3 last:mb-0">
+                  <h3 id={domainHeadingId} className={eyebrow}>{domain.charAt(0).toUpperCase() + domain.slice(1)}</h3>
                   {list.map((s) => {
                     const isActionDomain = ACTION_DOMAIN_SET.has(s.domain)
                     const entityChecked = pickedEntityIds.has(s.id)
                     const entityDisabled = !entityChecked && pickedEntityIds.size >= MAX_CHIP_ENTITIES
                     const actionChecked = pickedActionIds.has(s.id)
                     const actionDisabled = !actionChecked && pickedActionIds.size >= MAX_ACTIONS
+                    const rowLabelId = `${idPrefix}-entity-${s.id}`
 
                     return (
-                      <div key={s.id} className="flex items-center gap-3 py-1 text-sm">
-                        <label className="flex items-center">
+                      <div key={s.id} className="grid grid-cols-[2.25rem_2.25rem_minmax(0,1fr)] items-center gap-3 py-1 text-sm">
+                        <label className="flex min-h-9 min-w-9 cursor-pointer items-center justify-center">
                           <input
                             type="checkbox"
-                            aria-label={`Show ${s.friendlyName}`}
+                            aria-labelledby={`${showHeadingId} ${rowLabelId}`}
                             checked={entityChecked}
                             disabled={entityDisabled}
                             onChange={() => toggleEntity(s.id)}
                           />
                         </label>
                         {isActionDomain && (
-                          <label className="flex items-center">
+                          <label className="flex min-h-9 min-w-9 cursor-pointer items-center justify-center">
                             <input
                               type="checkbox"
-                              aria-label={`Action ${s.friendlyName}`}
+                              aria-labelledby={`${actionHeadingId} ${rowLabelId}`}
                               checked={actionChecked}
                               disabled={actionDisabled}
                               onChange={() => toggleAction(s.id)}
                             />
                           </label>
                         )}
-                        <span className="flex-1 truncate">
+                        {!isActionDomain && <span aria-hidden />}
+                        <span id={rowLabelId} className="truncate">
                           {s.friendlyName} <span className="text-fg-muted">{s.id}</span>
                         </span>
                       </div>
                     )
                   })}
-                </div>
-              ))
+                </section>
+                )
+              })
             )}
           </div>
 
-          <p className="mt-3 text-xs text-fg-muted">
+          <p id={countId} className="mt-3 shrink-0 text-xs text-fg-muted [@media(max-height:300px)]:hidden">
             {pickedEntityIds.size} of {MAX_CHIP_ENTITIES} chips · {pickedActionIds.size} of {MAX_ACTIONS} actions
           </p>
 
-          <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={onCancel} className={btnQuiet}>
+          <div className="mt-3 flex shrink-0 justify-end gap-2 [@media(max-height:300px)]:mt-1">
+            <button type="button" onClick={onCancel} className={`${btnQuiet} min-h-9 min-w-9 justify-center`}>
               Cancel
             </button>
-            <button type="button" onClick={handleSave} className={btnPrimary}>
+            <button type="button" onClick={handleSave} className={`${btnPrimary} min-h-9 min-w-9 justify-center`}>
               Save
             </button>
           </div>

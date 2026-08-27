@@ -115,6 +115,7 @@ describe('fetchGitlab — assigned MRs + to-dos (the two wave-1 sections)', () =
         status: 200,
         body: [
           {
+            id: 204,
             title: 'Add rate limiting to the ingest API',
             web_url: 'https://gitlab.com/acme/platform/-/merge_requests/204',
             references: { full: 'acme/platform!204' },
@@ -127,6 +128,7 @@ describe('fetchGitlab — assigned MRs + to-dos (the two wave-1 sections)', () =
     const data = await fetchGitlab('https://gitlab.com', 't', 'jon', DEFAULT_GITLAB_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.mrs).toEqual([
       {
+        id: '204',
         title: 'Add rate limiting to the ingest API',
         url: 'https://gitlab.com/acme/platform/-/merge_requests/204',
         project: 'acme/platform',
@@ -139,12 +141,31 @@ describe('fetchGitlab — assigned MRs + to-dos (the two wave-1 sections)', () =
     expect(data.contributions).toBeNull()
   })
 
+  it('skips a merge request without a provider-native stable id', async () => {
+    const fetchFn = router({
+      mrs: fakeResponse({
+        status: 200,
+        body: [{
+          title: 'Untrackable merge request',
+          web_url: 'https://gitlab.com/acme/platform/-/merge_requests/999',
+          references: { full: 'acme/platform!999' },
+        }],
+      }),
+      todos: fakeResponse({ status: 200, body: [] }),
+    })
+
+    const data = await fetchGitlab('https://gitlab.com', 't', 'jon', DEFAULT_GITLAB_VIEWS, null, fetchFn as unknown as typeof fetch)
+
+    expect(data.mrs).toEqual([])
+  })
+
   it('falls back to deriving project from web_url when references.full is absent', async () => {
     const fetchFn = router({
       mrs: fakeResponse({
         status: 200,
         body: [
           {
+            id: 207,
             title: 'Bump vite to 6.x',
             web_url: 'https://gitlab.com/acme/platform/-/merge_requests/207',
           },
@@ -155,6 +176,7 @@ describe('fetchGitlab — assigned MRs + to-dos (the two wave-1 sections)', () =
     const data = await fetchGitlab('https://gitlab.com', 't', 'jon', DEFAULT_GITLAB_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.mrs).toEqual([
       {
+        id: '207',
         title: 'Bump vite to 6.x',
         url: 'https://gitlab.com/acme/platform/-/merge_requests/207',
         project: 'acme/platform',
@@ -184,7 +206,7 @@ describe('fetchGitlab — assigned MRs + to-dos (the two wave-1 sections)', () =
     const fetchFn = router({
       mrs: fakeResponse({
         status: 200,
-        body: [{ title: 'MR one', web_url: 'https://gitlab.com/o/r/-/merge_requests/1' }],
+        body: [{ id: 1, title: 'MR one', web_url: 'https://gitlab.com/o/r/-/merge_requests/1' }],
       }),
       todos: fakeResponse({ ok: false, status: 403 }),
     })
@@ -195,7 +217,7 @@ describe('fetchGitlab — assigned MRs + to-dos (the two wave-1 sections)', () =
 
   it("a network failure on ONE section keeps that section's prev slice, the other refreshes", async () => {
     const prev: GitlabData = {
-      mrs: [{ title: 'Old MR', url: 'https://gitlab.com/o/r/-/merge_requests/7', project: 'o/r' }],
+      mrs: [{ id: '7', title: 'Old MR', url: 'https://gitlab.com/o/r/-/merge_requests/7', project: 'o/r' }],
       reviewMrs: [],
       todos: 4,
       contributions: null,
@@ -252,6 +274,7 @@ describe('fetchGitlab — review-asks section (reviewer_username, parseMrs)', ()
         status: 200,
         body: [
           {
+            id: 9,
             title: 'Review me',
             web_url: 'https://gitlab.com/o/r/-/merge_requests/9',
             references: { full: 'o/r!9' },
@@ -263,7 +286,7 @@ describe('fetchGitlab — review-asks section (reviewer_username, parseMrs)', ()
     const views = { ...DEFAULT_GITLAB_VIEWS, reviewAsks: true }
     const data = await fetchGitlab('https://gitlab.com', 't', 'jon', views, null, fetchFn as unknown as typeof fetch)
     expect(data.reviewMrs).toEqual([
-      { title: 'Review me', url: 'https://gitlab.com/o/r/-/merge_requests/9', project: 'o/r' },
+      { id: '9', title: 'Review me', url: 'https://gitlab.com/o/r/-/merge_requests/9', project: 'o/r' },
     ])
     // The request carried the username in the reviewer_username query param.
     const urls = (fetchFn.mock.calls as unknown as Array<[string]>).map(([url]) => url)
@@ -286,14 +309,14 @@ describe('fetchGitlab — review-asks section (reviewer_username, parseMrs)', ()
   it('an isolated review-section failure carries prev.reviewMrs while assigned MRs still land', async () => {
     const prev: GitlabData = {
       mrs: [],
-      reviewMrs: [{ title: 'Old review', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }],
+      reviewMrs: [{ id: '1', title: 'Old review', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }],
       todos: 0,
       contributions: null,
     }
     const fetchFn = router({
       mrs: fakeResponse({
         status: 200,
-        body: [{ title: 'Fresh MR', web_url: 'https://gitlab.com/o/r/-/merge_requests/5', references: { full: 'o/r!5' } }],
+        body: [{ id: 5, title: 'Fresh MR', web_url: 'https://gitlab.com/o/r/-/merge_requests/5', references: { full: 'o/r!5' } }],
       }),
       review: () => {
         throw new Error('network down')
@@ -460,7 +483,7 @@ describe('fetchGitlab — activity graph (calendar.json on the web root)', () =>
 describe('fetchGitlab — per-view gating (disabled sections send no request)', () => {
   it('mergeRequests off: no assigned-MR request; prev.mrs carried verbatim', async () => {
     const prev: GitlabData = {
-      mrs: [{ title: 'Old MR', url: 'https://gitlab.com/o/r/-/merge_requests/7', project: 'o/r' }],
+      mrs: [{ id: '7', title: 'Old MR', url: 'https://gitlab.com/o/r/-/merge_requests/7', project: 'o/r' }],
       reviewMrs: [],
       todos: 0,
       contributions: null,
@@ -479,7 +502,7 @@ describe('fetchGitlab — per-view gating (disabled sections send no request)', 
   it('reviewAsks off (the default): no reviewer_username request; prev.reviewMrs carried verbatim', async () => {
     const prev: GitlabData = {
       mrs: [],
-      reviewMrs: [{ title: 'Old review', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }],
+      reviewMrs: [{ id: '1', title: 'Old review', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }],
       todos: 0,
       contributions: null,
     }
@@ -527,8 +550,8 @@ describe('fetchGitlab — per-view gating (disabled sections send no request)', 
 
   it('all four views off: NO request at all; every section carries prev verbatim', async () => {
     const prev: GitlabData = {
-      mrs: [{ title: 'Old MR', url: 'https://gitlab.com/o/r/-/merge_requests/7', project: 'o/r' }],
-      reviewMrs: [{ title: 'Old review', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }],
+      mrs: [{ id: '7', title: 'Old MR', url: 'https://gitlab.com/o/r/-/merge_requests/7', project: 'o/r' }],
+      reviewMrs: [{ id: '1', title: 'Old review', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }],
       todos: 6,
       contributions: { days: [{ date: '2026-01-01', count: 9 }], total: 9 },
     }
@@ -597,5 +620,18 @@ describe('gitlabDescriptor', () => {
         username: 'jon',
       }),
     ).toEqual([])
+  })
+
+  it('owns origins only for a complete validated connection, independent of enabled', () => {
+    expect(
+      gitlabDescriptor.ownsOrigins({
+        enabled: false,
+        token: 't',
+        instanceUrl: 'https://gitlab.example.com',
+        username: 'jon',
+      }),
+    ).toBe(true)
+    expect(gitlabDescriptor.ownsOrigins({ enabled: true, token: '', instanceUrl: 'https://gitlab.com', username: 'jon' })).toBe(false)
+    expect(gitlabDescriptor.ownsOrigins({ enabled: true } as never)).toBe(false)
   })
 })

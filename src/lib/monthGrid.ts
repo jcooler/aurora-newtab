@@ -67,3 +67,9 @@ export function monthGrid(year: number, month0: number): MonthCell[][] {
   }
   return weeks
 }
+
+/** The complete Sunday-through-Saturday row containing an in-month date. */
+export function weekContainingDate(year: number, month0: number, day: number): MonthCell[] {
+  const key = keyFromParts(year, month0, day)
+  return monthGrid(year, month0).find((week) => week.some((cell) => cell.key === key)) ?? []
+}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
@@ -10,6 +10,78 @@ import Clock from './Clock'
 // actually loaded/cascaded by vitest, so this asserts the utility is really
 // DEFINED, not just referenced as a className that happens to match nothing.
 import indexCss from '../index.css?raw'
+
+describe('Clock restoration sampling', () => {
+  it('refreshes immediately on window focus instead of waiting for its interval', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 6, 26, 9, 5, 0))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', defaults().settings)
+    const { container } = render(<StorageProvider storage={storage}><Clock /></StorageProvider>)
+    await act(async () => {})
+    const before = container.querySelector('time')!.textContent
+
+    vi.setSystemTime(new Date(2026, 6, 26, 10, 6, 0))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(container.querySelector('time')!.textContent).not.toBe(before)
+    vi.useRealTimers()
+  })
+})
+
+describe('Clock large-display detail', () => {
+  it('publishes a secondary long-date detail from the same clock sample', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 16, 11, 33))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const { container } = render(<StorageProvider storage={storage}><Clock /></StorageProvider>)
+    await act(async () => {})
+
+    const detail = container.querySelector('[data-clock-date]')
+    expect(detail?.textContent).toBe('Sunday, August 16')
+    expect(detail?.hasAttribute('aria-hidden')).toBe(false)
+    expect(container.querySelector('time')?.getAttribute('data-canvas-type-role')).toBe('clock')
+    expect(detail?.getAttribute('data-canvas-type-role')).toBe('date')
+    vi.useRealTimers()
+  })
+})
+
+describe('index.css - Canvas type roles', () => {
+  it('defines ordinary desktop floors and bounded Large/4K targets', () => {
+    expect(indexCss).toMatch(/--canvas-type-date: clamp\(16px,[^;]+18px\);/)
+    expect(indexCss).toMatch(/--canvas-type-greeting: clamp\(32px,[^;]+40px\);/)
+    expect(indexCss).toMatch(/--canvas-type-support: clamp\(16px,[^;]+18px\);/)
+    expect(indexCss).toMatch(/--canvas-type-quote: clamp\(15px,[^;]+18px\);/)
+    expect(indexCss).toMatch(/--canvas-type-attribution: 13px;/)
+    expect(indexCss).toMatch(/--canvas-type-body: clamp\(14px,[^;]+16px\);/)
+    expect(indexCss).toMatch(/--canvas-type-metadata: 12px;/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--clock-font: clamp\(72px,[^;]+216px\);/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--canvas-type-date: clamp\(20px,[^;]+22px\);/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--canvas-type-greeting: clamp\(48px,[^;]+56px\);/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--canvas-type-support: clamp\(18px,[^;]+20px\);/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--canvas-type-attribution: 16px;/)
+    expect(indexCss).toMatch(/\[data-canvas-type-role="clock"\][^{]*\{[\s\S]*?font-size: var\(--canvas-type-clock\);/)
+    expect(indexCss).toMatch(/\[data-canvas-type-role="date"\][^{]*\{[^}]*color: var\(--canvas-fg\);/)
+    expect(indexCss).toMatch(/\[data-canvas-type-role="support"\][^{]*\{[^}]*color: var\(--canvas-fg\);/)
+  })
+
+  it('shows the useful date for Standard and Full Canvas clock sizes', () => {
+    expect(indexCss).toMatch(/\.canvas-item\[data-block-id="clock"\]:not\(\[data-canvas-size="compact"\]\)[^{]*\[data-clock-date\][^{]*\{[\s\S]*?display: block;/)
+  })
+
+  it('renders three DISTINCT tier scales — compact smaller, standard base, full larger (owner-reported 2026-08-18)', () => {
+    // A content-tight wrapper sizes to the clock, so a container-relative
+    // (cqi) cap would be circular; the retirement scan in
+    // adaptiveStageLegibility.test.ts pins that no cqi term survives.
+    // Standard renders at the base --clock-font curve; compact and full
+    // scale that SAME curve so all tiers inherit its width/height
+    // degradation, and each vh safety cap stays proportionate.
+    expect(indexCss).not.toContain('cqi')
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(calc\(var\(--clock-font\) \* 0\.62\),\s*14vh\);/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="full"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(calc\(var\(--clock-font\) \* 1\.3\),\s*30vh\);/)
+  })
+})
 
 describe('index.css — .text-photo utility', () => {
   it('is defined via @utility, with both the tight contact shadow and the soft ambient one', () => {
@@ -59,7 +131,7 @@ describe('index.css — responsive custom variants', () => {
     expect(indexCss).toMatch(/--bookmarks-chip-px: 0\.625rem;/)
     expect(indexCss).toMatch(/--bookmarks-gap: 0\.375rem;/)
     const narrowStep = indexCss.indexOf('@media (max-width: 1024px)')
-    const compactStep = indexCss.indexOf('@media (max-width: 720px)')
+    const compactStep = indexCss.indexOf('@media (max-width: 720px)', narrowStep)
     expect(narrowStep).toBeGreaterThan(-1)
     expect(compactStep).toBeGreaterThan(narrowStep)
     expect(indexCss.slice(compactStep)).toMatch(/--bookmarks-chip-px: 0;/)
@@ -150,5 +222,47 @@ describe('Clock — height-aware fluid scale', () => {
 describe('index.css — --clock-half-w (the short-wide fix)', () => {
   it('derives from --clock-font at the SAME ratio --center-reserve already trusts (425/160 = 2.65625, halved)', () => {
     expect(indexCss).toMatch(/--clock-half-w: calc\(1\.328125 \* var\(--clock-font\)\);/)
+  })
+})
+
+describe('Clock docked line (NL-P5 batch 1)', () => {
+  it('renders one dense time-and-date line with no big-glyph face', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <Clock docked />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    const line = document.querySelector('[data-dock-line]') as HTMLElement
+    expect(line).toBeTruthy()
+    expect(line.className).toContain('dock-line')
+    expect(line.textContent ?? '').toMatch(/\d{1,2}:\d{2}/)
+    expect(line.textContent).toContain('·')
+    expect(document.querySelector('.clock-face')).toBeNull()
+    expect(line.querySelector('time')).toBeTruthy()
+  })
+})
+
+describe('Clock authored stack presentations', () => {
+  it.each([
+    ['compact', false, false],
+    ['standard', true, false],
+    ['full', true, true],
+  ] as const)('authors %s content without changing the clock owner', async (canvasSize, showsDate, showsSeconds) => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <Clock canvasSize={canvasSize} presentation="stack" />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    expect(screen.getByRole('region', { name: 'Clock' }).dataset.tierFrame).toBe(canvasSize)
+    expect(screen.queryByTestId('clock-date') !== null).toBe(showsDate)
+    expect(screen.queryByTestId('clock-seconds') !== null).toBe(showsSeconds)
+    expect(screen.getByTestId('clock-zone')).toBeTruthy()
   })
 })

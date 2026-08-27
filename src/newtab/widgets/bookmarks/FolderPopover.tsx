@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type SVGProps } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
@@ -8,7 +8,7 @@ import { faviconUrl } from '../links/linksLogic'
 // Kept clear of the viewport edge when the panel is nudged back on-screen.
 const EDGE_MARGIN = 8
 
-export function FolderIcon({ className = '' }: { className?: string }) {
+export function FolderIcon({ className = '', ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
       width="14"
@@ -21,6 +21,7 @@ export function FolderIcon({ className = '' }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden
       className={`shrink-0 ${className}`}
+      {...props}
     >
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
@@ -36,16 +37,18 @@ export default function FolderPopover({
   title,
   items,
   folders,
+  anchor,
   onClose,
 }: {
   title: string
   items: BookmarkItem[]
   folders: BookmarkFolder[]
+  anchor: HTMLElement
   onClose: () => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [stack, setStack] = useState<BookmarkFolder[]>([])
-  const [edgeShift, setEdgeShift] = useState(0)
+  const [position, setPosition] = useState({ left: EDGE_MARGIN, top: EDGE_MARGIN })
   const top = stack[stack.length - 1]
   const currentTitle = top ? top.title : title
   const currentItems = top ? top.items : items
@@ -55,71 +58,83 @@ export default function FolderPopover({
   // Newest-first shared stack (src/lib/dialogStack.ts).
   useDialogEscape(onClose)
 
-  // The panel is centered under its chip by default (left-1/2 -translate-x-1/2
-  // below) — CSS alone can't correct for a chip near the left/right edge of
-  // the viewport, since that centering is relative to the chip, not the
-  // viewport. Measure once per open/drill (jsdom has no layout engine, so
-  // getBoundingClientRect() is an all-zero rect there — the width===0 guard
-  // makes this a no-op in tests unless a test deliberately mocks it) and
-  // nudge horizontally by the smallest amount that brings both edges back
-  // within EDGE_MARGIN of the viewport.
-  useLayoutEffect(() => {
-    const el = panelRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    if (rect.width === 0) return
-    let shift = 0
-    if (rect.left < EDGE_MARGIN) shift = EDGE_MARGIN - rect.left
-    else if (rect.right > window.innerWidth - EDGE_MARGIN) {
-      shift = window.innerWidth - EDGE_MARGIN - rect.right
+  // A full-viewport backdrop can sit above this anchored popover when any
+  // ancestor creates a stacking context. Chromium then paints the menu but
+  // routes every pointer event to the backdrop, making the visible controls
+  // unusable. Listen for outside pointers instead, so dismissal never places
+  // an element over the menu itself.
+  useEffect(() => {
+    const handleOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (
+        target instanceof Node
+        && !panelRef.current?.contains(target)
+        && !anchor.contains(target)
+      ) onClose()
     }
-    setEdgeShift(shift)
-  }, [currentTitle])
+    document.addEventListener('pointerdown', handleOutsidePointer)
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer)
+  }, [anchor, onClose])
 
-  return (
-    <>
-      {/* The click-outside catcher must NOT render inside the bar: the nav's
-          -translate-x-1/2 transform makes it the containing block for fixed
-          descendants, which would shrink "inset-0" to the bar's own box and
-          stack the catcher ABOVE the sibling chips — turning every chip click
-          into a close. Portal to <body>, where fixed inset-0 is really the
-          viewport. Transparent (no dim): this is a dropdown menu, not a
-          modal — the first outside click just dismisses, like the native
-          bookmarks bar. Kept a SIBLING of the dialog, not an ancestor —
-          nesting role="dialog" inside an aria-hidden element trips Chrome's
-          "Blocked aria-hidden" warning when useFocusTrap moves focus in. */}
-      {createPortal(
-        <div aria-hidden onClick={onClose} className="fixed inset-0 z-40" />,
-        document.body,
-      )}
-      {/* Anchored under the clicked chip via its `relative` wrapper —
-          absolute positioning resolves against that wrapper, so the nav's
-          transform is harmless here (unlike position:fixed). z-50 inside the
-          nav's stacking context (the nav itself is z-50 while open), above
-          the body-level z-40 catcher. */}
+  // The menu is portaled out of the Dock's horizontal scrollport. Position
+  // it from the live chip rectangle and clamp it to the viewport on every
+  // open, drill, resize, or content-size change.
+  useLayoutEffect(() => {
+    let frame: number | null = null
+    const measure = () => {
+      frame = null
+      const el = panelRef.current
+      if (!el) return
+      const panelRect = el.getBoundingClientRect()
+      const anchorRect = anchor.getBoundingClientRect()
+      if (panelRect.width === 0 || anchorRect.width === 0) return
+      const maxLeft = Math.max(EDGE_MARGIN, window.innerWidth - EDGE_MARGIN - panelRect.width)
+      const left = Math.min(
+        maxLeft,
+        Math.max(EDGE_MARGIN, anchorRect.left + anchorRect.width / 2 - panelRect.width / 2),
+      )
+      const belowTop = anchorRect.bottom + 6
+      const aboveTop = anchorRect.top - 6 - panelRect.height
+      const belowSpace = window.innerHeight - EDGE_MARGIN - belowTop
+      const aboveSpace = anchorRect.top - EDGE_MARGIN - 6
+      const preferredTop = panelRect.height <= belowSpace || belowSpace >= aboveSpace ? belowTop : aboveTop
+      const maxTop = Math.max(EDGE_MARGIN, window.innerHeight - EDGE_MARGIN - panelRect.height)
+      const next = { left, top: Math.min(maxTop, Math.max(EDGE_MARGIN, preferredTop)) }
+      setPosition((current) => current?.left === next.left && current.top === next.top ? current : next)
+    }
+    const schedule = () => {
+      if (frame !== null) return
+      frame = window.requestAnimationFrame(measure)
+    }
+    measure()
+    window.addEventListener('resize', schedule)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    observer?.observe(panelRef.current!)
+    observer?.observe(anchor)
+    return () => {
+      window.removeEventListener('resize', schedule)
+      observer?.disconnect()
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [anchor, currentTitle, currentItems.length, currentFolders.length])
+
+  return createPortal(
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${currentTitle} bookmarks`}
-        // Tailwind v4 compiles -translate-x-1/2 to the native CSS `translate`
-        // property (not `transform`), so overriding it here — rather than
-        // `style.transform` — is what actually wins over the class. Only set
-        // when a shift is needed: leaving it undefined otherwise means the
-        // class alone controls centering, unchanged from before this effect
-        // existed.
-        style={
-          edgeShift
-            ? { translate: `calc(-50% ${edgeShift >= 0 ? '+' : '-'} ${Math.abs(edgeShift)}px) 0` }
-            : undefined
-        }
-        className="absolute left-1/2 top-full z-50 mt-1.5 max-h-[60vh] w-64 -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+        style={{
+          left: position.left,
+          top: position.top,
+        }}
+        className="fixed z-50 max-h-[calc(100dvh-1rem)] w-64 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
       >
           {top && (
             <button
               type="button"
               onClick={() => setStack((s) => s.slice(0, -1))}
-              className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9"
             >
               ‹ Back
             </button>
@@ -133,7 +148,7 @@ export default function FolderPopover({
                   <button
                     type="button"
                     onClick={() => setStack((s) => [...s, folder])}
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent"
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9"
                   >
                     <FolderIcon />
                     <span className="truncate">{folder.title}</span>
@@ -144,7 +159,7 @@ export default function FolderPopover({
                 <li key={item.id}>
                   <a
                     href={item.url}
-                    className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent"
+                    className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9"
                   >
                     <img
                       src={faviconUrl(item.url)}
@@ -159,7 +174,7 @@ export default function FolderPopover({
               ))}
             </ul>
           )}
-      </div>
-    </>
+      </div>,
+    document.body,
   )
 }

@@ -17,6 +17,7 @@
 // setupFiles registering it), so assertions use the house idiom already in
 // ResetLayoutDialog.test.tsx / TokenConnectForm.test.tsx (.toBeTruthy(),
 // .toBeNull(), .toBe(...)) rather than jest-dom's .toBeInTheDocument().
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import EntityPickerDialog from './EntityPickerDialog'
@@ -141,6 +142,34 @@ describe('EntityPickerDialog, hard caps, enforced visibly, never silently droppe
 })
 
 describe('EntityPickerDialog, dialog shell behavior', () => {
+  it('bounds the whole dialog to the viewport and gives only the entity list flexible vertical scroll ownership', () => {
+    render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={() => {}} />)
+
+    const dialog = screen.getByRole('dialog', { name: 'Pick entities' })
+    expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(dialog.classList.contains('overflow-hidden')).toBe(true)
+    const scrollports = dialog.querySelectorAll('.overflow-y-auto')
+    expect(scrollports).toHaveLength(1)
+    expect(scrollports[0]!.classList.contains('min-h-0')).toBe(true)
+    expect(scrollports[0]!.classList.contains('flex-1')).toBe(true)
+    expect(screen.getByRole('searchbox').classList.contains('shrink-0')).toBe(true)
+    expect(screen.getByText('Choose which entities appear as status chips or actions.').classList.contains('[@media(max-height:300px)]:hidden')).toBe(true)
+    const countId = dialog.getAttribute('aria-describedby')!.split(' ')[1]!
+    expect(document.getElementById(countId)?.classList.contains('[@media(max-height:300px)]:hidden')).toBe(true)
+  })
+
+  it('keeps the exact narrow picker target inventory at the 36px floor', () => {
+    render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={() => {}} />)
+
+    expect(screen.getByRole('searchbox').classList.contains('h-9')).toBe(true)
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      expect(checkbox.closest('label')?.classList.contains('min-h-9')).toBe(true)
+      expect(checkbox.closest('label')?.classList.contains('min-w-9')).toBe(true)
+    }
+    expect(screen.getByRole('button', { name: 'Cancel' }).classList.contains('min-h-9')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Save' }).classList.contains('min-h-9')).toBe(true)
+  })
+
   it('Escape calls onCancel via the shared dialog stack', () => {
     const onCancel = vi.fn()
     render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={onCancel} onSave={() => {}} />)
@@ -176,16 +205,102 @@ describe('EntityPickerDialog, dialog shell behavior', () => {
     fireEvent.click(backdrop)
     expect(onCancel).toHaveBeenCalledOnce()
   })
+
+  it('uses a visible h2 to name the dialog and real h3 headings to name each semantic domain group', () => {
+    render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={() => {}} />)
+
+    const dialog = screen.getByRole('dialog', { name: 'Pick entities' })
+    const dialogHeading = screen.getByRole('heading', { level: 2, name: 'Pick entities' })
+    expect(dialog.getAttribute('aria-labelledby')).toBe(dialogHeading.id)
+    for (const domain of ['Scene', 'Sensor', 'Switch']) {
+      const heading = screen.getByRole('heading', { level: 3, name: domain })
+      const group = screen.getByRole('group', { name: domain })
+      expect(group.getAttribute('aria-labelledby')).toBe(heading.id)
+      expect(group.contains(heading)).toBe(true)
+    }
+  })
+
+  it('restores the actual external Choose entities trigger after Cancel, Escape, backdrop, and Save', () => {
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Choose entities</button>
+          <EntityPickerDialog
+            open={open}
+            states={STATES}
+            entities={[]}
+            actions={[]}
+            onCancel={() => setOpen(false)}
+            onSave={() => setOpen(false)}
+          />
+        </>
+      )
+    }
+
+    render(<Harness />)
+    const trigger = screen.getByRole('button', { name: 'Choose entities' })
+    const reopen = () => {
+      trigger.focus()
+      fireEvent.click(trigger)
+      expect(document.activeElement).toBe(screen.getByRole('searchbox'))
+    }
+    const expectRestored = () => {
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(document.activeElement).toBe(trigger)
+    }
+
+    reopen()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expectRestored()
+    reopen()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expectRestored()
+    reopen()
+    fireEvent.click(document.querySelector('[aria-hidden]') as HTMLElement)
+    expectRestored()
+    reopen()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expectRestored()
+  })
 })
 
-describe('EntityPickerDialog, checkbox aria-label convention', () => {
-  it('checkbox aria-labels are exactly "Show {friendlyName}" / "Action {friendlyName}" (what the model tests above rely on)', () => {
+describe('EntityPickerDialog, checkbox relationships', () => {
+  it('uses visible column purposes plus the full visible friendly name and entity ID exactly once in each checkbox name', () => {
     render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={() => {}} />)
-    expect(screen.getByRole('checkbox', { name: 'Show Kitchen' }).getAttribute('aria-label')).toBe('Show Kitchen')
-    expect(screen.getByRole('checkbox', { name: 'Action Fan' }).getAttribute('aria-label')).toBe('Action Fan')
-    expect(screen.getByRole('checkbox', { name: 'Action Movie night' }).getAttribute('aria-label')).toBe(
-      'Action Movie night',
-    )
+    expect(screen.getByText('Show')).toBeTruthy()
+    expect(screen.getByText('Action')).toBeTruthy()
+    expect(screen.getByText('Entity')).toBeTruthy()
+
+    for (const [purpose, friendlyName, id] of [
+      ['Show', 'Kitchen', 'sensor.kitchen_temp'],
+      ['Show', 'Fan', 'switch.fan'],
+      ['Action', 'Fan', 'switch.fan'],
+      ['Action', 'Movie night', 'scene.movie_night'],
+    ]) {
+      const checkbox = screen.getByRole('checkbox', { name: `${purpose} ${friendlyName} ${id}` })
+      const ids = checkbox.getAttribute('aria-labelledby')?.split(/\s+/) ?? []
+      const resolved = ids.map((labelId) => document.getElementById(labelId)?.textContent).join(' ')
+      expect(resolved.split(purpose).length - 1).toBe(1)
+      expect(resolved.split(friendlyName).length - 1).toBe(1)
+      expect(resolved.split(id).length - 1).toBe(1)
+    }
+  })
+
+  it('gives search, every checkbox label, Cancel, and Save local 36px target floors', () => {
+    render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={() => {}} />)
+
+    expect(screen.getByRole('searchbox').className).toContain('h-9')
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      const target = checkbox.closest('label')
+      expect(target?.className).toContain('min-h-9')
+      expect(target?.className).toContain('min-w-9')
+    }
+    for (const name of ['Cancel', 'Save']) {
+      const button = screen.getByRole('button', { name })
+      expect(button.className).toContain('min-h-9')
+      expect(button.className).toContain('min-w-9')
+    }
   })
 })
 

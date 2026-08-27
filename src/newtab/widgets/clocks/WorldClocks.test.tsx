@@ -7,7 +7,10 @@ import { StorageProvider } from '../../../lib/storage/context'
 import { defaults } from '../../../lib/storage/schema'
 import WorldClocks from './WorldClocks'
 
-async function renderWithClocks(worldClocks: { zone: string; label: string }[]) {
+async function renderWithClocks(
+  worldClocks: { zone: string; label: string }[],
+  props: React.ComponentProps<typeof WorldClocks> = {},
+) {
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('settings', {
@@ -15,12 +18,13 @@ async function renderWithClocks(worldClocks: { zone: string; label: string }[]) 
     widgets: { ...defaults().settings.widgets, clocks: true },
   })
   await storage.set('worldClocks', worldClocks)
-  render(
+  const view = render(
     <StorageProvider storage={storage}>
-      <WorldClocks />
+      <WorldClocks {...props} />
     </StorageProvider>,
   )
   await act(async () => {})
+  return view
 }
 
 describe('WorldClocks', () => {
@@ -37,6 +41,7 @@ describe('WorldClocks', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     intervalSpy.mockRestore()
   })
 
@@ -89,5 +94,24 @@ describe('WorldClocks', () => {
     expect(screen.getByText(/Tokyo/)).toBeTruthy()
     expect(screen.getByText(/London/)).toBeTruthy()
     expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 30_000)
+  })
+
+  it('refreshes zone text immediately when a sleeping tab regains focus', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-26T12:00:00Z'))
+    const view = await renderWithClocks([{ zone: 'Asia/Tokyo', label: 'Tokyo' }])
+    const before = view.container.textContent
+    vi.setSystemTime(new Date('2026-07-26T13:01:00Z'))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(view.container.textContent).not.toBe(before)
+  })
+
+  it('authors aligned Standard stack rows from the existing clock list', async () => {
+    await renderWithClocks([
+      { zone: 'Asia/Tokyo', label: 'Tokyo' },
+      { zone: 'Europe/London', label: 'London' },
+    ], { canvasSize: 'standard', presentation: 'stack' })
+    expect(screen.getByRole('region', { name: 'World clocks' }).dataset.tierFrame).toBe('standard')
+    expect(screen.getAllByTestId('world-clock-row')).toHaveLength(2)
   })
 })

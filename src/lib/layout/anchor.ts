@@ -1,4 +1,4 @@
-import type { Size } from './clamp'
+export interface Size { w: number; h: number }
 
 // px. A panel that opens DOWNWARD (pill in the top half) anchors via `top` —
 // unchanged. A panel that opens UPWARD (pill in the bottom half) anchors via
@@ -13,8 +13,24 @@ import type { Size } from './clamp'
 // instead — restoring the pre-anchorPanel `bottom-16`-class behavior. Panel
 // components must branch on which key is present (`'top' in anchor`) rather
 // than assuming one shape.
-export type PanelPlacement = { left: number; top: number } | { left: number; bottom: number }
+export type PanelPlacement = (
+  { left: number; top: number } | { left: number; bottom: number }
+) & { maxHeight?: number }
 export interface HugRect { left: number; top: number; right: number; bottom: number; width: number; height: number }
+
+export const VIEWPORT_PANEL_GUTTER = 8
+
+/** Bound a rendered panel box to the viewport before its anchor is clamped.
+ *  Keeping this pure makes the CSS/measurement contract explicit: every
+ *  floating tool owns the same 8px edge gutter on both axes. */
+export function fitPanelSize(panel: Size, viewport: Size): Size {
+  const availableWidth = Math.max(0, viewport.w - VIEWPORT_PANEL_GUTTER * 2)
+  const availableHeight = Math.max(0, viewport.h - VIEWPORT_PANEL_GUTTER * 2)
+  return {
+    w: Math.min(Math.max(0, panel.w), availableWidth),
+    h: Math.min(Math.max(0, panel.h), availableHeight),
+  }
+}
 
 /** Shift a pill rect horizontally toward whichever screen edge it's actually
  *  nearer to, by `hugPx` — reproduces a design's tighter gap between a
@@ -43,7 +59,12 @@ export function hugHorizontal(rect: HugRect, hugPx: number, viewportW: number): 
  *  above it when the pill is in the bottom half (anchored via `bottom`,
  *  growing UP — review fix I1, see the `PanelPlacement` doc above) —
  *  left-aligned when the pill is in the left half (else right-aligned), 8px
- *  gap, clamped to >= 8px from every edge.
+ *  gap, clamped to >= 8px from every edge. An optional measured
+ *  `bottomBoundary` (the Signal Dock's top edge for Tasks) replaces only the
+ *  usable vertical bottom. The returned `bottom` remains a CSS viewport-edge
+ *  offset, and `maxHeight` publishes the exact reachable content ceiling to
+ *  the panel; callers that omit the boundary keep the established shape and
+ *  coordinates byte-for-byte.
  *
  *  The vertical clamp bounds (`margin` .. `viewport.h - panel.h - margin`)
  *  are the SAME numeric range for both branches: `top` and `bottom` are just
@@ -55,28 +76,93 @@ export function anchorPanel(
   pillRect: DOMRectReadOnly | { left: number; top: number; right: number; bottom: number; width: number; height: number },
   panel: Size,
   viewport: Size,
+  bottomBoundary?: number,
 ): PanelPlacement {
   const gap = 8
-  const margin = 8
+  const margin = VIEWPORT_PANEL_GUTTER
+  const hasBottomBoundary = Number.isFinite(bottomBoundary)
+  const usableBottom = hasBottomBoundary
+    ? Math.min(viewport.h, Math.max(0, bottomBoundary!))
+    : viewport.h
+  const verticalViewport = { w: viewport.w, h: usableBottom }
+  const fittedPanel = fitPanelSize(panel, verticalViewport)
+  const maxHeight = hasBottomBoundary
+    ? Math.max(0, usableBottom - margin * 2)
+    : undefined
 
   const pillCenterX = (pillRect.left + pillRect.right) / 2
   const pillCenterY = (pillRect.top + pillRect.bottom) / 2
 
-  const topHalf = pillCenterY < viewport.h / 2
+  const topHalf = pillCenterY < usableBottom / 2
   const leftHalf = pillCenterX < viewport.w / 2
 
-  const rawLeft = leftHalf ? pillRect.left : pillRect.right - panel.w
+  const rawLeft = leftHalf ? pillRect.left : pillRect.right - fittedPanel.w
   const minLeft = margin
-  const maxLeft = viewport.w - panel.w - margin
+  const maxLeft = Math.max(minLeft, viewport.w - fittedPanel.w - margin)
   const left = Math.min(Math.max(rawLeft, minLeft), maxLeft)
 
   const minOffset = margin
-  const maxOffset = viewport.h - panel.h - margin
+  const maxOffset = Math.max(minOffset, usableBottom - fittedPanel.h - margin)
 
   if (topHalf) {
     const rawTop = pillRect.bottom + gap
-    return { left, top: Math.min(Math.max(rawTop, minOffset), maxOffset) }
+    return {
+      left,
+      top: Math.min(Math.max(rawTop, minOffset), maxOffset),
+      ...(maxHeight === undefined ? {} : { maxHeight }),
+    }
   }
-  const rawBottom = viewport.h - pillRect.top + gap
-  return { left, bottom: Math.min(Math.max(rawBottom, minOffset), maxOffset) }
+  const rawBottom = usableBottom - pillRect.top + gap
+  const boundaryOffset = viewport.h - usableBottom
+  return {
+    left,
+    bottom: boundaryOffset + Math.min(Math.max(rawBottom, minOffset), maxOffset),
+    ...(maxHeight === undefined ? {} : { maxHeight }),
+  }
+}
+
+/** Preserve anchorPanel's established above/below placement whenever it does
+ * not cover the thing that opened it. If a viewport clamp forces the panel
+ * across that anchor, use a side with enough room and vertically center it.
+ * This is intentionally opt-in for tall editing inspectors: ordinary widget
+ * panels retain their existing placement contract. */
+export function anchorPanelAvoidingAnchor(
+  anchorRect: DOMRectReadOnly | { left: number; top: number; right: number; bottom: number; width: number; height: number },
+  panel: Size,
+  viewport: Size,
+): PanelPlacement {
+  const placement = anchorPanel(anchorRect, panel, viewport)
+  const fittedPanel = fitPanelSize(panel, viewport)
+  const panelTop = 'top' in placement
+    ? placement.top
+    : viewport.h - placement.bottom - fittedPanel.h
+  const panelRect = {
+    left: placement.left,
+    top: panelTop,
+    right: placement.left + fittedPanel.w,
+    bottom: panelTop + fittedPanel.h,
+  }
+  const overlaps = panelRect.left < anchorRect.right
+    && panelRect.right > anchorRect.left
+    && panelRect.top < anchorRect.bottom
+    && panelRect.bottom > anchorRect.top
+  if (!overlaps) return placement
+
+  const gap = 8
+  const margin = VIEWPORT_PANEL_GUTTER
+  const left = anchorRect.left - gap - fittedPanel.w
+  const right = anchorRect.right + gap
+  const leftRoom = anchorRect.left - gap - margin
+  const rightRoom = viewport.w - margin - right
+  const leftFits = left >= margin
+  const rightFits = right + fittedPanel.w <= viewport.w - margin
+  if (!leftFits && !rightFits) return placement
+
+  const sideLeft = leftFits && (!rightFits || leftRoom >= rightRoom) ? left : right
+  const maxTop = Math.max(margin, viewport.h - fittedPanel.h - margin)
+  const centeredTop = (anchorRect.top + anchorRect.bottom - fittedPanel.h) / 2
+  return {
+    left: sideLeft,
+    top: Math.min(Math.max(centeredTop, margin), maxTop),
+  }
 }

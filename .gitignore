@@ -34,3 +34,75 @@ release/store-shots/
 # Product-concept renders Jon drops in for vision discussions — reference
 # imagery for design sessions, not source and not shipped.
 output/
+.playwright-profile-forensic/
+.playwright-profile-forensic-weather/
+.preview-forensic-dist/
+.forensic-short-height-out/
+
+# NL-P2 anchored-canvas witness (scripts/preview-nl-p2.mjs) scratch output.
+.playwright-profile-nl-p2/
+.playwright-profile-nl-p2-debug/
+.preview-nl-p2-dist/
+.preview-nl-p2-out/
+
+# NL-P3 live-edit witness (scripts/preview-nl-p3.mjs) scratch output.
+.playwright-profile-nl-p3/
+.preview-nl-p3-dist/
+.preview-nl-p3-out/
+
+# NL-P4 docks witness (scripts/preview-nl-p4.mjs) scratch output.
+.playwright-profile-nl-p4/
+.preview-nl-p4-dist/
+.preview-nl-p4-out/
+
+# NL-P5 catalog scratch (script rebuilds these; catalog output itself is tracked)
+.preview-nl-p5-dist/
+.playwright-profile-nl-p5/
+
+# NL-P5 hotfix witness (scripts/preview-nl-p5-hotfix.mjs) scratch output.
+.playwright-profile-nl-p5-hotfix/
+.preview-nl-p5-hotfix-dist/
+.preview-nl-p5-hotfix-out/
+
+.qa-nl-p6-*
+.playwright-profile-qa-nl-p6/
+.playwright-profile-qa-nl-p6-window/
+
+# DY-P1 immutable legacy baseline and two-axis dock witness scratch.
+.qa-dy-p1-*
+.playwright-profile-qa-dy-p1/
+.playwright-profile-qa-dy-p1-window/
+.playwright-profile-qa-dy-p1-inset/
+
+# Focused Weather environmental-enrichment witness scratch.
+.qa-weather-enrichment-*
+
+# Browser-native widget Chromium evidence and persistent profile scratch.
+.qa-browser-native-*
+
+# Work connector Chromium evidence and persistent profile scratch.
+.qa-work-connectors-*
+
+# At-a-glance widget and NWS Weather Chromium evidence scratch.
+.qa-at-a-glance-*
+
+# SF-P1 shared-frame preliminary witness scratch; owner catalog is tracked.
+.qa-shared-frame-p1-profile/
+.qa-shared-frame-p1-evidence/
+
+# SF-P2 framed-catalog preliminary witness scratch; owner catalog is tracked.
+.qa-shared-frame-p2-profile/
+.qa-shared-frame-p2-evidence/
+
+# Expansion platform scratch scaffolds and Chromium catalog evidence.
+.aurora-expansion-*/
+.qa-expansion-platform-*/
+
+.playwright-profile-measure/
+
+# Superpowers visual-companion sessions are local design scratch.
+.superpowers/
+
+# Complete widget-redesign catalog and shell scratch evidence.
+.qa-widget-redesign-catalog/
+.qa-widget-redesign-shell/
