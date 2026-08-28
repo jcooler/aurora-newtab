@@ -455,55 +455,64 @@
   visibility: hidden;
   pointer-events: none;
 }
-.stack-card__arrow {
+/* A shelf is outside its stack's painted frame, but the Canvas item's saved
+   layer still creates the sibling stacking context. Raise only the active
+   stack while its controls are exposed so another widget cannot cover or
+   intercept the shelf. Global drawers remain above this canvas-only layer. */
+.canvas-item[data-canvas-object-id^="stack:"]:hover,
+.canvas-item[data-canvas-object-id^="stack:"]:focus-within {
+  z-index: 90 !important;
+}
+.stack-card__shelf {
   position: absolute;
-  z-index: 2;
-  top: calc(50% - 18px);
+  z-index: 3;
+  top: calc(100% + 6px);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  translate: calc(-50% + var(--stack-shelf-shift, 0px)) 0;
+  border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--panel-solid) 88%, transparent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+  transition: opacity 120ms ease, translate 120ms ease;
+}
+.stack-card__shelf[data-stack-shelf-placement="above"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.stack-card:hover .stack-card__shelf,
+.stack-card:focus-within .stack-card__shelf,
+.stack-card__shelf--editing {
+  opacity: 0.96;
+  visibility: visible;
+  pointer-events: auto;
+}
+.stack-card__arrow {
   display: grid;
   width: 36px;
   height: 36px;
-  translate: 0 -50%;
+  flex: 0 0 36px;
   place-items: center;
   border: 0;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--panel-solid) 72%, transparent);
+  background: transparent;
   color: var(--fg-muted);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
   cursor: pointer;
-  transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
-}
-.stack-card__arrow--previous { left: 6px; }
-.stack-card__arrow--next { right: 6px; }
-.stack-card:hover .stack-card__arrow,
-.stack-card:focus-within .stack-card__arrow {
-  opacity: 0.9;
-  visibility: visible;
-  pointer-events: auto;
+  transition: color 120ms ease, background-color 120ms ease;
 }
 .stack-card__arrow:hover {
-  background: var(--panel-solid);
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
   color: var(--fg);
 }
 .stack-card__dots {
-  position: absolute;
-  z-index: 2;
-  bottom: 4px;
-  left: 50%;
   display: flex;
-  translate: -50% 0;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-.stack-card:hover .stack-card__dots,
-.stack-card:focus-within .stack-card__dots,
-.stack-card__dots--editing {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
+  align-items: center;
 }
 .stack-card__dot {
   position: relative;
@@ -536,7 +545,7 @@
 @media (prefers-reduced-motion: reduce) {
   .stack-card,
   .stack-card__arrow,
-  .stack-card__dots { transition: none; }
+  .stack-card__shelf { transition: none; }
 }
 
 .focus-celebration {

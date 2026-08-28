@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { CanvasSize } from '../../lib/layout/canvasTypes'
 import type { BlockId } from '../../lib/layout/types'
 import TierFrame from '../widgets/shared/TierFrame'
@@ -20,6 +20,9 @@ export interface StackCardProps {
 }
 
 const SWIPE_THRESHOLD = 40
+const SHELF_GAP = 6
+const SHELF_HEIGHT_FALLBACK = 36
+const SHELF_VIEWPORT_INSET = 8
 const SWIPE_EXCLUSION = '[data-stack-control], input, textarea, select, [contenteditable], [role="textbox"]'
 const TIER_LABELS: Readonly<Record<CanvasSize, string>> = {
   compact: 'Compact',
@@ -32,6 +35,15 @@ function tierList(tiers: readonly CanvasSize[]): string {
   if (labels.length < 2) return labels[0] ?? ''
   if (labels.length === 2) return `${labels[0]} or ${labels[1]}`
   return `${labels.slice(0, -1).join(', ')}, or ${labels.at(-1)}`
+}
+
+function overlapArea(
+  first: { left: number; right: number; top: number; bottom: number },
+  second: { left: number; right: number; top: number; bottom: number },
+): number {
+  const width = Math.max(0, Math.min(first.right, second.right) - Math.max(first.left, second.left))
+  const height = Math.max(0, Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top))
+  return width * height
 }
 
 export function StackCompatibilityFace({
@@ -68,8 +80,45 @@ export default function StackCard({
 }: StackCardProps) {
   const pointer = useRef<{ id: number; x: number; captured: boolean } | null>(null)
   const suppressReleaseClick = useRef(false)
+  const shelfRef = useRef<HTMLDivElement>(null)
+  const [shelfPlacement, setShelfPlacement] = useState<'above' | 'below'>('below')
+  const [shelfShift, setShelfShift] = useState(0)
   const faceIndex = Math.max(0, members.findIndex((member) => member.id === facing))
   const face = members[faceIndex]
+
+  const placeShelf = (card: HTMLDivElement) => {
+    const cardRect = card.getBoundingClientRect()
+    const shelfRect = shelfRef.current?.getBoundingClientRect()
+    const shelfWidth = shelfRect?.width ?? 0
+    const shelfHeight = shelfRect?.height || SHELF_HEIGHT_FALLBACK
+    const centeredLeft = cardRect.left + cardRect.width / 2 - shelfWidth / 2
+    const leftEdge = Math.max(SHELF_VIEWPORT_INSET, centeredLeft)
+    const clampedLeft = Math.min(leftEdge, window.innerWidth - SHELF_VIEWPORT_INSET - shelfWidth)
+    const below = {
+      left: clampedLeft,
+      right: clampedLeft + shelfWidth,
+      top: cardRect.bottom + SHELF_GAP,
+      bottom: cardRect.bottom + SHELF_GAP + shelfHeight,
+    }
+    const above = {
+      left: clampedLeft,
+      right: clampedLeft + shelfWidth,
+      top: cardRect.top - SHELF_GAP - shelfHeight,
+      bottom: cardRect.top - SHELF_GAP,
+    }
+    const owner = card.closest<HTMLElement>('.canvas-item[data-canvas-object-id]')
+    const neighbors = owner === null
+      ? []
+      : [...document.querySelectorAll<HTMLElement>('.canvas-item[data-canvas-object-id]')]
+          .filter((node) => node !== owner && !node.hasAttribute('data-canvas-empty'))
+          .map((node) => node.getBoundingClientRect())
+    const occupiedArea = (candidate: typeof below) => neighbors.reduce((total, rect) => total + overlapArea(candidate, rect), 0)
+    const belowFits = below.bottom <= window.innerHeight - SHELF_VIEWPORT_INSET
+    const aboveFits = above.top >= SHELF_VIEWPORT_INSET
+    const placement = !belowFits || (aboveFits && occupiedArea(above) < occupiedArea(below)) ? 'above' : 'below'
+    setShelfPlacement(placement)
+    setShelfShift(Math.round((clampedLeft - centeredLeft) * 100) / 100)
+  }
 
   return (
     <div
@@ -79,6 +128,8 @@ export default function StackCard({
       data-stack-card={id}
       className={`stack-card${editing ? ' stack-card--editing' : ''}`}
       tabIndex={editing ? -1 : 0}
+      onPointerEnter={(event) => { placeShelf(event.currentTarget) }}
+      onFocus={(event) => { placeShelf(event.currentTarget) }}
       onKeyDown={(event) => {
         if (editing || event.target !== event.currentTarget) return
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
@@ -139,8 +190,16 @@ export default function StackCard({
         })}
       </div>
 
-      {!editing ? (
-        <>
+      <div
+        ref={shelfRef}
+        role="toolbar"
+        aria-label="Stack navigation"
+        data-stack-control
+        data-stack-shelf-placement={shelfPlacement}
+        style={{ '--stack-shelf-shift': `${shelfShift}px` } as CSSProperties}
+        className={`stack-card__shelf${editing ? ' stack-card__shelf--editing' : ''}`}
+      >
+        {!editing ? (
           <button
             type="button"
             aria-label="Previous widget"
@@ -151,6 +210,28 @@ export default function StackCard({
           >
             <span aria-hidden>‹</span>
           </button>
+        ) : null}
+
+        <div
+          data-stack-dots
+          data-stack-control
+          className={`stack-card__dots${editing ? ' stack-card__dots--editing' : ''}`}
+          aria-label="Widgets in stack"
+        >
+          {members.map((member) => (
+            <button
+              key={member.id}
+              type="button"
+              aria-label={`Show ${member.label}`}
+              aria-pressed={member.id === facing}
+              className="stack-card__dot"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => { event.stopPropagation(); onFace(member.id) }}
+            />
+          ))}
+        </div>
+
+        {!editing ? (
           <button
             type="button"
             aria-label="Next widget"
@@ -161,26 +242,7 @@ export default function StackCard({
           >
             <span aria-hidden>›</span>
           </button>
-        </>
-      ) : null}
-
-      <div
-        data-stack-dots
-        data-stack-control
-        className={`stack-card__dots${editing ? ' stack-card__dots--editing' : ''}`}
-        aria-label="Widgets in stack"
-      >
-        {members.map((member) => (
-          <button
-            key={member.id}
-            type="button"
-            aria-label={`Show ${member.label}`}
-            aria-pressed={member.id === facing}
-            className="stack-card__dot"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => { event.stopPropagation(); onFace(member.id) }}
-          />
-        ))}
+        ) : null}
       </div>
     </div>
   )
