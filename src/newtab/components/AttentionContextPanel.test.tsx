@@ -9,6 +9,17 @@ const SIGNALS: AttentionSignal[] = [
   { key: 'deployment:aurora', kind: 'deployment', source: 'Vercel', title: 'aurora-newtab', detail: 'Failed 18m ago', timestamp: 2 },
 ]
 
+const CALENDAR_SIGNAL = {
+  key: 'calendar:1:first-game',
+  kind: 'calendar',
+  source: 'Calendar',
+  title: 'Kennedy’s first game in 21h',
+  panelTitle: 'Kennedy’s first game',
+  status: 'In 21h',
+  detail: 'Starts tomorrow at 7:00 AM',
+  timestamp: 1,
+} as AttentionSignal
+
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
@@ -25,6 +36,35 @@ describe('AttentionContextPanel', () => {
     fireEvent.mouseEnter(panel)
     act(() => vi.advanceTimersByTime(250))
     expect(screen.getByRole('region', { name: 'Attention details' })).toBeTruthy()
+  })
+
+  it('renders Calendar context as a source, timing status, wrapping title, and useful detail without a false link', () => {
+    render(<AttentionContextPanel summary="Kennedy’s first game in 21h" signals={[CALENDAR_SIGNAL]} />)
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Kennedy’s first game in 21h' }))
+    const row = screen.getByRole('listitem')
+
+    expect(row.getAttribute('data-attention-kind')).toBe('calendar')
+    expect(screen.getByText('Calendar')).toBeTruthy()
+    expect(screen.getByText('In 21h')).toBeTruthy()
+    expect(screen.getByText('Kennedy’s first game', { selector: '.aurora-attention-panel__title' })).toBeTruthy()
+    expect(screen.getByText('Starts tomorrow at 7:00 AM')).toBeTruthy()
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('pins a hover-open panel on click and unpins it on the next click', () => {
+    render(<AttentionContextPanel summary="2 items need attention" signals={SIGNALS} />)
+    const trigger = screen.getByRole('button', { name: '2 items need attention' })
+    fireEvent.mouseEnter(trigger)
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.mouseLeave(trigger)
+    act(() => vi.advanceTimersByTime(250))
+    expect(screen.getByRole('region', { name: 'Attention details' })).toBeTruthy()
+
+    fireEvent.click(trigger)
+    expect(trigger.getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByRole('region', { name: 'Attention details' })).toBeNull()
   })
 
   it('opens on focus, preserves focus transfer, and Escape closes and returns focus', () => {
@@ -78,6 +118,7 @@ describe('AttentionContextPanel', () => {
     expect(document.querySelector('[data-attention-backdrop]')).toBeNull()
     expect(link.getAttribute('target')).toBe('_blank')
     expect(link.getAttribute('rel')).toContain('noreferrer')
+    expect(link.querySelector('[data-attention-link-cue]')).toBeTruthy()
     expect(container.querySelector('svg')).toBeNull()
   })
 

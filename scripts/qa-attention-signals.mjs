@@ -241,11 +241,26 @@ async function introduceNewAssignment(page, githubScope) {
 async function exercisePanel(page, output, evidence) {
   const trigger = await waitForSummary(page)
   await trigger.click()
+  assert.equal(await trigger.getAttribute('aria-pressed'), 'true', 'click did not pin the attention panel')
   await page.getByRole('region', { name: 'Attention details' }).waitFor({ state: 'visible' })
   await trigger.click()
+  assert.equal(await trigger.getAttribute('aria-pressed'), 'false', 'second click did not unpin the attention panel')
   await page.getByRole('region', { name: 'Attention details' }).waitFor({ state: 'detached' })
 
   let panel = await openWithHover(page, trigger)
+  await trigger.click()
+  await page.mouse.move(1, 1)
+  await page.waitForTimeout(250)
+  await panel.waitFor({ state: 'visible' })
+  assert.equal(await trigger.getAttribute('aria-pressed'), 'true', 'hover-open panel was not pinned by click')
+  await trigger.click()
+  await panel.waitFor({ state: 'detached' })
+  panel = await openWithHover(page, trigger)
+  const triggerStyle = await trigger.evaluate((node) => {
+    const style = getComputedStyle(node)
+    return { cursor: style.cursor, textDecorationLine: style.textDecorationLine }
+  })
+  assert.deepEqual(triggerStyle, { cursor: 'default', textDecorationLine: 'none' }, 'attention summary still looks like a link')
   const panelRect = rectFromBox(await panel.boundingBox())
   const clockRect = rectFromBox(await page.getByTestId('canvas-item-clock').boundingBox())
   assertViewportContained(panelRect, DESKTOP)
@@ -253,11 +268,19 @@ async function exercisePanel(page, output, evidence) {
   await page.screenshot({ path: resolve(output, 'attention-1600x900.png'), animations: 'disabled' })
 
   const text = (await panel.textContent()) ?? ''
-  for (const expected of ['Vercel', 'Aurora preview', 'Failed 18m ago', 'GitHub', 'Review attention evidence', 'aurora/qa', 'Calendar', 'QA review in 2h']) {
+  for (const expected of ['Vercel', 'Aurora preview', 'Failed 18m ago', 'GitHub', 'Review attention evidence', 'aurora/qa', 'Calendar', 'QA review', 'In 2h']) {
     assert(text.includes(expected), `attention context is missing ${expected}`)
   }
   assert.equal(await panel.locator('a[href^="https://github.com/"]').count(), 1, 'GitHub context link is missing')
   assert.equal(await panel.locator('a[href^="https://vercel.com/"]').count(), 1, 'Vercel context link is missing')
+  assert.equal(await panel.locator('[data-attention-link-cue]').count(), 2, 'real destination links are missing their external cue')
+  const calendarRow = panel.locator('[data-attention-kind="calendar"]')
+  assert.equal(await calendarRow.count(), 1, 'Calendar signal rail is missing')
+  assert.equal((await calendarRow.locator('.aurora-attention-panel__source').textContent())?.trim(), 'Calendar')
+  assert.equal((await calendarRow.locator('.aurora-attention-panel__status').textContent())?.trim(), 'In 2h')
+  assert.equal((await calendarRow.locator('.aurora-attention-panel__title').textContent())?.trim(), 'QA review')
+  assert.match((await calendarRow.locator('.aurora-attention-panel__detail').textContent())?.trim() ?? '', /^Starts (today|tomorrow) at /)
+  assert.equal(await calendarRow.locator('a').count(), 0, 'Calendar context falsely renders as a link')
 
   await page.keyboard.press('Escape')
   await panel.waitFor({ state: 'detached' })
@@ -282,7 +305,7 @@ async function exercisePanel(page, output, evidence) {
   await trigger.tap()
   await panel.waitFor({ state: 'detached' })
 
-  evidence.desktop = { summary: EXPECTED_SUMMARY, panelRect, clockRect, clearedObstacles: obstacles.map(({ label }) => label) }
+  evidence.desktop = { summary: EXPECTED_SUMMARY, triggerStyle, panelRect, clockRect, clearedObstacles: obstacles.map(({ label }) => label) }
 }
 
 async function exerciseSecondTab(context, firstPage, evidence) {

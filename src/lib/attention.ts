@@ -51,6 +51,8 @@ export interface AttentionSignal {
   kind: 'calendar' | 'assignment' | 'deployment' | 'rain'
   source: string
   title: string
+  panelTitle?: string
+  status?: string
   detail: string
   timestamp: number
   url?: string
@@ -144,6 +146,7 @@ function assignmentSignals(inputs: AttentionInputs): AttentionSignal[] {
       kind: 'assignment',
       source,
       title,
+      status: 'New',
       detail: context ? `${context} · ${age}` : age,
       timestamp: firstSeenAt,
       ...(item.url ? { url: item.url } : {}),
@@ -167,6 +170,7 @@ function deploymentSignals(inputs: AttentionInputs): AttentionSignal[] {
       kind: 'deployment',
       source: 'Vercel',
       title,
+      status: 'Failed',
       detail: `Failed ${relativeAge(inputs.now, deployment.createdAt)}`,
       timestamp: deployment.createdAt,
       ...(deployment.url ? { url: deployment.url } : {}),
@@ -178,6 +182,29 @@ function deploymentSignals(inputs: AttentionInputs): AttentionSignal[] {
 function compareEvents(a: AttentionEvent, b: AttentionEvent): number {
   if (a.start !== b.start) return a.start - b.start
   return cleanText(a.summary).localeCompare(cleanText(b.summary))
+}
+
+function localDateKey(value: number): string {
+  const date = new Date(value)
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function calendarDetail(inputs: AttentionInputs, event: AttentionEvent): string {
+  if (event.allDay) return 'All day today'
+  const tomorrow = new Date(inputs.now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const targetKey = localDateKey(event.start)
+  const day = targetKey === localDateKey(inputs.now)
+    ? 'today'
+    : targetKey === localDateKey(tomorrow.getTime())
+      ? 'tomorrow'
+      : new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(event.start)
+  const time = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: !inputs.use24Hour,
+  }).format(event.start)
+  return `Starts ${day} at ${time}`
 }
 
 function calendarSignal(inputs: AttentionInputs): AttentionSignal | null {
@@ -204,7 +231,15 @@ function calendarSignal(inputs: AttentionInputs): AttentionSignal | null {
     kind: 'calendar',
     source: 'Calendar',
     title: boundedText(title),
-    detail: event.allDay ? 'All day today' : 'Upcoming Calendar event',
+    panelTitle: summary,
+    status: event.allDay
+      ? 'Today'
+      : event.start - inputs.now < 60_000
+        ? 'Now'
+        : event.start - inputs.now < 3_600_000
+          ? `In ${Math.floor((event.start - inputs.now) / 60_000)}m`
+          : `In ${Math.floor((event.start - inputs.now) / 3_600_000)}h`,
+    detail: calendarDetail(inputs, event),
     timestamp: event.start,
   }
 }
@@ -236,6 +271,7 @@ function rainSignal(inputs: AttentionInputs): AttentionSignal | null {
     kind: 'rain',
     source: 'Weather',
     title: `Rain ${first.formatted}`,
+    status: `${Math.round(first.precipProb)}%`,
     detail: `${Math.round(first.precipProb)}% chance of rain`,
     timestamp: 0,
   }
