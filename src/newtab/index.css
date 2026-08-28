@@ -442,6 +442,23 @@
   user-select: none;
   transition: filter 120ms ease;
 }
+/* Keep the pointer inside the stack's hover tree while it crosses the visual
+   gap to the shelf. This hit-test bridge is absolutely positioned, so it
+   does not enlarge the saved Canvas footprint or move neighboring widgets. */
+.stack-card::after {
+  position: absolute;
+  z-index: 2;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 6px;
+  content: "";
+  pointer-events: auto;
+}
+.stack-card:has(.stack-card__shelf[data-stack-shelf-placement="above"])::after {
+  top: auto;
+  bottom: 100%;
+}
 .stack-card__members {
   display: grid;
   place-items: center;
