@@ -28,7 +28,10 @@ function setup(input: { facing?: 'weather' | 'clock' | 'notes'; editing?: boolea
 }
 
 describe('StackCard', () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
 
   it('mounts every member once in one grid while only the stored face is interactive', () => {
     const { card } = setup({ facing: 'clock' })
@@ -48,6 +51,63 @@ describe('StackCard', () => {
     expect(onStep.mock.calls.map(([direction]) => direction)).toEqual([-1, 1])
     fireEvent.click(within(card).getByRole('button', { name: 'Show Weather' }))
     expect(onFace).toHaveBeenCalledWith('weather')
+  })
+
+  it('groups arrows around the face dots in one stack navigation shelf', () => {
+    const { card } = setup({ facing: 'clock' })
+    const shelf = within(card).getByRole('toolbar', { name: 'Stack navigation' })
+    const controls = within(shelf).getAllByRole('button')
+
+    expect(controls.map((control) => control.getAttribute('aria-label'))).toEqual([
+      'Previous widget',
+      'Show Weather',
+      'Show Clock',
+      'Show Notes',
+      'Next widget',
+    ])
+  })
+
+  it('moves the navigation shelf above a stack when it would leave the viewport below', () => {
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800)
+    const { card } = setup()
+    vi.spyOn(card, 'getBoundingClientRect').mockReturnValue({ bottom: 780 } as DOMRect)
+
+    fireEvent.pointerEnter(card)
+
+    expect(within(card).getByRole('toolbar', { name: 'Stack navigation' }).dataset.stackShelfPlacement).toBe('above')
+  })
+
+  it('moves the shelf above when another canvas widget occupies the space below', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1600)
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
+    const { card } = setup()
+    const shelf = within(card).getByRole('toolbar', { name: 'Stack navigation' })
+    const owner = card.parentElement as HTMLElement
+    owner.className = 'canvas-item'
+    owner.dataset.canvasObjectId = 'stack:stack-day'
+    const neighbor = document.createElement('div')
+    neighbor.className = 'canvas-item'
+    neighbor.dataset.canvasObjectId = 'focus'
+    owner.append(neighbor)
+    vi.spyOn(card, 'getBoundingClientRect').mockReturnValue({ left: 640, right: 960, top: 300, bottom: 500, width: 320, height: 200 } as DOMRect)
+    vi.spyOn(shelf, 'getBoundingClientRect').mockReturnValue({ width: 152, height: 38 } as DOMRect)
+    vi.spyOn(neighbor, 'getBoundingClientRect').mockReturnValue({ left: 724, right: 876, top: 506, bottom: 550, width: 152, height: 44 } as DOMRect)
+
+    fireEvent.pointerEnter(card)
+
+    expect(shelf.dataset.stackShelfPlacement).toBe('above')
+  })
+
+  it('shifts a wider navigation shelf inside the viewport at a canvas edge', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(320)
+    const { card } = setup()
+    const shelf = within(card).getByRole('toolbar', { name: 'Stack navigation' })
+    vi.spyOn(card, 'getBoundingClientRect').mockReturnValue({ left: 8, width: 216, bottom: 200 } as DOMRect)
+    vi.spyOn(shelf, 'getBoundingClientRect').mockReturnValue({ width: 296 } as DOMRect)
+
+    fireEvent.pointerEnter(card)
+
+    expect(shelf.style.getPropertyValue('--stack-shelf-shift')).toBe('40px')
   })
 
   it('pages on a 40px swipe and suppresses the release click', () => {
@@ -135,13 +195,13 @@ describe('StackCard', () => {
 
   it('uses Left and Right only when the stack card itself holds focus', () => {
     const { card, onStep } = setup()
-    card.focus()
+    fireEvent.focus(card)
     fireEvent.keyDown(card, { key: 'ArrowLeft' })
     fireEvent.keyDown(card, { key: 'ArrowRight' })
     expect(onStep.mock.calls.map(([direction]) => direction)).toEqual([-1, 1])
 
     const child = within(card).getByRole('button', { name: 'Open weather' })
-    child.focus()
+    fireEvent.focus(child)
     fireEvent.keyDown(child, { key: 'ArrowRight' })
     expect(onStep).toHaveBeenCalledTimes(2)
   })
@@ -217,9 +277,8 @@ describe('StackCard', () => {
     expect(indexCss).toMatch(/\.stack-card__members\s*\{[^}]*display:\s*grid;[^}]*place-items:\s*center;/)
     expect(indexCss).toMatch(/\.stack-card__member\s*\{[^}]*grid-area:\s*1\s*\/\s*1;/)
     expect(indexCss).toMatch(/\.stack-card__member\[data-stack-active="false"\]\s*\{[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/)
-    expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*position:\s*absolute;/)
-    expect(indexCss).toMatch(/\.stack-card__dots\s*\{[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
-    expect(indexCss).toMatch(/\.stack-card__dots--editing\s*\{[^}]*opacity:\s*1;/)
+    expect(indexCss).toMatch(/\.stack-card__shelf\s*\{[^}]*position:\s*absolute;[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
+    expect(indexCss).toMatch(/\.stack-card__shelf--editing\s*\{[^}]*opacity:\s*0\.96;[^}]*visibility:\s*visible;[^}]*pointer-events:\s*auto;/s)
     expect(indexCss).toMatch(/\.stack-card:focus-visible\s*\{[^}]*outline:/)
     const outer = indexCss.match(/\.stack-card\s*\{[^}]*\}/)?.[0] ?? ''
     expect(outer).not.toContain('background:')
@@ -227,15 +286,15 @@ describe('StackCard', () => {
     expect(indexCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*\.stack-card/s)
   })
 
-  it('keeps paging arrows hidden and non-interactive until the stack is hovered or focused', () => {
-    expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
-    expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__arrow,\s*\.stack-card:focus-within \.stack-card__arrow\s*\{[^}]*opacity:\s*0\.9;[^}]*visibility:\s*visible;[^}]*pointer-events:\s*auto;/s)
+  it('keeps the navigation shelf hidden and non-interactive until the stack is hovered or focused', () => {
+    expect(indexCss).toMatch(/\.stack-card__shelf\s*\{[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
+    expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__shelf,\s*\.stack-card:focus-within \.stack-card__shelf,[\s\S]*?opacity:\s*0\.96;[^}]*visibility:\s*visible;[^}]*pointer-events:\s*auto;/s)
   })
 
   it('gives arrows and dots 36px targets while keeping their visible marks quiet', () => {
     expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
     expect(indexCss).toMatch(/\.stack-card__dot\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
-    expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__dots,[\s\S]*?pointer-events:\s*auto;/)
+    expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__shelf,[\s\S]*?pointer-events:\s*auto;/)
     expect(indexCss).toMatch(/\.stack-card__dot::before\s*\{[^}]*inset:\s*15px;/s)
   })
 

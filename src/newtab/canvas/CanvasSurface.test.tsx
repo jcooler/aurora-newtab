@@ -537,13 +537,14 @@ describe('CanvasSurface widget stacks', () => {
     // Clock, Quote, Sun, Moon, and Status deliberately let ordinary clicks
     // fall through their standalone readouts. A stack inherits the facing
     // id on its outer CanvasItem, so every such selector must exclude the
-    // stable stack object or it disables arrows and dots with it.
+    // stable stack object or it disables the navigation shelf with it.
     for (const id of ['clock', 'greeting', 'worldClocks', 'countdown', 'quote', 'sun', 'moon', 'status']) {
       expect(indexCss).toContain(`.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="${id}"]`)
     }
     expect(indexCss).toMatch(/\.stack-card\s*\{[^}]*padding:\s*0;/)
-    expect(indexCss).toMatch(/\.stack-card__arrow--next\s*\{\s*right:\s*6px;/)
-    expect(indexCss).toMatch(/\.stack-card__dots\s*\{[^}]*bottom:\s*4px;/)
+    expect(indexCss).toMatch(/\.stack-card__shelf\s*\{[^}]*z-index:\s*3;[^}]*top:\s*calc\(100% \+ 6px\);/s)
+    expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__shelf,[\s\S]*?pointer-events:\s*auto;/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-object-id\^="stack:"\]:hover,\s*\.canvas-item\[data-canvas-object-id\^="stack:"\]:focus-within\s*\{[^}]*z-index:\s*90\s*!important;/s)
   })
 })
 

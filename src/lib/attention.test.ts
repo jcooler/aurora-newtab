@@ -151,6 +151,22 @@ describe('attention signal collection', () => {
     })])
   })
 
+  it('separates a Calendar event name, relative status, and exact local start time for the hover panel', () => {
+    const localNow = new Date(2026, 7, 26, 10, 0, 0).getTime()
+    const start = new Date(2026, 7, 27, 7, 0, 0).getTime()
+    const [signal] = collectAttentionSignals(inputs({
+      now: localNow,
+      events: [{ summary: 'Kennedy’s first game', start, end: start + 60 * 60_000, allDay: false }],
+    }))
+
+    expect(signal).toEqual(expect.objectContaining({
+      title: 'Kennedy’s first game in 21h',
+      panelTitle: 'Kennedy’s first game',
+      status: 'In 21h',
+      detail: 'Starts tomorrow at 7:00 AM',
+    }))
+  })
+
   it('retains the rain threshold and 12/24-hour formatting', () => {
     const hourly = [
       { time: '2026-08-26T18:00', precipProb: 49 },

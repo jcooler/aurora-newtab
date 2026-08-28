@@ -23,10 +23,16 @@ export default function AttentionContextPanel({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const closeTimer = useRef<number | undefined>(undefined)
-  const pointerActivation = useRef<{ active: boolean; wasOpen: boolean }>({ active: false, wasOpen: false })
+  const pinnedRef = useRef(false)
   const returningFocus = useRef(false)
   const [open, setOpen] = useState(false)
+  const [pinned, setPinned] = useState(false)
   const [position, setPosition] = useState<PanelPosition>({ left: VIEWPORT_MARGIN, top: VIEWPORT_MARGIN })
+
+  const updatePinned = (next: boolean) => {
+    pinnedRef.current = next
+    setPinned(next)
+  }
 
   const cancelClose = () => {
     if (closeTimer.current !== undefined) {
@@ -37,6 +43,7 @@ export default function AttentionContextPanel({
 
   const scheduleClose = () => {
     cancelClose()
+    if (pinnedRef.current) return
     closeTimer.current = window.setTimeout(() => {
       closeTimer.current = undefined
       const active = document.activeElement
@@ -47,6 +54,7 @@ export default function AttentionContextPanel({
 
   const closeAndReturnFocus = () => {
     cancelClose()
+    updatePinned(false)
     setOpen(false)
     const trigger = triggerRef.current
     if (!trigger || document.activeElement === trigger) {
@@ -65,6 +73,7 @@ export default function AttentionContextPanel({
       const target = event.target as Node | null
       if (target && (triggerRef.current?.contains(target) || panelRef.current?.contains(target))) return
       cancelClose()
+      updatePinned(false)
       setOpen(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
@@ -132,13 +141,17 @@ export default function AttentionContextPanel({
     >
       <ul className="aurora-attention-panel__list">
         {signals.map((signal) => (
-          <li key={signal.key} className="aurora-attention-panel__row">
-            <span className="aurora-attention-panel__source">{signal.source}</span>
+          <li key={signal.key} data-attention-kind={signal.kind} className="aurora-attention-panel__row">
+            <div className="aurora-attention-panel__header">
+              <span className="aurora-attention-panel__source">{signal.source}</span>
+              {signal.status ? <span className="aurora-attention-panel__status">{signal.status}</span> : null}
+            </div>
             {signal.url ? (
               <a href={signal.url} target="_blank" rel="noreferrer" className="aurora-attention-panel__title">
-                {signal.title}
+                <span>{signal.panelTitle ?? signal.title}</span>
+                <span data-attention-link-cue aria-hidden className="aurora-attention-panel__link-cue">↗</span>
               </a>
-            ) : <span className="aurora-attention-panel__title">{signal.title}</span>}
+            ) : <span className="aurora-attention-panel__title">{signal.panelTitle ?? signal.title}</span>}
             <span className="aurora-attention-panel__detail">{signal.detail}</span>
           </li>
         ))}
@@ -153,21 +166,16 @@ export default function AttentionContextPanel({
         ref={triggerRef}
         type="button"
         aria-expanded={open}
+        aria-pressed={pinned}
         aria-controls={open ? panelId : undefined}
         className="aurora-briefing__trigger"
         onMouseEnter={() => { cancelClose(); setOpen(true) }}
         onMouseLeave={scheduleClose}
-        onPointerDown={() => {
-          pointerActivation.current = { active: true, wasOpen: open }
-        }}
-        onPointerCancel={() => {
-          pointerActivation.current = { active: false, wasOpen: false }
-        }}
         onClick={() => {
           cancelClose()
-          const pointer = pointerActivation.current
-          setOpen(pointer.active ? !pointer.wasOpen : (current) => !current)
-          pointerActivation.current = { active: false, wasOpen: false }
+          const next = !pinnedRef.current
+          updatePinned(next)
+          setOpen(next)
         }}
         onFocus={() => {
           cancelClose()
@@ -175,7 +183,7 @@ export default function AttentionContextPanel({
             returningFocus.current = false
             return
           }
-          if (!pointerActivation.current.active) setOpen(true)
+          setOpen(true)
         }}
         onBlur={(event) => {
           if (event.relatedTarget instanceof Node && panelRef.current?.contains(event.relatedTarget)) return
@@ -193,7 +201,9 @@ export default function AttentionContextPanel({
           if (event.key !== 'Enter' && event.key !== ' ') return
           event.preventDefault()
           cancelClose()
-          setOpen((current) => !current)
+          const next = !pinnedRef.current
+          updatePinned(next)
+          setOpen(next)
         }}
       >
         {summary}

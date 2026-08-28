@@ -187,6 +187,36 @@ try {
   const before = await rectOf(stack)
   assert(Math.abs(before.left - 8) <= 1, `stack left edge is ${before.left}, expected 8`)
 
+  const stackCard = stack.locator('[data-stack-card="stack-polish"]')
+  const stackShelf = stackCard.getByRole('toolbar', { name: 'Stack navigation' })
+  const stackCardBox = await stackCard.boundingBox()
+  assert(stackCardBox)
+  await page.mouse.move(stackCardBox.x + stackCardBox.width * 0.78, stackCardBox.y + stackCardBox.height - 1)
+  await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('[aria-label="Stack navigation"]')).opacity) > 0.9)
+  const stackShelfBox = await stackShelf.boundingBox()
+  const nextWidget = stackShelf.getByRole('button', { name: 'Next widget' })
+  const nextWidgetBox = await nextWidget.boundingBox()
+  assert(stackShelfBox && nextWidgetBox)
+  await page.mouse.move(
+    nextWidgetBox.x + nextWidgetBox.width / 2,
+    (stackCardBox.y + stackCardBox.height + stackShelfBox.y) / 2,
+    { steps: 4 },
+  )
+  const navigationGapState = await stackShelf.evaluate((node) => {
+    const style = getComputedStyle(node)
+    return { opacity: Number(style.opacity), visibility: style.visibility, pointerEvents: style.pointerEvents }
+  })
+  assert(
+    navigationGapState.opacity > 0.9 && navigationGapState.visibility === 'visible' && navigationGapState.pointerEvents === 'auto',
+    `stack navigation vanished while crossing its gap: ${JSON.stringify(navigationGapState)}`,
+  )
+  await page.mouse.move(nextWidgetBox.x + nextWidgetBox.width / 2, nextWidgetBox.y + nextWidgetBox.height / 2, { steps: 4 })
+  await page.mouse.down()
+  await page.mouse.up()
+  await page.waitForFunction(() => document.querySelector('[data-stack-card="stack-polish"]')?.getAttribute('aria-label')?.startsWith('Tasks,'))
+  await stackShelf.getByRole('button', { name: 'Previous widget' }).click()
+  await page.waitForFunction(() => document.querySelector('[data-stack-card="stack-polish"]')?.getAttribute('aria-label')?.startsWith('Notes,'))
+
   await page.keyboard.press('Control+Shift+E')
   await stack.click()
   const inspector = page.getByRole('dialog', { name: 'Notes +1 inspector' })
@@ -243,6 +273,7 @@ try {
     reorderViewport: { width: 1600, height: 900 },
     shortViewport: { width: 1408, height: 445 },
     before,
+    navigationGapState,
     shortRect,
     order,
     arrowOrder,
