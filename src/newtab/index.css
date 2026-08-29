@@ -350,15 +350,6 @@
   .tier-frame { transition: none; }
 }
 
-/* The Settings Drawer already composites --panel-solid over the active
-   background. Repainting that translucent token on its sticky child blends
-   the same color twice and produces the unrelated dark slab seen in the
-   withdrawn candidate. Preserve the configured panel hue while stripping
-   only its alpha so scrolling content cannot show through the sticky header. */
-.settings-sticky-surface {
-  background: rgb(from var(--panel-solid) r g b / 1);
-}
-
 .aurora-canvas {
   position: relative;
   min-height: 100vh;

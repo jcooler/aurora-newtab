@@ -149,6 +149,7 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
     categoryLabels: [],
     searchLabels: [],
     focusRestored: false,
+    stickySurface: null,
     rssWrite: null,
     visibilityRoundTrip: null,
     result: 'FAIL',
@@ -204,6 +205,24 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
     await page.getByRole('tab', { name: 'Connectors' }).click()
     await page.getByRole('heading', { name: 'Bring your day together.' }).waitFor()
     await page.waitForTimeout(350)
+
+    evidence.stickySurface = await page.getByLabel('Search connectors').locator('..').evaluate((surface) => {
+      const style = getComputedStyle(surface)
+      return {
+        backgroundColor: style.backgroundColor,
+        backdropFilter: style.backdropFilter,
+      }
+    })
+    assert.match(
+      evidence.stickySurface.backgroundColor,
+      /^(?:transparent|rgba\(0,\s*0,\s*0,\s*0\))$/,
+      'connector sticky header repainted the drawer as an opaque slab',
+    )
+    assert.notEqual(
+      evidence.stickySurface.backdropFilter,
+      'none',
+      'connector sticky header lost its glass blur while remaining sticky',
+    )
 
     assert.match(await page.getByTestId('connector-scroll').locator('p').first().innerText(), /^\d+ connected$/i)
     evidence.desktop = await assertSettingsGeometry(page, '1600x900')

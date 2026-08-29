@@ -333,15 +333,16 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(name.parentElement?.className).toContain('max-[420px]:items-stretch')
   })
 
-  it('keeps the Connectors sticky search inverse to ordinary and narrow Drawer padding', async () => {
+  it('keeps the Connectors sticky header translucent while matching ordinary and narrow Drawer padding', async () => {
     await renderPanel()
     openTab('Connectors')
     const sticky = screen.getByLabelText('Search connectors').parentElement
     expect(sticky?.className).toContain('-top-6')
     expect(sticky?.className).toContain('max-[420px]:-top-3')
-    expect(sticky?.className).toContain('settings-sticky-surface')
+    expect(sticky?.className).toContain('bg-transparent')
+    expect(sticky?.className).toContain('backdrop-blur-2xl')
     expect(sticky?.className).not.toContain('bg-panel-solid')
-    expect(indexCss).toMatch(/\.settings-sticky-surface\s*\{[\s\S]*?rgb\(from var\(--panel-solid\) r g b \/ 1\)/)
+    expect(indexCss).not.toContain('.settings-sticky-surface')
   })
 
   it('opens on General, showing its own sections and nothing from the other tabs', async () => {

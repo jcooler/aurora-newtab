@@ -402,7 +402,7 @@ export default function Connectors({
 
   return (
     <section aria-label="Connectors" className="py-4 first:pt-0 last:pb-0">
-      <div className="settings-sticky-surface sticky -top-6 z-10 pb-3 max-[420px]:-top-3">
+      <div className="sticky -top-6 z-10 bg-transparent pb-3 backdrop-blur-2xl max-[420px]:-top-3">
         <h3 className={eyebrow}>Connectors</h3>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
           Bring your day together.
