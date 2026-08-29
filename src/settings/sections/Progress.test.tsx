@@ -208,6 +208,7 @@ describe('Progress manual goal mutations', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
     })
     expect(await storage.get('progressGoals')).toEqual([])
+    await waitFor(() => expect(document.activeElement?.getAttribute('data-settings-anchor')).toBe('progress-overview'))
   })
 
   it('applies an old row action to the same-id cross-tab refresh without losing fresh order, target, or value', async () => {
@@ -241,6 +242,53 @@ describe('Progress manual goal mutations', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
     expect(await storage.get('progressGoals')).toEqual([])
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(document.activeElement?.getAttribute('data-settings-anchor')).toBe('progress-overview')
+  })
+
+  it('keeps failed Edit Save recovery inside the dialog and retries its intent against fresh storage', async () => {
+    const base = memoryDriver()
+    let rejectProgressWrite = false
+    const driver = {
+      ...base,
+      async write(patch: Record<string, unknown>) {
+        if (rejectProgressWrite && Object.hasOwn(patch, 'progressGoals')) {
+          rejectProgressWrite = false
+          throw new Error('quota')
+        }
+        await base.write(patch)
+      },
+    }
+    const { storage } = await renderProgress({ goals: [goal({})], suppliedDriver: driver })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Water' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Hydrate' } })
+    rejectProgressWrite = true
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    const dialog = screen.getByRole('dialog', { name: 'Edit progress' })
+    expect(within(dialog).getByText('Progress was not saved. Try again.')).toBeTruthy()
+    expect(screen.getAllByText('Progress was not saved. Try again.')).toHaveLength(1)
+    const retry = within(dialog).getByRole('button', { name: 'Retry' })
+    retry.focus()
+    expect(document.activeElement).toBe(retry)
+
+    await act(async () => {
+      await storage.set('progressGoals', [
+        goal({ id: 'read', name: 'Read', unit: 'pages', target: 20, today: { date: TODAY, value: 9 } }),
+        goal({ today: { date: TODAY, value: 6 } }),
+      ])
+    })
+    await act(async () => {
+      fireEvent.click(retry)
+    })
+
+    const stored = await storage.get('progressGoals')
+    expect(stored.map((item) => item.id)).toEqual(['read', 'water'])
+    expect(stored[1]).toEqual(goal({ name: 'Hydrate', today: { date: TODAY, value: 6 } }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
   it('keeps the stored value visible after failure and retries the intent against fresh storage', async () => {

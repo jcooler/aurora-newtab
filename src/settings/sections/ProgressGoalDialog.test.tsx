@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRef, useState } from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ProgressIntent } from '../../lib/progress'
@@ -22,8 +22,10 @@ function DialogHarness({ goal = null, onIntent = async () => true }: {
 }) {
   const [open, setOpen] = useState(false)
   const invokerRef = createRef<HTMLButtonElement>()
+  const fallbackFocusRef = createRef<HTMLDivElement>()
   return (
     <>
+      <div ref={fallbackFocusRef} tabIndex={-1}>Progress overview</div>
       <button ref={invokerRef} type="button" onClick={() => setOpen(true)}>
         {goal ? 'Edit Water' : 'Add progress'}
       </button>
@@ -32,6 +34,7 @@ function DialogHarness({ goal = null, onIntent = async () => true }: {
         kind={goal ? 'edit' : 'add'}
         goal={goal}
         invokerRef={invokerRef}
+        fallbackFocusRef={fallbackFocusRef}
         onClose={() => setOpen(false)}
         onIntent={onIntent}
       />
@@ -114,16 +117,69 @@ describe('ProgressGoalDialog focus and close behavior', () => {
     })
     await waitFor(() => expect(document.activeElement).toBe(invoker))
   })
+
+  it('keeps the exact failed Save intent and exposes its Retry inside the dialog', async () => {
+    const onIntent = vi.fn<(_: ProgressIntent) => Promise<boolean>>()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    render(<DialogHarness goal={SAVED_GOAL} onIntent={onIntent} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Water' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Hydrate' } })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    const dialog = screen.getByRole('dialog', { name: 'Edit progress' })
+    expect(within(dialog).getByText('Progress was not saved. Try again.')).toBeTruthy()
+    const retry = within(dialog).getByRole('button', { name: 'Retry' })
+    retry.focus()
+    expect(document.activeElement).toBe(retry)
+    const failedIntent = onIntent.mock.calls[0]![0]
+
+    await act(async () => {
+      fireEvent.click(retry)
+    })
+
+    expect(onIntent.mock.calls[1]![0]).toBe(failedIntent)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('does not let a delayed Save completion close a newly opened dialog session', async () => {
+    let finishSave: ((saved: boolean) => void) | undefined
+    const onIntent = vi.fn(() => new Promise<boolean>((resolve) => {
+      finishSave = resolve
+    }))
+    render(<DialogHarness goal={SAVED_GOAL} onIntent={onIntent} />)
+    const invoker = screen.getByRole('button', { name: 'Edit Water' })
+    fireEvent.click(invoker)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Old session' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    fireEvent.click(invoker)
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('Water'))
+    await act(async () => {
+      finishSave?.(true)
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Edit progress' })).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('Water')
+  })
 })
 
 describe('ProgressGoalDialog edit-session state', () => {
   it('does not overwrite an in-progress edit when storage props refresh, but reseeds on the next open', async () => {
     const invokerRef = createRef<HTMLButtonElement>()
+    const fallbackFocusRef = createRef<HTMLDivElement>()
     const onIntent = vi.fn(async () => true)
     const view = render(
       <>
         <button ref={invokerRef}>Edit Water</button>
-        <ProgressGoalDialog open kind="edit" goal={SAVED_GOAL} invokerRef={invokerRef} onClose={() => undefined} onIntent={onIntent} />
+        <div ref={fallbackFocusRef} tabIndex={-1}>Progress overview</div>
+        <ProgressGoalDialog open kind="edit" goal={SAVED_GOAL} invokerRef={invokerRef} fallbackFocusRef={fallbackFocusRef} onClose={() => undefined} onIntent={onIntent} />
       </>,
     )
     const name = screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement
@@ -134,7 +190,8 @@ describe('ProgressGoalDialog edit-session state', () => {
     view.rerender(
       <>
         <button ref={invokerRef}>Edit Water</button>
-        <ProgressGoalDialog open kind="edit" goal={refreshed} invokerRef={invokerRef} onClose={() => undefined} onIntent={onIntent} />
+        <div ref={fallbackFocusRef} tabIndex={-1}>Progress overview</div>
+        <ProgressGoalDialog open kind="edit" goal={refreshed} invokerRef={invokerRef} fallbackFocusRef={fallbackFocusRef} onClose={() => undefined} onIntent={onIntent} />
       </>,
     )
     expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('Draft name')
@@ -142,13 +199,15 @@ describe('ProgressGoalDialog edit-session state', () => {
     view.rerender(
       <>
         <button ref={invokerRef}>Edit Water</button>
-        <ProgressGoalDialog open={false} kind="edit" goal={refreshed} invokerRef={invokerRef} onClose={() => undefined} onIntent={onIntent} />
+        <div ref={fallbackFocusRef} tabIndex={-1}>Progress overview</div>
+        <ProgressGoalDialog open={false} kind="edit" goal={refreshed} invokerRef={invokerRef} fallbackFocusRef={fallbackFocusRef} onClose={() => undefined} onIntent={onIntent} />
       </>,
     )
     view.rerender(
       <>
         <button ref={invokerRef}>Edit Water</button>
-        <ProgressGoalDialog open kind="edit" goal={refreshed} invokerRef={invokerRef} onClose={() => undefined} onIntent={onIntent} />
+        <div ref={fallbackFocusRef} tabIndex={-1}>Progress overview</div>
+        <ProgressGoalDialog open kind="edit" goal={refreshed} invokerRef={invokerRef} fallbackFocusRef={fallbackFocusRef} onClose={() => undefined} onIntent={onIntent} />
       </>,
     )
     await waitFor(() => expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('Fresh storage name'))

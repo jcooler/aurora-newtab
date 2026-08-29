@@ -15,6 +15,7 @@ export default function ProgressGoalDialog({
   kind,
   goal,
   invokerRef,
+  fallbackFocusRef,
   onClose,
   onIntent,
   canMoveUp = false,
@@ -24,6 +25,7 @@ export default function ProgressGoalDialog({
   kind: 'add' | 'edit'
   goal: ProgressGoal | null
   invokerRef: RefObject<HTMLButtonElement | null>
+  fallbackFocusRef: RefObject<HTMLElement | null>
   onClose: () => void
   onIntent: (intent: ProgressIntent) => Promise<boolean>
   canMoveUp?: boolean
@@ -31,6 +33,7 @@ export default function ProgressGoalDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousOpen = useRef(false)
+  const sessionRef = useRef(0)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [target, setTarget] = useState('1')
@@ -38,6 +41,7 @@ export default function ProgressGoalDialog({
   const [error, setError] = useState<string | null>(null)
   const [deleteArmed, setDeleteArmed] = useState(false)
   const [pending, setPending] = useState(false)
+  const [failedIntent, setFailedIntent] = useState<ProgressIntent | null>(null)
 
   useFocusTrap(dialogRef, open)
   useDialogEscape(() => onClose(), open)
@@ -45,6 +49,7 @@ export default function ProgressGoalDialog({
   useEffect(() => {
     const wasOpen = previousOpen.current
     if (open && !wasOpen) {
+      sessionRef.current += 1
       setEditingId(kind === 'edit' ? goal?.id ?? null : null)
       setName(kind === 'edit' ? goal?.name ?? '' : '')
       setTarget(String(kind === 'edit' ? goal?.target ?? 1 : 1))
@@ -52,20 +57,30 @@ export default function ProgressGoalDialog({
       setError(null)
       setDeleteArmed(false)
       setPending(false)
+      setFailedIntent(null)
     } else if (!open && wasOpen) {
+      sessionRef.current += 1
       const invoker = invokerRef.current
       queueMicrotask(() => {
-        if (invoker?.isConnected) invoker.focus()
+        const focusTarget = invoker?.isConnected ? invoker : fallbackFocusRef.current
+        if (focusTarget?.isConnected) focusTarget.focus()
       })
     }
     previousOpen.current = open
-  }, [goal, invokerRef, kind, open])
+  }, [fallbackFocusRef, goal, invokerRef, kind, open])
 
   async function execute(intent: ProgressIntent, closeOnSuccess = true) {
+    const session = sessionRef.current
     setPending(true)
+    setFailedIntent(null)
     const saved = await onIntent(intent)
+    if (session !== sessionRef.current) return
     setPending(false)
-    if (saved && closeOnSuccess) onClose()
+    if (!saved) {
+      setFailedIntent(intent)
+      return
+    }
+    if (closeOnSuccess) onClose()
   }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
@@ -130,6 +145,13 @@ export default function ProgressGoalDialog({
           </div>
 
           {error ? <p role="alert" className="text-xs text-red-400">{error}</p> : null}
+
+          {failedIntent ? (
+            <div aria-live="polite" className="text-xs text-fg-muted">
+              <span>Progress was not saved. Try again.</span>{' '}
+              <button type="button" disabled={pending} onClick={() => void execute(failedIntent)} className="min-h-9 cursor-pointer font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent">Retry</button>
+            </div>
+          ) : null}
 
           {kind === 'edit' && editingId ? (
             <div className="flex flex-wrap gap-2 border-t border-hairline pt-4">

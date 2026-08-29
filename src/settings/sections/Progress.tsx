@@ -25,17 +25,18 @@ export default function Progress({ goals, habits, storage, onManageHabits }: {
   const [dialog, setDialog] = useState<OpenDialog | null>(null)
   const [failedMutation, setFailedMutation] = useState<FailedMutation | null>(null)
   const dialogInvokerRef = useRef<HTMLButtonElement>(null)
+  const overviewRef = useRef<HTMLDivElement>(null)
   const empty = manualGoals.length === 0 && habitRows.length === 0
   const editingIndex = dialog?.kind === 'edit' ? manualGoals.findIndex((goal) => goal.id === dialog.id) : -1
   const editingGoal = editingIndex >= 0 ? manualGoals[editingIndex]! : null
 
-  async function applyManualIntent(intent: ProgressIntent): Promise<boolean> {
+  async function applyManualIntent(intent: ProgressIntent, reportInOverview = true): Promise<boolean> {
     try {
       await storage.update('progressGoals', (freshGoals) => applyProgressIntent(freshGoals, intent, readLocalDay().key))
       setFailedMutation(null)
       return true
     } catch {
-      setFailedMutation({ authority: 'progress', intent })
+      if (reportInOverview) setFailedMutation({ authority: 'progress', intent })
       return false
     }
   }
@@ -67,7 +68,7 @@ export default function Progress({ goals, habits, storage, onManageHabits }: {
 
   return (
     <Section title="Progress">
-      <div data-settings-anchor="progress-overview" tabIndex={-1}>
+      <div ref={overviewRef} data-settings-anchor="progress-overview" tabIndex={-1}>
         <h2 className="font-display text-2xl font-medium tracking-[-0.025em] text-fg">Keep what matters moving.</h2>
         <p className="mt-1 max-w-[34rem] text-sm leading-relaxed text-fg-muted">Use light reminders for personal goals. Progress never becomes an attention alert.</p>
 
@@ -138,8 +139,9 @@ export default function Progress({ goals, habits, storage, onManageHabits }: {
         kind={dialog?.kind ?? 'add'}
         goal={editingGoal}
         invokerRef={dialogInvokerRef}
+        fallbackFocusRef={overviewRef}
         onClose={() => setDialog(null)}
-        onIntent={applyManualIntent}
+        onIntent={(intent) => applyManualIntent(intent, false)}
         canMoveUp={editingIndex > 0}
         canMoveDown={editingIndex >= 0 && editingIndex < manualGoals.length - 1}
       />
