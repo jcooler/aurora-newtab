@@ -109,6 +109,58 @@ async function assertSettingsGeometry(page, label) {
   return geometry
 }
 
+async function measureSettingsOpening(page) {
+  return page.evaluate(async () => {
+    const drawer = document.querySelector('[role="dialog"][aria-label="Settings"]')
+    const trigger = document.querySelector('.settings-gear')
+    if (!(drawer instanceof HTMLElement)) throw new Error('Settings drawer is missing')
+    if (!(trigger instanceof HTMLButtonElement)) throw new Error('Settings trigger is missing')
+
+    const closedStyle = getComputedStyle(drawer)
+    const closedRect = drawer.getBoundingClientRect()
+    const closed = {
+      ariaHidden: drawer.getAttribute('aria-hidden'),
+      inert: drawer.hasAttribute('inert'),
+      pointerEvents: closedStyle.pointerEvents,
+      visibility: closedStyle.visibility,
+      translate: closedStyle.translate,
+      willChange: closedStyle.willChange,
+      rect: {
+        left: closedRect.left,
+        right: closedRect.right,
+        width: closedRect.width,
+      },
+      viewportWidth: document.documentElement.clientWidth,
+    }
+
+    const frames = []
+    let previous = performance.now()
+    trigger.click()
+    await new Promise((resolveDone) => {
+      const started = performance.now()
+      const sample = (now) => {
+        frames.push({
+          elapsed: now - started,
+          delta: now - previous,
+          translate: getComputedStyle(drawer).translate,
+        })
+        previous = now
+        if (now - started < 380) requestAnimationFrame(sample)
+        else resolveDone()
+      }
+      requestAnimationFrame(sample)
+    })
+
+    const firstMoving = frames.find((frame) => frame.translate !== closed.translate)
+    return {
+      closed,
+      frameCount: frames.length,
+      maxFrameDelta: Math.max(...frames.map((frame) => frame.delta)),
+      firstMovingAt: firstMoving?.elapsed ?? null,
+    }
+  })
+}
+
 async function readRssConfig(page) {
   return page.evaluate(async () => (await chrome.storage.local.get('connectors')).connectors.rss)
 }
@@ -150,6 +202,7 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
     searchLabels: [],
     focusRestored: false,
     stickySurface: null,
+    settingsOpenMotion: null,
     rssWrite: null,
     visibilityRoundTrip: null,
     result: 'FAIL',
@@ -200,7 +253,21 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
     assert(evidence.photo.naturalWidth >= 2560, `background photo is not full-resolution: ${JSON.stringify(evidence.photo)}`)
     assert(!/preview|data:image/i.test(evidence.photo.src ?? ''), 'background photo used a preview or placeholder as its main image')
 
-    await page.getByRole('button', { name: 'Open settings' }).click()
+    evidence.settingsOpenMotion = await measureSettingsOpening(page)
+    assert.equal(evidence.settingsOpenMotion.closed.ariaHidden, 'true', 'closed Settings lost aria-hidden')
+    assert.equal(evidence.settingsOpenMotion.closed.inert, true, 'closed Settings lost inert')
+    assert.equal(evidence.settingsOpenMotion.closed.pointerEvents, 'none', 'closed Settings can still receive pointer hits')
+    assert.equal(evidence.settingsOpenMotion.closed.visibility, 'visible', 'closed Settings was not prepainted')
+    assert.match(evidence.settingsOpenMotion.closed.willChange, /translate/, 'closed Settings lost its compositor hint')
+    assert(
+      evidence.settingsOpenMotion.closed.rect.left >= evidence.settingsOpenMotion.closed.viewportWidth - 0.5,
+      'prepainted Settings leaked into the closed viewport',
+    )
+    assert.notEqual(evidence.settingsOpenMotion.firstMovingAt, null, 'Settings opening motion never began')
+    assert(
+      evidence.settingsOpenMotion.firstMovingAt <= 180,
+      `Settings opening motion started late: ${evidence.settingsOpenMotion.firstMovingAt}ms`,
+    )
     await page.getByRole('dialog', { name: 'Settings' }).waitFor()
     await page.getByRole('tab', { name: 'Connectors' }).click()
     await page.getByRole('heading', { name: 'Bring your day together.' }).waitFor()

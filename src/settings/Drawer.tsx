@@ -44,10 +44,10 @@ export default function Drawer({
         aria-hidden={open ? undefined : true}
         inert={!open} // off-screen drawer must not stay in the tab order
         data-settings-scroll-owner="document"
-        className={`fixed inset-0 z-50 w-full max-w-none overflow-y-auto overflow-x-hidden border-0 border-panel-border bg-panel-solid p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 motion-reduce:transition-none max-[420px]:p-3 min-[900px]:inset-y-4 min-[900px]:right-4 min-[900px]:left-auto min-[900px]:w-[calc(100vw-2rem)] min-[900px]:max-w-[60rem] min-[900px]:rounded-[1.5rem] min-[900px]:border ${
+        className={`fixed inset-0 z-50 w-full max-w-none overflow-y-auto overflow-x-hidden border-0 border-panel-border bg-panel-solid p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 will-change-[translate] motion-reduce:transition-none max-[420px]:p-3 min-[900px]:inset-y-4 min-[900px]:right-4 min-[900px]:left-auto min-[900px]:w-[calc(100vw-2rem)] min-[900px]:max-w-[60rem] min-[900px]:rounded-[1.5rem] min-[900px]:border ${
           open
             ? 'visible pointer-events-auto translate-x-0'
-            : 'invisible pointer-events-none translate-x-[calc(100%+1rem)]'
+            : 'pointer-events-none translate-x-[calc(100%+1rem)]'
         }`}
       >
         <div className="mb-5 flex items-center justify-between">

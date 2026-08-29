@@ -41,16 +41,17 @@ describe('Drawer responsive workspace', () => {
     expect(classes).toContain('min-w-9')
   })
 
-  it('paints and hits nothing when closed, including beyond the roomy inset', () => {
+  it('keeps the closed drawer prepainted beyond the viewport without exposing content or hit targets', () => {
     render(<Drawer open={false} onClose={() => {}} title="Settings"><button>Focusable content</button></Drawer>)
 
     const drawer = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Settings"]')!
     const classes = drawer.className.split(/\s+/)
     expect(drawer.getAttribute('aria-hidden')).toBe('true')
     expect(drawer.hasAttribute('inert')).toBe(true)
-    expect(classes).toContain('invisible')
+    expect(classes).not.toContain('invisible')
     expect(classes).toContain('pointer-events-none')
     expect(classes).toContain('translate-x-[calc(100%+1rem)]')
+    expect(classes).toContain('will-change-[translate]')
     expect(screen.queryByRole('button', { name: 'Focusable content' })).toBeNull()
     expect(document.querySelector('.fixed.inset-0.z-40')).toBeNull()
   })
