@@ -1,7 +1,7 @@
 # Tab Two V2 Progress Design
 
 **Date:** 2026-08-29<br>
-**Status:** Owner-approved direction, written specification awaiting review<br>
+**Status:** Owner-approved 2026-08-29<br>
 **Parent design:** `docs/superpowers/specs/2026-08-29-tab-two-v2-product-and-visual-design.md`<br>
 **Visual authority:** `mockups/tab-two-v2/index.html`, Progress view and resting-canvas rail
 
