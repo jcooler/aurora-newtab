@@ -1,5 +1,5 @@
 {
-  "commit": "df7ca1ddde90739094cf93d843797686b45e384f",
+  "commit": "e311711ea339c7cb9fbae3d3ec026afc81ae5463",
   "consoleErrors": [],
   "pageErrors": [],
   "externalRequests": [
@@ -79,6 +79,10 @@
     "GitHub"
   ],
   "focusRestored": true,
+  "stickySurface": {
+    "backgroundColor": "rgba(0, 0, 0, 0)",
+    "backdropFilter": "blur(40px)"
+  },
   "rssWrite": {
     "enabled": true,
     "feeds": [

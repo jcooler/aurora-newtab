@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-29<br>
 **Branch:** `feat/aurora-2-observatory`<br>
-**Exact QA commit:** `df7ca1ddde90739094cf93d843797686b45e384f`<br>
+**Exact QA commit:** `e311711ea339c7cb9fbae3d3ec026afc81ae5463`<br>
 **Result:** PASS
 
 ## Accepted scope
@@ -23,7 +23,7 @@ This is the first bounded production packet from the owner-approved Tab Two V2 v
 - `npx tsc --noEmit`: PASS.
 - `node --test scripts/qa-tab-two-v2-connectors.test.mjs`: PASS, 5 contracts.
 - `npm run build`: PASS, 265 transformed modules with exact provenance.
-- `npm run qa:tab-two-v2-connectors`: PASS against exact commit `df7ca1d`.
+- `npm run qa:tab-two-v2-connectors`: PASS against exact commit `e311711`.
 - `git diff --check`: PASS.
 
 The dedicated browser gate proved:
@@ -33,6 +33,7 @@ The dedicated browser gate proved:
 - Desktop and short-height galleries rendered two columns; narrow rendered one column.
 - Every viewport had one Settings vertical scroll owner and no page or Settings horizontal overflow.
 - Category filtering returned Calendar and Todoist; search still found GitHub across the full catalog.
+- The sticky connector header remained fully transparent with a 40px backdrop blur, eliminating the opaque black slab without losing scroll separation.
 - Calendar details stayed inside the viewport and Escape restored focus to the exact Edit Calendar action.
 - RSS headline count persisted as 7 without changing its two configured feeds.
 - RSS visibility persisted false, then true, without changing its feeds or count.
