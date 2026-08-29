@@ -43,6 +43,7 @@ const WIDGET_GROUPS: readonly WidgetGroup[] = [
       ['weather', 'Weather'],
       ['quote', 'Daily quote'],
       ['habits', 'Habits'],
+      ['progress', 'Progress'],
       ['monthCal', 'Month calendar'],
     ],
   },

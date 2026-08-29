@@ -267,7 +267,7 @@ async function renderPanel(
  *  so a test whose section moved off the default General tab clicks its tab
  *  first. Purely mechanical: nothing else about any pre-existing test below
  *  changed. */
-function openTab(name: 'General' | 'Widgets' | 'Connectors' | 'Data') {
+function openTab(name: 'General' | 'Progress' | 'Widgets' | 'Connectors' | 'Data') {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
 
@@ -350,6 +350,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
 
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'General',
+      'Progress',
       'Widgets',
       'Connectors',
       'Data',
@@ -374,6 +375,61 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(screen.queryByRole('region', { name: 'Connectors' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Data' })).toBeNull()
     expect(document.querySelector('footer')).toBeNull()
+  })
+
+  it('keeps Progress second when Connectors is unavailable', async () => {
+    vi.mocked(isPremium).mockReturnValue(false)
+    await renderPanel()
+
+    expect(screen.getAllByRole('tab').map((item) => item.textContent)).toEqual([
+      'General', 'Progress', 'Widgets', 'Data',
+    ])
+    vi.mocked(isPremium).mockReturnValue(true)
+  })
+
+  it('routes Manage habits to the existing Widgets authority and focuses its exact anchor', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('habits', [{ id: 'walk', name: 'Walk', createdAt: 10, log: [] }])
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    await renderPanel(storage)
+    openTab('Progress')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage habits' }))
+
+    await waitFor(() => {
+      expect(attr(screen.getByRole('tab', { name: 'Widgets' }), 'aria-selected')).toBe('true')
+      expect(document.activeElement?.getAttribute('data-settings-anchor')).toBe('habits')
+    })
+    expect(scrollIntoView).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('region', { name: 'Progress' })).toBeNull()
+  })
+
+  it('enables the Progress widget through Settings only without creating a layout placement', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    const originalLayout = await storage.get('layout')
+    const write = vi.spyOn(driver, 'write')
+    await renderPanel(storage)
+    await openWidgetsTabAndWaitForLayout(storage)
+    write.mockClear()
+
+    const personal = screen.getByRole('region', { name: 'Personal' })
+    const progress = within(personal).getByRole('switch', { name: 'Progress' })
+    expect(attr(progress, 'aria-checked')).toBe('false')
+    await act(async () => {
+      fireEvent.click(progress)
+    })
+
+    expect((await storage.get('settings')).widgets.progress).toBe(true)
+    expect(await storage.get('layout')).toEqual(originalLayout)
+    expect(await storage.get('layouts')).toBeNull()
+    expect(write.mock.calls.map(([patch]) => Object.keys(patch))).toEqual([['settings']])
   })
 
   it('the Connectors tab holds the connector cards and nothing from the other tabs', async () => {
@@ -410,8 +466,8 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     for (const name of ['Search', 'Bookmarks', 'Quick links', 'Focus timer', 'Tasks', 'Notes']) {
       expect(core.getByRole('switch', { name })).toBeTruthy()
     }
-    expect(personal.getAllByRole('switch')).toHaveLength(4)
-    for (const name of ['Weather', 'Daily quote', 'Habits', 'Month calendar']) {
+    expect(personal.getAllByRole('switch')).toHaveLength(5)
+    for (const name of ['Weather', 'Daily quote', 'Habits', 'Progress', 'Month calendar']) {
       expect(personal.getByRole('switch', { name })).toBeTruthy()
     }
     expect(timeAndSky.getAllByRole('switch')).toHaveLength(4)
@@ -3881,7 +3937,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     try {
       await renderPanel()
       expect(screen.queryByRole('tab', { name: 'Connectors' })).toBeNull()
-      expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['General', 'Widgets', 'Data'])
+      expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['General', 'Progress', 'Widgets', 'Data'])
       expect(screen.queryByRole('region', { name: 'Connectors' })).toBeNull()
     } finally {
       vi.mocked(isPremium).mockReturnValue(true)

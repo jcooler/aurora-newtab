@@ -38,11 +38,11 @@ describe('widget toggle introduction versions', () => {
     expect(WIDGET_TOGGLE_INTRO_VERSIONS).toEqual(EXPECTED_INTRO_VERSIONS)
   })
 
-  it('keeps the ledger and defaults in exact parity while future toggles remain available to Settings', () => {
+  it('keeps the ledger, defaults, and current Settings controls in exact parity', () => {
     const expected = sorted(Object.keys(EXPECTED_INTRO_VERSIONS))
     expect(sorted(Object.keys(WIDGET_TOGGLE_INTRO_VERSIONS))).toEqual(expected)
     expect(sorted(Object.keys(defaults().settings.widgets))).toEqual(expected)
-    expect(sorted(WIDGET_CONTROL_KEYS)).toEqual(expected.filter((key) => key !== 'progress'))
+    expect(sorted(WIDGET_CONTROL_KEYS)).toEqual(expected)
   })
 
   it('pins the literal original keys to version 1 and current boolean defaults', () => {

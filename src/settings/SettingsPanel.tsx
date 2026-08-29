@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { useStorage } from '../lib/storage/context'
 import { useUploads } from '../lib/hooks/useUploads'
@@ -11,13 +11,14 @@ import Data from './sections/Data'
 import Layout from './sections/Layout'
 import About from './sections/About'
 import Connectors from './sections/Connectors'
+import Progress from './sections/Progress'
 import Tabs from './Tabs'
 import { isPremium } from '../lib/premium'
 import PermissionCleanupAlert from './PermissionCleanupAlert'
 import { usePermissionCleanup } from './usePermissionCleanup'
 import { calendarPreferenceFor } from '../lib/layout/calendarConsolidation'
 
-type TabId = 'general' | 'widgets' | 'connectors' | 'data'
+type TabId = 'general' | 'progress' | 'widgets' | 'connectors' | 'data'
 
 // Tabs in reading order. Connectors sits between Widgets and Data — but only
 // when premium: it is gated on isPremium() and, per the no-placeholder rule,
@@ -27,6 +28,7 @@ type TabId = 'general' | 'widgets' | 'connectors' | 'data'
 function tabsFor(premium: boolean): readonly { id: TabId; label: string }[] {
   return [
     { id: 'general', label: 'General' },
+    { id: 'progress', label: 'Progress' },
     { id: 'widgets', label: 'Widgets' },
     ...(premium ? ([{ id: 'connectors', label: 'Connectors' }] as const) : []),
     { id: 'data', label: 'Data' },
@@ -48,7 +50,7 @@ export default function SettingsPanel({
   /** Deep link from a widget's gear (named-layouts spec 2.5): on nonce
    *  change, activate the tab and move focus to the matching
    *  [data-settings-anchor] element. */
-  focusAnchor?: { tab: 'widgets' | 'connectors'; anchor: string; nonce: number } | null
+  focusAnchor?: { tab: 'progress' | 'widgets' | 'connectors'; anchor: string; nonce: number } | null
   /** The resolved named-layouts document (App owns resolution); the Layout
    *  section's management list operates on it (spec 2.1). */
   layoutsDocument?: LayoutsDocument | null
@@ -67,21 +69,15 @@ export default function SettingsPanel({
   const openRef = useRef(open)
   openRef.current = open
 
-  useEffect(() => {
-    if (!focusAnchor) return
-    setTab(focusAnchor.tab === 'connectors' && isPremium() ? 'connectors' : 'widgets')
-    // The tab's sections mount on the next render, and the Drawer runs its
-    // own focus management when it opens — retry briefly so the anchor
-    // focus lands AFTER both, not in a race with them.
+  const focusSettingsTarget = useCallback((targetTab: TabId, anchor: string) => {
+    const resolvedTab = targetTab === 'connectors' && !isPremium() ? 'widgets' : targetTab
+    setTab(resolvedTab)
     let cancelled = false
     const attempt = (remaining: number) => {
-      // Never steal focus after the drawer closed mid-retry (review fix M8).
       if (cancelled || !openRef.current) return
-      const target = document.querySelector<HTMLElement>(
-        `[data-settings-anchor="${focusAnchor.anchor}"]`,
-      )
+      const target = document.querySelector<HTMLElement>(`[data-settings-anchor="${anchor}"]`)
       if (target) {
-        target.scrollIntoView({ block: 'center' })
+        target.scrollIntoView?.({ block: 'center' })
         target.focus()
         if (document.activeElement === target || remaining <= 0) return
       }
@@ -92,13 +88,19 @@ export default function SettingsPanel({
       cancelled = true
       cancelAnimationFrame(frame)
     }
-  }, [focusAnchor])
+  }, [])
+
+  useEffect(() => {
+    if (!focusAnchor) return
+    return focusSettingsTarget(focusAnchor.tab, focusAnchor.anchor)
+  }, [focusAnchor, focusSettingsTarget])
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs] = useStoredKey('photoPrefs')
   const [location] = useStoredKey('location')
   const [worldClocks] = useStoredKey('worldClocks')
   const [countdowns] = useStoredKey('countdowns')
   const [habits] = useStoredKey('habits')
+  const [progressGoals] = useStoredKey('progressGoals')
   const [connectors] = useStoredKey('connectors')
   const [calendarWeekStart, saveCalendarWeekStart] = useStoredKey('calendarWeekStart')
   const [calendarPreferences] = useStoredKey('calendarPreferences')
@@ -189,6 +191,17 @@ export default function SettingsPanel({
 
           <Layout storage={storage} open={open} layoutsDocument={layoutsDocument} />
         </>
+      )}
+
+      {tab === 'progress' && (
+        <Progress
+          goals={progressGoals}
+          habits={habits}
+          storage={storage}
+          onManageHabits={() => {
+            focusSettingsTarget('widgets', 'habits')
+          }}
+        />
       )}
 
       {tab === 'connectors' && premium && (
