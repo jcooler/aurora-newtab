@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, LinearConfig, RssConfig, SentryConfig, StatusConfig, StatusService, TodoistConfig, VercelConfig, VercelViews } from '../../services/connectors/types'
+import type { ConnectorCategory, ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, LinearConfig, RssConfig, SentryConfig, StatusConfig, StatusService, TodoistConfig, VercelConfig, VercelViews } from '../../services/connectors/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../services/connectors/types'
 import { CONNECTORS, getConnector } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
@@ -42,6 +42,7 @@ import ToggleChip from '../ToggleChip'
 import { btnQuiet, control, eyebrow, label, row, select, submitBtn } from './shared'
 import ConnectorCardShell from '../connectors/ConnectorCardShell'
 import ConnectorPrivacyDisclosure from '../connectors/ConnectorPrivacyDisclosure'
+import { connectorExperience } from '../connectors/connectorExperience'
 import {
   deriveConnectorCardState,
   type ConnectorCardMode,
@@ -288,6 +289,7 @@ export default function Connectors({
   reportPendingCleanup(patterns: readonly string[]): void
 }) {
   const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<ConnectorCategory | 'all'>('all')
   const [editor, setEditor] = useState<{
     id: ConnectorId
     mode: ConnectorCardMode
@@ -337,11 +339,36 @@ export default function Connectors({
   // memo: seven descriptors is nothing, and staleness bugs cost more than
   // the map does.
   const results = q
-    ? CONNECTORS.map((d, i) => ({ d, i, score: fuzzyScore(q, `${d.label} ${d.blurb}`) }))
+    ? CONNECTORS.map((d, i) => {
+        const experience = connectorExperience(d)
+        const metadata = `${d.blurb} ${experience.outcome} ${experience.categoryLabel}`
+        const labelScore = fuzzyScore(q, d.label)
+        const metadataScore = metadata.toLocaleLowerCase().includes(q.toLocaleLowerCase())
+          ? fuzzyScore(q, metadata)
+          : null
+        return {
+          d,
+          i,
+          score: labelScore === null
+            ? metadataScore
+            : metadataScore === null
+              ? labelScore
+              : Math.max(labelScore, metadataScore),
+        }
+      })
         .filter((r): r is { d: ConnectorDescriptor; i: number; score: number } => r.score !== null)
         .sort((a, b) => b.score - a.score || a.i - b.i)
         .map((r) => r.d)
     : null
+  const categoryResults = !q && category !== 'all'
+    ? CONNECTORS.filter((descriptor) => descriptor.category === category)
+    : null
+  const categories = CATEGORY_ORDER.filter((candidate) =>
+    CONNECTORS.some((descriptor) => descriptor.category === candidate),
+  )
+  const connectedCount = CONNECTORS.filter(
+    (descriptor) => presentation(descriptor).configured,
+  ).length
   const onCanvas = q
     ? []
     : CONNECTORS.filter(
@@ -371,11 +398,18 @@ export default function Connectors({
       onClose={() => closeEditor(d.id)}
     />
   )
+  const galleryClass = 'grid gap-2 min-[760px]:grid-cols-2'
 
   return (
     <section aria-label="Connectors" className="py-4 first:pt-0 last:pb-0">
       <div className="settings-sticky-surface sticky -top-6 z-10 pb-3 max-[420px]:-top-3">
         <h3 className={eyebrow}>Connectors</h3>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
+          Bring your day together.
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-muted">
+          Connect the services you already use, then choose what earns a place on your canvas.
+        </p>
         <ConnectorPrivacyDisclosure />
         <label htmlFor="connector-search" className="sr-only">
           Search connectors
@@ -392,21 +426,73 @@ export default function Connectors({
           }}
           className={`${control} mt-2 w-full`}
         />
+        <div
+          role="group"
+          aria-label="Connector categories"
+          className="mt-3 flex flex-wrap gap-2"
+        >
+          <button
+            type="button"
+            aria-pressed={category === 'all'}
+            onClick={() => {
+              pendingFocusId.current = null
+              setEditor(null)
+              setCategory('all')
+            }}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              category === 'all'
+                ? 'border-fg/30 bg-fg text-bg'
+                : 'border-hairline bg-surface/40 text-fg-muted hover:text-fg'
+            }`}
+          >
+            All
+          </button>
+          {categories.map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              aria-pressed={category === candidate}
+              onClick={() => {
+                pendingFocusId.current = null
+                setEditor(null)
+                setCategory(candidate)
+              }}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                category === candidate
+                  ? 'border-fg/30 bg-fg text-bg'
+                  : 'border-hairline bg-surface/40 text-fg-muted hover:text-fg'
+              }`}
+            >
+              {CATEGORY_LABELS[candidate]}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div data-testid="connector-scroll">
+      <div data-testid="connector-scroll" className="space-y-4">
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-fg-muted">
+          {connectedCount === 0 ? 'No connectors connected' : `${connectedCount} connected`}
+        </p>
         {results !== null ? (
           results.length > 0 ? (
-            <div className="space-y-2">{results.map(card)}</div>
+            <div data-testid="connector-gallery" className={galleryClass}>{results.map(card)}</div>
           ) : (
             <p className="text-sm text-fg-muted">No connector matches.</p>
+          )
+        ) : categoryResults !== null ? (
+          categoryResults.length > 0 ? (
+            <div data-testid="connector-gallery" className={galleryClass}>
+              {categoryResults.map(card)}
+            </div>
+          ) : (
+            <p className="text-sm text-fg-muted">No connectors in this category.</p>
           )
         ) : (
           <div className="space-y-5">
             {onCanvas.length > 0 ? (
               <section aria-label="On canvas">
                 <h4 className={eyebrow}>On canvas</h4>
-                <div className="space-y-2">{onCanvas.map(card)}</div>
+                <div data-testid="connector-gallery" className={galleryClass}>{onCanvas.map(card)}</div>
               </section>
             ) : null}
             <section aria-label="Available">
@@ -415,7 +501,7 @@ export default function Connectors({
                 {grouped.map(({ cat, cards }) => (
                   <section key={cat} aria-label={CATEGORY_LABELS[cat]}>
                     <h5 className="mb-2 text-xs font-medium text-fg-muted">{CATEGORY_LABELS[cat]}</h5>
-                    <div className="space-y-2">{cards.map(card)}</div>
+                    <div data-testid="connector-gallery" className={galleryClass}>{cards.map(card)}</div>
                   </section>
                 ))}
               </div>
@@ -479,6 +565,7 @@ function ConnectorCard({
       id={descriptor.id}
       label={descriptor.label}
       blurb={descriptor.blurb}
+      experience={connectorExperience(descriptor)}
       presentation={presentation}
       activeMode={activeMode}
       onOpen={(mode) => onOpen(mode)}

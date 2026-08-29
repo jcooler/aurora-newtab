@@ -134,15 +134,27 @@ describe('Tabs (ARIA tabs pattern)', () => {
     assertNarrowRow(4)
   })
 
-  it('uses a 9rem roomy rail and a bounded readable content measure', () => {
+  it('uses an 11rem roomy rail and a bounded readable content measure', () => {
     render(<Host />)
 
     const shell = tablist().parentElement!
-    expect(shell.className).toContain('min-[900px]:grid-cols-[9rem_minmax(0,1fr)]')
+    expect(shell.className).toContain('min-[900px]:grid-cols-[11rem_minmax(0,1fr)]')
     const panel = screen.getByRole('tabpanel')
     expect(panel.className).toContain('max-w-[38rem]')
     expect(panel.className).toContain('mx-auto')
     expect(panel.className).not.toContain('overflow-y-auto')
+  })
+
+  it('lets a discovery surface use the full content column without changing other tabs', () => {
+    render(
+      <Tabs tabs={TABS} active="general" onChange={() => {}} wide>
+        <p>gallery content</p>
+      </Tabs>,
+    )
+
+    const panel = screen.getByRole('tabpanel')
+    expect(panel.className).toContain('max-w-none')
+    expect(panel.className).not.toContain('max-w-[38rem]')
   })
 
   it('renders one tab per entry; only the active one is selected and a tab stop', () => {

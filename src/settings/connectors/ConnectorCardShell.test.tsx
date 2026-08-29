@@ -1,9 +1,19 @@
 // @vitest-environment jsdom
 import { useEffect, useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ConnectorCardMode, ConnectorCardPresentation } from './connectorCardState'
 import ConnectorCardShell from './ConnectorCardShell'
+import type { ConnectorExperience } from './connectorExperience'
+
+const experience: ConnectorExperience = {
+  mark: 'GH',
+  outcome: 'Keep contributions, reviews, issues, and notifications visible while you work.',
+  benefits: ['See your contribution activity', 'Watch review and issue workload', 'Choose the GitHub views that matter'],
+  privacySummary: 'Your GitHub token stays in this Chrome profile and is removed from backup exports.',
+  categoryLabel: 'Development',
+  entitlement: 'included',
+}
 
 const unconfigured: ConnectorCardPresentation = {
   configured: false,
@@ -50,6 +60,7 @@ function Harness({ presentation = unconfigured }: { presentation?: ConnectorCard
       id="github"
       label="GitHub"
       blurb="Pull requests and issues"
+      experience={experience}
       presentation={presentation}
       activeMode={mode}
       onOpen={(next, invoker) => {
@@ -73,11 +84,17 @@ describe('ConnectorCardShell', () => {
     render(<Harness />)
 
     expect(screen.getByRole('heading', { name: 'GitHub' })).toBeTruthy()
-    expect(screen.getByText('Pull requests and issues')).toBeTruthy()
+    expect(screen.getByText('GH')).toBeTruthy()
+    expect(screen.getByText('Development')).toBeTruthy()
+    expect(screen.getByText(experience.outcome)).toBeTruthy()
+    expect(screen.queryByText('Pull requests and issues')).toBeNull()
     expect(screen.getByText('Not set up')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up GitHub' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show GitHub on Canvas' })).toBeNull()
     expect(screen.queryByLabelText('Token')).toBeNull()
+
+    const card = screen.getByRole('heading', { name: 'GitHub' }).closest('article')
+    expect(card?.className).toContain('min-h-')
   })
 
   it('shows configured identity, Show on Canvas, and Edit without painting the body', () => {
@@ -95,11 +112,13 @@ describe('ConnectorCardShell', () => {
     const edit = screen.getByRole('button', { name: 'Edit GitHub' })
 
     fireEvent.click(edit)
-    expect(screen.getByRole('region', { name: 'GitHub settings' })).toBeTruthy()
+    const dialog = screen.getByRole('dialog', { name: 'GitHub settings' })
+    expect(dialog).toBeTruthy()
+    expect(within(dialog).getByText(experience.outcome)).toBeTruthy()
     expect(screen.getByLabelText('Token')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close GitHub editor' }))
-    expect(screen.queryByRole('region', { name: 'GitHub settings' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Close GitHub settings' }))
+    expect(screen.queryByRole('dialog', { name: 'GitHub settings' })).toBeNull()
     expect(document.activeElement).toBe(edit)
   })
 
@@ -110,6 +129,7 @@ describe('ConnectorCardShell', () => {
         id="github"
         label="GitHub"
         blurb="Pull requests and issues"
+        experience={experience}
         presentation={configured}
         activeMode={null}
         onOpen={() => {}}
@@ -128,6 +148,7 @@ describe('ConnectorCardShell', () => {
         id="github"
         label="GitHub"
         blurb="Pull requests and issues"
+        experience={experience}
         presentation={{
           ...unconfigured,
           state: 'reconnect-required',
@@ -149,7 +170,7 @@ describe('ConnectorCardShell', () => {
 
     expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show GitHub on Canvas' })).toBeNull()
-    expect(screen.getByRole('region', { name: 'GitHub reconnect' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'GitHub reconnect' })).toBeTruthy()
     expect(screen.getByLabelText('Token')).toBeTruthy()
   })
 })

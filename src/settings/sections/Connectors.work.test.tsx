@@ -160,7 +160,7 @@ describe('Work connector settings', () => {
 
     mount(storage)
 
-    expect(await screen.findByRole('region', { name: 'Linear reconnect' })).toBeTruthy()
+    expect(await screen.findByRole('dialog', { name: 'Linear reconnect' })).toBeTruthy()
     expect(screen.getByLabelText('Linear personal API key')).toBeTruthy()
     expect(screen.queryByLabelText('Show Linear on Canvas')).toBeNull()
   })

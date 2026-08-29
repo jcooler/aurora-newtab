@@ -2,17 +2,14 @@ import { useRef, type ReactNode } from 'react'
 import type { ConnectorId } from '../../services/connectors/types'
 import Switch from '../Switch'
 import type { ConnectorCardMode, ConnectorCardPresentation } from './connectorCardState'
-
-function regionName(label: string, mode: ConnectorCardMode): string {
-  if (mode === 'setup') return `${label} setup`
-  if (mode === 'reconnect') return `${label} reconnect`
-  return `${label} settings`
-}
+import ConnectorDetailDialog from './ConnectorDetailDialog'
+import type { ConnectorExperience } from './connectorExperience'
 
 export default function ConnectorCardShell({
   id,
   label,
-  blurb,
+  blurb: _blurb,
+  experience,
   presentation,
   activeMode,
   onOpen,
@@ -23,6 +20,7 @@ export default function ConnectorCardShell({
   id: ConnectorId
   label: string
   blurb: string
+  experience: ConnectorExperience
   presentation: ConnectorCardPresentation
   activeMode: ConnectorCardMode | null
   onOpen(mode: ConnectorCardMode, invoker: HTMLButtonElement): void
@@ -33,10 +31,10 @@ export default function ConnectorCardShell({
   const actionRef = useRef<HTMLButtonElement>(null)
   const active = activeMode !== null
   const stateTone = presentation.state === 'configured-visible'
-    ? 'text-emerald-400'
+    ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300'
     : presentation.state === 'reconnect-required'
-      ? 'text-amber-300'
-      : 'text-fg-muted'
+      ? 'border-amber-300/25 bg-amber-300/10 text-amber-200'
+      : 'border-hairline bg-surface/45 text-fg-muted'
 
   return (
     <article
@@ -44,21 +42,37 @@ export default function ConnectorCardShell({
       data-settings-anchor={id}
       tabIndex={-1}
       data-connector-state={presentation.state}
-      className="rounded-xl border border-control-border bg-control-bg/20 p-3"
+      className="group flex min-h-[11rem] flex-col rounded-2xl border border-control-border bg-control-bg/25 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.08)] transition-colors hover:border-fg/20 hover:bg-control-bg/35"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="text-sm font-semibold text-fg">{label}</h4>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-            <span className={`font-medium ${stateTone}`}>{presentation.stateLabel}</span>
-            {presentation.identityLabel ? (
-              <span className="truncate text-fg-muted">{presentation.identityLabel}</span>
-            ) : null}
+      <div className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-3">
+        <span
+          aria-hidden="true"
+          className="flex size-11 items-center justify-center rounded-xl border border-hairline bg-surface/55 text-xs font-semibold tracking-tight text-fg shadow-inner"
+        >
+          {experience.mark}
+        </span>
+        <div className="min-w-0 pt-0.5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold text-fg">{label}</h4>
+              <p className="mt-0.5 text-[0.68rem] font-medium uppercase tracking-[0.12em] text-fg-muted">
+                {experience.categoryLabel}
+              </p>
+            </div>
+            <span className={`rounded-full border px-2 py-1 text-[0.65rem] font-medium ${stateTone}`}>
+              {presentation.stateLabel}
+            </span>
           </div>
-          <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{blurb}</p>
         </div>
+      </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-2">
+      <p className="mt-3 text-xs leading-relaxed text-fg-muted">{experience.outcome}</p>
+      {presentation.identityLabel ? (
+        <p className="mt-2 truncate text-xs font-medium text-fg/80">{presentation.identityLabel}</p>
+      ) : null}
+
+      <div className="mt-auto flex min-h-10 items-end justify-between gap-3 pt-3">
+        <div className="min-w-0">
           {presentation.showVisibilityControl ? (
             <div className="flex items-center gap-2">
               <label htmlFor={`connector-${id}-visible`} className="text-xs text-fg-muted">
@@ -72,6 +86,8 @@ export default function ConnectorCardShell({
               />
             </div>
           ) : null}
+        </div>
+        <div className="flex shrink-0 items-center">
           <button
             ref={actionRef}
             id={`connector-${id}-action`}
@@ -79,7 +95,7 @@ export default function ConnectorCardShell({
             hidden={active}
             aria-label={`${presentation.primaryActionLabel} ${label}`}
             onClick={(event) => onOpen(presentation.mode, event.currentTarget)}
-            className="min-h-9 cursor-pointer rounded-md px-2 text-xs font-medium text-accent hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            className="min-h-9 cursor-pointer rounded-lg border border-accent/25 bg-accent/10 px-3 text-xs font-semibold text-accent transition-colors hover:border-accent/40 hover:bg-accent/15 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
           >
             {presentation.primaryActionLabel}
           </button>
@@ -87,23 +103,15 @@ export default function ConnectorCardShell({
       </div>
 
       {active && children ? (
-        <div
-          role="region"
-          aria-label={regionName(label, activeMode)}
-          className="mt-3 border-t border-hairline pt-3"
+        <ConnectorDetailDialog
+          open
+          label={label}
+          mode={activeMode}
+          experience={experience}
+          onClose={() => onClose(actionRef.current)}
         >
-          <div className="mb-2 flex justify-end">
-            <button
-              type="button"
-              aria-label={`Close ${label} editor`}
-              onClick={() => onClose(actionRef.current)}
-              className="min-h-9 cursor-pointer rounded-md px-2 text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              Close editor
-            </button>
-          </div>
           {children}
-        </div>
+        </ConnectorDetailDialog>
       ) : null}
     </article>
   )

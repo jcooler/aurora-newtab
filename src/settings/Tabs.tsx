@@ -37,11 +37,13 @@ export default function Tabs<T extends string>({
   tabs,
   active,
   onChange,
+  wide = false,
   children,
 }: {
   tabs: readonly { id: T; label: string }[]
   active: T
   onChange: (id: T) => void
+  wide?: boolean
   children: ReactNode
 }) {
   const listRef = useRef<HTMLDivElement>(null)
@@ -86,7 +88,7 @@ export default function Tabs<T extends string>({
   }
 
   return (
-    <div className="flex flex-col gap-5 min-[900px]:grid min-[900px]:grid-cols-[9rem_minmax(0,1fr)] min-[900px]:items-start">
+    <div className="flex flex-col gap-5 min-[900px]:grid min-[900px]:grid-cols-[11rem_minmax(0,1fr)] min-[900px]:items-start">
       <div
         role="tablist"
         aria-label="Settings sections"
@@ -136,7 +138,9 @@ export default function Tabs<T extends string>({
         role="tabpanel"
         id={`settings-tabpanel-${active}`}
         aria-labelledby={`settings-tab-${active}`}
-        className="mx-auto flex w-full min-w-0 max-w-[38rem] flex-col divide-y divide-hairline min-[900px]:mx-0"
+        className={`mx-auto flex w-full min-w-0 flex-col divide-y divide-hairline min-[900px]:mx-0 ${
+          wide ? 'max-w-none' : 'max-w-[38rem]'
+        }`}
       >
         {children}
       </div>

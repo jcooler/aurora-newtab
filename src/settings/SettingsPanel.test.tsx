@@ -379,6 +379,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     await renderPanel()
     openTab('Connectors')
 
+    expect(screen.getByRole('tabpanel').className).toContain('max-w-none')
     expect(screen.getByRole('region', { name: 'Connectors' })).toBeTruthy()
     // Registry-driven cards begin with a truthful setup action and no false
     // visibility switch until configuration exists.
@@ -3224,7 +3225,8 @@ describe('Connectors tab — search and categories', () => {
   }
 
   function connectorsRegion() {
-    return screen.getByRole('region', { name: 'Connectors' })
+    return document.querySelector<HTMLElement>('[data-connector-detail-dialog]')
+      ?? screen.getByRole('region', { name: 'Connectors' })
   }
 
   // Every group/pinned eyebrow name that could possibly appear — used to
@@ -3255,6 +3257,10 @@ describe('Connectors tab — search and categories', () => {
     await renderConnectors()
     const region = connectorsRegion()
 
+    expect(within(region).getByRole('heading', { name: 'Bring your day together.' })).toBeTruthy()
+    expect(within(region).getByText('Connect the services you already use, then choose what earns a place on your canvas.')).toBeTruthy()
+    expect(within(region).getByRole('group', { name: 'Connector categories' })).toBeTruthy()
+    expect(within(region).getByText('No connectors connected')).toBeTruthy()
     expect(eyebrowsIn(region)).toEqual(['Available'])
     expect(within(region).queryByRole('region', { name: 'On canvas' })).toBeNull()
     const available = within(region).getByRole('region', { name: 'Available' })
@@ -3273,6 +3279,36 @@ describe('Connectors tab — search and categories', () => {
     ])
     expect(within(within(available).getByRole('region', { name: 'Home' })).getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
     expect(within(within(available).getByRole('region', { name: 'News & markets' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual(['RSS', 'Crypto'])
+  })
+
+  it('filters the gallery by category while search intentionally searches the full catalog', async () => {
+    await renderConnectors()
+    const region = connectorsRegion()
+
+    fireEvent.click(within(region).getByRole('button', { name: 'Calendar & tasks' }))
+    expect(within(region).getByRole('button', { name: 'Calendar & tasks' }).getAttribute('aria-pressed')).toBe('true')
+    expect(within(region).getByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    expect(within(region).getByRole('heading', { name: 'Todoist' })).toBeTruthy()
+    expect(within(region).queryByRole('heading', { name: 'GitHub' })).toBeNull()
+
+    fireEvent.change(within(region).getByLabelText('Search connectors'), { target: { value: 'github' } })
+    expect(within(region).getByRole('heading', { name: 'GitHub' })).toBeTruthy()
+    expect(within(region).queryByRole('heading', { name: 'Calendar' })).toBeNull()
+  })
+
+  it('reports configured connections and marks every card collection as a responsive gallery', async () => {
+    await renderConnectors({
+      github: { enabled: true, token: 'github_pat_fixture', username: 'octocat' },
+      ics: { enabled: true, calendars: [{ name: 'Personal', url: 'https://calendar.example.com/basic.ics' }] },
+    })
+
+    expect(screen.getByText('2 connected')).toBeTruthy()
+    const galleries = screen.getAllByTestId('connector-gallery')
+    expect(galleries.length).toBeGreaterThan(0)
+    for (const gallery of galleries) {
+      expect(gallery.className).toContain('grid')
+      expect(gallery.className).toContain('min-[760px]:grid-cols-2')
+    }
   })
 
   it('configured-visible GitHub and Calendar surface in On canvas and are absent from Available', async () => {
@@ -3311,7 +3347,7 @@ describe('Connectors tab — search and categories', () => {
     fireEvent.change(input, { target: { value: 'calendar' } })
 
     expect(within(region).getByRole('heading', { name: 'Calendar' })).toBeTruthy()
-    expect(within(region).getByText('Your next events, from any calendar app')).toBeTruthy()
+    expect(within(region).getByText('Bring upcoming events from the private calendar feeds you select into one agenda.')).toBeTruthy()
   })
 
   it('ranking: "crypto" puts the Crypto card first in the scroll region', async () => {
@@ -3400,18 +3436,18 @@ describe('Connectors tab — search and categories', () => {
     await renderConnectors()
 
     fireEvent.click(screen.getByRole('button', { name: 'Set up RSS' }))
-    expect(screen.getByRole('region', { name: 'RSS setup' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'RSS setup' })).toBeTruthy()
     expect(screen.getByLabelText('Add feed URL')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Set up GitHub' }))
-    expect(screen.queryByRole('region', { name: 'RSS setup' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'RSS setup' })).toBeNull()
     expect(screen.queryByLabelText('Add feed URL')).toBeNull()
-    expect(screen.getByRole('region', { name: 'GitHub setup' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'GitHub setup' })).toBeTruthy()
     expect(screen.getAllByLabelText('Fine-grained personal access token')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close GitHub editor' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close GitHub setup' }))
     const setup = screen.getByRole('button', { name: 'Set up GitHub' })
-    expect(screen.queryByRole('region', { name: 'GitHub setup' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'GitHub setup' })).toBeNull()
     expect(document.activeElement).toBe(setup)
   })
 
@@ -3419,7 +3455,7 @@ describe('Connectors tab — search and categories', () => {
     await renderConnectors({ github: { enabled: true, token: '', username: 'octocat' } })
 
     expect(screen.getByText('Reconnect required')).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'GitHub reconnect' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'GitHub reconnect' })).toBeTruthy()
     expect(screen.getByLabelText('Fine-grained personal access token')).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show GitHub on Canvas' })).toBeNull()
   })
@@ -3492,7 +3528,8 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
   }
 
   function connectorsRegion() {
-    return screen.getByRole('region', { name: 'Connectors' })
+    return document.querySelector<HTMLElement>('[data-connector-detail-dialog]')
+      ?? screen.getByRole('region', { name: 'Connectors' })
   }
 
   // ConnectorConfig is a 7-member union as of Task 46; this suite only ever
@@ -3888,7 +3925,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
   it('the card shell renders the GitHub descriptor with Set up and no premature visibility switch', async () => {
     await renderWithGithub()
     expect(screen.getByRole('heading', { name: 'GitHub' })).toBeTruthy()
-    expect(screen.getByText('PRs waiting on you, your issues, notifications')).toBeTruthy()
+    expect(screen.getByText('Keep contributions, reviews, issues, and notifications visible while you work.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up GitHub' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show GitHub on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
@@ -4146,7 +4183,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
   it('the card shell renders the GitLab descriptor with Set up and no premature visibility switch', async () => {
     await renderWithGitlab()
     expect(screen.getByRole('heading', { name: 'GitLab' })).toBeTruthy()
-    expect(screen.getByText('Assigned MRs and to-dos')).toBeTruthy()
+    expect(screen.getByText('See merge requests, review asks, todos, and activity from your GitLab account.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up GitLab' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show GitLab on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
@@ -4416,7 +4453,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
   it('the card shell renders the Jira descriptor with Set up and no premature visibility switch', async () => {
     await renderWithJira()
     expect(screen.getByRole('heading', { name: 'Jira' })).toBeTruthy()
-    expect(screen.getByText('Issues assigned to you')).toBeTruthy()
+    expect(screen.getByText('Keep assigned work, due items, and priority changes close without opening Jira.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up Jira' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show Jira on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
@@ -4661,7 +4698,7 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
   it('the card shell renders the Vercel descriptor with Set up and no premature visibility switch', async () => {
     await renderWithVercel()
     expect(screen.getByRole('heading', { name: 'Vercel' })).toBeTruthy()
-    expect(screen.getByText('Your latest deployments')).toBeTruthy()
+    expect(screen.getByText('Know when your latest deployments succeed or need your attention.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up Vercel' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show Vercel on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
@@ -4829,7 +4866,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
   it('the card shell renders the Crypto descriptor with Set up, no switch, and no body until requested', async () => {
     await renderWithCrypto()
     expect(screen.getByRole('heading', { name: 'Crypto' })).toBeTruthy()
-    expect(screen.getByText('Prices for the coins you watch')).toBeTruthy()
+    expect(screen.getByText('Follow the market prices and daily movement of the coins you choose.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up Crypto' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show Crypto on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -5133,7 +5170,8 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
   }
 
   function connectorsRegion() {
-    return screen.getByRole('region', { name: 'Connectors' })
+    return document.querySelector<HTMLElement>('[data-connector-detail-dialog]')
+      ?? screen.getByRole('region', { name: 'Connectors' })
   }
 
   async function readIcs(storage: AuroraStorage): Promise<IcsConfig | undefined> {
@@ -5143,7 +5181,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
   it('the card shell renders Calendar with Set up, no switch, and no body until requested', async () => {
     await renderWithIcs()
     expect(screen.getByRole('heading', { name: 'Calendar' })).toBeTruthy()
-    expect(screen.getByText('Your next events, from any calendar app')).toBeTruthy()
+    expect(screen.getByText('Bring upcoming events from the private calendar feeds you select into one agenda.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up Calendar' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show Calendar on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -5373,7 +5411,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       ],
     })
 
-    const region = connectorsRegion()
+    const region = screen.getByRole('region', { name: 'Calendar connection controls' })
     expect(within(region).getByText('Personal')).toBeTruthy()
     expect(within(region).getByText('Family')).toBeTruthy()
     expect(within(region).getByText('calendar.example.com')).toBeTruthy()
@@ -5406,7 +5444,8 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     expect(ensureOrigin).not.toHaveBeenCalled()
     expect(removeOrigin).not.toHaveBeenCalled()
     expect((await storage.get('connectorSnapshots')).ics).toEqual(beforeSnapshot)
-    expect(within(connectorsRegion()).getByRole('listitem').querySelector('.bg-emerald-400')).toBeTruthy()
+    const controls = screen.getByRole('region', { name: 'Calendar connection controls' })
+    expect(within(controls).getByRole('listitem').querySelector('.bg-emerald-400')).toBeTruthy()
   })
 
   it('ignores a malformed color-control value instead of persisting an open-ended color', async () => {
@@ -5713,7 +5752,8 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
   }
 
   function connectorsRegion() {
-    return screen.getByRole('region', { name: 'Connectors' })
+    return document.querySelector<HTMLElement>('[data-connector-detail-dialog]')
+      ?? screen.getByRole('region', { name: 'Connectors' })
   }
 
   async function readStatus(storage: AuroraStorage): Promise<StatusConfig | undefined> {
@@ -5723,7 +5763,7 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
   it('the card shell renders Status with Set up, no switch, and no body until requested', async () => {
     await renderWithStatus()
     expect(screen.getByRole('heading', { name: 'Status' })).toBeTruthy()
-    expect(screen.getByText('Green dots for the services you depend on')).toBeTruthy()
+    expect(screen.getByText('See whether the services you rely on are healthy before an outage surprises you.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up Status' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show Status on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -6197,7 +6237,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
   it('the card shell renders Home Assistant with Set up, no switch, and no form until requested', async () => {
     await renderWithHa()
     expect(screen.getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
-    expect(screen.getByText('Your home, at a glance — and three buttons that do things')).toBeTruthy()
+    expect(screen.getByText('See and control the Home Assistant entities you deliberately place on your canvas.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Set up Home Assistant' })).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Show Home Assistant on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected (to|as)/)).toBeNull()
@@ -6544,7 +6584,8 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
   })
 
   function connectorsRegion() {
-    return screen.getByRole('region', { name: 'Connectors' })
+    return document.querySelector<HTMLElement>('[data-connector-detail-dialog]')
+      ?? screen.getByRole('region', { name: 'Connectors' })
   }
 })
 

@@ -151,7 +151,7 @@ export default function SettingsPanel({
         onRetry={() => void cleanup.retryPermissionCleanup()}
         retrying={cleanup.retrying}
       />
-      <Tabs tabs={TABS} active={tab} onChange={setTab}>
+      <Tabs tabs={TABS} active={tab} onChange={setTab} wide={tab === 'connectors'}>
       {tab === 'general' && (
         <>
           <General settings={settings} patch={patch} />

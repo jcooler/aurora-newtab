@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tab Two V2 visual checkpoint</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app" data-view="canvas">
+      <img class="background" src="../../public/photos/32-qNXhVgRfU0E-original.jpg" alt="" />
+      <div class="scrim"></div>
+
+      <header class="topbar">
+        <nav class="bookmark-bar" aria-label="Bookmark folders">
+          <a href="#">Aurora</a>
+          <a href="#">Reference</a>
+          <a href="#">School</a>
+        </nav>
+        <div class="top-actions">
+          <button class="quiet-button photo-lock" type="button" aria-pressed="false" aria-label="Keep this background">
+            <span class="lock-icon">◇</span><span class="lock-label">Keep photo</span>
+          </button>
+          <button class="icon-button" type="button" data-open-view="settings" aria-label="Open Settings">⚙</button>
+        </div>
+      </header>
+
+      <main class="canvas" aria-label="Tab Two canvas">
+        <section class="weather" aria-label="Weather">
+          <div class="weather-line"><span class="weather-icon">☼</span><strong>72°</strong><span>Clear</span></div>
+          <span class="weather-location">Dallas, GA</span>
+        </section>
+
+        <section class="calendar-card panel-card" aria-label="Calendar">
+          <header class="card-heading"><span>Calendar</span><button type="button">View all</button></header>
+          <ol class="agenda-list">
+            <li><i class="dot sky"></i><span><strong>Dentist appointment</strong><small>Today, 12:00 PM</small></span><b>in 23m</b></li>
+            <li><i class="dot fuchsia"></i><span><strong>Kennedy's first game</strong><small>Today, 6:30 PM</small></span><b>in 7h</b></li>
+            <li><i class="dot sky"></i><span><strong>Project check-in</strong><small>Tomorrow, 9:00 AM</small></span><b>tomorrow</b></li>
+          </ol>
+        </section>
+
+        <section class="centerpiece" aria-label="Time and focus">
+          <time>12:30</time>
+          <h1>Good afternoon, Jon.</h1>
+          <button class="attention-trigger" type="button" aria-expanded="false">
+            <span class="attention-pulse"></span>
+            1 item needs attention
+          </button>
+          <div class="attention-popover panel-card" hidden>
+            <div class="popover-eyebrow"><span class="provider-mark">V</span> Vercel</div>
+            <strong>Production build failed</strong>
+            <p>Tab Two Web failed 18 minutes ago during the build step.</p>
+            <div class="popover-actions"><button type="button" data-attention-open>Open deployment</button><button type="button" data-attention-dismiss>Dismiss</button></div>
+          </div>
+        </section>
+
+        <section class="progress-rail" aria-label="Progress">
+          <button type="button" data-open-view="progress">
+            <span class="progress-ring" style="--progress: 74"><b>74%</b></span>
+            <span><small>Move</small><strong>7,402 steps</strong></span>
+          </button>
+          <button type="button" data-open-view="progress">
+            <span class="progress-ring fuchsia-ring" style="--progress: 63"><b>5</b></span>
+            <span><small>Hydrate</small><strong>5 of 8 glasses</strong></span>
+          </button>
+          <button type="button" data-open-view="progress">
+            <span class="progress-ring green-ring" style="--progress: 100"><b>✓</b></span>
+            <span><small>Read</small><strong>20 minutes</strong></span>
+          </button>
+        </section>
+
+        <section class="flow panel-card" aria-label="Flow">
+          <div>
+            <small>Flow</small>
+            <strong>25:00</strong>
+            <span>Creek · 35%</span>
+          </div>
+          <button class="play-button" type="button" aria-pressed="false" aria-label="Start Flow">▶</button>
+        </section>
+
+        <section class="focus-question" aria-label="Daily focus">
+          <span>What's your main focus today?</span>
+          <div class="focus-value"><button type="button" aria-label="Complete Make the next tab useful"></button><strong>Make the next tab useful</strong></div>
+        </section>
+
+        <form class="search" role="search">
+          <label for="web-search">Search the web</label>
+          <div><span>⌕</span><input id="web-search" placeholder="Search the web" /><kbd>Enter</kbd></div>
+        </form>
+
+        <nav class="quick-links" aria-label="Quick links">
+          <span>Quick links</span>
+          <a href="#">Mail</a><a href="#">Calendar</a><a href="#">Drive</a><a href="#">GitHub</a>
+        </nav>
+
+        <blockquote>“The secret of getting ahead is getting started.”<cite>Mark Twain</cite></blockquote>
+      </main>
+
+      <footer class="photo-credit">Yosemite, California <span>Photo by Venti Views</span></footer>
+
+      <aside class="settings-shell" aria-label="Settings" aria-hidden="true">
+        <header class="settings-header">
+          <div><span class="brand-mark">II</span><strong>Tab Two</strong></div>
+          <button class="icon-button" type="button" data-close-view aria-label="Close Settings">×</button>
+        </header>
+
+        <nav class="settings-nav" aria-label="Settings sections">
+          <button type="button" data-settings-section="home">Home</button>
+          <button type="button" data-settings-section="appearance">Appearance</button>
+          <button type="button" data-settings-section="canvas">Canvas</button>
+          <button type="button" class="active" data-settings-section="connectors">Connectors</button>
+          <button type="button" data-settings-section="progress">Progress</button>
+          <button type="button" data-settings-section="flow">Flow</button>
+          <button type="button" data-settings-section="account">Account & sync</button>
+          <button type="button" data-settings-section="privacy">Privacy & data</button>
+        </nav>
+
+        <section class="settings-content settings-connectors" data-settings-content="connectors">
+          <div class="section-intro">
+            <span class="eyebrow">Connectors</span>
+            <h2>Bring your day together.</h2>
+            <p>Connect the services you already use, then choose what earns a place on your canvas.</p>
+          </div>
+          <div class="connector-toolbar">
+            <label><span>⌕</span><input placeholder="Search connectors" /></label>
+            <div class="filter-chips" role="group" aria-label="Connector categories">
+              <button type="button" class="active">All</button><button type="button">Everyday</button><button type="button">Health</button><button type="button">Work</button><button type="button">Developer</button><button type="button">Home</button>
+            </div>
+          </div>
+          <div class="connected-summary"><span><i></i> 5 connected</span><button type="button">Review connections</button></div>
+          <div class="connector-grid">
+            <article class="connector-card featured">
+              <div class="connector-icon google">31</div><div class="connector-copy"><div><h3>Google Calendar</h3><span class="status connected">Connected</span></div><p>See what is next, join calls, and make room for focus.</p><small>Everyday</small></div><button type="button" data-connector="calendar">Manage</button>
+            </article>
+            <article class="connector-card">
+              <div class="connector-icon todoist">✓</div><div class="connector-copy"><div><h3>Todoist</h3><span class="status connected">Connected</span></div><p>Complete today's tasks without leaving your dashboard.</p><small>Everyday</small></div><button type="button" data-connector="todoist">Manage</button>
+            </article>
+            <article class="connector-card">
+              <div class="connector-icon strava">▲</div><div class="connector-copy"><div><h3>Strava</h3><span class="plus-badge">Plus</span></div><p>Keep your movement and training goals visible throughout the day.</p><small>Health</small></div><button type="button" data-premium="strava">Preview</button>
+            </article>
+            <article class="connector-card">
+              <div class="connector-icon github">⌁</div><div class="connector-copy"><div><h3>GitHub</h3><span class="status attention">Needs attention</span></div><p>Stay aware of reviews, issues, and contribution activity.</p><small>Developer</small></div><button type="button" data-connector="github">Fix</button>
+            </article>
+            <article class="connector-card">
+              <div class="connector-icon vercel">▲</div><div class="connector-copy"><div><h3>Vercel</h3><span class="status connected">Connected</span></div><p>Know when a deployment succeeds or needs you.</p><small>Developer</small></div><button type="button" data-connector="vercel">Manage</button>
+            </article>
+            <article class="connector-card">
+              <div class="connector-icon home">⌂</div><div class="connector-copy"><div><h3>Home Assistant</h3><span class="status connected">Connected</span></div><p>See and control the home signals you choose.</p><small>Home</small></div><button type="button" data-connector="home">Manage</button>
+            </article>
+          </div>
+        </section>
+
+        <section class="settings-content" data-settings-content="progress" hidden>
+          <div class="section-intro"><span class="eyebrow">Progress</span><h2>Keep what matters moving.</h2><p>Use light reminders for personal goals. Progress never becomes an attention alert.</p></div>
+          <div class="progress-detail-grid">
+            <article><span class="progress-ring" style="--progress:74"><b>74%</b></span><div><small>Strava</small><h3>Move</h3><p>7,402 of 10,000 steps</p></div><button type="button">Edit</button></article>
+            <article><span class="progress-ring fuchsia-ring" style="--progress:63"><b>5</b></span><div><small>Manual</small><h3>Hydrate</h3><p>5 of 8 glasses</p></div><button type="button">+1</button></article>
+            <article><span class="progress-ring green-ring" style="--progress:100"><b>✓</b></span><div><small>Habit</small><h3>Read</h3><p>20 minute goal complete</p></div><button type="button">Done</button></article>
+          </div>
+          <button class="primary-action" type="button">Add progress</button>
+        </section>
+
+        <section class="settings-content" data-settings-content="account" hidden>
+          <div class="section-intro"><span class="eyebrow">Account & sync</span><h2>Your space, wherever you work.</h2><p>Tab Two works locally without an account. Plus adds encrypted automatic sync and recovery.</p></div>
+          <div class="account-state">
+            <div class="account-illustration"><span>PC</span><i></i><span>Mac</span></div>
+            <span class="status local">Local only</span>
+            <h3>Your data is saved in this Chrome profile.</h3>
+            <p>Export a backup or transfer once for free. Upgrade only if you want continuous sync.</p>
+            <button class="primary-action" type="button">Explore automatic sync</button>
+            <button class="secondary-action" type="button">Export backup</button>
+          </div>
+        </section>
+
+        <section class="settings-content" data-settings-content="appearance" hidden>
+          <div class="section-intro"><span class="eyebrow">Appearance</span><h2>Choose a view worth keeping open.</h2><p>Original-resolution photographs stay untouched. Preview images are used only in this picker.</p></div>
+          <div class="photo-feature">
+            <img src="../../public/photos/32-qNXhVgRfU0E-original.jpg" alt="Milky Way above Yosemite" />
+            <div><span class="status connected">Current background</span><h3>Milky Way above Yosemite</h3><p>7008 × 4672 · Unsplash · Venti Views</p><button class="primary-action" type="button">Keep this background</button></div>
+          </div>
+          <div class="photo-grid">
+            <button type="button" aria-label="Select misty mountain valley"><img src="../../public/photos/35-oYEGPZebzGw-preview.webp" alt="" /></button>
+            <button type="button" aria-label="Select dramatic mountain sunset"><img src="../../public/photos/36-j3f1lwXBuAI-preview.webp" alt="" /></button>
+            <button type="button" aria-label="Select Alpstein peak"><img src="../../public/photos/37-V7EgUtCnvLY-preview.webp" alt="" /></button>
+            <button type="button" aria-label="Select Milky Way mountain landscape"><img src="../../public/photos/34-P-wAARoptz8-preview.webp" alt="" /></button>
+          </div>
+        </section>
+
+        <section class="settings-content placeholder-content" data-settings-content="home" hidden><span class="eyebrow">Home</span><h2>Good afternoon, Jon.</h2><p>Five connectors are healthy. One deployment needs attention.</p></section>
+        <section class="settings-content placeholder-content" data-settings-content="canvas" hidden><span class="eyebrow">Canvas</span><h2>Make the space yours.</h2><p>Manage layouts, widgets, stacks, and edge placement.</p></section>
+        <section class="settings-content placeholder-content" data-settings-content="flow" hidden><span class="eyebrow">Flow</span><h2>Build a calmer work rhythm.</h2><p>Choose session length, soundscape, volume, and completion behavior.</p></section>
+        <section class="settings-content placeholder-content" data-settings-content="privacy" hidden><span class="eyebrow">Privacy & data</span><h2>Know where your data lives.</h2><p>Review local storage, permissions, exports, and connected services.</p></section>
+      </aside>
+
+      <div class="connector-modal-backdrop" hidden>
+        <section class="connector-modal" role="dialog" aria-modal="true" aria-labelledby="connector-modal-title">
+          <button class="icon-button connector-modal-close" type="button" aria-label="Close connector details">×</button>
+          <header class="connector-modal-header">
+            <div class="connector-icon google connector-modal-icon">31</div>
+            <div><span class="eyebrow">Everyday</span><h2 id="connector-modal-title">Google Calendar</h2><p class="connector-modal-lede">Know what is next and join on time.</p></div>
+          </header>
+          <div class="connector-modal-grid">
+            <section class="connector-preview" aria-label="Calendar preview">
+              <span class="preview-label">What you will see</span>
+              <div class="calendar-preview-card">
+                <div><span>Next event</span><strong>Dentist appointment</strong><small>Today at 12:00 PM</small></div>
+                <b>in 23m</b>
+                <button type="button">Open calendar</button>
+              </div>
+              <ul><li>Upcoming events and countdowns</li><li>Calendar colors on your agenda</li><li>One-click meeting links when available</li></ul>
+            </section>
+            <section class="connector-permissions">
+              <span class="preview-label">Connection & privacy</span>
+              <div class="permission-row"><span>Read calendar events</span><b>Required</b></div>
+              <div class="permission-row"><span>Join links</span><b>Shown only when present</b></div>
+              <div class="permission-row"><span>Event storage</span><b>Cached locally</b></div>
+              <p>Tab Two requests only the access needed to display the calendars you select. Disconnecting removes the connection from this browser.</p>
+              <button class="primary-action connector-primary" type="button">Manage connection</button>
+              <button class="secondary-action connector-secondary" type="button">Choose canvas view</button>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <div class="modal-backdrop" hidden>
+        <section class="feature-modal" role="dialog" aria-modal="true" aria-labelledby="feature-title">
+          <button class="icon-button modal-close" type="button" aria-label="Close">×</button>
+          <div class="feature-visual">
+            <div class="activity-orbit"><span>7,402</span><small>steps today</small><i></i></div>
+          </div>
+          <div class="feature-copy">
+            <span class="plus-badge">Tab Two Plus</span>
+            <h2 id="feature-title">Keep your movement in view.</h2>
+            <p>Connect Strava to see meaningful activity progress without opening another analytics dashboard.</p>
+            <ul><li>Daily and weekly movement goals</li><li>Runs, rides, and swims at a glance</li><li>Automatic refresh with clear data controls</li></ul>
+            <div class="privacy-note"><strong>Your activity stays yours.</strong><span>Tab Two requests only the data needed for the Progress values you choose.</span></div>
+            <button class="primary-action" type="button">Try Tab Two Plus</button>
+            <button class="secondary-action modal-dismiss" type="button">Not now</button>
+          </div>
+        </section>
+      </div>
+
+      <nav class="prototype-nav" aria-label="Mockup views">
+        <span>V2 visual checkpoint</span>
+        <button type="button" class="active" data-prototype-view="canvas">Canvas</button>
+        <button type="button" data-prototype-view="connectors">Connectors</button>
+        <button type="button" data-prototype-view="progress">Progress</button>
+        <button type="button" data-prototype-view="account">Account</button>
+        <button type="button" data-prototype-view="appearance">Photos</button>
+      </nav>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
