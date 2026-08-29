@@ -142,14 +142,19 @@ describe('migrate', () => {
         calls.push(17)
         return data
       },
-      // registry[18] upgrades v18 -> v19 (CURRENT_VERSION)
+      // registry[18] upgrades v18 -> v19
       18: (data) => {
         calls.push(18)
         return data
       },
+      // registry[19] upgrades v19 -> v20 (CURRENT_VERSION)
+      19: (data) => {
+        calls.push(19)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -665,7 +670,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(19)
+    expect(CURRENT_VERSION).toBe(20)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -758,7 +763,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(19)
+    expect(CURRENT_VERSION).toBe(20)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill and v16->v17 Flow preference are the only
     // Settings deltas on the way up.
@@ -805,7 +810,7 @@ describe('v12 -> v13', () => {
     expect(migrated.layouts).toBeNull()
   })
 
-  // Guard for index.ts's METADATA_ONLY_FLOOR (18, mirrored here by value):
+  // Guard for index.ts's METADATA_ONLY_FLOOR (20, mirrored here by value):
   // live init stamps only `aurora:version` for any stored version >= that
   // floor, which is safe ONLY while every migration step in the range is the
   // identity. A future packet that adds a NON-identity step without raising
@@ -840,11 +845,52 @@ describe('v12 -> v13', () => {
     const preVolume = structuredClone(probe)
     delete preVolume.settings.flowVolume
     expect(migrations[17](structuredClone(preVolume))).not.toEqual(preVolume)
-    for (let v = 18; v < CURRENT_VERSION; v++) {
+    // v19 -> v20 adds persisted Progress data and its nested widget toggle.
+    const preProgress = structuredClone(probe)
+    delete (preProgress.settings.widgets as Record<string, unknown>).progress
+    delete (preProgress as Record<string, unknown>).progressGoals
+    expect(migrations[19](preProgress)).not.toEqual(preProgress)
+    for (let v = 20; v < CURRENT_VERSION; v++) {
       const before = structuredClone(probe)
       const out = migrations[v](structuredClone(probe))
       expect(out, `migrations[${v}] must be the identity`).toEqual(before)
     }
+  })
+})
+
+describe('v19 -> v20', () => {
+  it('preserves v19 settings, widget choices, Habits, and layouts while adding only Progress defaults', () => {
+    const snapshot = {
+      ...defaults(),
+      settings: {
+        ...defaults().settings,
+        name: 'Keep every choice',
+        widgets: {
+          search: false, weather: true, links: false, todo: true, timer: true, quote: false,
+          bookmarks: true, notes: false, clocks: true, countdown: true, habits: true,
+          monthCal: true, sun: true, moon: true, readingList: true, recentlyClosed: true,
+          downloads: true, tabGroups: true,
+        },
+      },
+      habits: [{ id: 'run', name: 'Run', createdAt: 5, log: ['2026-08-29'] }],
+      layouts: { activeLayoutId: 'desk', layouts: [{ id: 'desk', name: 'Desk', widgets: {} }] },
+    } as unknown as Record<string, unknown>
+    delete snapshot.progressGoals
+    const before = structuredClone(snapshot)
+
+    const out = migrations[19](snapshot) as Record<string, unknown>
+
+    expect(out).toEqual({
+      ...before,
+      progressGoals: [],
+      settings: {
+        ...(before.settings as Record<string, unknown>),
+        widgets: {
+          ...((before.settings as { widgets: Record<string, boolean> }).widgets),
+          progress: false,
+        },
+      },
+    })
   })
 })
 

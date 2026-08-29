@@ -3,7 +3,7 @@ import type { CalendarLayoutPreferences, CalendarWeekStart, LayoutsDocument } fr
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 19
+export const CURRENT_VERSION = 20
 
 export const FLOW_AMBIENCE_VALUES = ['off', 'creek', 'rain', 'ocean', 'forest'] as const
 export type FlowAmbience = typeof FLOW_AMBIENCE_VALUES[number]
@@ -74,6 +74,7 @@ export interface WidgetToggles {
   recentlyClosed: boolean
   downloads: boolean
   tabGroups: boolean
+  progress: boolean
 }
 
 export interface Settings {
@@ -316,6 +317,20 @@ export interface Habit {
   log: string[]
 }
 
+/** A local manual daily goal. `today` is intentionally a single-day value,
+ * not history: a stale date displays as zero until the next explicit action. */
+export interface ProgressGoal {
+  id: string
+  name: string
+  unit: string
+  target: number
+  createdAt: number
+  today: {
+    date: string
+    value: number
+  }
+}
+
 /** One APOD (Astronomy Picture of the Day) photo, already validated down to
  *  exactly what the widget needs to render — see src/services/apod.ts's
  *  fetchApod for the parsing/host-validation contract that produces this
@@ -376,6 +391,7 @@ export interface AuroraData {
   /** Device-local derived first-observation state. Excluded from backups. */
   attentionLedger: AttentionLedger
   habits: Habit[]
+  progressGoals: ProgressGoal[]
   // apodCache (Task 95): a top-level key, so it needs neither a
   // CURRENT_VERSION bump nor a new migrations.ts step — migrate()'s own
   // contract comment on its final default-merge covers exactly this case:
@@ -425,6 +441,7 @@ export function defaults(): AuroraData {
         recentlyClosed: false,
         downloads: false,
         tabGroups: false,
+        progress: false,
       },
     },
     focus: null,
@@ -447,6 +464,7 @@ export function defaults(): AuroraData {
     connectorSnapshots: {},
     attentionLedger: { version: 1, sources: {} },
     habits: [],
+    progressGoals: [],
     apodCache: null,
   }
 }

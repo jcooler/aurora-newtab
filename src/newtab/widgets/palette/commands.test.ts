@@ -37,6 +37,7 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
       recentlyClosed: false,
       downloads: false,
       tabGroups: false,
+      progress: false,
     },
   }
   return {

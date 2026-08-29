@@ -354,6 +354,7 @@ describe('backup restore coordinator', () => {
           recentlyClosed: false,
           downloads: false,
           tabGroups: false,
+          progress: false,
         },
       },
       focus: { text: 'Keep literal focus', date: '2026-08-14', done: false },
@@ -376,6 +377,7 @@ describe('backup restore coordinator', () => {
       connectorSnapshots: {},
       attentionLedger: { version: 1, sources: {} },
       habits: [{ id: 'before-habit', name: 'Before habit', createdAt: 10, log: ['2026-08-13'] }],
+      progressGoals: [],
       apodCache: null,
     }
     const restored: AuroraData = {
@@ -699,6 +701,46 @@ describe('backup restore coordinator', () => {
       reentryRequired: [],
     })
     expect(knownSnapshot(base.dump(), restored)).toEqual(restored)
+  })
+
+  it('restores exported Progress goals and rolls their prior values back after a failed restore write', async () => {
+    const progressGoals = [{
+      id: 'read', name: 'Read', unit: 'pages', target: 20, createdAt: 100,
+      today: { date: '2026-08-29', value: 8 },
+    }]
+    const core = await loadRestoreCore()
+    const previous: AuroraData = {
+      ...core.schema.defaults(),
+      progressGoals: [{
+        id: 'water', name: 'Water', unit: 'glasses', target: 8, createdAt: 50,
+        today: { date: '2026-08-29', value: 4 },
+      }],
+    }
+    const restored: AuroraData = { ...core.schema.defaults(), progressGoals }
+    const committed = core.storageFor(previous)
+
+    await expect(core.restore.restorePreparedBackup(
+      committed.storage,
+      core.prepare(restored),
+      { runExclusive: async (work) => work() },
+    )).resolves.toMatchObject({ status: 'committed', pendingCleanup: [] })
+    expect(knownSnapshot(committed.base.dump(), restored).progressGoals).toEqual(progressGoals)
+
+    const failedCore = await loadRestoreCore([], {
+      async write(_patch, call, apply) {
+        if (call === 1) throw new Error('injected target write failure')
+        await apply()
+      },
+    })
+    const failed = failedCore.storageFor(previous)
+    const failedPrepared = failedCore.prepare({ ...failedCore.schema.defaults(), progressGoals })
+
+    await expect(failedCore.restore.restorePreparedBackup(
+      failed.storage,
+      failedPrepared,
+      { runExclusive: async (work) => work() },
+    )).resolves.toMatchObject({ status: 'failed', pendingCleanup: [] })
+    expect(knownSnapshot(failed.base.dump(), previous).progressGoals).toEqual(previous.progressGoals)
   })
 
   it('keeps committed storage and returns every cleanup candidate as pending when post-commit reconciliation throws', async () => {

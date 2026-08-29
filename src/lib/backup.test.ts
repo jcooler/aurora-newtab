@@ -665,7 +665,7 @@ describe('apodCache export / import exclusion (Task 95)', () => {
 
 describe('weatherAlertCache export / import exclusion', () => {
   it('keeps the current schema version pinned and defaults the additive cache to null', () => {
-    expect(CURRENT_VERSION).toBe(19)
+    expect(CURRENT_VERSION).toBe(20)
     expect(defaults().weatherAlertCache).toBeNull()
     expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
   })
@@ -750,6 +750,49 @@ describe('habits export / import (Task 56)', () => {
     const result = validateBackupShape(data as never)
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data.habits).toEqual([])
+  })
+})
+
+describe('Progress goal export / import (schema v20)', () => {
+  const goal = {
+    id: 'water', name: 'Water', unit: 'glasses', target: 8, createdAt: 100,
+    today: { date: '2026-08-29', value: 3 },
+  }
+
+  it('exports valid goals verbatim and restores them through prepare', () => {
+    const input = { ...defaults(), progressGoals: [goal] }
+    const envelope = JSON.parse(serializeBackup(input))
+
+    expect(envelope.data.progressGoals).toEqual([goal])
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.progressGoals).toEqual([goal])
+  })
+
+  it('keeps an otherwise-valid imported over-cap array readable and round-trippable', () => {
+    const goals = Array.from({ length: 7 }, (_, index) => ({ ...goal, id: `goal-${index}` }))
+    const prepared = prepareBackup(serializeBackup({ ...defaults(), progressGoals: goals }))
+
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.progressGoals).toEqual(goals)
+  })
+
+  it.each([
+    ['a non-array key', 'not an array'],
+    ['a malformed row', [{ id: 'bad' }]],
+    ['a malformed local date', [{ ...goal, today: { date: '2026-02-30', value: 1 } }]],
+    ['a fractional daily value', [{ ...goal, today: { date: '2026-08-29', value: 1.5 } }]],
+    ['an invalid target', [{ ...goal, target: 0 }]],
+    ['an overlong name', [{ ...goal, name: 'x'.repeat(41) }]],
+    ['an overlong unit', [{ ...goal, unit: 'x'.repeat(17) }]],
+  ])('rejects current-schema backups with %s before confirmation', (_label, progressGoals) => {
+    const envelope = JSON.parse(serializeBackup(defaults()))
+    envelope.data.progressGoals = progressGoals
+
+    expect(prepareBackup(JSON.stringify(envelope))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "progressGoals" data is invalid.',
+    })
   })
 })
 
@@ -1493,7 +1536,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
       const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
       expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
       expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
-      expect(CURRENT_VERSION).toBe(19)
+      expect(CURRENT_VERSION).toBe(20)
     }
   })
 

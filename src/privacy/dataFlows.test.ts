@@ -37,6 +37,7 @@ const DATA_KEYS = [
   'connectorSnapshots',
   'attentionLedger',
   'habits',
+  'progressGoals',
   'apodCache',
 ] as const
 
@@ -128,6 +129,16 @@ describe('code-backed privacy inventory', () => {
       export: 'included',
       transmission: 'none',
       description: 'Current timer phase, deadline, progress, and Flow state.',
+    })
+  })
+
+  it('classifies manual Progress goals as ordinary local user content with no transmission authority', () => {
+    expect(STORED_DATA_FLOWS.progressGoals).toEqual({
+      storage: 'chrome.storage.local',
+      sensitivity: ['user-content'],
+      export: 'included',
+      transmission: 'none',
+      description: 'Manual goal names, units, targets, and daily values.',
     })
   })
 

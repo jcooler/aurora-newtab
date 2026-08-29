@@ -16,6 +16,7 @@ import { CONNECTORS } from '../services/connectors/registry'
 import { ownedOriginPatterns } from '../services/originOwnership'
 import { migrate } from './storage/migrations'
 import { isSafeQuickLinkUrl } from './quickLinkUrl'
+import { validProgressGoals } from './progress'
 
 const APP_ID = 'aurora'
 export const BACKUP_REDACTION_NOTICE = 'Connector secrets and capability URLs were not included. Re-enter them after restore.' as const
@@ -495,6 +496,13 @@ function isHabits(v: unknown): boolean {
   return Array.isArray(v)
 }
 
+/** Current-schema Progress imports are intentionally strict. Unlike the
+ * render-time filter, a corrupted row rejects before a person confirms a
+ * restore, so an import never silently changes ordinary user content. */
+function isProgressGoals(v: unknown): boolean {
+  return Array.isArray(v) && validProgressGoals(v).length === v.length
+}
+
 const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'attentionLedger' | 'apodCache' | 'weatherAlertCache'>, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
@@ -517,6 +525,7 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'attentionLedge
   calendarWeekStart: (v) => v === 'locale' || v === 'sunday' || v === 'monday',
   connectors: isConnectors,
   habits: isHabits,
+  progressGoals: isProgressGoals,
 }
 
 /** Strictly validates V1/V2/V3 known members while dropping future ids. */

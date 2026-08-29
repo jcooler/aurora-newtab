@@ -24,6 +24,7 @@ const EXPECTED_INTRO_VERSIONS = {
   recentlyClosed: 16,
   downloads: 16,
   tabGroups: 16,
+  progress: 20,
 } as const satisfies Record<keyof WidgetToggles, number>
 
 const ORIGINAL_V1_KEYS = ['links', 'quote', 'search', 'timer', 'todo', 'weather'] as const
@@ -37,11 +38,11 @@ describe('widget toggle introduction versions', () => {
     expect(WIDGET_TOGGLE_INTRO_VERSIONS).toEqual(EXPECTED_INTRO_VERSIONS)
   })
 
-  it('keeps ledger, defaults, and Settings controls in exact key parity', () => {
+  it('keeps the ledger and defaults in exact parity while future toggles remain available to Settings', () => {
     const expected = sorted(Object.keys(EXPECTED_INTRO_VERSIONS))
     expect(sorted(Object.keys(WIDGET_TOGGLE_INTRO_VERSIONS))).toEqual(expected)
     expect(sorted(Object.keys(defaults().settings.widgets))).toEqual(expected)
-    expect(sorted(WIDGET_CONTROL_KEYS)).toEqual(expected)
+    expect(sorted(WIDGET_CONTROL_KEYS)).toEqual(expected.filter((key) => key !== 'progress'))
   })
 
   it('pins the literal original keys to version 1 and current boolean defaults', () => {

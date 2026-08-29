@@ -21,7 +21,7 @@ const DATA_KEYS = Object.keys(defaults()) as DataKey[]
  *  up to that migration's target version. Flow intentionally advances this
  *  floor to 18 so a v17 store takes one verified full migration transaction
  *  that materializes the nested Flow volume preference. */
-const METADATA_ONLY_FLOOR = 19
+const METADATA_ONLY_FLOOR = 20
 const LAYOUT_DENSITY_SET: ReadonlySet<unknown> = new Set(LAYOUT_DENSITY_PREFERENCES)
 
 export class AtomicRestoreRollbackError extends Error {

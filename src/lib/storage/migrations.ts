@@ -279,6 +279,25 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v19 -> v20: Progress adds one top-level local-content authority and one
+  // nested widget toggle. The top-level value is preserved verbatim when it
+  // already exists; strict backup validation owns malformed current data.
+  19: (data) => {
+    const d = defaults()
+    const settings = data.settings
+    if (!isPlainObject(settings)) return { ...data, progressGoals: [] }
+    if (!isPlainObject(settings.widgets)) throw new Error('Invalid settings.widgets in schema v19')
+    return {
+      ...data,
+      progressGoals: Object.prototype.hasOwnProperty.call(data, 'progressGoals')
+        ? data.progressGoals
+        : [],
+      settings: {
+        ...settings,
+        widgets: { ...d.settings.widgets, ...settings.widgets },
+      },
+    }
+  },
 }
 
 export function migrate(

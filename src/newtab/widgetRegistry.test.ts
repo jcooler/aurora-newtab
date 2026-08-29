@@ -50,6 +50,7 @@ const ALL_WIDGETS_OFF: WidgetToggles = {
   bookmarks: false, notes: false, clocks: false, countdown: false, habits: false,
   monthCal: false, sun: false, moon: false,
   readingList: false, recentlyClosed: false, downloads: false, tabGroups: false,
+  progress: false,
 }
 
 const TOGGLE_MAPPING = [
