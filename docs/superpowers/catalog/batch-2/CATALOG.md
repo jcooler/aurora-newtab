@@ -90,9 +90,10 @@ Batch-2 notes for the review:
 
 | Tier | Content contract | Capture | Owner verdict |
 | --- | --- | --- | --- |
-| compact | Next event | ![ics compact](ics-compact.png) | Approved (owner review 2026-08-18) |
-| standard | Selected calendar view | ![ics standard](ics-standard.png) | Approved (owner review 2026-08-18) |
-| docked | Next event | ![ics docked](ics-docked.png) | Approved (owner review 2026-08-18) |
+| compact | Next date items | ![ics compact](ics-compact.png) | Approved (owner review 2026-08-18) |
+| standard | Agenda or complete month | ![ics standard](ics-standard.png) | Approved (owner review 2026-08-18) |
+| full | Month and agenda together | ![ics full](ics-full.png) | Approved (owner review 2026-08-18) |
+| docked | Next relevant date item | ![ics docked](ics-docked.png) | Approved (owner review 2026-08-18) |
 
 ## Habits
 
