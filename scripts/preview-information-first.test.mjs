@@ -64,7 +64,8 @@ test('all nine connector identities enumerate exactly the registry-promised size
   assert.equal(Object.values(CONNECTOR_SIZE_PROMISES).reduce((total, sizes) => total + sizes.length, 0), 25)
 
   const source = readFileSync(new URL('../src/newtab/widgetSizeContracts.ts', import.meta.url), 'utf8')
-  for (const [id, sizes] of Object.entries(exact)) {
+  assert.match(source, /\bstatus: contract\('intrinsic', \['compact', 'standard'\]/)
+  for (const [id, sizes] of Object.entries(exact).filter(([id]) => id !== 'status')) {
     const escaped = sizes.map((size) => `'${size}'`).join(', ')
     assert.match(source, new RegExp(`\\b${id}: framedContract\\(\\[${escaped}\\]`))
   }
