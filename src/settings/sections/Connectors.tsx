@@ -441,7 +441,7 @@ export default function Connectors({
             }}
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
               category === 'all'
-                ? 'border-fg/30 bg-fg text-bg'
+                ? 'border-fg/30 bg-fg text-[var(--panel-solid)]'
                 : 'border-hairline bg-surface/40 text-fg-muted hover:text-fg'
             }`}
           >
@@ -459,7 +459,7 @@ export default function Connectors({
               }}
               className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                 category === candidate
-                  ? 'border-fg/30 bg-fg text-bg'
+                  ? 'border-fg/30 bg-fg text-[var(--panel-solid)]'
                   : 'border-hairline bg-surface/40 text-fg-muted hover:text-fg'
               }`}
             >

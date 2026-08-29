@@ -3260,6 +3260,7 @@ describe('Connectors tab — search and categories', () => {
     expect(within(region).getByRole('heading', { name: 'Bring your day together.' })).toBeTruthy()
     expect(within(region).getByText('Connect the services you already use, then choose what earns a place on your canvas.')).toBeTruthy()
     expect(within(region).getByRole('group', { name: 'Connector categories' })).toBeTruthy()
+    expect(within(region).getByRole('button', { name: 'All' }).className).toContain('text-[var(--panel-solid)]')
     expect(within(region).getByText('No connectors connected')).toBeTruthy()
     expect(eyebrowsIn(region)).toEqual(['Available'])
     expect(within(region).queryByRole('region', { name: 'On canvas' })).toBeNull()

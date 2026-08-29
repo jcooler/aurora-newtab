@@ -246,12 +246,14 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
     assert.equal(restored.shownCount, 7, 'visibility toggle changed RSS presentation preferences')
 
     await page.setViewportSize({ width: 1408, height: 600 })
+    await page.getByRole('dialog', { name: 'Settings' }).evaluate((drawer) => { drawer.scrollTop = 0 })
     await page.waitForTimeout(350)
     evidence.short = await assertSettingsGeometry(page, '1408x600')
     assertTwoColumnGrid(await galleryRects(page))
     await page.screenshot({ path: resolve(output, 'connectors-1408x600.png') })
 
     await page.setViewportSize({ width: 375, height: 812 })
+    await page.getByRole('dialog', { name: 'Settings' }).evaluate((drawer) => { drawer.scrollTop = 0 })
     await page.waitForTimeout(350)
     evidence.narrow = await assertSettingsGeometry(page, '375x812')
     assertSingleColumnGrid(await galleryRects(page))
