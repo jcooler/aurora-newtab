@@ -75,6 +75,7 @@ function ProgressRail({
   const storage = useStorage()
   const { key: todayKey } = useLocalDay()
   const [failedMutation, setFailedMutation] = useState<FailedMutation | null>(null)
+  const [railFocusWithin, setRailFocusWithin] = useState(false)
   const items: RailItem[] = [
     ...goals.map((goal): RailItem => ({ source: 'Manual', goal })),
     ...habits.map((habit): RailItem => ({ source: 'Habit', habit })),
@@ -133,6 +134,12 @@ function ProgressRail({
       aria-label="Daily Progress"
       data-canvas-size={canvasSize}
       data-progress-presentation={presentation}
+      onFocusCapture={() => setRailFocusWithin(true)}
+      onBlurCapture={(event) => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+          setRailFocusWithin(false)
+        }
+      }}
       className="group/progress grid w-64 max-w-[min(16rem,calc(100vw-2rem))] gap-1.5 text-photo text-canvas-fg"
     >
       <div className="grid gap-1.5">
@@ -187,7 +194,7 @@ function ProgressRail({
           <button
             type="button"
             onClick={onOpenProgress}
-            className="min-h-8 cursor-pointer rounded px-1.5 font-medium text-canvas-fg opacity-0 transition-opacity group-hover/progress:opacity-100 group-focus-within/progress:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent [@media(max-width:640px)]:min-h-9 [@media(pointer:coarse)]:min-h-9 [@media(pointer:coarse)]:opacity-100 motion-reduce:transition-none"
+            className={`min-h-8 cursor-pointer rounded px-1.5 font-medium text-canvas-fg transition-opacity group-hover/progress:opacity-100 group-focus-within/progress:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent [@media(max-width:640px)]:min-h-9 [@media(max-width:640px)]:opacity-100 [@media(pointer:coarse)]:min-h-9 [@media(pointer:coarse)]:opacity-100 motion-reduce:transition-none ${railFocusWithin ? 'opacity-100' : 'opacity-0'}`}
           >
             Open Progress
           </button>
@@ -198,7 +205,7 @@ function ProgressRail({
         {failedMutation ? (
           <span>
             Progress was not saved. Try again.{' '}
-            <button type="button" onClick={() => void retryFailedMutation()} className="min-h-8 cursor-pointer font-medium text-canvas-fg underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-accent">Retry</button>
+            <button type="button" onClick={() => void retryFailedMutation()} className="inline-flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded px-2 font-medium text-canvas-fg underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-accent">Retry</button>
           </span>
         ) : null}
       </div>

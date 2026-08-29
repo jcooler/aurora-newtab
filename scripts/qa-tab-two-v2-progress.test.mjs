@@ -10,7 +10,9 @@ import {
   assertBuildCommit,
   assertEvidenceContract,
   assertNoUnexpectedRequests,
+  assertProgressControlMetrics,
   assertSettingsGeometry,
+  isSettingsDrawerOpen,
   requireExact,
 } from './qa-tab-two-v2-progress.mjs'
 
@@ -88,6 +90,12 @@ test('rejects nested Settings scroll ownership and a hittable closed Settings su
   )
 })
 
+test('treats absent or false aria-hidden as an open Settings drawer', () => {
+  assert.equal(isSettingsDrawerOpen(null), true)
+  assert.equal(isSettingsDrawerOpen('false'), true)
+  assert.equal(isSettingsDrawerOpen('true'), false)
+})
+
 test('declares every approved Progress interaction as an executable acceptance step', () => {
   assert.deepEqual(PROGRESS_INTERACTIONS, [
     'settings-navigation',
@@ -106,6 +114,8 @@ test('declares every approved Progress interaction as an executable acceptance s
     'stale-control-safety',
     'stack-face',
     'overflow-route',
+    'mobile-overflow-route',
+    'retry-recovery',
     'local-midnight-rollover',
     'keyboard-access',
     'reduced-motion',
@@ -117,9 +127,22 @@ test('requires machine-readable provenance, per-viewport ledgers, bounds, focus,
     commit: 'abc123',
     result: 'PASS',
     interactions: Object.fromEntries(PROGRESS_INTERACTIONS.map((name) => [name, true])),
+    storageAssertions: [
+      { label: 'retry-storage-recovery', passed: true },
+      { label: 'retry-authority-isolation', passed: true },
+    ],
+    retryControlMetric: {
+      name: 'Retry', width: 48, height: 36, opacity: 1,
+      painted: true, operable: true, disabled: false,
+    },
+    mobileOpenProgressMetric: {
+      name: 'Open Progress', width: 86, height: 36, opacity: 1,
+      painted: true, operable: true, disabled: false,
+    },
     viewports: PROGRESS_VIEWPORTS.map((viewport) => ({
       viewport,
       storageAssertions: [{ label: 'fixture', passed: true }],
+      controlAssertions: [{ label: 'painted-operable-controls', passed: true }],
       focusTarget: 'button',
       bounds: [
         { id: 'progress', left: 0, top: 0, right: 100, bottom: 100 },
@@ -141,6 +164,36 @@ test('requires machine-readable provenance, per-viewport ledgers, bounds, focus,
     () => assertEvidenceContract({ ...evidence, interactions: { ...evidence.interactions, delete: false } }),
     /interaction delete/i,
   )
+  assert.throws(
+    () => assertEvidenceContract({ ...evidence, storageAssertions: evidence.storageAssertions.slice(0, 1) }),
+    /retry-authority-isolation/i,
+  )
+  assert.throws(
+    () => assertEvidenceContract({ ...evidence, viewports: evidence.viewports.map((entry, index) => (
+      index === 3 ? { ...entry, controlAssertions: [] } : entry
+    )) }),
+    /mobile control assertions/i,
+  )
+})
+
+test('rejects undersized, transparent, unpainted, disabled, or unhittable Progress controls', () => {
+  const valid = [{
+    name: 'Open Progress', width: 86, height: 36, opacity: 1,
+    painted: true, operable: true, disabled: false,
+  }]
+  assert.doesNotThrow(() => assertProgressControlMetrics(valid, { minimum: 36, requiredName: 'Open Progress' }))
+  for (const broken of [
+    { ...valid[0], height: 35 },
+    { ...valid[0], opacity: 0 },
+    { ...valid[0], painted: false },
+    { ...valid[0], operable: false },
+    { ...valid[0], disabled: true },
+  ]) {
+    assert.throws(
+      () => assertProgressControlMetrics([broken], { minimum: 36, requiredName: 'Open Progress' }),
+      /Open Progress/i,
+    )
+  }
 })
 
 test('the real QA entry point refuses a non-exact invocation', () => {

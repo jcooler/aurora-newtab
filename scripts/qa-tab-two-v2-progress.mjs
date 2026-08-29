@@ -32,6 +32,8 @@ export const PROGRESS_INTERACTIONS = Object.freeze([
   'stale-control-safety',
   'stack-face',
   'overflow-route',
+  'mobile-overflow-route',
+  'retry-recovery',
   'local-midnight-rollover',
   'keyboard-access',
   'reduced-motion',
@@ -50,6 +52,26 @@ export function assertBuildCommit(provenance, head) {
 export function assertNoUnexpectedRequests(requests) {
   assert.deepEqual(requests, [], `Progress QA made an unexpected external request: ${JSON.stringify(requests)}`)
   return requests
+}
+
+export function isSettingsDrawerOpen(ariaHidden) {
+  return ariaHidden !== 'true'
+}
+
+export function assertProgressControlMetrics(targets, { minimum = 0, requiredName } = {}) {
+  assert(Array.isArray(targets), 'Progress control metrics are missing')
+  const required = requiredName ? targets.find((target) => target.name === requiredName) : undefined
+  if (requiredName) assert(required, `${requiredName} control metric is missing`)
+  for (const target of targets) {
+    const label = target.name || 'Progress control'
+    assert(target.width > 0 && target.height > 0, `${label} is not laid out`)
+    assert(target.width >= minimum && target.height >= minimum, `${label} is below the ${minimum}px control floor`)
+    assert(target.opacity > 0, `${label} is transparent`)
+    assert.equal(target.painted, true, `${label} is not painted`)
+    assert.equal(target.disabled, false, `${label} is disabled`)
+    assert.equal(target.operable, true, `${label} is not operable at its center point`)
+  }
+  return required ?? targets
 }
 
 function overlaps(left, right, tolerance = 0.5) {
@@ -103,6 +125,15 @@ export function assertEvidenceContract(evidence) {
   for (const interaction of PROGRESS_INTERACTIONS) {
     assert.equal(evidence.interactions?.[interaction], true, `Progress interaction ${interaction} is missing or failed`)
   }
+  for (const label of ['retry-storage-recovery', 'retry-authority-isolation']) {
+    assert.equal(
+      evidence.storageAssertions?.some((entry) => entry.label === label && entry.passed === true),
+      true,
+      `Progress ${label} evidence is missing or failed`,
+    )
+  }
+  assertProgressControlMetrics([evidence.retryControlMetric], { minimum: 36, requiredName: 'Retry' })
+  assertProgressControlMetrics([evidence.mobileOpenProgressMetric], { minimum: 36, requiredName: 'Open Progress' })
   assert.equal(evidence.viewports?.length, PROGRESS_VIEWPORTS.length, 'Progress viewport evidence is incomplete')
   for (let index = 0; index < PROGRESS_VIEWPORTS.length; index += 1) {
     const expected = PROGRESS_VIEWPORTS[index]
@@ -110,6 +141,8 @@ export function assertEvidenceContract(evidence) {
     assert.deepEqual(actual?.viewport, expected, `Progress viewport evidence is missing for ${expected.id}`)
     assert(Array.isArray(actual.storageAssertions) && actual.storageAssertions.length > 0, `${expected.id} storage assertions are missing`)
     assert(actual.storageAssertions.every((entry) => entry.passed === true), `${expected.id} has a failed storage assertion`)
+    assert(Array.isArray(actual.controlAssertions) && actual.controlAssertions.length > 0, `${expected.id} mobile control assertions are missing`)
+    assert(actual.controlAssertions.every((entry) => entry.passed === true), `${expected.id} has a failed control assertion`)
     assert.equal(typeof actual.focusTarget, 'string', `${expected.id} focus target is missing`)
     assert(Array.isArray(actual.bounds) && actual.bounds.length >= 2, `${expected.id} bounds are incomplete`)
     assert(Array.isArray(actual.collisionPairs), `${expected.id} collision pairs are missing`)
@@ -212,10 +245,79 @@ async function openProgressSettings(page) {
 
 async function closeSettings(page) {
   const drawer = page.locator('[role="dialog"][aria-label="Settings"]')
-  if (await drawer.getAttribute('aria-hidden') === 'false') {
+  if (isSettingsDrawerOpen(await drawer.getAttribute('aria-hidden'))) {
     await page.keyboard.press('Escape')
     await page.waitForFunction(() => document.querySelector('[role="dialog"][aria-label="Settings"]')?.getAttribute('aria-hidden') === 'true')
   }
+}
+
+async function armOneShotProgressWriteFailure(page) {
+  await page.evaluate(() => {
+    const originalSet = chrome.storage.local.set.bind(chrome.storage.local)
+    const writes = []
+    let armed = true
+    globalThis.__auroraProgressQaWrites = writes
+    chrome.storage.local.set = async (items) => {
+      const keys = Object.keys(items).sort()
+      const rejected = armed && Object.hasOwn(items, 'progressGoals')
+      writes.push({ keys, rejected })
+      if (rejected) {
+        armed = false
+        throw new Error('forced Progress QA write failure')
+      }
+      return originalSet(items)
+    }
+  })
+}
+
+async function exerciseRetryRecovery(page, evidence) {
+  const authorityKeys = ['attentionLedger', 'connectorSnapshots', 'focus', 'habits', 'settings']
+  const before = await readStorage(page, ['progressGoals', ...authorityKeys])
+  const beforeValue = before.progressGoals[0]?.today.value
+  assert.equal(typeof beforeValue, 'number', 'Progress retry fixture value is missing')
+  await armOneShotProgressWriteFailure(page)
+
+  await page.getByTestId('progress-canvas-row').first().click()
+  await page.getByText('Progress was not saved. Try again.').waitFor()
+  let stored = await readStorage(page, ['progressGoals'])
+  assert.equal(stored.progressGoals[0]?.today.value, beforeValue, 'failed Progress write changed storage')
+
+  const retryTargets = (await progressTargetMetrics(page)).filter((target) => target.name === 'Retry')
+  const retry = assertProgressControlMetrics(retryTargets, { minimum: 36, requiredName: 'Retry' })
+  await page.getByRole('button', { name: 'Retry' }).click()
+  stored = await waitForStorage(page, ['progressGoals'], ({ progressGoals }) => (
+    progressGoals[0]?.today.value === beforeValue + 1
+  ), 'canvas Retry recovery')
+  await page.getByText('Progress was not saved. Try again.').waitFor({ state: 'detached' })
+
+  const after = await readStorage(page, authorityKeys)
+  for (const key of authorityKeys) assert.deepEqual(after[key], before[key], `Retry changed unrelated ${key} authority`)
+  const writes = await page.evaluate(() => globalThis.__auroraProgressQaWrites)
+  assert.deepEqual(writes, [
+    { keys: ['progressGoals'], rejected: true },
+    { keys: ['progressGoals'], rejected: false },
+  ], 'Retry did not isolate recovery writes to progressGoals')
+  evidence.storageAssertions.push(
+    { label: 'retry-storage-recovery', passed: stored.progressGoals[0]?.today.value === beforeValue + 1 },
+    { label: 'retry-authority-isolation', passed: true },
+  )
+  evidence.retryControlMetric = retry
+  evidence.interactions['retry-recovery'] = true
+}
+
+async function exerciseMobileOverflowRoute(page, evidence) {
+  const firstRow = page.getByTestId('progress-canvas-row').first()
+  await firstRow.focus()
+  const openProgress = assertProgressControlMetrics(
+    (await progressTargetMetrics(page)).filter((target) => target.name === 'Open Progress'),
+    { minimum: 36, requiredName: 'Open Progress' },
+  )
+  await page.getByRole('button', { name: 'Open Progress' }).click()
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-settings-anchor') === 'progress-overview')
+  assert.equal(await page.getByRole('tab', { name: 'Progress' }).getAttribute('aria-selected'), 'true')
+  evidence.mobileOpenProgressMetric = openProgress
+  evidence.interactions['mobile-overflow-route'] = true
+  await closeSettings(page)
 }
 
 async function settingsGeometry(page) {
@@ -289,10 +391,22 @@ async function progressTargetMetrics(page) {
     })
     .map((node) => {
       const rect = node.getBoundingClientRect()
+      const style = getComputedStyle(node)
+      const opacity = Number.parseFloat(style.opacity)
+      const centerX = Math.min(window.innerWidth - 1, Math.max(0, rect.left + rect.width / 2))
+      const centerY = Math.min(window.innerHeight - 1, Math.max(0, rect.top + rect.height / 2))
+      const hit = document.elementFromPoint(centerX, centerY)
       return {
         name: node.getAttribute('aria-label') ?? node.textContent?.trim() ?? '',
         width: rect.width,
         height: rect.height,
+        opacity,
+        painted: rect.width > 0 && rect.height > 0
+          && style.visibility !== 'hidden' && style.visibility !== 'collapse'
+          && style.display !== 'none' && style.contentVisibility !== 'hidden'
+          && opacity > 0,
+        disabled: node instanceof HTMLButtonElement && node.disabled,
+        operable: style.pointerEvents !== 'none' && hit !== null && (hit === node || node.contains(hit)),
       }
     }))
 }
@@ -323,10 +437,10 @@ async function captureViewport({ page, viewport, evidence, output, highestPhoto,
   assert.match(focusTarget, /Manual|Habit/, `${viewport.id} did not retain keyboard focus on a Progress action`)
 
   const targets = await progressTargetMetrics(page)
-  if (viewport.touch) {
-    const undersized = targets.filter((target) => target.width < 36 || target.height < 36)
-    assert.deepEqual(undersized, [], `mobile Progress controls below 36px: ${JSON.stringify(undersized)}`)
-  }
+  assertProgressControlMetrics(targets, {
+    minimum: viewport.touch ? 36 : 0,
+    requiredName: 'Open Progress',
+  })
 
   const storage = await readStorage(page, ['progressGoals', 'habits'])
   const screenshotPath = resolve(output, `progress-${viewport.width}x${viewport.height}.png`)
@@ -338,6 +452,12 @@ async function captureViewport({ page, viewport, evidence, output, highestPhoto,
       { label: 'habit-fixture-present', passed: storage.habits.length >= 3 },
       { label: 'highest-resolution-photo', passed: photo.naturalWidth === highestPhoto.width && photo.naturalHeight === highestPhoto.height },
     ],
+    controlAssertions: [
+      { label: 'progress-controls-painted-operable', passed: targets.every((target) => target.painted && target.operable && !target.disabled) },
+      { label: 'open-progress-visible-after-row-focus', passed: targets.some((target) => target.name === 'Open Progress' && target.opacity > 0) },
+      { label: 'mobile-control-floor', passed: !viewport.touch || targets.every((target) => target.width >= 36 && target.height >= 36) },
+    ],
+    controlMetrics: targets,
     focusTarget,
     bounds: geometry.frames,
     collisionPairs: analysis.collisionPairs,
@@ -549,6 +669,8 @@ async function exerciseCanvas(page, evidence, highestPhoto, day, waterId) {
   evidence.interactions['overflow-route'] = true
   await closeSettings(page)
 
+  await exerciseRetryRecovery(page, evidence)
+
   const current = await readStorage(page, ['progressGoals', 'habits'])
   await seedProgressFixture(page, {
     goals: current.progressGoals,
@@ -710,6 +832,7 @@ export async function runTabTwoProgressQa(args = process.argv.slice(2)) {
       consoleLedger: mobileLedgers.console,
       pageErrors: mobileLedgers.pageErrors,
     })
+    await exerciseMobileOverflowRoute(mobile.page, evidence)
 
     const midnightLedgers = { requests: [], console: [], pageErrors: [] }
     const midnight = await launchExtensionContext(midnightProfile, dist, PROGRESS_VIEWPORTS[0], false, midnightLedgers, 'midnight')
