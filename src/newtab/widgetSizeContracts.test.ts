@@ -25,7 +25,7 @@ describe('Canvas widget size contracts', () => {
   })
 
   it('pins delivered At a glance identities to useful four-tier contracts', () => {
-    expect(Object.keys(WIDGET_SIZE_CONTRACTS).slice(-3)).toEqual(['onThisDay', 'publicHolidays', 'auroraKp'])
+    expect(Object.keys(WIDGET_SIZE_CONTRACTS).slice(-4)).toEqual(['onThisDay', 'publicHolidays', 'auroraKp', 'progress'])
   })
 
   it('names selected content that needs a larger size instead of inventing a fitting choice', () => {
@@ -49,7 +49,7 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
       .sort()
     expect(docked).toEqual([
       'auroraKp', 'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
-      'habits', 'homeassistant', 'ics', 'jira', 'linear', 'moon', 'notes', 'onThisDay', 'publicHolidays', 'readingList',
+      'habits', 'homeassistant', 'ics', 'jira', 'linear', 'moon', 'notes', 'onThisDay', 'progress', 'publicHolidays', 'readingList',
       'recentlyClosed', 'rss', 'sentry', 'status', 'sun', 'tabGroups', 'tasks',
       'timer', 'todoist', 'vercel', 'weather', 'worldClocks',
     ])
@@ -161,7 +161,7 @@ describe('shared frame presentation contracts', () => {
     }
     expect(idsFor('bar')).toEqual(['bookmarks'])
     expect(idsFor('intrinsic')).toEqual([
-      'clock', 'countdown', 'focus', 'greeting', 'links', 'quote', 'search', 'status', 'worldClocks',
+      'clock', 'countdown', 'focus', 'greeting', 'links', 'progress', 'quote', 'search', 'status', 'worldClocks',
     ])
     expect(idsFor('framed')).toEqual([
       'auroraKp', 'crypto', 'downloads', 'github', 'gitlab', 'habits', 'homeassistant',
@@ -169,6 +169,20 @@ describe('shared frame presentation contracts', () => {
       'readingList', 'recentlyClosed', 'rss', 'sentry', 'sun', 'tabGroups',
       'tasks', 'timer', 'todoist', 'vercel', 'weather',
     ])
+  })
+
+  it('keeps Progress intrinsic, Compact-only, stack-capable, and local-data-only', () => {
+    expect(WIDGET_PRESENTATION_CONTRACTS.progress).toEqual({
+      presentationClass: 'intrinsic',
+      sizes: ['compact'],
+      stackSizes: ['compact'],
+      states: ['ready'],
+      compact: 'Daily progress rail',
+      standard: undefined,
+      full: undefined,
+      docked: 'Daily progress values',
+      tiers: {},
+    })
   })
 
   it('gives every framed free and stack tier an authored composition contract', () => {

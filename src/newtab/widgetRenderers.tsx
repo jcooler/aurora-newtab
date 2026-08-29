@@ -35,6 +35,7 @@ import TodoistWidget from './widgets/todoist/TodoistWidget'
 import OnThisDayWidget from './widgets/glance/OnThisDayWidget'
 import PublicHolidaysWidget from './widgets/glance/PublicHolidaysWidget'
 import AuroraKpWidget from './widgets/glance/AuroraKpWidget'
+import ProgressWidget from './widgets/progress/ProgressWidget'
 import type { WidgetRendererKey } from './widgetRegistry'
 import type { WidgetVariant } from '../lib/layout/types'
 import type { UtilityTrayBridge } from './components/utilityTrayBridge'
@@ -60,6 +61,7 @@ export interface WidgetRendererProps {
   onTasksOpenChange?: (open: boolean) => void
   onTimerOpenChange?: (open: boolean) => void
   utilityTray?: UtilityTrayBridge
+  onOpenProgress?: () => void
 }
 
 export type WidgetRenderer = ComponentType<WidgetRendererProps>
@@ -116,6 +118,7 @@ export const WIDGET_RENDERERS = {
   onThisDay: (props) => <OnThisDayWidget canvasSize={props.canvasSize} docked={props.docked} />,
   publicHolidays: (props) => <PublicHolidaysWidget canvasSize={props.canvasSize} docked={props.docked} />,
   auroraKp: (props) => <AuroraKpWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  progress: (props) => <ProgressWidget canvasSize={props.canvasSize} presentation={props.presentation} docked={props.docked} onOpenProgress={props.onOpenProgress} />,
 } satisfies Record<WidgetRendererKey, WidgetRenderer>
 
 export const WIDGET_RENDERER_KEYS: readonly WidgetRendererKey[] = Object.freeze(

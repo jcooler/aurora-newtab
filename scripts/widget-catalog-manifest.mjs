@@ -8,6 +8,7 @@ const KNOWN_WIDGET_IDS = new Set([
   'onThisDay',
   'publicHolidays',
   'auroraKp',
+  'progress',
 ])
 
 const batch = (entries) => Object.freeze(entries.map((entry) => Object.freeze({
@@ -62,6 +63,9 @@ export const CATALOG_BATCHES = Object.freeze({
     { id: 'publicHolidays', label: 'Public Holidays', tiers: ['compact', 'standard', 'full', 'docked'] },
     { id: 'auroraKp', label: 'Aurora & Kp', tiers: ['compact', 'standard', 'full', 'docked'] },
   ]),
+  '6': batch([
+    { id: 'progress', label: 'Progress', tiers: ['compact', 'docked'] },
+  ]),
 })
 
 export const CATALOG_CONTRACTS = Object.freeze({
@@ -111,6 +115,9 @@ export const CATALOG_CONTRACTS = Object.freeze({
     publicHolidays: { compact: 'Next national holiday', standard: 'Next three national holidays', full: 'Current and next-year national holidays', docked: 'Next holiday and date' },
     auroraKp: { compact: 'Current Kp and next peak', standard: 'Current Kp and next four intervals', full: 'Bounded three-day Kp forecast', docked: 'Current Kp and next peak' },
   }),
+  '6': Object.freeze({
+    progress: { compact: 'Daily progress rail', docked: 'Daily progress values' },
+  }),
 })
 
 export const CODED_DOCK_LINES = new Set([
@@ -122,6 +129,7 @@ export const CODED_DOCK_LINES = new Set([
   'onThisDay',
   'publicHolidays',
   'auroraKp',
+  'progress',
 ])
 
 export function captureTiersFor(id, batches = CATALOG_BATCHES) {

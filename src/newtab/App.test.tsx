@@ -1390,6 +1390,52 @@ describe('App Canvas composition', () => {
     expect(document.activeElement?.closest('[data-settings-anchor="weather"]')).toBeTruthy()
   })
 
+  it('routes the Progress rail directly to Progress Settings and preserves Drawer Escape focus restoration', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, progress: true },
+    })
+    await storage.set('progressGoals', [
+      { id: 'water', name: 'Water', unit: 'glasses', target: 8, createdAt: 1, today: { date: '2026-08-29', value: 5 } },
+      { id: 'read', name: 'Read', unit: 'pages', target: 10, createdAt: 2, today: { date: '2026-08-29', value: 3 } },
+      { id: 'move', name: 'Move', unit: 'minutes', target: 30, createdAt: 3, today: { date: '2026-08-29', value: 12 } },
+      { id: 'write', name: 'Write', unit: 'words', target: 500, createdAt: 4, today: { date: '2026-08-29', value: 100 } },
+    ])
+    await renderApp(storage)
+
+    const opener = await screen.findByRole('button', { name: 'Open Progress' })
+    opener.focus()
+    fireEvent.click(opener)
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Progress', selected: true })).toBeTruthy()
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)) })
+    expect(document.activeElement?.closest('[data-settings-anchor="progress-overview"]')).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull())
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('routes the Progress hover gear to the same Progress Settings anchor', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, progress: true },
+    })
+    await storage.set('progressGoals', [
+      { id: 'water', name: 'Water', unit: 'glasses', target: 8, createdAt: 1, today: { date: '2026-08-29', value: 5 } },
+    ])
+    await renderApp(storage)
+
+    fireEvent.click(within(canvasItem('progress')).getByRole('button', { name: 'Progress settings' }))
+    expect(screen.getByRole('tab', { name: 'Progress', selected: true })).toBeTruthy()
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)) })
+    expect(document.activeElement?.closest('[data-settings-anchor="progress-overview"]')).toBeTruthy()
+  })
+
   // The Arrange artboard, its inspector, and the Use-Desktop-everywhere
   // preview were deleted with the named-layouts rebuild (NL-P2, spec §3);
   // live on-page editing arrives in NL-P3.

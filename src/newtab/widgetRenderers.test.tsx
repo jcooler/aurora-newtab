@@ -21,6 +21,22 @@ describe('time and productivity widget renderers', () => {
     },
   )
 
+  it('threads direct Progress Settings routing through its complete renderer', () => {
+    const onOpenProgress = () => undefined
+    const element = WIDGET_RENDERERS.progress({
+      canvasSize: 'compact',
+      presentation: 'stack',
+      onOpenProgress,
+    }) as ReactElement<{
+      canvasSize?: CanvasSize
+      presentation?: WidgetPresentationMode
+      onOpenProgress?: () => void
+    }>
+    expect(element.props.canvasSize).toBe('compact')
+    expect(element.props.presentation).toBe('stack')
+    expect(element.props.onOpenProgress).toBe(onOpenProgress)
+  })
+
   it.each(['worldClocks', 'countdown'] as const)(
     'uses the approved redesigned %s face on the standalone canvas',
     (id) => {

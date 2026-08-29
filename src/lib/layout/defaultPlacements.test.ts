@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_WIDGET_POINTS, defaultFreePlacement } from './defaultPlacements'
+import { activeDraftLayout, beginEditSession } from './editSession'
+import { emptyLayoutV3 } from './canvasTypes'
+import { pointFromFreePlacement, type LayoutsDocument } from './namedLayouts'
+import { resolveLayoutsDocument } from './myLayoutAdapter'
 
 // The composition contract the NL-P6 QA gate derived (2026-08-19): these
 // pins encode WHY the numbers are what they are, so a future re-tune that
@@ -74,5 +78,49 @@ describe('DEFAULT_WIDGET_POINTS composition contract (QA F1-F5)', () => {
       sentry: { x: 28, y: 51 },
       todoist: { x: 28, y: 68 },
     })
+  })
+
+  it('gives Progress one complete Compact starting point without moving any existing literal', () => {
+    expect(DEFAULT_WIDGET_POINTS.progress).toEqual({ x: 13, y: 70 })
+    expect(defaultFreePlacement('progress', 37)).toMatchObject({ tier: 'compact', layer: 37 })
+    expect(pointFromFreePlacement(defaultFreePlacement('progress', 37))).toEqual({ x: 13, y: 70 })
+    expect(DEFAULT_WIDGET_POINTS.habits).toEqual({ x: 13, y: 62 })
+    expect(DEFAULT_WIDGET_POINTS.sun).toEqual({ x: 13, y: 78 })
+  })
+
+  it('does not add Progress to a pre-existing named layout when its toggle becomes enabled', () => {
+    const stored: LayoutsDocument = {
+      version: 1,
+      activeLayoutId: 'daily',
+      layouts: [{
+        id: 'daily',
+        name: 'Daily',
+        widgets: {
+          clock: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -30, tier: 'full', layer: 0 },
+        },
+      }],
+    }
+    const bytes = JSON.stringify(stored)
+
+    const resolved = resolveLayoutsDocument(stored, emptyLayoutV3(), 'standard', ['clock', 'progress'])
+
+    expect(JSON.stringify(resolved)).toBe(bytes)
+    expect(JSON.stringify(stored)).toBe(bytes)
+    expect(resolved.layouts[0].widgets.progress).toBeUndefined()
+  })
+
+  it('consults the Progress default only when the existing explicit edit flow materializes it', () => {
+    const stored: LayoutsDocument = {
+      version: 1,
+      activeLayoutId: 'daily',
+      layouts: [{ id: 'daily', name: 'Daily', widgets: {} }],
+    }
+
+    const session = beginEditSession(stored, ['progress'])
+    const placement = activeDraftLayout(session).widgets.progress
+
+    expect(placement?.kind).toBe('free')
+    expect(pointFromFreePlacement(placement as Extract<typeof placement, { kind: 'free' }>)).toEqual({ x: 13, y: 70 })
+    expect(stored.layouts[0].widgets.progress).toBeUndefined()
   })
 })

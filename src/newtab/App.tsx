@@ -98,7 +98,7 @@ function AuroraApp() {
   const [calendarPreferences] = useStoredKey('calendarPreferences')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsFocusAnchor, setSettingsFocusAnchor] = useState<
-    { tab: 'widgets' | 'connectors'; anchor: string; nonce: number } | null
+    { tab: 'progress' | 'widgets' | 'connectors'; anchor: string; nonce: number } | null
   >(null)
   const [utilityTrayOpen, setUtilityTrayOpen] = useState(false)
   const [activeUtilityTool, setActiveUtilityTool] = useState<UtilityToolId | null>(null)
@@ -212,11 +212,24 @@ function AuroraApp() {
   )
   const enabledBlockIds = useMemo(() => activeEntries.map((entry) => entry.id), [activeEntries])
 
+  const openProgressSettings = useCallback(() => {
+    setSettingsFocusAnchor((previous) => ({
+      tab: 'progress',
+      anchor: 'progress-overview',
+      nonce: (previous?.nonce ?? 0) + 1,
+    }))
+    requestSettingsOpen()
+  }, [requestSettingsOpen])
+
   // The gear on a widget's hover chrome (named-layouts spec 2.5): Settings
   // opens focused on that widget's own section. Connector-backed widgets
   // land on their Connectors card; toggle-backed widgets on their Widgets
   // row; always-on widgets on the Widgets group.
   const openSettingsForWidget = useCallback((id: BlockId) => {
+    if (id === 'progress') {
+      openProgressSettings()
+      return
+    }
     const entry = activeEntries.find((candidate) => candidate.id === id)
     const availability = entry?.availability
     // A connector card only exists on the premium Connectors tab; without it
@@ -228,7 +241,7 @@ function AuroraApp() {
         : { tab: 'widgets' as const, anchor: 'widgets' }
     setSettingsFocusAnchor((previous) => ({ ...target, nonce: (previous?.nonce ?? 0) + 1 }))
     requestSettingsOpen()
-  }, [activeEntries, requestSettingsOpen])
+  }, [activeEntries, openProgressSettings, requestSettingsOpen])
 
   const storage = useStorage()
   // The resolved named-layouts document: a valid stored document wins; until
@@ -555,6 +568,7 @@ function AuroraApp() {
   }
   const rendererProps: WidgetRendererProps = {
     onBookmarksPopoverOpenChange: setBookmarksPopoverOpen,
+    onOpenProgress: openProgressSettings,
     utilityTray,
     // A legacy Calendar placement stays on its compatibility face until the
     // user explicitly saves consolidation. The atomic save creates this

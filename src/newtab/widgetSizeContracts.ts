@@ -284,6 +284,15 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
     standard: tier('Current Kp and next four intervals', ['current Kp', 'forecast values'], ['forecast trend'], ['peak time'], ['tighten spacing', 'bound forecast rows'], { kind: 'provider', label: 'Open NOAA Space Weather' }),
     full: tier('Bounded three-day Kp forecast', ['current Kp', 'forecast values'], ['day groups'], ['peak time', 'storm scale'], ['tighten spacing', 'bound forecast groups'], { kind: 'provider', label: 'Open NOAA Space Weather' }),
   }),
+  progress: contract(
+    'intrinsic',
+    ['compact'],
+    READY_STATES,
+    'Daily progress rail',
+    undefined,
+    undefined,
+    'Daily progress values',
+  ),
 })
 
 /** Compatibility name for existing content-contract consumers. */
