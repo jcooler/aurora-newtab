@@ -109,6 +109,19 @@ async function assertSettingsGeometry(page, label) {
   return geometry
 }
 
+async function readRssConfig(page) {
+  return page.evaluate(async () => (await chrome.storage.local.get('connectors')).connectors.rss)
+}
+
+async function waitForRssConfig(page, predicate, label) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const config = await readRssConfig(page)
+    if (predicate(config)) return config
+    await page.waitForTimeout(50)
+  }
+  assert.fail(`RSS storage did not settle after ${label}`)
+}
+
 export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
   requireExact(args)
   const repoRoot = resolve(process.cwd())
@@ -228,20 +241,20 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
     await page.getByRole('button', { name: 'Edit RSS' }).click()
     await page.getByRole('dialog', { name: 'RSS settings' }).waitFor()
     await page.getByLabel('Headlines shown').selectOption('7')
-    await page.waitForFunction(async () => (await chrome.storage.local.get('connectors')).connectors.rss.shownCount === 7)
-    evidence.rssWrite = await page.evaluate(async () => (await chrome.storage.local.get('connectors')).connectors.rss)
+    evidence.rssWrite = await waitForRssConfig(page, (config) => config.shownCount === 7, 'headline count change')
     assert.equal(evidence.rssWrite.shownCount, 7, 'RSS editor did not persist the selected headline count')
     assert.equal(evidence.rssWrite.feeds.length, 2, 'RSS editor damaged the configured feeds')
     await page.getByRole('button', { name: 'Close RSS settings' }).click()
 
     const visibility = page.getByRole('switch', { name: 'Show RSS on Canvas' })
+    assert.equal((await readRssConfig(page)).enabled, true, 'RSS fixture did not begin visible')
     await visibility.click()
-    await page.waitForFunction(async () => (await chrome.storage.local.get('connectors')).connectors.rss.enabled === false)
-    const hidden = await page.evaluate(async () => (await chrome.storage.local.get('connectors')).connectors.rss)
+    const hidden = await waitForRssConfig(page, (config) => config.enabled === false, 'visibility off')
     await page.getByRole('switch', { name: 'Show RSS on Canvas' }).click()
-    await page.waitForFunction(async () => (await chrome.storage.local.get('connectors')).connectors.rss.enabled === true)
-    const restored = await page.evaluate(async () => (await chrome.storage.local.get('connectors')).connectors.rss)
+    const restored = await waitForRssConfig(page, (config) => config.enabled === true, 'visibility on')
     evidence.visibilityRoundTrip = { hidden, restored }
+    assert.equal(hidden.enabled, false, 'RSS visibility did not persist off')
+    assert.equal(restored.enabled, true, 'RSS visibility did not persist back on')
     assert.deepEqual(hidden.feeds, restored.feeds, 'visibility toggle changed RSS ownership data')
     assert.equal(restored.shownCount, 7, 'visibility toggle changed RSS presentation preferences')
 
