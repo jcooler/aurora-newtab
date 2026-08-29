@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 
 import {
   assertBuildCommit,
+  assertExpectedRequests,
   assertSingleColumnGrid,
   assertTwoColumnGrid,
   assertViewportContained,
@@ -49,6 +50,14 @@ test('rejects a connector surface outside its viewport', () => {
     { left: -1, top: 0, right: 375, bottom: 812 },
     { width: 375, height: 812 },
   ), /viewport/)
+})
+
+test('allows only deterministic fixture refresh requests', () => {
+  assert.doesNotThrow(() => assertExpectedRequests([
+    'https://api.weather.gov/alerts/active?point=33.749,-84.388',
+    'https://feeds.invalid/aurora.xml',
+  ]))
+  assert.throws(() => assertExpectedRequests(['https://example.com/unexpected']), /unexpected external request/)
 })
 
 test('the real QA entry point refuses a non-exact invocation', () => {

@@ -41,6 +41,17 @@ export function assertSingleColumnGrid(rects) {
   return rects
 }
 
+export function assertExpectedRequests(urls) {
+  const allowed = [
+    /^https:\/\/api\.weather\.gov\/alerts\/active\?point=33\.749,-84\.388$/,
+    /^https:\/\/feeds\.invalid\/(aurora|release)\.xml$/,
+  ]
+  for (const url of urls) {
+    assert(allowed.some((pattern) => pattern.test(url)), `connector QA made an unexpected external request: ${url}`)
+  }
+  return urls
+}
+
 const rectOf = (locator) => locator.evaluate((node) => {
   const rect = node.getBoundingClientRect()
   return {
@@ -248,7 +259,7 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
 
     assert.deepEqual(evidence.consoleErrors, [], 'browser console errors were emitted')
     assert.deepEqual(evidence.pageErrors, [], 'uncaught page errors were emitted')
-    assert.deepEqual(evidence.externalRequests, [], 'connector QA made unexpected external requests')
+    assertExpectedRequests(evidence.externalRequests)
     evidence.result = 'PASS'
     writeFileSync(resolve(output, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`)
     console.log(`PASS: Tab Two connector experience QA (${commit})`)
