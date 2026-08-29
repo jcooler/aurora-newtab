@@ -189,7 +189,7 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
 
     await page.getByRole('button', { name: 'Calendar & tasks', exact: true }).click()
     evidence.categoryLabels = await page.locator('[data-connector-card] h4').allInnerTexts()
-    assert.deepEqual(evidence.categoryLabels.sort(), ['Calendar', 'Public Holidays', 'Todoist'].sort(), 'Calendar category filter returned the wrong cards')
+    assert.deepEqual(evidence.categoryLabels.sort(), ['Calendar', 'Todoist'].sort(), 'Calendar category filter returned the wrong cards')
     await page.getByLabel('Search connectors').fill('github')
     evidence.searchLabels = await page.locator('[data-connector-card] h4').allInnerTexts()
     assert.deepEqual(evidence.searchLabels, ['GitHub'], 'search did not replace the selected category with full-catalog results')
