@@ -187,7 +187,7 @@ function ProgressRail({
           <button
             type="button"
             onClick={onOpenProgress}
-            className="min-h-8 cursor-pointer rounded px-1.5 font-medium text-canvas-fg opacity-0 transition-opacity group-hover/progress:opacity-100 group-focus-within/progress:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent [@media(pointer:coarse)]:opacity-100 motion-reduce:transition-none"
+            className="min-h-8 cursor-pointer rounded px-1.5 font-medium text-canvas-fg opacity-0 transition-opacity group-hover/progress:opacity-100 group-focus-within/progress:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent [@media(max-width:640px)]:min-h-9 [@media(pointer:coarse)]:min-h-9 [@media(pointer:coarse)]:opacity-100 motion-reduce:transition-none"
           >
             Open Progress
           </button>
