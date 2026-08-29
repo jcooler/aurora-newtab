@@ -122,9 +122,7 @@ export function applyProgressIntent(
     replacement = {
       ...row,
       ...draft.value,
-      today: row.today.date === todayKey
-        ? { date: todayKey, value: clamp(progressValueForDay(row, todayKey), draft.value.target) }
-        : row.today,
+      today: { date: todayKey, value: clamp(progressValueForDay(row, todayKey), draft.value.target) },
     }
   }
   return goals.map((goal, rowIndex) => rowIndex === index ? replacement : goal)

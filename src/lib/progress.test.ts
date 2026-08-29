@@ -98,6 +98,19 @@ describe('applyProgressIntent', () => {
     ])
   })
 
+  it('edits a stale goal into the current day at zero so the lowered target stays structurally valid', () => {
+    const stale = goal({ today: { date: '2026-08-28', value: 8 } })
+    const edited = applyProgressIntent([stale], {
+      kind: 'edit', id: 'water', name: ' Hydrate ', unit: ' glasses ', target: 5,
+    }, TODAY)
+
+    expect(edited).toEqual([
+      goal({ name: 'Hydrate', unit: 'glasses', target: 5, today: { date: TODAY, value: 0 } }),
+    ])
+    expect(validProgressGoals(edited)).toEqual(edited)
+    expect(stale.today).toEqual({ date: '2026-08-28', value: 8 })
+  })
+
   it('moves a goal one position in the requested direction without crossing an edge', () => {
     const rows = [goal({ id: 'a' }), goal({ id: 'b' }), goal({ id: 'c' })]
 

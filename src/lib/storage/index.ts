@@ -18,9 +18,9 @@ const DATA_KEYS = Object.keys(defaults()) as DataKey[]
 /** Every migration step from this version on is the identity function, so a
  *  boot from any of these versions writes only the version stamp. Raising
  *  CURRENT_VERSION past a NON-identity migration requires moving this floor
- *  up to that migration's target version. Flow intentionally advances this
- *  floor to 18 so a v17 store takes one verified full migration transaction
- *  that materializes the nested Flow volume preference. */
+ *  up to that migration's target version. Progress advances this floor to 20
+ *  so a v19 store takes one verified full migration transaction that
+ *  materializes the nested widget toggle and local goal authority. */
 const METADATA_ONLY_FLOOR = 20
 const LAYOUT_DENSITY_SET: ReadonlySet<unknown> = new Set(LAYOUT_DENSITY_PREFERENCES)
 
