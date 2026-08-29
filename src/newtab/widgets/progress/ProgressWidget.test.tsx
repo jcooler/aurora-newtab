@@ -9,6 +9,7 @@ import { defaults, type Habit, type ProgressGoal } from '../../../lib/storage/sc
 import { WIDGET_RENDERERS, type WidgetRenderer } from '../../widgetRenderers'
 
 const TODAY = '2026-08-29'
+const NEXT_DAY = '2026-08-30'
 
 function goal(overrides: Partial<ProgressGoal> = {}): ProgressGoal {
   return {
@@ -225,7 +226,7 @@ describe('Progress canvas rail content and actions', () => {
     expect(notification).not.toHaveBeenCalled()
   })
 
-  it('keeps the exact failed intent and retries it against fresh storage and a fresh local day', async () => {
+  it('retries the exact manual intent against fresh rows and the rolled-over local day', async () => {
     const base = memoryDriver()
     let rejectProgressWrite = false
     const storage = createStorage({
@@ -239,19 +240,114 @@ describe('Progress canvas rail content and actions', () => {
       },
     })
     await storage.init()
-    await renderProgressWidget({ suppliedStorage: storage, goals: [goal()] })
+    await renderProgressWidget({
+      suppliedStorage: storage,
+      goals: [
+        goal(),
+        goal({ id: 'read', name: 'Read', unit: 'pages', target: 20, today: { date: TODAY, value: 4 } }),
+      ],
+    })
+    const untouched = {
+      attentionLedger: await storage.get('attentionLedger'),
+      connectorSnapshots: await storage.get('connectorSnapshots'),
+      focus: await storage.get('focus'),
+      briefingSources: (await storage.get('settings')).briefingSources,
+      habits: await storage.get('habits'),
+    }
+    const update = vi.spyOn(storage, 'update')
     rejectProgressWrite = true
 
     fireEvent.click(screen.getByRole('button', { name: 'Manual Water: 5 of 8 glasses, incomplete. Increment by 1' }))
     expect(await screen.findByText('Progress was not saved. Try again.')).toBeTruthy()
     expect((await storage.get('progressGoals'))[0]!.today.value).toBe(5)
 
+    vi.setSystemTime(new Date(2026, 7, 30, 12, 0, 0))
     await act(async () => {
-      await storage.set('progressGoals', [goal({ today: { date: TODAY, value: 6 } })])
+      await storage.set('progressGoals', [
+        goal({ id: 'read', name: 'Read', unit: 'pages', target: 25, today: { date: NEXT_DAY, value: 9 } }),
+        goal({ today: { date: TODAY, value: 6 } }),
+      ])
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     })
 
-    await waitFor(async () => expect((await storage.get('progressGoals'))[0]!.today.value).toBe(7))
+    await waitFor(async () => {
+      expect(await storage.get('progressGoals')).toEqual([
+        goal({ id: 'read', name: 'Read', unit: 'pages', target: 25, today: { date: NEXT_DAY, value: 9 } }),
+        goal({ today: { date: NEXT_DAY, value: 1 } }),
+      ])
+    })
+    expect(update.mock.calls.map(([key]) => key)).toEqual(['progressGoals', 'progressGoals'])
+    expect(await storage.get('attentionLedger')).toEqual(untouched.attentionLedger)
+    expect(await storage.get('connectorSnapshots')).toEqual(untouched.connectorSnapshots)
+    expect(await storage.get('focus')).toEqual(untouched.focus)
+    expect((await storage.get('settings')).briefingSources).toEqual(untouched.briefingSources)
+    expect(await storage.get('habits')).toEqual(untouched.habits)
+    expect(screen.queryByText('Progress was not saved. Try again.')).toBeNull()
+  })
+
+  it('retries only the failed Habit intent against fresh Habits after local-day rollover', async () => {
+    const base = memoryDriver()
+    let rejectHabitWrite = false
+    const storage = createStorage({
+      ...base,
+      async write(patch: Record<string, unknown>) {
+        if (rejectHabitWrite && Object.hasOwn(patch, 'habits')) {
+          rejectHabitWrite = false
+          throw new Error('quota')
+        }
+        await base.write(patch)
+      },
+    })
+    await storage.init()
+    await renderProgressWidget({
+      suppliedStorage: storage,
+      goals: [goal()],
+      habits: [habit(), habit({ id: 'stretch', name: 'Stretch', log: [TODAY] })],
+    })
+    const notification = vi.fn()
+    vi.stubGlobal('Notification', notification)
+    const untouched = {
+      progressGoals: await storage.get('progressGoals'),
+      attentionLedger: await storage.get('attentionLedger'),
+      connectorSnapshots: await storage.get('connectorSnapshots'),
+      focus: await storage.get('focus'),
+      briefingSources: (await storage.get('settings')).briefingSources,
+    }
+    const update = vi.spyOn(storage, 'update')
+    rejectHabitWrite = true
+
+    fireEvent.click(screen.getByRole('button', { name: 'Habit Walk: 0 of 1 day, incomplete. Mark done today' }))
+    expect(await screen.findByText('Progress was not saved. Try again.')).toBeTruthy()
+    expect(await storage.get('habits')).toEqual([
+      habit(),
+      habit({ id: 'stretch', name: 'Stretch', log: [TODAY] }),
+    ])
+
+    vi.setSystemTime(new Date(2026, 7, 30, 12, 0, 0))
+    const freshHabits = [
+      habit({ id: 'journal', name: 'Journal', log: [NEXT_DAY] }),
+      habit({ log: [TODAY] }),
+      habit({ id: 'stretch', name: 'Stretch', log: [TODAY, NEXT_DAY] }),
+    ]
+    await act(async () => {
+      await storage.set('habits', freshHabits)
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    })
+
+    await waitFor(async () => {
+      expect(await storage.get('habits')).toEqual([
+        freshHabits[0],
+        habit({ log: [TODAY, NEXT_DAY] }),
+        freshHabits[2],
+      ])
+    })
+    expect(update.mock.calls.map(([key]) => key)).toEqual(['habits', 'habits'])
+    expect(await storage.get('progressGoals')).toEqual(untouched.progressGoals)
+    expect(await storage.get('attentionLedger')).toEqual(untouched.attentionLedger)
+    expect(await storage.get('connectorSnapshots')).toEqual(untouched.connectorSnapshots)
+    expect(await storage.get('focus')).toEqual(untouched.focus)
+    expect((await storage.get('settings')).briefingSources).toEqual(untouched.briefingSources)
+    expect(notification).not.toHaveBeenCalled()
     expect(screen.queryByText('Progress was not saved. Try again.')).toBeNull()
   })
 })
