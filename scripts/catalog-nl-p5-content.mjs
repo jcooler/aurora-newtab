@@ -120,7 +120,7 @@ export function catalogRequestFailure({ url, status, allowedUrls }) {
 export function catalogContractSourceErrors({ contracts, source }) {
   const errors = []
   for (const [id, tiers] of Object.entries(contracts)) {
-    const entry = source.match(new RegExp(`(?:^|[,{\\s])${id}:\\s*contract\\(([^\\n]*?)\\)(?:,|$)`, 'm'))
+    const entry = source.match(new RegExp(`(?:^|[,{\\s])${id}:\\s*(?:contract|framedContract)\\(([^\\n]*?)(?:,\\s*\\{\\s*$|\\)\\s*,?\\s*$)`, 'm'))
     if (!entry) {
       errors.push(`CATALOG drift: ${id} is missing from widgetSizeContracts.ts`)
       continue

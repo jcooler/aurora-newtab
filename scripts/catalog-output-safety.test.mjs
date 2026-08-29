@@ -156,3 +156,45 @@ test('binds every catalog promise to its own widget contract source entry', () =
     ['CATALOG drift: weather.compact contract "Temperature" is missing from weather in widgetSizeContracts.ts'],
   )
 })
+
+test('binds framed catalog promises to direct tier arguments across nested multiline contracts', () => {
+  const contracts = {
+    weather: {
+      compact: 'Current temperature and condition',
+      standard: 'Forecast context',
+      full: 'Detailed forecast',
+      docked: 'Temperature · location · condition',
+    },
+    timer: { compact: 'Timer action', docked: 'Timer state' },
+    tasks: { compact: 'Tasks action', docked: 'Tasks action' },
+    notes: { compact: 'Notes action', docked: 'Notes action' },
+  }
+  const current = `
+    weather: framedContract(['compact', 'standard', 'full'], ['compact', 'standard', 'full'], WEATHER_STATES, 'Current temperature and condition', 'Forecast context', 'Detailed forecast', 'Temperature · location · condition', {
+      compact: tier('Current conditions at a glance', ['temperature'], [], [], [], { kind: 'details', label: 'Weather details' }),
+      standard: tier('Forecast context', ['forecast'], [], [], [], { kind: 'details', label: 'Weather details' }),
+    }),
+    timer: framedContract(['compact'], ['compact'], READY_STATES, 'Timer action', undefined, undefined, 'Timer state', {
+      compact: tier('Timer state', ['time remaining'], [], [], [], { kind: 'details', label: 'Timer details' }),
+    }),
+    tasks: framedContract(['compact'], ['compact'], READY_STATES, 'Tasks action', undefined, undefined, 'Tasks action', {
+      compact: tier('Tasks action', ['task state'], [], [], [], { kind: 'details', label: 'Tasks details' }),
+    }),
+    notes: framedContract(['compact'], ['compact'], READY_STATES, 'Notes action', undefined, undefined, 'Notes action', {
+      compact: tier('Notes action', ['note state'], [], [], [], { kind: 'details', label: 'Notes details' }),
+    }),
+  `
+
+  assert.deepEqual(catalogContractSourceErrors({ contracts, source: current }), [])
+
+  const wrongOrMissingDirectPromises = current
+    .replace("'Forecast context', 'Detailed forecast'", "'Wrong forecast promise', 'Detailed forecast'")
+    .replace("'Timer action', undefined, undefined, 'Timer state', {", "'Timer action', undefined, undefined, undefined, {")
+  assert.deepEqual(
+    catalogContractSourceErrors({ contracts, source: wrongOrMissingDirectPromises }),
+    [
+      'CATALOG drift: weather.standard contract "Forecast context" is missing from weather in widgetSizeContracts.ts',
+      'CATALOG drift: timer.docked contract "Timer state" is missing from timer in widgetSizeContracts.ts',
+    ],
+  )
+})
