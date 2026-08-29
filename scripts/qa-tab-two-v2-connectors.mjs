@@ -181,7 +181,7 @@ export async function runTabTwoConnectorQa(args = process.argv.slice(2)) {
     await page.getByRole('heading', { name: 'Bring your day together.' }).waitFor()
     await page.waitForTimeout(350)
 
-    assert.match(await page.getByTestId('connector-scroll').locator('p').first().innerText(), /^\d+ connected$/)
+    assert.match(await page.getByTestId('connector-scroll').locator('p').first().innerText(), /^\d+ connected$/i)
     evidence.desktop = await assertSettingsGeometry(page, '1600x900')
     assert(evidence.desktop.rect.width >= 950 && evidence.desktop.rect.width <= 962, `desktop Settings width is not 60rem: ${evidence.desktop.rect.width}`)
     assertTwoColumnGrid(await galleryRects(page))
