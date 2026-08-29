@@ -11,12 +11,12 @@ import {
 const EXPECTED_IDS = [
   'auroraKp', 'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
   'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'linear', 'links', 'monthCal',
-  'moon', 'notes', 'onThisDay', 'publicHolidays', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
+  'moon', 'notes', 'onThisDay', 'progress', 'publicHolidays', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
   'sentry', 'status', 'sun', 'tabGroups', 'tasks', 'timer', 'todoist',
   'vercel', 'weather', 'worldClocks',
 ]
 
-test('covers all 36 identities exactly once across disjoint catalog batches', () => {
+test('covers all 37 identities exactly once across disjoint catalog batches', () => {
   const batches = Object.entries(CATALOG_BATCHES)
   const ids = batches.flatMap(([, entries]) => entries.map(({ id }) => id))
   assert.deepEqual(ids.sort(), EXPECTED_IDS)
