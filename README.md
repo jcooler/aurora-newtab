@@ -37,6 +37,10 @@ direct provider requests only as disclosed below.
 - **Habit streaks** — a small set of daily habits as tap-to-mark chips, each
   showing its current streak; yesterday keeps a streak alive until you mark
   today, so one slow morning doesn't cost you the count. Off by default.
+- **Progress** - manual daily goals plus a derived view of your existing
+  Habits, managed in a dedicated Settings tab. Its optional photo-first
+  canvas rail is off by default and appears only when you explicitly enable
+  or place it; Progress adds no account, sync, network request, or alert.
 - **Month calendar** — a glance-sized month grid for "what date is the 3rd
   Friday" questions, with today ringed and a dot on any date you've added a
   countdown for. Off by default.
@@ -92,9 +96,10 @@ direct provider requests only as disclosed below.
   reorder or remove members, and Undo or Cancel exactly. Every member keeps
   its one existing data owner, and the card never auto-rotates or moves itself.
 
-Settings is organized into four tabs: **General** (name/greeting, 24-hour
-clock, widget color, units, mute, background), **Widgets** (per-widget on/off
-toggles, weather location, world clocks, countdowns, and named layouts),
+Settings is organized into five tabs: **General** (name/greeting, 24-hour
+clock, widget color, units, mute, background), **Progress** (manual daily
+goals plus the existing Habits view), **Widgets** (per-widget on/off toggles,
+weather location, world clocks, countdowns, and named layouts),
 **Connectors** (outside data sources — see [Connectors](#connectors) below),
 and **Data** (backup/restore, plus the About footer). Every widget can be
 turned on or off from Settings, and every setting is optional — the
@@ -381,7 +386,8 @@ as a single JSON file:
   envelope (`app`, `version`, `exportedAt`, and `data`) containing every
   stored key: settings, quick links, to-do lists, the focus timer config,
   today's focus text, background preferences, weather cache, location,
-  notes, world clocks, countdowns, and connector configuration — with any
+  notes, world clocks, countdowns, habits, manual Progress goals, and
+  connector configuration — with any
   field a connector marks as secret (a GitHub/
   GitLab/Jira/Vercel/Home Assistant token, or the Calendar connector's
   saved calendar addresses, or an RSS feed list) stripped out first (see
@@ -416,7 +422,7 @@ Aurora has no backend and requires no Aurora account. Third-party accounts
 are used only when you choose a credentialed connector. All of your data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
 preferences, weather cache, location, notes, world clocks, countdowns,
-habits, widget layout, and connector configuration (e.g. your RSS feed
+habits, manual Progress goals, widget layout, and connector configuration (e.g. your RSS feed
 list) — is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).

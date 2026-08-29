@@ -63,6 +63,8 @@ anywhere except as explicitly described under "Network calls" below:
 - World clocks and countdowns you've configured
 - Habits (the habit names you've added and which days you've marked each
   one done)
+- Manual Progress goals (the names, units, daily targets, and current
+  local-day values you've entered)
 - Widget layout (the on-screen position of each widget, if you've used
   "Arrange layout" to move anything from its default spot)
 - Connector configuration (e.g., for RSS: which feed URLs you've added; for
