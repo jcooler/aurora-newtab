@@ -1,11 +1,13 @@
 # Aurora 2 Status
 
-**Updated:** 2026-08-27<br>
+**Updated:** 2026-08-29<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Background library and lock<br>
-**Last verified packet:** `Background library and lock` - 3,409 green tests, TypeScript, a 263-module build, and exact desktop plus mobile Chromium selection and lock witnesses<br>
-**Current packet:** Owner PC trial, then high-quality image review before premium and subscription strategy
+**Current wave:** Tab Two V2 product polish<br>
+**Last verified packet:** `Tab Two V2 connector experience` - 3,424 green tests, TypeScript, a 265-module exact build, and dedicated desktop, short-height, narrow, modal, storage, and photo Chromium witnesses<br>
+**Current packet:** Owner review of the first V2 production packet, then the next approved product-polish packet
+
+- **Tab Two V2 connector experience (2026-08-29, VERIFIED):** Implemented the first bounded packet from the approved Tab Two V2 visual direction. Settings now uses a 60rem roomy workspace and 11rem rail, while Connectors receives a full-width discovery gallery with outcome-led cards, category filters, full-catalog search, connected count, and shared setup or edit dialogs. All existing connectors remain included and their storage, credentials, permissions, backup redaction, provider, and Canvas ownership remain unchanged. The full gate passed 214 files / 3,424 tests, TypeScript, diff hygiene, five Node QA contracts, and a 265-module exact production build. Exact Chromium at `df7ca1d` proved desktop, short-height, and 375px reflow, one Settings scroll owner, no horizontal overflow, focus restoration, RSS preference and visibility writes, secret non-rendering, a real 2560x1600 photo, and zero console or page errors. Four final captures were inspected at original resolution. Report: `docs/superpowers/reports/TAB-TWO-V2-CONNECTOR-EXPERIENCE-QA.md`. No account, payment, entitlement, merge, or Store action was performed.
 
 - **Background library and lock (2026-08-27, VERIFIED):** Removed owner-rejected catalog photos 19 and 23, added six approved untouched source-resolution landscapes, and expanded the bundled catalog to 27 photos with crisp local Settings previews. Daily Photo now supports keeping the current image and selecting any bundled image; selection locks immediately, unlocking preserves the image until the next local day, and serialized fresh-value updaters prevent delayed rotation from overwriting a new choice. The full gate passed 212 files / 3,409 tests, TypeScript, diff hygiene, and a 263-module production build. Two consecutive exact-commit Chromium runs exercised all six originals and the 27-photo picker at 1600x900 and touch-emulated 375x812 with exact source widths, no overflow, and zero console, page, or request failures. The protected checkout and Chrome Web Store remain untouched.
 
@@ -495,7 +497,8 @@
 
 ## Files intentionally dirty
 
-- None.
+- Pre-existing untracked `artifacts/`.
+- Pre-existing untracked `docs/superpowers/TAKEOVER-2026-08-24-WIDGET-UI-RECOVERY.md`.
 
 ## Continuous remaining-work protocol
 

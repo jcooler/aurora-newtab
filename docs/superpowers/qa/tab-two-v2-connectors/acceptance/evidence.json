@@ -1,0 +1,109 @@
+{
+  "commit": "df7ca1ddde90739094cf93d843797686b45e384f",
+  "consoleErrors": [],
+  "pageErrors": [],
+  "externalRequests": [
+    "https://api.weather.gov/alerts/active?point=33.749,-84.388",
+    "https://api.weather.gov/alerts/active?point=33.749,-84.388",
+    "https://feeds.invalid/aurora.xml",
+    "https://feeds.invalid/release.xml"
+  ],
+  "photo": {
+    "src": "/photos/03-1uwLmA5LFfg-2560x1600.avif",
+    "naturalWidth": 2560,
+    "naturalHeight": 1600,
+    "complete": true
+  },
+  "desktop": {
+    "rect": {
+      "left": 624,
+      "top": 16,
+      "right": 1584,
+      "bottom": 884,
+      "width": 960,
+      "height": 868
+    },
+    "viewport": {
+      "width": 1600,
+      "height": 900
+    },
+    "documentWidth": 1600,
+    "drawerClientWidth": 958,
+    "drawerScrollWidth": 958,
+    "scrollOwnerCount": 1,
+    "drawerIsOnlyScrollOwner": true
+  },
+  "short": {
+    "rect": {
+      "left": 432,
+      "top": 16,
+      "right": 1392,
+      "bottom": 584,
+      "width": 960,
+      "height": 568
+    },
+    "viewport": {
+      "width": 1408,
+      "height": 600
+    },
+    "documentWidth": 1408,
+    "drawerClientWidth": 958,
+    "drawerScrollWidth": 958,
+    "scrollOwnerCount": 1,
+    "drawerIsOnlyScrollOwner": true
+  },
+  "narrow": {
+    "rect": {
+      "left": 0,
+      "top": 0,
+      "right": 375,
+      "bottom": 812,
+      "width": 375,
+      "height": 812
+    },
+    "viewport": {
+      "width": 375,
+      "height": 812
+    },
+    "documentWidth": 375,
+    "drawerClientWidth": 375,
+    "drawerScrollWidth": 375,
+    "scrollOwnerCount": 1,
+    "drawerIsOnlyScrollOwner": true
+  },
+  "categoryLabels": [
+    "Calendar",
+    "Todoist"
+  ],
+  "searchLabels": [
+    "GitHub"
+  ],
+  "focusRestored": true,
+  "rssWrite": {
+    "enabled": true,
+    "feeds": [
+      "https://feeds.invalid/aurora.xml",
+      "https://feeds.invalid/release.xml"
+    ],
+    "shownCount": 7
+  },
+  "visibilityRoundTrip": {
+    "hidden": {
+      "enabled": false,
+      "feeds": [
+        "https://feeds.invalid/aurora.xml",
+        "https://feeds.invalid/release.xml"
+      ],
+      "shownCount": 7
+    },
+    "restored": {
+      "enabled": true,
+      "feeds": [
+        "https://feeds.invalid/aurora.xml",
+        "https://feeds.invalid/release.xml"
+      ],
+      "shownCount": 7
+    }
+  },
+  "result": "PASS"
+}
