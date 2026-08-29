@@ -1,5 +1,5 @@
 {
-  "commit": "e311711ea339c7cb9fbae3d3ec026afc81ae5463",
+  "commit": "2d74afd3898f59c5a2057937016af91f8088369b",
   "consoleErrors": [],
   "pageErrors": [],
   "externalRequests": [
@@ -82,6 +82,25 @@
   "stickySurface": {
     "backgroundColor": "rgba(0, 0, 0, 0)",
     "backdropFilter": "blur(40px)"
+  },
+  "settingsOpenMotion": {
+    "closed": {
+      "ariaHidden": "true",
+      "inert": true,
+      "pointerEvents": "none",
+      "visibility": "visible",
+      "translate": "calc(100% + 16px)",
+      "willChange": "translate",
+      "rect": {
+        "left": 1600,
+        "right": 2560,
+        "width": 960
+      },
+      "viewportWidth": 1600
+    },
+    "frameCount": 44,
+    "maxFrameDelta": 16.80000000000001,
+    "firstMovingAt": 14.600000047683693
   },
   "rssWrite": {
     "enabled": true,

@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-29<br>
 **Branch:** `feat/aurora-2-observatory`<br>
-**Exact QA commit:** `e311711ea339c7cb9fbae3d3ec026afc81ae5463`<br>
+**Exact QA commit:** `2d74afd3898f59c5a2057937016af91f8088369b`<br>
 **Result:** PASS
 
 ## Accepted scope
@@ -23,13 +23,14 @@ This is the first bounded production packet from the owner-approved Tab Two V2 v
 - `npx tsc --noEmit`: PASS.
 - `node --test scripts/qa-tab-two-v2-connectors.test.mjs`: PASS, 5 contracts.
 - `npm run build`: PASS, 265 transformed modules with exact provenance.
-- `npm run qa:tab-two-v2-connectors`: PASS against exact commit `e311711`.
+- `npm run qa:tab-two-v2-connectors`: PASS against exact commit `2d74afd`.
 - `git diff --check`: PASS.
 
 The dedicated browser gate proved:
 
 - Settings measured exactly 960px wide at both 1600x900 and 1408x600.
 - Settings measured exactly 375px wide at 375x812.
+- The closed 960px Settings surface was prepainted exactly outside the 1600px viewport while remaining inert, aria-hidden, and pointer-inactive. Opening movement began in 14.6ms and the slowest sampled frame was 16.8ms.
 - Desktop and short-height galleries rendered two columns; narrow rendered one column.
 - Every viewport had one Settings vertical scroll owner and no page or Settings horizontal overflow.
 - Category filtering returned Calendar and Todoist; search still found GitHub across the full catalog.
