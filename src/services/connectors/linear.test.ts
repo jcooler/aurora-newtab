@@ -87,7 +87,7 @@ describe('whoamiLinear', () => {
     })
     const body = JSON.parse(String(init?.body)) as { query: string }
     expect(compactQuery(body.query)).toBe(
-      'query AuroraLinearIdentity { viewer { id name teams { nodes { id key name } } } }',
+      'query TabTwoLinearIdentity { viewer { id name teams { nodes { id key name } } } }',
     )
     expect(String(init?.headers)).not.toContain('Bearer')
   })
@@ -174,7 +174,7 @@ describe('fetchLinearWork request and failure contract', () => {
     })
     const body = JSON.parse(String(init?.body)) as { query: string; variables?: unknown }
     expect(compactQuery(body.query)).toBe(
-      'query AuroraLinearWork($filter: IssueFilter) { viewer { assignedIssues(first: 50, filter: $filter) { nodes { id identifier title priority dueDate url state { name type } team { id key name } cycle { id name startsAt endsAt } } } } }',
+      'query TabTwoLinearWork($filter: IssueFilter) { viewer { assignedIssues(first: 50, filter: $filter) { nodes { id identifier title priority dueDate url state { name type } team { id key name } cycle { id name startsAt endsAt } } } } }',
     )
     expect(body.variables).toEqual({ filter: { team: { id: { in: ['team-a'] } } } })
   })

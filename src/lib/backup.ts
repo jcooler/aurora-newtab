@@ -159,7 +159,7 @@ export function parseBackup(raw: string): ParseBackupResult {
   // so it's rejected the same way a wrong/missing `app` field is.
   const envelope = isPlainObject(parsed) ? parsed : {}
   if (envelope.app !== APP_ID) {
-    return { ok: false, reason: "That file isn't an Aurora backup." }
+    return { ok: false, reason: "That file isn't a Tab Two backup." }
   }
 
   const version = envelope.version
@@ -170,7 +170,7 @@ export function parseBackup(raw: string): ParseBackupResult {
     return { ok: false, reason: "That backup's version number is invalid." }
   }
   if (version > CURRENT_VERSION) {
-    return { ok: false, reason: 'That backup is newer than this Aurora — update the extension first.' }
+    return { ok: false, reason: 'That backup is newer than this Tab Two build. Update the extension first.' }
   }
 
   if (!isPlainObject(envelope.data)) {
@@ -705,7 +705,7 @@ export function prepareBackup(raw: string): PrepareBackupResult {
     if (error instanceof LegacyLayoutValidationError) {
       return { ok: false, reason: 'That backup\'s "layout" data is invalid.' }
     }
-    return { ok: false, reason: 'That backup cannot be migrated by this Aurora version.' }
+    return { ok: false, reason: 'That backup cannot be migrated by this Tab Two build.' }
   }
 
   const shape = validateBackupShape(migrated)

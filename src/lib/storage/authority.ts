@@ -6,7 +6,7 @@ const STORAGE_LOCK_NAME = 'aurora:storage:mutation:v1'
 
 export class StorageAuthorityUnavailableError extends Error {
   constructor() {
-    super('Aurora storage requires the Web Locks API')
+    super('Tab Two storage requires the Web Locks API')
     this.name = 'StorageAuthorityUnavailableError'
   }
 }

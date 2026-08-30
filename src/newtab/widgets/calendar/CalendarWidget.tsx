@@ -517,7 +517,7 @@ function CalendarInner({
     return (
       <TierFrame label="Calendar" tier={canvasSize} state={presentation} className="justify-center gap-2 p-3">
         {presentation === 'hard-error' ? (
-          <p role="alert" className="text-sm text-fg-muted">Calendar is unavailable. Aurora will retry automatically.</p>
+          <p role="alert" className="text-sm text-fg-muted">Calendar is unavailable. Tab Two will retry automatically.</p>
         ) : (
           <p className="text-sm text-fg-muted">Loading calendar…</p>
         )}

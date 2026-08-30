@@ -25,6 +25,7 @@ describe('ConnectorDetailDialog', () => {
     expect(screen.getByText(experience.outcome)).toBeTruthy()
     for (const benefit of experience.benefits) expect(screen.getByText(benefit)).toBeTruthy()
     expect(screen.getByText(experience.privacySummary)).toBeTruthy()
+    expect(screen.getByText('Included today')).toBeTruthy()
     expect(screen.getByLabelText('Calendar name')).toBeTruthy()
   })
 

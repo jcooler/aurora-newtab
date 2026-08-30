@@ -74,7 +74,7 @@ export default function Data({
     } catch {
       setStatus(null)
       setStatusOwner(null)
-      setAlert('Aurora could not create the backup file. Try again.')
+      setAlert('Tab Two could not create the backup file. Try again.')
       setAlertOwner('export')
     } finally {
       if (operationInFlightRef.current === 'export') operationInFlightRef.current = null
@@ -97,7 +97,7 @@ export default function Data({
     try {
       text = await file.text()
     } catch {
-      setAlert('Aurora could not read that backup file. Choose it again or try another file.')
+      setAlert('Tab Two could not read that backup file. Choose it again or try another file.')
       setAlertOwner('import')
       return
     }

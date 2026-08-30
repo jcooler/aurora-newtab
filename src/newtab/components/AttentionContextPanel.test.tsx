@@ -5,7 +5,7 @@ import type { AttentionSignal } from '../../lib/attention'
 import AttentionContextPanel from './AttentionContextPanel'
 
 const SIGNALS: AttentionSignal[] = [
-  { key: 'assignment:github:42', kind: 'assignment', source: 'GitHub', title: 'Review authentication fix', detail: 'acme/aurora · First seen by Aurora 2h ago', timestamp: 1, url: 'https://github.com/acme/aurora/pull/42' },
+  { key: 'assignment:github:42', kind: 'assignment', source: 'GitHub', title: 'Review authentication fix', detail: 'acme/aurora · First seen by Tab Two 2h ago', timestamp: 1, url: 'https://github.com/acme/aurora/pull/42' },
   { key: 'deployment:aurora', kind: 'deployment', source: 'Vercel', title: 'aurora-newtab', detail: 'Failed 18m ago', timestamp: 2 },
 ]
 
@@ -29,7 +29,7 @@ describe('AttentionContextPanel', () => {
     const trigger = screen.getByRole('button', { name: '2 items need attention' })
     fireEvent.mouseEnter(trigger)
     const panel = screen.getByRole('region', { name: 'Attention details' })
-    expect(screen.getByText(/First seen by Aurora 2h ago/)).toBeTruthy()
+    expect(screen.getByText(/First seen by Tab Two 2h ago/)).toBeTruthy()
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
     expect(trigger.getAttribute('aria-controls')).toBe(panel.id)
     fireEvent.mouseLeave(trigger)

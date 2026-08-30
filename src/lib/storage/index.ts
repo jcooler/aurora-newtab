@@ -29,14 +29,14 @@ export class AtomicRestoreRollbackError extends Error {
     public readonly primaryError: unknown,
     public readonly rollbackError: unknown,
   ) {
-    super('Aurora storage rollback failed')
+    super('Tab Two storage rollback failed')
     this.name = 'AtomicRestoreRollbackError'
   }
 }
 
 export class StorageInitializationError extends Error {
   constructor(public readonly cause: unknown) {
-    super('Aurora storage initialization failed')
+    super('Tab Two storage initialization failed')
     this.name = 'StorageInitializationError'
   }
 }
@@ -46,7 +46,7 @@ export class AtomicMigrationRollbackError extends Error {
     public readonly primaryError: unknown,
     public readonly rollbackError: unknown,
   ) {
-    super('Aurora storage migration rollback failed')
+    super('Tab Two storage migration rollback failed')
     this.name = 'AtomicMigrationRollbackError'
   }
 }
@@ -157,7 +157,7 @@ export function createStorage(
     try {
       const verified = await driver.read([...DATA_KEYS])
       if (!structurallyEqual(verified, target)) {
-        throw new Error('Aurora storage defaults verification failed')
+        throw new Error('Tab Two storage defaults verification failed')
       }
     } catch (verificationError) {
       throw new StorageInitializationError(writeError ?? verificationError)
@@ -175,7 +175,7 @@ export function createStorage(
     try {
       const verified = await driver.read([VERSION_KEY])
       if (!structurallyEqual(verified, target)) {
-        throw new Error('Aurora storage version verification failed')
+        throw new Error('Tab Two storage version verification failed')
       }
     } catch (verificationError) {
       throw new StorageInitializationError(writeError ?? verificationError)
@@ -221,7 +221,7 @@ export function createStorage(
       await driver.write(target)
       const verified = await driver.read(verificationKeys)
       if (!structurallyEqual(verified, target)) {
-        throw new Error('Aurora storage migration verification failed')
+        throw new Error('Tab Two storage migration verification failed')
       }
       return
     } catch (caught) {
@@ -232,7 +232,7 @@ export function createStorage(
       await driver.write(previous)
       const rolledBack = await driver.read(verificationKeys)
       if (!structurallyEqual(rolledBack, previous)) {
-        throw new Error('Aurora storage migration rollback verification failed')
+        throw new Error('Tab Two storage migration rollback verification failed')
       }
     } catch (rollbackError) {
       throw new AtomicMigrationRollbackError(primaryError, rollbackError)
@@ -248,7 +248,7 @@ export function createStorage(
       await driver.write(target)
       const verified = await driver.read([VERSION_KEY])
       if (!structurallyEqual(verified, target)) {
-        throw new Error('Aurora storage version migration verification failed')
+        throw new Error('Tab Two storage version migration verification failed')
       }
       return
     } catch (caught) {
@@ -259,7 +259,7 @@ export function createStorage(
       await driver.write(previous)
       const rolledBack = await driver.read([VERSION_KEY])
       if (!structurallyEqual(rolledBack, previous)) {
-        throw new Error('Aurora storage version migration rollback verification failed')
+        throw new Error('Tab Two storage version migration rollback verification failed')
       }
     } catch (rollbackError) {
       throw new AtomicMigrationRollbackError(primaryError, rollbackError)
@@ -277,7 +277,7 @@ export function createStorage(
       await driver.write({ settings: target })
       const verified = await driver.read(['settings'])
       if (!structurallyEqual(verified, { settings: target })) {
-        throw new Error('Aurora storage density repair verification failed')
+        throw new Error('Tab Two storage density repair verification failed')
       }
       return
     } catch (caught) {
@@ -288,7 +288,7 @@ export function createStorage(
       await driver.write({ settings })
       const rolledBack = await driver.read(['settings'])
       if (!structurallyEqual(rolledBack, { settings })) {
-        throw new Error('Aurora storage density repair rollback verification failed')
+        throw new Error('Tab Two storage density repair rollback verification failed')
       }
     } catch (rollbackError) {
       throw new AtomicMigrationRollbackError(primaryError, rollbackError)
@@ -334,7 +334,7 @@ export function createStorage(
         await writePatch(target)
         const verified = await readSnapshot()
         if (!structurallyEqual(verified, target)) {
-          throw new Error('Aurora storage target verification failed')
+          throw new Error('Tab Two storage target verification failed')
         }
         invalidateCacheAuthority()
         const value = await finalize(previous)
@@ -344,7 +344,7 @@ export function createStorage(
           await writePatch(allKeyPatch(previous))
           const rolledBack = await readSnapshot()
           if (!structurallyEqual(rolledBack, previous)) {
-            throw new Error('Aurora storage rollback verification failed')
+            throw new Error('Tab Two storage rollback verification failed')
           }
           invalidateCacheAuthority()
         } catch (rollbackError) {
@@ -407,7 +407,7 @@ export function createStorage(
           return
         }
         if (stored > CURRENT_VERSION) {
-          console.warn(`Aurora data is schema v${stored}, app expects v${CURRENT_VERSION}`)
+          console.warn(`Tab Two data is schema v${stored}, app expects v${CURRENT_VERSION}`)
         }
       })
     },

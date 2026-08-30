@@ -34,7 +34,7 @@ const FAILURE_COPY: Record<RestoreFailureStatus, string> = {
   denied: 'Chrome did not grant the site access needed for this restore. You can retry.',
   'access-lost': 'Chrome site access changed before the restore could finish. Your current data was left unchanged. You can retry.',
   failed: 'That backup could not be restored. Your current data was left unchanged. You can retry.',
-  'rollback-failed': 'The restore failed, and Aurora could not verify recovery of your previous data. Review your settings before retrying.',
+  'rollback-failed': 'The restore failed, and Tab Two could not verify recovery of your previous data. Review your settings before retrying.',
 }
 
 function failure(

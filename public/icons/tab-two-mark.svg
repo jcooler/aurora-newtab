@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img">
+  <title>Tab Two</title>
+  <defs>
+    <linearGradient id="signal" x1="22" y1="42" x2="94" y2="106" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#268CFF"/>
+      <stop offset="1" stop-color="#12C7E8"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#07131F"/>
+  <path d="M44 22h24l8 9h24a9 9 0 0 1 9 9v47a9 9 0 0 1-9 9H44a9 9 0 0 1-9-9V31a9 9 0 0 1 9-9Z" fill="#0C2235" stroke="#65D9F2" stroke-width="5"/>
+  <path d="M25 38h27l8 9h25a9 9 0 0 1 9 9v45a9 9 0 0 1-9 9H25a9 9 0 0 1-9-9V47a9 9 0 0 1 9-9Z" fill="url(#signal)"/>
+  <path d="M34 58h42M55 58v34" fill="none" stroke="#F7FBFF" stroke-width="9" stroke-linecap="round"/>
+</svg>

@@ -202,7 +202,7 @@ describe('createStorage', () => {
       .init().catch((caught) => caught)
 
     expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(error.message).toBe('Tab Two storage initialization failed')
     expect(controlled.writes).toEqual([])
   })
 
@@ -228,7 +228,7 @@ describe('createStorage', () => {
     } else {
       const error = await storage.init().catch((caught) => caught)
       expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-      expect(error.message).toBe('Aurora storage initialization failed')
+      expect(error.message).toBe('Tab Two storage initialization failed')
       expect(controlled.base.dump()).toEqual({})
       await expect(storage.init()).resolves.toBeUndefined()
     }
@@ -264,7 +264,7 @@ describe('createStorage', () => {
 
     const error = await storage.init().catch((caught) => caught)
     expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(error.message).toBe('Tab Two storage initialization failed')
     expect(controlled.base.dump()).toEqual(defaults())
     await expect(storage.init()).resolves.toBeUndefined()
   })
@@ -323,7 +323,7 @@ describe('createStorage', () => {
 
     const error = await storage.init().catch((caught) => caught)
     expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(error.message).toBe('Tab Two storage initialization failed')
     expect(controlled.base.dump()['aurora:version']).toBe(CURRENT_VERSION)
     await expect(storage.init()).resolves.toBeUndefined()
   })
@@ -627,7 +627,7 @@ describe('createStorage', () => {
       .init().catch((caught) => caught)
 
     expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(error.message).toBe('Tab Two storage initialization failed')
     expect(controlled.writes).toEqual([])
     expect(controlled.base.dump()).toEqual(before)
   })
@@ -704,7 +704,7 @@ describe('createStorage', () => {
 
     const error = await storage.init().catch((caught) => caught)
     expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(error.message).toBe('Tab Two storage initialization failed')
     expect((await controlled.base.read(['settings'])).settings).toEqual(settings)
 
     await expect(storage.init()).resolves.toBeUndefined()
@@ -726,7 +726,7 @@ describe('createStorage', () => {
       .init().catch((caught) => caught)
 
     expect(error).toBeInstanceOf(storageModule.AtomicMigrationRollbackError)
-    expect(error.message).toBe('Aurora storage migration rollback failed')
+    expect(error.message).toBe('Tab Two storage migration rollback failed')
     expect(controlled.writes).toEqual([
       { settings: { ...settings, layoutDensity: 'auto' } },
       { settings },
@@ -788,7 +788,7 @@ describe('createStorage', () => {
     expect(events).toEqual(['lock:enter', 'read:null', 'lock:exit'])
     expect(controlled.writes).toEqual([])
     expect(warn).toHaveBeenCalledWith(
-      `Aurora data is schema v${CURRENT_VERSION + 1}, app expects v${CURRENT_VERSION}`,
+      `Tab Two data is schema v${CURRENT_VERSION + 1}, app expects v${CURRENT_VERSION}`,
     )
     warn.mockRestore()
   })
@@ -811,7 +811,7 @@ describe('createStorage', () => {
         .init().catch((caught) => caught)
 
       expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-      expect(error.message).toBe('Aurora storage initialization failed')
+      expect(error.message).toBe('Tab Two storage initialization failed')
       expect(error.message).not.toContain('schema v9')
       expect(error.cause).toBeInstanceOf(Error)
       expect(error.cause.message).toBe('No migration from schema v9')
@@ -843,7 +843,7 @@ describe('createStorage', () => {
       .init().catch((caught) => caught)
 
     expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(error.message).toBe('Tab Two storage initialization failed')
     expect(controlled.writes).toHaveLength(2)
     expect(controlled.writes[1]).toEqual(Object.fromEntries([
       ...KNOWN_KEYS.map((key) => [key, seed[key]]),
@@ -871,7 +871,7 @@ describe('createStorage', () => {
       .init().catch((caught) => caught)
 
     expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
-    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(error.message).toBe('Tab Two storage initialization failed')
     expect(controlled.writes).toHaveLength(2)
     expect(await controlled.base.read([...KNOWN_KEYS, 'aurora:version'])).toEqual(controlled.writes[1])
     expect(controlled.base.dump().unknown).toBe('keep')
@@ -926,7 +926,7 @@ describe('createStorage', () => {
       .init().catch((caught) => caught)
 
     expect(error).toBeInstanceOf(storageModule.AtomicMigrationRollbackError)
-    expect(error.message).toBe('Aurora storage migration rollback failed')
+    expect(error.message).toBe('Tab Two storage migration rollback failed')
     expect(error.message).not.toContain('private')
     expect(error.primaryError).toBeDefined()
     expect(error.rollbackError).toBeDefined()
@@ -1705,7 +1705,7 @@ describe('createStorage', () => {
     expect(error.primaryError).toBe(primary)
     if (mode === 'write' || mode === 'read') expect(error.rollbackError).toBe(rollback)
     else expect(error.rollbackError).toBeInstanceOf(Error)
-    expect(error.message).toBe('Aurora storage rollback failed')
+    expect(error.message).toBe('Tab Two storage rollback failed')
     expect(error.message).not.toContain('private state')
     expect(error.message).not.toContain('https://')
   })

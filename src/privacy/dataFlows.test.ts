@@ -292,20 +292,28 @@ describe('code-backed privacy inventory', () => {
 
   it('drives both manifest modes and the in-product local plaintext warning', async () => {
     expect(MANIFEST_PRIVACY_DESCRIPTION).toBe(
-      'A calm, local-first new-tab dashboard. No Aurora account, no tracking, no backend.',
+      'A calm, local-first new-tab dashboard. No Tab Two account, no tracking, no backend.',
     )
     expect(LOCAL_SECRET_STORAGE_NOTICE).toContain('local plaintext')
     expect(LOCAL_SECRET_STORAGE_NOTICE).toContain('shared or untrusted profile')
 
     const production = await manifestFor('production')
     expect(production).toMatchObject({
+      name: 'Tab Two',
       description: MANIFEST_PRIVACY_DESCRIPTION,
+      icons: {
+        16: 'icons/icon16.png',
+        32: 'icons/icon32.png',
+        48: 'icons/icon48.png',
+        128: 'icons/icon128.png',
+      },
       permissions: ['storage', 'favicon', 'geolocation', 'search'],
       optional_permissions: ['bookmarks', 'readingList', 'sessions', 'downloads', 'tabGroups'],
       optional_host_permissions: ['https://*/*'],
     })
     const preview = await manifestFor('preview')
     expect(preview).toMatchObject({
+      name: 'Tab Two',
       description: MANIFEST_PRIVACY_DESCRIPTION,
       permissions: ['storage', 'favicon', 'bookmarks', 'readingList', 'sessions', 'downloads', 'tabGroups', 'geolocation', 'search'],
       optional_permissions: [],

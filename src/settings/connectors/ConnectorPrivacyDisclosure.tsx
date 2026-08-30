@@ -33,11 +33,11 @@ export default function ConnectorPrivacyDisclosure() {
           <p>{LOCAL_SECRET_STORAGE_NOTICE}</p>
           <p>
             RSS feed and calendar addresses can be capability URLs that grant access like a password.
-            Aurora omits them and connector credentials from backups, so they must be re-entered after restore.
+            Tab Two omits them and connector credentials from backups, so they must be re-entered after restore.
           </p>
           <p>
             Disconnecting removes the saved connection and releases site access that no other connector uses.
-            On a shared or untrusted profile, disconnect first or clear Aurora’s extension data after use.
+            On a shared or untrusted profile, disconnect first or clear Tab Two extension data after use.
           </p>
         </div>
       ) : null}

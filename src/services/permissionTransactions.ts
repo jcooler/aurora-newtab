@@ -52,7 +52,7 @@ export const ORIGIN_PERMISSION_LOCK_NAME = 'aurora:origin-permission-lifecycle:v
 
 export class OriginPermissionAuthorityUnavailableError extends Error {
   constructor() {
-    super('Aurora origin permission transactions require the Web Locks API')
+    super('Tab Two origin permission transactions require the Web Locks API')
     this.name = 'OriginPermissionAuthorityUnavailableError'
   }
 }

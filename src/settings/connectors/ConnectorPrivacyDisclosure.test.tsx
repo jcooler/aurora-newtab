@@ -23,7 +23,7 @@ describe('ConnectorPrivacyDisclosure', () => {
     expect(region.textContent).toContain(LOCAL_SECRET_STORAGE_NOTICE)
     expect(region.textContent).toContain('capability URLs')
     expect(region.textContent).toContain('Disconnecting')
-    expect(region.textContent).toContain('clear Aurora’s extension data')
+    expect(region.textContent).toContain('clear Tab Two extension data')
   })
 
   it('renders policy copy only and never logs or receives connector values', () => {

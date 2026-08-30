@@ -35,7 +35,7 @@ describe('Web Lock storage authority', () => {
     const work = vi.fn(async () => undefined)
 
     await expect(createWebLockStorageAuthority(undefined).runExclusive(work))
-      .rejects.toThrow('Aurora storage requires the Web Locks API')
+      .rejects.toThrow('Tab Two storage requires the Web Locks API')
     expect(work).not.toHaveBeenCalled()
   })
 

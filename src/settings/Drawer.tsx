@@ -1,6 +1,8 @@
 import { useRef, type ReactNode } from 'react'
 import { useDialogEscape } from '../lib/dialogStack'
 import { useFocusTrap } from '../lib/hooks/useFocusTrap'
+import BrandMark from '../brand/BrandMark'
+import { PRODUCT_NAME } from '../brand/identity'
 
 export default function Drawer({
   open,
@@ -51,7 +53,13 @@ export default function Drawer({
         }`}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <div className="flex min-w-0 items-center gap-3">
+            <BrandMark className="size-9 shrink-0 rounded-[0.6rem]" />
+            <div className="min-w-0">
+              <p className="font-display text-base font-semibold tracking-[-0.025em] text-fg">{PRODUCT_NAME}</p>
+              <h2 className="text-xs font-medium text-fg-muted">{title}</h2>
+            </div>
+          </div>
           <button
             type="button"
             onClick={onClose}

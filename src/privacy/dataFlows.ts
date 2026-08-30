@@ -243,7 +243,7 @@ export const BROWSER_DATA_FLOWS = {
   bookmarks: { transmission: 'none' as const, description: 'Bookmarks are read through the optional Chrome bookmarks API.' },
   favicon: { transmission: 'browser-mediated' as const, description: 'Chrome supplies favicons through its local extension API.' },
   navigation: { transmission: 'browser-mediated' as const, description: 'Opening a Quick Link hands its safe HTTP(S) URL to Chrome.' },
-  geolocation: { transmission: 'none' as const, description: 'Chrome provides coordinates; Aurora sends them only in the separately listed weather flows.' },
+  geolocation: { transmission: 'none' as const, description: 'Chrome provides coordinates; Tab Two sends them only in the separately listed weather flows.' },
   readingList: {
     transmission: 'none' as const,
     permission: 'readingList' as const,
@@ -271,7 +271,7 @@ export const BROWSER_DATA_FLOWS = {
 }
 
 export const MANIFEST_PRIVACY_DESCRIPTION =
-  'A calm, local-first new-tab dashboard. No Aurora account, no tracking, no backend.' as const
+  'A calm, local-first new-tab dashboard. No Tab Two account, no tracking, no backend.' as const
 
 export const LOCAL_SECRET_STORAGE_NOTICE =
-  'Connector credentials and RSS feed/calendar URLs are stored as local plaintext protected by this Chrome/OS profile—not encrypted or vault-grade. On a shared or untrusted profile, disconnect connectors or clear Aurora’s extension data after use.' as const
+  'Connector credentials and RSS feed/calendar URLs are stored as local plaintext protected by this Chrome/OS profile, not encrypted or vault-grade. On a shared or untrusted profile, disconnect connectors or clear Tab Two extension data after use.' as const

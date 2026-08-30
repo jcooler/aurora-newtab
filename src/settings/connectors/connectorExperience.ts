@@ -101,7 +101,7 @@ const EXPERIENCES: Record<ConnectorId, ConnectorExperienceBase> = {
     mark: 'Kp',
     outcome: 'See current aurora conditions and the near-term geomagnetic forecast at a glance.',
     benefits: ['Read the current Kp level', 'See the forecast trend', 'Use public NOAA space-weather data'],
-    privacySummary: 'Aurora conditions use public NOAA data and require no account, token, or personal information.',
+    privacySummary: 'Geomagnetic conditions use public NOAA data and require no account, token, or personal information.',
   },
 }
 

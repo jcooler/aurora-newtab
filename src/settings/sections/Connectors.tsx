@@ -644,7 +644,7 @@ function OnThisDayBody({ config, storage, closeEditor }: BodyProps) {
       }}
     >
       <p className="text-xs leading-relaxed text-fg-muted">
-        Aurora sends only today&apos;s local month and day to English Wikipedia. No account, key, or permission is required.
+        Tab Two sends only today&apos;s local month and day to English Wikipedia. No account, key, or permission is required.
       </p>
       <button type="submit" className={submitBtn}>Add On This Day to canvas</button>
     </form>
@@ -735,7 +735,7 @@ function PublicHolidaysBody({ config, storage, closeEditor }: BodyProps) {
         </select>
       </div>
       <p className="text-xs leading-relaxed text-fg-muted">
-        Aurora sends this country code and the current and next local year to Nager.Date. No account, key, or permission is required.
+        Tab Two sends this country code and the current and next local year to Nager.Date. No account, key, or permission is required.
       </p>
       <button type="submit" disabled={loading || submitting || countries.length === 0} className={submitBtn}>
         {submitting ? 'Saving…' : current ? 'Save Public Holidays country' : 'Add Public Holidays to canvas'}
@@ -762,7 +762,7 @@ function AuroraKpBody({ config, storage, closeEditor }: BodyProps) {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-xs leading-relaxed text-fg-muted">
-          Uses NOAA&apos;s public planetary K-index forecast. Aurora sends no account or personal data.
+          Uses NOAA&apos;s public planetary K-index forecast. Tab Two sends no account or personal data.
         </p>
         <button type="button" onClick={closeEditor} className={submitBtn}>Done</button>
       </div>
@@ -785,7 +785,7 @@ function AuroraKpBody({ config, storage, closeEditor }: BodyProps) {
       }}
     >
       <p className="text-xs leading-relaxed text-fg-muted">
-        Aurora reads NOAA&apos;s public geomagnetic forecast. No account, key, location, or permission is required.
+        Tab Two reads NOAA&apos;s public geomagnetic forecast. No account, key, location, or permission is required.
       </p>
       <button type="submit" className={submitBtn}>Add Aurora &amp; Kp to canvas</button>
     </form>

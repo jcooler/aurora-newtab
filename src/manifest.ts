@@ -66,7 +66,7 @@ const OPTIONAL_BROWSER_WIDGET_PERMISSIONS = [
 
 export default defineManifest((env) => ({
   manifest_version: 3,
-  name: 'Aurora',
+  name: 'Tab Two',
   version: '2.0.0',
   description: MANIFEST_PRIVACY_DESCRIPTION,
   // `search` (Red Argon remediation, v1.2.1): gives access to chrome.search
@@ -107,6 +107,7 @@ export default defineManifest((env) => ({
   optional_host_permissions: ['https://*/*'],
   icons: {
     16: 'icons/icon16.png',
+    32: 'icons/icon32.png',
     48: 'icons/icon48.png',
     128: 'icons/icon128.png',
   },

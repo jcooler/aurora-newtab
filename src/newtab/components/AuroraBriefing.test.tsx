@@ -13,7 +13,7 @@ let hookResult: { ready: boolean; signals: AttentionSignal[] }
 vi.mock('./useAttentionSignals', () => ({ useAttentionSignals: () => hookResult }))
 vi.mock('./AttentionRefreshOwners', () => ({ default: () => <span data-attention-refresh-owner="" /> }))
 
-const WORK: AttentionSignal = { key: 'assignment:github:42', kind: 'assignment', source: 'GitHub', title: 'Review authentication fix', detail: 'acme/aurora · First seen by Aurora 2h ago', timestamp: 1 }
+const WORK: AttentionSignal = { key: 'assignment:github:42', kind: 'assignment', source: 'GitHub', title: 'Review authentication fix', detail: 'acme/aurora · First seen by Tab Two 2h ago', timestamp: 1 }
 const FAILURE: AttentionSignal = { key: 'deployment:aurora', kind: 'deployment', source: 'Vercel', title: 'aurora-newtab', detail: 'Failed 18m ago', timestamp: 2 }
 
 async function makeStorage(briefingEnabled: boolean | 'absent' = true): Promise<AuroraStorage> {
@@ -71,7 +71,7 @@ describe('AuroraBriefing attention composition', () => {
     expect(screen.getByRole('region', { name: 'Attention details' })).toBeTruthy()
     expect(screen.getByText('GitHub')).toBeTruthy()
     expect(screen.getByText('Review authentication fix')).toBeTruthy()
-    expect(screen.getByText(/First seen by Aurora 2h ago/)).toBeTruthy()
+    expect(screen.getByText(/First seen by Tab Two 2h ago/)).toBeTruthy()
     expect(screen.getByText('Vercel')).toBeTruthy()
     expect(screen.getByText('aurora-newtab')).toBeTruthy()
     expect(screen.getByText('Failed 18m ago')).toBeTruthy()

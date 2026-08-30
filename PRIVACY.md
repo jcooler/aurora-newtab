@@ -1,28 +1,28 @@
-# Aurora Privacy Policy
+# Tab Two Privacy Policy
 
-**Effective date:** August 22, 2026
+**Effective date:** August 30, 2026
 
-Aurora is a new-tab dashboard extension for Chrome. This policy describes,
-completely, what Aurora stores, what it sends over the network, and to whom.
-If something isn't listed here, Aurora doesn't do it.
+Tab Two is a new-tab dashboard extension for Chrome. This policy describes,
+completely, what Tab Two stores, what it sends over the network, and to whom.
+If something isn't listed here, Tab Two doesn't do it.
 
 ## Summary
 
-Aurora has no backend and requires no Aurora account. Optional credentialed
+Tab Two has no backend and requires no Tab Two account. Optional credentialed
 connectors can use accounts you already have with their third-party providers.
-Aurora does not collect data for its developer, sell or rent your data, or
+Tab Two does not collect data for its developer, sell or rent your data, or
 transfer it for advertising, profiling, lending, or any unrelated purpose.
 There is no analytics and no tracking of any kind. Everything
-Aurora stores lives only on your own device. The outbound network calls
-Aurora makes on its own, with no action from you beyond turning a widget
+Tab Two stores lives only on your own device. The outbound network calls
+Tab Two makes on its own, with no action from you beyond turning a widget
 on, are five read-only, keyless weather/location lookups described in full
-below. Beyond those, Aurora's **Connectors** framework lets you point it at
+below. Beyond those, Tab Two's **Connectors** framework lets you point it at
 outside sites yourself or enable a built-in public source. Fifteen connectors
 ship today: RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status,
 Home Assistant, Linear, Sentry, Todoist, On This Day, Public Holidays, and
 Aurora & Kp. Every such request goes
 directly from your browser to the site you configured, never through any
-server Aurora operates (it has none). Thirteen only read. Home Assistant
+server Tab Two operates (it has none). Thirteen only read. Home Assistant
 sends a configured command to your own instance only when you click its
 action, and Todoist closes a task only after you confirm it. Eight connectors
 (GitHub, GitLab, Jira, Vercel, Home Assistant, Linear, Sentry, and Todoist)
@@ -32,9 +32,9 @@ seven need no credential. See "Connectors" below for the complete disclosure.
 Connector credentials and RSS/Calendar capability URLs are stored as local
 plaintext in `chrome.storage.local`, protected by your Chrome/OS profile.
 They are not encrypted, obfuscated, or vault-grade. On a shared or untrusted
-profile, disconnect connectors or clear Aurora's extension data after use.
+profile, disconnect connectors or clear Tab Two's extension data after use.
 
-## What Aurora stores, and where
+## What Tab Two stores, and where
 
 All of the following is stored locally in the extension's
 `chrome.storage.local`, on your device only, and is never transmitted
@@ -103,21 +103,21 @@ every RSS feed URL,
 is stripped from the exported file automatically, before it's ever
 written to disk (see "Connectors" below for
 the full per-connector list and the mechanism that enforces it). This file
-is created and read entirely on your device — Aurora never
+is created and read entirely on your device — Tab Two never
 uploads it anywhere on its own. Where that file goes afterward (cloud
-drive, email, USB stick, etc.) is entirely up to you and outside Aurora's
+drive, email, USB stick, etc.) is entirely up to you and outside Tab Two's
 control.
 
-Aurora never uploads the local store or a backup file wholesale to the
+Tab Two never uploads the local store or a backup file wholesale to the
 developer, analytics, or any outside service. Individual values leave the
 device only through the specific functionality-necessary network calls
-disclosed below. There is no Aurora server that storage or backups pass
+disclosed below. There is no Tab Two server that storage or backups pass
 through.
 
 ## Network calls
 
-Aurora makes network requests to exactly five **fixed** endpoints, all
-operated by third-party services (Aurora itself has no server), all
+Tab Two makes network requests to exactly five **fixed** endpoints, all
+operated by third-party services (Tab Two itself has no server), all
 read-only, all keyless (no account, sign-in, or API key involved), and all
 sent no more data than described below — plus two **opt-in** sources: a
 Connector, if and only if you've configured or enabled one (item 6 below),
@@ -138,7 +138,7 @@ your background (item 7 below):
    stored inside the included weather cache and follows the selected forecast
    refresh preset and manual refresh control. Severe-weather alerts keep their
    separate five-minute visible-tab check. Open-Meteo currently provides
-   pollen values only in Europe during pollen season, so Aurora shows them as
+   pollen values only in Europe during pollen season, so Tab Two shows them as
    unavailable when the provider does not return them.
 3. **Severe-weather alerts** - `api.weather.gov`, once the Weather widget is
    turned on and a location is set. Sends only the same normalized coordinates
@@ -151,9 +151,9 @@ your background (item 7 below):
    not on every keystroke, and not at all unless you open that search box).
    Sends only the text you've typed so far.
 5. **One-time reverse geocode** — `api.bigdatacloud.net`, only at the exact
-   moment you click "Use my location" in the Weather widget, so Aurora can
+   moment you click "Use my location" in the Weather widget, so Tab Two can
    label the forecast with a real place name instead of "My location." Sends
-   the device coordinates after Aurora rounds them to two decimal places
+   the device coordinates after Tab Two rounds them to two decimal places
    (roughly 1 km). This
    call happens once per click of that button, never on a schedule.
 6. **Connector fetches** — only to a connector you've configured or a built-in
@@ -166,14 +166,14 @@ your background (item 7 below):
    fixed daily cadence. Home Assistant and Todoist have the only connector
    write paths, both explicitly user-triggered. See "Connectors"
    below for the full, per-connector disclosure, including the permission
-   model that gates which sites Aurora is even allowed to reach.
+   model that gates which sites Tab Two is even allowed to reach.
 7. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
    lookup) and `apod.nasa.gov` (the separate host that actually serves the
    image), only once you've chosen "NASA photo of the day" as your
    background in Settings → General → Background. Sends only NASA's shared,
    keyless `DEMO_KEY` query parameter — no account, no API key of your own
    to configure, and no user data of any kind (not your location, not
-   anything else Aurora stores). Fires at most once per local day: the
+   anything else Tab Two stores). Fires at most once per local day: the
    result (photo or a quiet failure) is cached against that day, so it's
    never refetched again until the calendar date changes, and a day where
    it fails simply gets tried again the next day rather than retried on a
@@ -184,7 +184,7 @@ your background (item 7 below):
    that same host, in which case only your no-longer-needed portion is
    released and the Connector's own access is left untouched.
 
-Aurora makes no other network calls. In particular: no analytics, no
+Tab Two makes no other network calls. In particular: no analytics, no
 telemetry, no crash reporting, no ad networks, no remote fonts or scripts,
 and no "phone home" of any kind.
 
@@ -199,19 +199,19 @@ extension package and loads from your local install, not from the network.
 Favicons shown next to your quick links and bookmarks are fetched through
 Chrome's own built-in local favicon cache (the `_favicon` API, gated by the
 `favicon` permission below) — not from any external favicon service, and
-not a request Aurora itself makes over the network.
+not a request Tab Two itself makes over the network.
 
 Clicking a quick link or a bookmark navigates your browser to that page the
 same way clicking any other link would — that's ordinary browsing, not a
-network call Aurora makes on your behalf, and it isn't logged or recorded by
-Aurora anywhere.
+network call Tab Two makes on your behalf, and it isn't logged or recorded by
+Tab Two anywhere.
 
 **The search bar and the command palette's "Search the web" don't make a
-network request either.** Aurora hands whatever text you typed straight to
+network request either.** Tab Two hands whatever text you typed straight to
 Chrome's own `chrome.search.query()` API (the `search` permission below) and
 stops there — Chrome decides which search engine to use (whichever one is
 set as your default in Chrome's own settings, at `chrome://settings/search`)
-and sends the request itself. Aurora never builds a search-provider URL, has
+and sends the request itself. Tab Two never builds a search-provider URL, has
 no opinion about which engine you use, and never sees or learns where the
 query actually goes. (An earlier version shipped an in-extension
 Google/DuckDuckGo/Bing picker that built the query URL itself instead of
@@ -219,10 +219,10 @@ using this API — that's gone; every search now goes through Chrome.)
 
 ## Permissions
 
-Aurora requests the following Chrome permissions:
+Tab Two requests the following Chrome permissions:
 
 - **`storage`** (installed automatically, no prompt) — used for everything
-  under "What Aurora stores" above.
+  under "What Tab Two stores" above.
 - **`favicon`** (installed automatically, no prompt) — used only to show
   small site icons next to quick links and bookmarks, via Chrome's local
   favicon cache. No browsing history is read beyond the single URL needed
@@ -236,17 +236,17 @@ Aurora requests the following Chrome permissions:
   `search` to be requested at runtime instead, but doing so here would put
   a permission prompt between you and the first thing on the page.
 - **`bookmarks`** (optional — requested at runtime, never at install).
-  Aurora's Bookmarks bar widget is off by default. Turning it on in Settings
+  Tab Two's Bookmarks bar widget is off by default. Turning it on in Settings
   triggers Chrome's own native permission prompt; declining leaves the
   widget off with an inline explanation, and you can try again later.
-  Granted, Aurora reads your bookmarks tree (`chrome.bookmarks.getTree()`)
+  Granted, Tab Two reads your bookmarks tree (`chrome.bookmarks.getTree()`)
   to render it as a row of chips — that read stays on your device and is
-  never transmitted anywhere. Aurora only ever reads your bookmarks; it
+  never transmitted anywhere. Tab Two only ever reads your bookmarks; it
   never creates, edits, moves, or deletes any bookmark or folder.
 - **`geolocation`** (installed automatically, no prompt — Chrome does not
   permit this specific permission to be requested at runtime; it maintains
   a fixed list of permissions that may be optional, and geolocation isn't
-  on it). Holding the permission is not the same as using it: Aurora never
+  on it). Holding the permission is not the same as using it: Tab Two never
   reads your device location in the background, and searching for a city
   by name never touches it at all. Your coordinates are read only in the
   instant you click "Use my location" in the Weather widget — that click
@@ -278,7 +278,7 @@ Aurora requests the following Chrome permissions:
 
 ## Connectors
 
-Connectors are Aurora's framework for reaching a source you configure or a
+Connectors are Tab Two's framework for reaching a source you configure or a
 built-in public source you enable. Thirteen of the fifteen only read.
 **Home Assistant and Todoist are the two exceptions, disclosed plainly:**
 clicking one of Home Assistant's action buttons sends a single
@@ -293,9 +293,9 @@ request, including Home Assistant's own `/api/states` poll, is a plain read.
 Apart from those two write paths,
 the pattern holds exactly as it always has — **direct client → provider**:
 every connector request, read or write, goes straight from your browser to
-the site you configured, never through any server Aurora operates (it has
+the site you configured, never through any server Tab Two operates (it has
 none) and never past any other third party. Nothing about the request —
-not its contents, not the fact that it happened — is visible to Aurora's
+not its contents, not the fact that it happened — is visible to Tab Two's
 developer or anyone else.
 
 **Per-origin grants, on your action only.** A user-configured external source
@@ -317,9 +317,9 @@ Home Assistant, Linear, Sentry, and Todoist do require a credential to read
 your own data. Home Assistant can also send a configured command, and Todoist
 can close a confirmed task. Each stores its credential only in
 `chrome.storage.local`, on your device, exactly like
-everything else Aurora stores — never sent anywhere except to the one
+everything else Tab Two stores — never sent anywhere except to the one
 provider it authenticates to. This is enforced mechanically, not just
-promised: every connector declares, in Aurora's connector registry, which
+promised: every connector declares, in Tab Two's connector registry, which
 of its config fields (if any) are secret; the backup exporter reads that
 declaration and strips every field so listed before a backup file is ever
 written, for every connector, automatically — there is no separate list to
@@ -337,7 +337,7 @@ because they have none — a status page
 URL, curated or custom, grants no access to anything and identifies no
 one.
 
-**RSS, concretely.** Aurora fetches only the feed URLs you've added in
+**RSS, concretely.** Tab Two fetches only the feed URLs you've added in
 Settings → Connectors — nothing else. The Balanced preset refreshes about
 once every 30 minutes per feed while Tab Two is visible; you can choose
 another listed preset, Manual only, or refresh on demand.
@@ -345,7 +345,7 @@ Each fetch is a single HTTP GET straight to that feed's own host; nothing
 is sent but the request itself. Each full feed URL is treated as a capability
 secret and removed from backup exports. The response — headline titles, links,
 source names, and publish dates — is parsed on your device and cached
-locally (as part of "What Aurora stores," above) purely so the widget
+locally (as part of "What Tab Two stores," above) purely so the widget
 doesn't need to refetch on every new tab; that cache is excluded from
 backup exports entirely, same as uploaded photos, because it's disposable
 and rebuilds itself rather than being data you entered. Open Tab Two tabs
@@ -383,7 +383,7 @@ cover the only two write paths in this list:
   connectors" above) and never leaves your device except to its own
   calendar host. The Balanced preset is 15 minutes. Meeting URLs (Zoom,
   Meet, Teams, Webex, Whereby) are parsed locally out of whatever your
-  calendar feed already sent — no separate fetch, and Aurora never sends
+  calendar feed already sent — no separate fetch, and Tab Two never sends
   the URL anywhere; a link only opens when you click it.
 - **Status** — talks only to the public status endpoint(s) you've added,
   up to 8: six curated picks (GitHub, Cloudflare, OpenAI, npm, Vercel,
@@ -410,7 +410,7 @@ cover the only two write paths in this list:
   request `/api/states/{entity_id}` separately for only the selected
   entities. Because Home Assistant lets you select arbitrary entities, a
   selected value can reflect personal, location, or health information,
-  depending on what you choose; Aurora treats it only as dashboard data and
+  depending on what you choose; Tab Two treats it only as dashboard data and
   sends it nowhere except in requests to that same connected instance. The
   action controller checks `/api/` for health and does not use that endpoint
   for ordinary state polling. The Balanced preset polls selected entities at
@@ -428,7 +428,7 @@ cover the only two write paths in this list:
   `/api/services/switch/toggle`, matching what you picked — carrying
   nothing but that one entity's id, to that same instance, only in the
   instant you click, never on a schedule and never bundled with the poll
-  above. This is the only place in Aurora that sends a command to Home
+  above. This is the only place in Tab Two that sends a command to Home
   Assistant rather than a request for data.
 - **Linear** - talks only to `api.linear.app`; sends your personal API key,
   an assigned-work GraphQL query, and selected team identifiers. It receives
@@ -456,27 +456,27 @@ cover the only two write paths in this list:
 
 ## Data collection, sale, and sharing
 
-Aurora does not collect any data on the developer's behalf, in any form —
-there is no server for it to be collected to. Aurora transfers data only
+Tab Two does not collect any data on the developer's behalf, in any form —
+there is no server for it to be collected to. Tab Two transfers data only
 when necessary to provide the user-requested dashboard feature described in
 this policy: directly to Chrome or to the weather, NASA, cloud, feed,
-calendar, status, or self-hosted provider the user selected. Aurora does not
+calendar, status, or self-hosted provider the user selected. Tab Two does not
 sell, rent, or trade user data; transfer it to advertising platforms, data
 brokers, or information resellers; use it for personalized advertising or
 profiling; allow the developer or other humans to read it; use or transfer it
 for a purpose unrelated to the extension's single disclosed purpose; or use
 or transfer it to determine creditworthiness or for lending.
 
-Aurora's use of information received from Chrome APIs complies with the
+Tab Two's use of information received from Chrome APIs complies with the
 Chrome Web Store User Data Policy, including its Limited Use requirements.
-Aurora uses that information only to provide or improve its single purpose as
+Tab Two uses that information only to provide or improve its single purpose as
 a local-first new-tab dashboard, and only makes the functionality-necessary
 transfers disclosed above.
 
 ## Children's privacy
 
-Aurora is not directed at children and does not knowingly collect information
-on the developer's behalf from anyone, of any age. See "What Aurora stores"
+Tab Two is not directed at children and does not knowingly collect information
+on the developer's behalf from anyone, of any age. See "What Tab Two stores"
 above: every value listed there is generated by your own use of the dashboard
 and stored only on your device, except for the functionality-necessary direct
 requests disclosed under "Network calls."
@@ -484,12 +484,12 @@ requests disclosed under "Network calls."
 ## Changes to this policy
 
 If this policy changes, the updated version will be published at the same
-location with a new effective date above. Because Aurora has no Aurora account
+location with a new effective date above. Because Tab Two has no Tab Two account
 and no way to contact users directly, checking this page is the only way to
 learn of changes.
 
 ## Contact
 
-Questions about this policy or Aurora's data practices: open an issue on
+Questions about this policy or Tab Two's data practices: open an issue on
 the project's GitHub repository issue tracker —
 [github.com/jcooler/aurora-newtab/issues](https://github.com/jcooler/aurora-newtab/issues).

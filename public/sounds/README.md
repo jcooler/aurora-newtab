@@ -1,6 +1,6 @@
 # Bundled sounds
 
-All files are bundled with Aurora and play locally. No audio request leaves the
+All files are bundled with Tab Two and play locally. No audio request leaves the
 extension at runtime.
 
 ## Creek

@@ -252,7 +252,7 @@ export default function General({
               />
             </div>
             <p id="set-briefing-assignments-description" className="pb-2 text-xs text-fg-muted">
-              Newly observed GitHub, GitLab, Jira, and Linear items stay here for six hours. Undated Aurora tasks are not counted.
+              Newly observed GitHub, GitLab, Jira, and Linear items stay here for six hours. Undated tasks are not counted.
             </p>
             <div className={row}>
               <label htmlFor="set-briefing-deployments" className={label}>Deployment failures</label>

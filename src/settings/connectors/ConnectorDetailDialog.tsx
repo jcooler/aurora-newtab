@@ -66,9 +66,16 @@ export default function ConnectorDetailDialog({
             {experience.mark}
           </span>
           <div className="min-w-0">
-            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent">
-              {experience.categoryLabel}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent">
+                {experience.categoryLabel}
+              </span>
+              {experience.entitlement === 'included' ? (
+                <span className="rounded-full border border-emerald-400/35 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                  Included today
+                </span>
+              ) : null}
+            </div>
             <h2 className="mt-1 font-display text-[1.75rem] font-medium tracking-[-0.035em] text-fg">
               {label}
             </h2>

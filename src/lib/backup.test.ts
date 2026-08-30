@@ -368,7 +368,7 @@ describe('secret-safe redaction and prepared import (W1-P4)', () => {
     try {
       expect(prepareBackup(JSON.stringify({ app: 'aurora', version: 1, data: { settings: defaults().settings } }))).toEqual({
         ok: false,
-        reason: 'That backup cannot be migrated by this Aurora version.',
+        reason: 'That backup cannot be migrated by this Tab Two build.',
       })
     } finally {
       migrations[1] = original
@@ -825,19 +825,19 @@ describe('parseBackup rejections', () => {
   it('rejects a JSON root that is not an object (array)', () => {
     const result = parseBackup(JSON.stringify([1, 2, 3]))
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.reason).toBe("That file isn't an Aurora backup.")
+    if (!result.ok) expect(result.reason).toBe("That file isn't a Tab Two backup.")
   })
 
   it('rejects when app is missing', () => {
     const result = parseBackup(JSON.stringify({ version: CURRENT_VERSION, data: {} }))
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.reason).toBe("That file isn't an Aurora backup.")
+    if (!result.ok) expect(result.reason).toBe("That file isn't a Tab Two backup.")
   })
 
   it('rejects when app is not "aurora"', () => {
     const result = parseBackup(JSON.stringify({ app: 'other-app', version: CURRENT_VERSION, data: {} }))
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.reason).toBe("That file isn't an Aurora backup.")
+    if (!result.ok) expect(result.reason).toBe("That file isn't a Tab Two backup.")
   })
 
   it('rejects when version is missing', () => {
@@ -864,12 +864,12 @@ describe('parseBackup rejections', () => {
     if (!result.ok) expect(result.reason).toBe("That backup's version number is invalid.")
   })
 
-  it('rejects a version newer than this Aurora', () => {
+  it('rejects a version newer than this Tab Two build', () => {
     const result = parseBackup(
       JSON.stringify({ app: 'aurora', version: CURRENT_VERSION + 1, data: {} }),
     )
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.reason).toMatch(/newer than this Aurora/)
+    if (!result.ok) expect(result.reason).toMatch(/newer than this Tab Two build/)
   })
 
   it('rejects when data is missing', () => {

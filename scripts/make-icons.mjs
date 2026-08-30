@@ -1,11 +1,10 @@
-// Dev-time icon generator: renders an inline SVG (aurora gradient rounded
-// square + a thin horizon-glow arc) via Playwright and captures it at the
-// three sizes Chrome expects for manifest icons. Never ships in the
+// Dev-time icon generator: renders the canonical Tab Two vector mark via
+// Playwright and captures it at every size declared by the manifest. Never ships in the
 // extension — run once (or whenever the mark changes) and commit the
 // resulting PNGs in public/icons/.
 //
 // Usage: node scripts/make-icons.mjs
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { chromium } from 'playwright'
 
@@ -13,35 +12,8 @@ const outDir = resolve('public/icons')
 mkdirSync(outDir, { recursive: true })
 
 const VIEWBOX = 128
-const SIZES = [128, 48, 16]
-
-// Rounded square with a diagonal aurora gradient (deep night -> indigo ->
-// sky cyan) and a thin crescent arc near the base suggesting a horizon glow.
-const svg = `
-<svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEWBOX} ${VIEWBOX}" width="${VIEWBOX}" height="${VIEWBOX}">
-  <defs>
-    <linearGradient id="aurora" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f172a" />
-      <stop offset="55%" stop-color="#312e81" />
-      <stop offset="100%" stop-color="#7dd3fc" />
-    </linearGradient>
-    <clipPath id="rounded">
-      <rect x="0" y="0" width="${VIEWBOX}" height="${VIEWBOX}" rx="28" ry="28" />
-    </clipPath>
-  </defs>
-  <g clip-path="url(#rounded)">
-    <rect x="0" y="0" width="${VIEWBOX}" height="${VIEWBOX}" fill="url(#aurora)" />
-    <path
-      d="M -12 92 Q 64 66 140 92"
-      fill="none"
-      stroke="#e0f2fe"
-      stroke-width="6"
-      stroke-linecap="round"
-      opacity="0.55"
-    />
-  </g>
-</svg>
-`
+const SIZES = [128, 48, 32, 16]
+const svg = readFileSync(resolve('public/icons/tab-two-mark.svg'), 'utf8').replace('<svg ', '<svg id="icon" ')
 
 const html = `<!doctype html>
 <html>

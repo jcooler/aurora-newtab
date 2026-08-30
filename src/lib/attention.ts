@@ -140,7 +140,7 @@ function assignmentSignals(inputs: AttentionInputs): AttentionSignal[] {
       firstSeenAt > inputs.now || inputs.now - firstSeenAt > ATTENTION_WINDOW_MS
     ) continue
     const context = boundedText(item.context, 64)
-    const age = `First seen by Aurora ${relativeAge(inputs.now, firstSeenAt)}`
+    const age = `First seen by Tab Two ${relativeAge(inputs.now, firstSeenAt)}`
     signals.push({
       key: `assignment:${item.source}:${id}`,
       kind: 'assignment',

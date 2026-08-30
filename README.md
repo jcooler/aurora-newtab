@@ -1,6 +1,8 @@
-# Aurora
+# Tab Two
 
-A calm, local-first new-tab dashboard for Chrome. No Aurora account, no tracking,
+*The best tab for your second screen.*
+
+A calm, local-first new-tab dashboard for Chrome. No Tab Two account, no tracking,
 no backend — stored data stays on your machine, with selected features making
 direct provider requests only as disclosed below.
 
@@ -71,7 +73,7 @@ direct provider requests only as disclosed below.
 - **Daily quote** — one quote a day from a small bundled set.
 - **Command palette** — `Ctrl+K` / `Cmd+K` to jump to a link, open Settings,
   search the web, or quick-add a to-do (`todo: buy milk`).
-- **Widget color** — one default surface (an Aurora-accent glow over a deep
+- **Widget color** — one default surface (a Tab Two accent glow over a deep
   neutral panel); open Settings → General → Appearance and pick any color
   instead — every panel's text adapts automatically to stay readable against
   it, light pick or dark. "Reset" returns to the default surface. Switches,
@@ -86,7 +88,7 @@ direct provider requests only as disclosed below.
   widget for Move and Settings, drag it anywhere on the live page, choose
   its Compact/Standard/Full presentation, layer or hide it, and create
   precisely positioned top or bottom docks. Save commits the draft; Cancel
-  restores the exact stored layout. Aurora never changes layouts or
+  restores the exact stored layout. Tab Two never changes layouts or
   rearranges authored positions on its own.
 - **Widget stacks:** while editing, hold one free widget over another for
   half a second to create one card with several ordered widgets. Page it with
@@ -105,7 +107,7 @@ dashboard is fully usable with nothing configured beyond the defaults.
 
 ## Install (from source)
 
-Aurora isn't on the Chrome Web Store; load it as an unpacked extension:
+Tab Two isn't on the Chrome Web Store; load it as an unpacked extension:
 
 ```bash
 npm install
@@ -157,7 +159,7 @@ to watch the run in a visible browser window instead of headless.
 ## Weather note
 
 Weather is powered by [Open-Meteo](https://open-meteo.com/), a free service
-that needs no API key and no sign-up. Aurora sends it only a latitude and
+that needs no API key and no sign-up. Tab Two sends it only a latitude and
 longitude. Device location is rounded to two decimals; a selected city keeps
 Open-Meteo's returned coordinates, and forecast/environment requests normalize
 either source to at most four decimals. City suggestions filter the text you
@@ -168,7 +170,7 @@ Weather cache. Environmental failure never suppresses forecast.
 
 ## Connectors
 
-Connectors are Aurora's framework for pulling data from a source you point
+Connectors are Tab Two's framework for pulling data from a source you point
 it at, instead of a fixed built-in service (contrast with Weather, above,
 which always talks to Open-Meteo). Each connector is a small, self-contained
 package — a config card in Settings → Connectors, a widget, and a service
@@ -186,17 +188,17 @@ Find connectors by name or purpose — the catalog is searchable, and
 anything on your board stays pinned on top.
 
 **RSS**, concretely: turn it on in Settings → Connectors, add up to 5
-`https://` feed URLs, and pick how many headlines to show (3–8). Aurora
-fetches each feed directly from your browser — there's no Aurora server in
+`https://` feed URLs, and pick how many headlines to show (3–8). Tab Two
+fetches each feed directly from your browser — there's no Tab Two server in
 the middle relaying the request — merges the results newest-first, and
 caches them locally so the widget doesn't refetch on every new tab. Its
 Balanced setting refreshes about every 30 minutes while Tab Two is visible,
 or you can choose another safe preset or Manual only. Treat each full feed URL
 as a capability secret: it can contain an unguessable token that grants read
-access, so Aurora redacts it from JSON backups and requires re-entry after
+access, so Tab Two redacts it from JSON backups and requires re-entry after
 restore.
 
-The remaining connectors, briefly, show what Aurora reads and the two explicit
+The remaining connectors, briefly, show what Tab Two reads and the two explicit
 write actions. Every connector card is composable —
 choose what each shows in Settings → Connectors:
 
@@ -228,7 +230,7 @@ a single request that keeps firing as long as either section is on.
   endpoint.
 - **Calendar** — up to 5 named calendars in one card, each with its own
   colored dot; paste any calendar app's ICS/iCal feed URL, including
-  `webcal://` links (Apple Calendar's own format — Aurora converts them
+  `webcal://` links (Apple Calendar's own format — Tab Two converts them
   automatically). Pick how you want to see them in Settings → Connectors:
   **Today** (next event + today's remaining agenda), **Upcoming** (the
   next few events across days), or **One per calendar** (each calendar's
@@ -236,7 +238,7 @@ a single request that keeps firing as long as either section is on.
   Webex, or Whereby link, an accent **Join** link appears starting 15
   minutes before it (or while it's running) — a **Meeting links** toggle
   on the card turns this off. No account, no token — just paste each
-  feed's URL, which Aurora treats as a secret (see [Privacy](#privacy)).
+  feed's URL, which Tab Two treats as a secret (see [Privacy](#privacy)).
 - **Status** — a quiet dot row for up to 8 services you depend on: green
   and silent on a normal day, with trouble text appearing only for a
   service that's actually down (worst first). Pick from seven curated
@@ -257,7 +259,7 @@ a single request that keeps firing as long as either section is on.
   than anything else here; you can choose a slower safe preset or Manual only.
   The bulk `/api/states` request runs only when you open
   the entity picker; regular refreshes request each selected
-  `/api/states/{entity_id}`. Aurora uses `/api/config` once while connecting,
+  `/api/states/{entity_id}`. Tab Two uses `/api/config` once while connecting,
   `/api/` only for action health, and posts to the selected service endpoint
   only on an action click.
 - **Linear** - assigned issues with workflow state, priority, due date, and
@@ -287,13 +289,13 @@ sources. Weather uses its own matching control, while severe-weather alerts
 retain a separate five-minute safety check.
 
 **The permission model** for user-configured external sources is per-site,
-not all-or-nothing. Aurora's manifest
+not all-or-nothing. Tab Two's manifest
 lists every `https://` origin as *requestable*, but none is granted until
 you act: the moment you click "Add" on a feed URL or "Connect" on a
 token-based connector, Chrome shows its own native permission prompt scoped
 to that one site only (the same kind of prompt Bookmarks bar uses) —
 decline it, and the connector simply isn't added. Remove the last
-feed/connection pointed at a given site, and Aurora releases that site's
+feed/connection pointed at a given site, and Tab Two releases that site's
 permission automatically; other sites are unaffected. The three built-in
 public connectors use only their fixed disclosed hosts and need no credential
 or per-origin prompt.
@@ -353,7 +355,7 @@ under [`public/fonts/`](public/fonts)) — no runtime font requests, per
 
 ## Widget color
 
-There's one default surface — an Aurora-accent glow (`--accent: #7dd3fc`)
+There's one default surface — a Tab Two accent glow (`--accent: #7dd3fc`)
 over a deep neutral panel — defined once in `src/theme/themes.css`'s `:root`
 block (the collapse of an earlier three-theme system into a single surface).
 Settings → General → Appearance lets you pick any color instead:
@@ -370,7 +372,7 @@ back to `null`, restoring the default surface.
 
 ## Adding a widget
 
-Aurora's verified Expansion Platform should be the starting point for new
+Tab Two's verified Expansion Platform should be the starting point for new
 identities. It keeps research and starter output deterministic while production
 registries, renderers, storage, permissions, and provider code remain the
 authorities:
@@ -411,7 +413,7 @@ and the generated checklist before following the production steps below.
 
 ## Data
 
-Settings → **Data** lets you back up and restore everything Aurora stores,
+Settings → **Data** lets you back up and restore everything Tab Two stores,
 as a single JSON file:
 
 - **Export** downloads `aurora-backup-YYYY-MM-DD.json` — a pretty-printed
@@ -429,19 +431,19 @@ as a single JSON file:
   blob and connector caches are disposable, re-fetched automatically —
   neither is the JSON-serializable data the backup covers; re-select your
   image after restoring if you were using an uploaded background.
-- **Import** reads a backup file you choose, checks that it's a real Aurora
+- **Import** reads a backup file you choose, checks that it's a real Tab Two
   backup, and — if it is — shows a one-line summary of what it contains and
   asks you to confirm before it replaces anything. Nothing is overwritten
-  until you click **Confirm**. Backups from older versions of Aurora are
+  until you click **Confirm**. Backups from older versions remain
   migrated forward automatically before that summary is shown.
-- If the chosen file isn't a valid Aurora backup (wrong format, wrong app, a
+- If the chosen file isn't a valid Tab Two backup (wrong format, wrong app, a
   version newer than this build understands, or a field that doesn't match
-  what Aurora expects — e.g. a hand-edited or corrupted value), Import shows
+  what Tab Two expects — e.g. a hand-edited or corrupted value), Import shows
   why, names the field, and leaves your current data untouched.
 
 ## Support
 
-If Aurora's useful to you, there's a quiet "☕ Buy me a coffee" link in
+If Tab Two is useful to you, there's a quiet "☕ Buy me a coffee" link in
 Settings' footer — or go straight to [buymeacoffee.com/joncooler](https://buymeacoffee.com/joncooler).
 
 ## Privacy
@@ -450,7 +452,7 @@ The full, standalone privacy policy (Chrome Web Store submission copy,
 audited line-by-line against this codebase) lives in
 [`PRIVACY.md`](PRIVACY.md). Summary:
 
-Aurora has no backend and requires no Aurora account. Third-party accounts
+Tab Two has no backend and requires no Tab Two account. Third-party accounts
 are used only when you choose a credentialed connector. All of your data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
 preferences, weather cache, location, notes, world clocks, countdowns,
@@ -460,7 +462,7 @@ uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).
 
 
-The **fixed** outbound network calls Aurora makes on its own are to
+The **fixed** outbound network calls Tab Two makes on its own are to
 Open-Meteo: the forecast endpoint (`api.open-meteo.com`) and environmental
 endpoint (`air-quality-api.open-meteo.com`), only once the Weather widget is
 enabled and a location is set, and the geocoder
@@ -473,12 +475,12 @@ with a real place name. That lookup happens once, only for device location,
 and sends the same two-decimal device coordinates. Weather provider requests
 normalize a selected city's returned coordinates to at most four decimals.
 Beyond those fixed calls, the **Connectors** framework lets you point
-  Aurora at outside sites yourself or enable a built-in public source: RSS,
+  Tab Two at outside sites yourself or enable a built-in public source: RSS,
   GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status, Home Assistant,
   Linear, Sentry, Todoist, On This Day, Public Holidays, and Aurora & Kp.
   Every connector fetch
 goes directly from your browser to that connector's own host, with no
-Aurora server in between, only for connectors you've actually configured.
+Tab Two server in between, only for connectors you've actually configured.
   GitHub/GitLab/Jira/Vercel/Home Assistant/Linear/Sentry/Todoist send only
   the credentials and scoped request data described in the privacy policy;
   the other connectors need no third-party account. RSS and Calendar URLs are capability secrets even
@@ -491,33 +493,33 @@ analytics, no telemetry, and no tracking of any kind.
 Connector credentials and RSS/Calendar capability URLs remain local
   plaintext in `chrome.storage.local`, protected by the Chrome/OS profile, not
 encrypted or vault-grade. On a shared or untrusted profile, disconnect
-connectors or clear Aurora's extension data after use. Provider responses are
-cached locally after direct receipt; Aurora never relays them through a
+connectors or clear Tab Two's extension data after use. Provider responses are
+cached locally after direct receipt; Tab Two never relays them through a
 backend.
 
 The **Bookmarks bar** widget is off by default, and the `bookmarks`
 permission it needs is requested only when you turn it on — not at install.
-Flipping it on in Settings prompts Chrome to ask whether Aurora may read your
+Flipping it on in Settings prompts Chrome to ask whether Tab Two may read your
 bookmarks; decline, and the widget simply stays off (with a note explaining
-why) until you try again. Grant it, and Aurora reads your browser's
+why) until you try again. Grant it, and Tab Two reads your browser's
 bookmarks tree with `chrome.bookmarks.getTree()` to render it — that read
 happens locally, is rendered locally, and is never transmitted anywhere.
-Aurora only reads your bookmarks, it never creates, edits, or deletes any.
+Tab Two only reads your bookmarks; it never creates, edits, or deletes any.
 
 **Connectors** work similarly, but per-site rather than as one on/off
-switch: Aurora's manifest lists every `https://` origin as *requestable*
+switch: Tab Two's manifest lists every `https://` origin as *requestable*
 (`optional_host_permissions`), but none is granted at install. Adding a
 feed or clicking "Connect" on a token-based connector in Settings →
 Connectors triggers Chrome's native permission prompt for that one origin
-only — decline, and the connector isn't added; grant, and Aurora can fetch
+only — decline, and the connector isn't added; grant, and Tab Two can fetch
 just that site. Removing the last feed/connection on a site revokes that
 site's permission automatically.
 
 The `geolocation` permission works differently: Chrome does not allow
 geolocation to be requested as an optional, runtime permission (only a
-fixed list of permissions qualify, and geolocation isn't on it), so Aurora
+fixed list of permissions qualify, and geolocation isn't on it), so Tab Two
 holds it from install — the same as `storage` and `favicon` above. Holding
-it is not the same as using it, though: Aurora never reads your device
+it is not the same as using it, though: Tab Two never reads your device
 location in the background, and searching for a city by name never touches
 it at all. Your coordinates are read only in the instant you click "Use my
 location" in the weather widget; if the browser's own location prompt is

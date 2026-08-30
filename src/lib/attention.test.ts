@@ -113,7 +113,7 @@ describe('attention signal collection', () => {
     }))
 
     expect(signals.map((signal) => signal.key)).toEqual(['assignment:github:boundary'])
-    expect(signals[0].detail).toBe('acme/aurora · First seen by Aurora 6h ago')
+    expect(signals[0].detail).toBe('acme/aurora · First seen by Tab Two 6h ago')
   })
 
   it('surfaces only recent Vercel ERROR deployments', () => {

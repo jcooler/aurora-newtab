@@ -669,7 +669,7 @@ describe('backup restore coordinator', () => {
     expect(result).toEqual({
       status: 'rollback-failed',
       pendingCleanup: [],
-      message: 'The restore failed, and Aurora could not verify recovery of your previous data. Review your settings before retrying.',
+      message: 'The restore failed, and Tab Two could not verify recovery of your previous data. Review your settings before retrying.',
     })
     expect(JSON.stringify(result)).not.toContain('private')
     expect(JSON.stringify(result)).not.toContain('left unchanged')

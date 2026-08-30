@@ -1206,7 +1206,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
       await Promise.resolve()
     })
 
-    expect(screen.getByRole('alert').textContent).toBe('Aurora could not read that backup file. Choose it again or try another file.')
+    expect(screen.getByRole('alert').textContent).toBe('Tab Two could not read that backup file. Choose it again or try another file.')
     expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
     expect(ensureOrigins).not.toHaveBeenCalled()
     expect(replaceAll).not.toHaveBeenCalled()
@@ -1519,7 +1519,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
 
     openTab('General')
     const cleanupAlert = screen.getByRole('alert')
-    expect(cleanupAlert.textContent).toBe('A site permission could not be removed yet. Aurora will keep it only until cleanup succeeds.Retry permission cleanup')
+    expect(cleanupAlert.textContent).toBe('A site permission could not be removed yet. Tab Two will keep it only until cleanup succeeds.Retry permission cleanup')
     await act(async () => {
       await storage.set('connectors', {
         status: {
@@ -1551,7 +1551,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     })
 
     expect(screen.getAllByRole('alert')).toHaveLength(1)
-    expect(screen.getByRole('alert').textContent).toBe('Aurora could not create the backup file. Try again.')
+    expect(screen.getByRole('alert').textContent).toBe('Tab Two could not create the backup file. Try again.')
     expect(screen.getByRole('alert').textContent).not.toContain('private')
     expect(URL.createObjectURL).not.toHaveBeenCalled()
     URL.createObjectURL = originalCreate
@@ -2860,7 +2860,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     await renderPanel(storage)
 
     expect(screen.getByText(/newly observed GitHub, GitLab, Jira, and Linear items/i)).toBeTruthy()
-    expect(screen.getByText(/Undated Aurora tasks are not counted/i)).toBeTruthy()
+    expect(screen.getByText(/Undated tasks are not counted/i)).toBeTruthy()
     for (const name of ['Upcoming calendar', 'Assigned work', 'Deployment failures', 'Rain']) {
       const source = screen.getByRole('switch', { name })
       expect(source.getAttribute('aria-checked')).toBe('true')
@@ -6692,9 +6692,11 @@ describe('SettingsPanel About footer (support link + version)', () => {
     // text nodes and an <a>, which getByText can't match as one string.
     const footer = document.querySelector('footer')
     expect(footer).not.toBeNull()
-    expect(footer!.textContent).toContain(`Aurora v${pkg.version}`)
+    expect(footer!.textContent).toContain(`Tab Two v${pkg.version}`)
+    expect(footer!.textContent).toContain('The best tab for your second screen.')
+    expect(footer!.textContent).toContain('Optional premium services are planned, but nothing is sold or activated here yet.')
 
-    const link = screen.getByRole('link', { name: 'Buy me a coffee — support Aurora' })
+    const link = screen.getByRole('link', { name: 'Buy me a coffee - support Tab Two' })
     expect(footer!.contains(link)).toBe(true)
     expect(attr(link, 'href')).toBe('https://buymeacoffee.com/joncooler')
     expect(attr(link, 'target')).toBe('_blank')

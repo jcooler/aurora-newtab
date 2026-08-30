@@ -21,6 +21,9 @@ describe('Drawer responsive workspace', () => {
     expect(classes).toContain('min-[900px]:left-auto')
     expect(classes).toContain('min-[900px]:rounded-[1.5rem]')
     expect(screen.getByRole('dialog', { name: 'Settings' }).getAttribute('data-settings-scroll-owner')).toBe('document')
+    const mark = document.querySelector('[data-tab-two-mark]')
+    expect(mark?.getAttribute('aria-hidden')).toBe('true')
+    expect(screen.getByText('Tab Two')).toBeTruthy()
   })
 
   it('stays a full-viewport modal below 900px with no nested shell scrollport', () => {

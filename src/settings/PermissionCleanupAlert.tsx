@@ -11,7 +11,7 @@ export default function PermissionCleanupAlert({
 
   return (
     <div role="alert" className="mb-4 rounded-xl border border-control-border p-3 text-xs text-fg-muted">
-      <p>A site permission could not be removed yet. Aurora will keep it only until cleanup succeeds.</p>
+      <p>A site permission could not be removed yet. Tab Two will keep it only until cleanup succeeds.</p>
       <button
         type="button"
         onClick={onRetry}

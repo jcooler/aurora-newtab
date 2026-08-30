@@ -6,7 +6,7 @@ export const LINEAR_TTL_MS = 15 * 60_000
 export const LINEAR_GRAPHQL_URL = 'https://api.linear.app/graphql'
 
 const IDENTITY_QUERY = `
-  query AuroraLinearIdentity {
+  query TabTwoLinearIdentity {
     viewer {
       id
       name
@@ -22,7 +22,7 @@ const IDENTITY_QUERY = `
 `
 
 const WORK_QUERY = `
-  query AuroraLinearWork($filter: IssueFilter) {
+  query TabTwoLinearWork($filter: IssueFilter) {
     viewer {
       assignedIssues(first: 50, filter: $filter) {
         nodes {
