@@ -91,13 +91,25 @@ export function useWeatherAlerts() {
     const requestEpoch = cacheAuthorityEpoch
     const generation = generationRef.current + 1
     generationRef.current = generation
-    const request = (async () => {
+    const work = async () => {
       if (mountedRef.current && identityRef.current === currentIdentity) {
         setLoading(true)
         setError(null)
         setRetryAt(null)
       }
       try {
+        const shared = await storage.get('weatherAlertCache')
+        if (
+          shared?.requestIdentity === currentIdentity &&
+          Date.now() - shared.fetchedAt < MAX_AGE_MS
+        ) return
+        const authoritativeLocation = await storage.get('location')
+        if (!authoritativeLocation) return
+        try {
+          if (weatherAlertRequestIdentity(authoritativeLocation.lat, authoritativeLocation.lon) !== currentIdentity) return
+        } catch {
+          return
+        }
         const result = await fetchWeatherAlerts(location.lat, location.lon, fetch, controller.signal)
         if (
           controller.signal.aborted ||
@@ -144,7 +156,11 @@ export function useWeatherAlerts() {
           if (mountedRef.current && generationRef.current === generation) setLoading(false)
         }
       }
-    })()
+    }
+    const lockManager = typeof navigator === 'undefined' ? undefined : navigator.locks
+    const request = lockManager
+      ? lockManager.request<void>(`aurora:weather-alert-refresh:${currentIdentity}`, { mode: 'exclusive' }, work)
+      : work()
     inFlightRef.current = {
       identity: currentIdentity,
       cacheAuthorityEpoch: requestEpoch,

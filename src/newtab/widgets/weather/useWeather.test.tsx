@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { StrictMode } from 'react'
-import { act, render } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StorageProvider } from '../../../lib/storage/context'
 import { memoryDriver } from '../../../lib/storage/driver'
@@ -92,14 +92,16 @@ async function renderProbe({
   location,
   cache,
   strict = false,
+  refreshPreferences = {},
 }: {
   location: StoredLocation | null
   cache: WeatherSnapshot | null
   strict?: boolean
+  refreshPreferences?: { weather?: number | 'manual' }
 }): Promise<{ storage: AuroraStorage; unmount: () => void }> {
   const storage = createStorage(memoryDriver())
   await storage.init()
-  await storage.setMany({ location, weatherCache: cache })
+  await storage.setMany({ location, weatherCache: cache, refreshPreferences })
   const child = (
     <StorageProvider storage={storage}>
       <Probe />
@@ -113,6 +115,7 @@ async function renderProbe({
 beforeEach(() => {
   latest = undefined
   fetchSnapshot.mockReset()
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
 })
 
 afterEach(() => {
@@ -257,6 +260,44 @@ describe('useWeather identity and request generations', () => {
     expect(latest?.snapshot?.environment?.status).toBe('available')
     expect(latest?.enrichmentPending).toBe(false)
     expect(latest?.loading).toBe(false)
+  })
+
+  it('lets a current unavailable environment result satisfy waiting cross-tab refresh owners', async () => {
+    const unavailable: WeatherEnvironmentSnapshot = {
+      requestIdentity: environmentRequestIdentity(TEXAS.lat, TEXAS.lon),
+      fetchedAt: Date.now(),
+      status: 'unavailable',
+      usAqi: null,
+      uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }
+    fetchSnapshot.mockResolvedValue(snapshotFor(TEXAS, 21, { environment: unavailable }))
+
+    let lockTail = Promise.resolve<unknown>(undefined)
+    const request = vi.fn((...args: unknown[]) => {
+      const callback = args.at(-1) as (lock: Lock | null) => unknown
+      const result = lockTail.then(() => callback(null))
+      lockTail = result.then(() => undefined, () => undefined)
+      return result
+    })
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: { request: request as unknown as LockManager['request'] },
+    })
+
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.setMany({ location: TEXAS, weatherCache: null })
+    render(
+      <StorageProvider storage={storage}>
+        <Probe />
+        <Probe />
+      </StorageProvider>,
+    )
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2))
+    await act(async () => { await lockTail })
+    expect(fetchSnapshot).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes once when only environmental freshness reaches the exact TTL', async () => {
@@ -526,6 +567,23 @@ describe('useWeather identity and request generations', () => {
     document.dispatchEvent(new Event('visibilitychange'))
     document.dispatchEvent(new Event('visibilitychange'))
     expect(fetchSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps cached weather in manual mode until Refresh now clears the cache', async () => {
+    const cache = snapshotFor(TEXAS, 21, { fetchedAt: Date.now() - 2 * 60 * 60_000 })
+    const { storage } = await renderProbe({
+      location: TEXAS,
+      cache,
+      refreshPreferences: { weather: 'manual' },
+    })
+    fetchSnapshot.mockResolvedValue(snapshotFor(TEXAS, 24))
+
+    expect(latest?.snapshot?.current.tempC).toBe(21)
+    expect(fetchSnapshot).not.toHaveBeenCalled()
+    await act(async () => {
+      await storage.set('weatherCache', null)
+    })
+    expect(fetchSnapshot).toHaveBeenCalledOnce()
   })
 
   it('guards invalid stored coordinates and remains operable in Strict Mode', async () => {

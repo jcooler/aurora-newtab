@@ -12,6 +12,9 @@ interface PlacementInput {
   trigger: AttentionRect
   panel: { width: number; height: number }
   obstacles: readonly AttentionRect[]
+  /** Optional owner that the panel must avoid before balancing other
+   *  collisions. Useful when a small trigger sits inside a whole widget. */
+  avoid?: AttentionRect
 }
 
 const MARGIN = 8
@@ -23,7 +26,7 @@ function overlapArea(left: number, top: number, width: number, height: number, o
   return overlapWidth * overlapHeight
 }
 
-export function placeAttentionPanel({ viewport, trigger, panel, obstacles }: PlacementInput): { left: number; top: number } {
+export function placeAttentionPanel({ viewport, trigger, panel, obstacles, avoid }: PlacementInput): { left: number; top: number } {
   const maxLeft = Math.max(MARGIN, viewport.width - panel.width - MARGIN)
   const maxTop = Math.max(MARGIN, viewport.height - panel.height - MARGIN)
   const clamp = (left: number, top: number) => ({
@@ -46,10 +49,11 @@ export function placeAttentionPanel({ viewport, trigger, panel, obstacles }: Pla
     .map((candidate, order) => ({
       ...candidate,
       order,
+      avoidOverlap: avoid ? overlapArea(candidate.left, candidate.top, panel.width, panel.height, avoid) : 0,
       overlap: obstacles.reduce(
         (total, obstacle) => total + overlapArea(candidate.left, candidate.top, panel.width, panel.height, obstacle),
         0,
       ),
     }))
-    .sort((left, right) => left.overlap - right.overlap || left.order - right.order)[0]!
+    .sort((left, right) => left.avoidOverlap - right.avoidOverlap || left.overlap - right.overlap || left.order - right.order)[0]!
 }

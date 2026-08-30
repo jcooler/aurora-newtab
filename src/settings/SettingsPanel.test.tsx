@@ -387,26 +387,17 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     vi.mocked(isPremium).mockReturnValue(true)
   })
 
-  it('routes Manage habits to the existing Widgets authority and focuses its exact anchor', async () => {
+  it('keeps Habit editing inside Progress instead of routing to Widgets', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('habits', [{ id: 'walk', name: 'Walk', createdAt: 10, log: [] }])
-    const scrollIntoView = vi.fn()
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-      configurable: true,
-      value: scrollIntoView,
-    })
     await renderPanel(storage)
     openTab('Progress')
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage habits' }))
-
-    await waitFor(() => {
-      expect(attr(screen.getByRole('tab', { name: 'Widgets' }), 'aria-selected')).toBe('true')
-      expect(document.activeElement?.getAttribute('data-settings-anchor')).toBe('habits')
-    })
-    expect(scrollIntoView).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('region', { name: 'Progress' })).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Walk' }))
+    expect(screen.getByRole('textbox', { name: 'Habit name' })).toBeTruthy()
+    expect(attr(screen.getByRole('tab', { name: 'Progress' }), 'aria-selected')).toBe('true')
+    expect(screen.queryByRole('button', { name: 'Manage habits' })).toBeNull()
   })
 
   it('enables the Progress widget through Settings only without creating a layout placement', async () => {
@@ -420,7 +411,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     write.mockClear()
 
     const personal = screen.getByRole('region', { name: 'Personal' })
-    const progress = within(personal).getByRole('switch', { name: 'Progress' })
+    const progress = within(personal).getByRole('switch', { name: 'Progress rail' })
     expect(attr(progress, 'aria-checked')).toBe('false')
     await act(async () => {
       fireEvent.click(progress)
@@ -467,7 +458,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
       expect(core.getByRole('switch', { name })).toBeTruthy()
     }
     expect(personal.getAllByRole('switch')).toHaveLength(5)
-    for (const name of ['Weather', 'Daily quote', 'Habits', 'Progress', 'Month calendar']) {
+    for (const name of ['Weather', 'Daily quote', 'Habits summary', 'Progress rail', 'Month calendar']) {
       expect(personal.getByRole('switch', { name })).toBeTruthy()
     }
     expect(timeAndSky.getAllByRole('switch')).toHaveLength(4)
@@ -2481,27 +2472,24 @@ describe('SettingsPanel Countdowns section', () => {
   })
 })
 
-describe('SettingsPanel Habits section', () => {
-  function habitsRegion() {
-    return screen.getByRole('region', { name: 'Habits' })
-  }
-
-  it('the Habits label is present on the Widgets tab, off by default', async () => {
+describe('SettingsPanel Habit and Progress widget visibility', () => {
+  it('names the two distinct canvas presentations and keeps editing out of Widgets', async () => {
     const storage = await renderPanel()
     await openWidgetsTabAndWaitForLayout(storage)
-    const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
-    expect(attr(toggle, 'aria-checked')).toBe('false')
-    // The editor stays absent until the toggle is on — unlike World clocks/
-    // Countdowns (always-mounted sections a user can pre-populate before
-    // turning the widget on), the brief scopes this editor to the toggled-on
-    // state specifically.
+    expect(attr(screen.getByLabelText('Habits summary'), 'aria-checked')).toBe('false')
+    expect(attr(screen.getByLabelText('Progress rail'), 'aria-checked')).toBe('false')
     expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
+    expect(screen.queryByLabelText('Habit name')).toBeNull()
+    expect(screen.queryByLabelText('New habit name')).toBeNull()
   })
 
-  it('turning the toggle on writes widgets.habits and offers a closed editor below it', async () => {
+  it('turning on Habits summary changes only its visibility setting', async () => {
     const storage = await renderPanel()
+    await act(async () => {
+      await storage.set('habits', [{ id: 'walk', name: 'Walk', createdAt: 10, log: ['2026-08-29'] }])
+    })
     await openWidgetsTabAndWaitForLayout(storage)
-    const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Habits summary') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
@@ -2509,103 +2497,8 @@ describe('SettingsPanel Habits section', () => {
 
     expect(attr(toggle, 'aria-checked')).toBe('true')
     expect((await storage.get('settings')).widgets.habits).toBe(true)
-    expect(screen.getByRole('button', { name: 'Habits' }).getAttribute('aria-expanded')).toBe('false')
+    expect(await storage.get('habits')).toEqual([{ id: 'walk', name: 'Walk', createdAt: 10, log: ['2026-08-29'] }])
     expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
-    openWidgetEditor('Habits')
-    expect(habitsRegion()).toBeTruthy()
-
-    await act(async () => {
-      fireEvent.click(toggle)
-    })
-    expect((await storage.get('settings')).widgets.habits).toBe(false)
-    expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
-  })
-
-  async function renderWithHabits(habits: { id: string; name: string; createdAt: number; log: string[] }[]) {
-    const storage = createStorage(memoryDriver())
-    await storage.init()
-    await storage.set('settings', {
-      ...defaults().settings,
-      widgets: { ...defaults().settings.widgets, habits: true },
-    })
-    await storage.set('habits', habits)
-    render(
-      <StorageProvider storage={storage}>
-        <SettingsPanel />
-      </StorageProvider>,
-    )
-    await screen.findByLabelText('Your name')
-    await openWidgetsTabAndWaitForLayout(storage)
-    openWidgetEditor('Habits')
-    return storage
-  }
-
-  it('adding a habit persists a new row (id, name, empty log) and resets the form', async () => {
-    const storage = await renderWithHabits([])
-    const nameInput = screen.getByLabelText('New habit name') as HTMLInputElement
-
-    await act(async () => {
-      fireEvent.change(nameInput, { target: { value: 'Read' } })
-      fireEvent.click(within(habitsRegion()).getByRole('button', { name: 'Add' }))
-    })
-
-    const stored = await storage.get('habits')
-    expect(stored).toHaveLength(1)
-    expect(stored[0]).toMatchObject({ name: 'Read', log: [] })
-    expect(typeof stored[0]!.id).toBe('string')
-    expect(typeof stored[0]!.createdAt).toBe('number')
-    expect(nameInput.value).toBe('')
-  })
-
-  it('a blank name is not added', async () => {
-    const storage = await renderWithHabits([])
-
-    await act(async () => {
-      fireEvent.click(within(habitsRegion()).getByRole('button', { name: 'Add' }))
-    })
-
-    expect(await storage.get('habits')).toEqual([])
-  })
-
-  it('the remove button on a habit row deletes just that habit — the log goes with it, no confirm', async () => {
-    const storage = await renderWithHabits([
-      { id: 'a', name: 'Read', createdAt: 0, log: ['2026-08-01'] },
-      { id: 'b', name: 'Write', createdAt: 0, log: [] },
-    ])
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Remove Read' }))
-    })
-
-    expect(await storage.get('habits')).toEqual([{ id: 'b', name: 'Write', createdAt: 0, log: [] }])
-  })
-
-  it('renaming a habit edits it in place by id (blur-equivalent change)', async () => {
-    const storage = await renderWithHabits([{ id: 'a', name: 'Read', createdAt: 0, log: [] }])
-
-    const nameInput = screen.getByLabelText('Habit name') as HTMLInputElement
-    await act(async () => {
-      fireEvent.change(nameInput, { target: { value: 'Read daily' } })
-      fireEvent.blur(nameInput)
-    })
-
-    expect(await storage.get('habits')).toEqual([
-      { id: 'a', name: 'Read daily', createdAt: 0, log: [] },
-    ])
-  })
-
-  it('hides the add row and shows a quiet note once 6 habits are stored (the max)', async () => {
-    const habits = Array.from({ length: 6 }, (_, i) => ({
-      id: `h${i}`,
-      name: `Habit ${i}`,
-      createdAt: 0,
-      log: [],
-    }))
-    await renderWithHabits(habits)
-
-    expect(screen.getByDisplayValue('Habit 5')).toBeTruthy()
-    expect(screen.queryByLabelText('New habit name')).toBeNull()
-    expect(within(habitsRegion()).getByText(/Max 6 habits/)).toBeTruthy()
   })
 })
 

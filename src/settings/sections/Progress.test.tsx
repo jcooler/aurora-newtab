@@ -23,10 +23,7 @@ function goal(overrides: Partial<ProgressGoal>): ProgressGoal {
   }
 }
 
-function Harness({ storage, onManageHabits = () => undefined }: {
-  storage: AuroraStorage
-  onManageHabits?: () => void
-}) {
+function Harness({ storage }: { storage: AuroraStorage }) {
   const [goals] = useStoredKey('progressGoals')
   const [habits] = useStoredKey('habits')
   return (
@@ -34,15 +31,13 @@ function Harness({ storage, onManageHabits = () => undefined }: {
       goals={goals}
       habits={habits}
       storage={storage}
-      onManageHabits={onManageHabits}
     />
   )
 }
 
-async function renderProgress({ goals = [], habits = [], onManageHabits = () => undefined, suppliedDriver }: {
+async function renderProgress({ goals = [], habits = [], suppliedDriver }: {
   goals?: ProgressGoal[]
   habits?: Habit[]
-  onManageHabits?: () => void
   suppliedDriver?: ReturnType<typeof memoryDriver>
 } = {}) {
   const driver = suppliedDriver ?? memoryDriver()
@@ -52,7 +47,7 @@ async function renderProgress({ goals = [], habits = [], onManageHabits = () => 
   await storage.set('habits', habits)
   render(
     <StorageProvider storage={storage}>
-      <Harness storage={storage} onManageHabits={onManageHabits} />
+      <Harness storage={storage} />
     </StorageProvider>,
   )
   await screen.findByRole('region', { name: 'Progress' })
@@ -331,11 +326,9 @@ describe('Progress Habit bridge', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  it('toggles only the existing Habit authority and routes management to the existing editor', async () => {
-    const onManageHabits = vi.fn()
+  it('toggles and renames a habit in Progress without replacing its log', async () => {
     const { storage } = await renderProgress({
       habits: [{ id: 'walk', name: 'Walk', createdAt: 10, log: [] }],
-      onManageHabits,
     })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Done Walk' }))
@@ -347,8 +340,31 @@ describe('Progress Habit bridge', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Reopen Walk' }))
     })
     expect((await storage.get('habits'))[0]!.log).toEqual([])
-    fireEvent.click(screen.getByRole('button', { name: 'Manage habits' }))
-    expect(onManageHabits).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('textbox', { name: 'Habit name' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Walk' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Habit name' }), { target: { value: 'Morning walk' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save habit' }))
+    })
+    expect(await storage.get('habits')).toEqual([
+      { id: 'walk', name: 'Morning walk', createdAt: 10, log: [] },
+    ])
+  })
+
+  it('adds and two-step deletes habits from the Progress authority', async () => {
+    const { storage } = await renderProgress()
+    fireEvent.change(screen.getByRole('textbox', { name: 'New habit name' }), { target: { value: 'Read' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Add habit' }))
+    })
+    expect((await storage.get('habits'))[0]?.name).toBe('Read')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Read' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete habit' }))
+    expect(screen.getByRole('button', { name: 'Confirm delete habit' })).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm delete habit' }))
+    })
+    expect(await storage.get('habits')).toEqual([])
   })
 })

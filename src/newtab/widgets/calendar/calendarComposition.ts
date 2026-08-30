@@ -137,7 +137,9 @@ export function calendarMonthCells(
   const origin = weekStart === 'sunday' ? 0 : weekStart === 'monday' ? 1 : localeWeekStart(locale)
   const first = new Date(year, month0, 1)
   const leading = (first.getDay() - origin + 7) % 7
-  return Array.from({ length: 42 }, (_, index) => {
+  const daysInMonth = new Date(year, month0 + 1, 0).getDate()
+  const cellCount = Math.ceil((leading + daysInMonth) / 7) * 7
+  return Array.from({ length: cellCount }, (_, index) => {
     const date = new Date(year, month0, 1 - leading + index)
     return {
       key: keyFromDate(date),

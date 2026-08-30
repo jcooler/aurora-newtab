@@ -404,6 +404,16 @@
     linear-gradient(to top, color-mix(in srgb, var(--canvas-wash) 42%, transparent) 0%, color-mix(in srgb, var(--canvas-wash) 14%, transparent) 14%, transparent 32%);
 }
 
+/* The new-tab canvas is an instrument panel, not a document. Prevent drag
+   gestures and Ctrl+A from painting selection across clocks, widgets, and
+   photo text; real editors keep native text selection. */
+body {
+  user-select: none;
+}
+:is(input, textarea, [contenteditable="true"]) {
+  user-select: text;
+}
+
 .canvas-item {
   box-sizing: border-box;
   display: flex;

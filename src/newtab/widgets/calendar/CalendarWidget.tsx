@@ -29,10 +29,13 @@ import {
   fetchPublicHolidays,
   isPublicHolidaysData,
   normalizeHolidayCountryCode,
+  publicHolidayDisplayName,
+  type PublicHoliday,
   type PublicHolidaysData,
 } from '../../../services/connectors/publicHolidays'
 import type { PublicHolidaysConfig } from '../../../services/connectors/types'
 import { calendarMonthCells, composeCalendarItems, type CalendarAgendaItem } from './calendarComposition'
+import CalendarContextPopover, { type CalendarContextRow } from './CalendarContextPopover'
 
 // The calendar widget — Task 54, the seventh connector and the second
 // no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
@@ -191,9 +194,12 @@ function UnifiedCalendarWidget({
     isPublicHolidaysData,
   )
   const preference = calendarPreferenceFor(preferences, layoutId)
+  const holidays = preference.includePublicHolidays
+    ? holidaySnapshot.data?.holidays ?? []
+    : []
   const items = composeCalendarItems({
     events: icsSnapshot.data?.events ?? [],
-    holidays: holidaySnapshot.data?.holidays ?? [],
+    holidays,
     includeHolidays: preference.includePublicHolidays,
     now,
     timeZone: localDay.timeZone,
@@ -224,7 +230,7 @@ function UnifiedCalendarWidget({
           className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] items-center gap-5"
         >
           <div data-testid="calendar-full-month" className="min-w-0">
-            <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} roomy />
+            <CalendarMonth items={items} holidays={holidays} calendars={calendars} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} timeZone={localDay.timeZone} roomy />
           </div>
           <section data-testid="calendar-full-agenda" aria-label="Agenda" className="min-w-0 border-l border-panel-border pl-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted">Agenda</p>
@@ -237,10 +243,10 @@ function UnifiedCalendarWidget({
 
   const viewTabs = <CalendarViewTabs active={preference.defaultView} onChange={setView} />
   return (
-    <TierFrame label="Calendar" tier="standard" state={items.length > 0 ? 'ready' : 'empty'} className="justify-center gap-1.5 px-3 py-2.5">
+    <TierFrame label="Calendar" tier="standard" state={items.length > 0 ? 'ready' : 'empty'} className="justify-start gap-1.5 px-3 py-2">
       <div data-calendar-standard-composition className="min-h-0 w-full">
         {preference.defaultView === 'month' ? (
-          <CalendarMonth items={items} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} viewControl={viewTabs} />
+          <CalendarMonth items={items} holidays={holidays} calendars={calendars} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} timeZone={localDay.timeZone} viewControl={viewTabs} />
         ) : (
           <>
             <div className="flex min-h-7 items-center justify-between gap-2">
@@ -259,7 +265,7 @@ function CalendarViewTabs({ active, onChange }: { active: 'agenda' | 'month'; on
   return (
     <div role="tablist" aria-label="Calendar view" className="inline-flex shrink-0 rounded-lg border border-panel-border bg-black/10 p-0.5">
       {(['agenda', 'month'] as const).map((view) => (
-        <button key={view} type="button" role="tab" aria-selected={active === view} onClick={() => onChange(view)} className={`min-h-7 rounded-md px-2.5 text-xs font-medium focus-visible:outline-2 focus-visible:outline-accent ${active === view ? 'bg-panel-border text-fg' : 'text-fg-muted hover:text-fg'}`}>
+        <button key={view} type="button" role="tab" aria-selected={active === view} onClick={() => onChange(view)} className={`min-h-6 rounded-md px-2 text-[11px] font-medium focus-visible:outline-2 focus-visible:outline-accent ${active === view ? 'bg-panel-border text-fg' : 'text-fg-muted hover:text-fg'}`}>
           {view === 'agenda' ? 'Agenda' : 'Month'}
         </button>
       ))}
@@ -308,55 +314,149 @@ function agendaWhen(item: CalendarAgendaItem, timeZone: string): string {
   return `${day}, ${time}`
 }
 
-function CalendarMonth({ items, todayKey, weekStart, viewControl, roomy = false }: { items: readonly CalendarAgendaItem[]; todayKey: string; weekStart: 'locale' | 'sunday' | 'monday'; viewControl?: ReactNode; roomy?: boolean }) {
+function CalendarMonth({ items, holidays, calendars, todayKey, weekStart, timeZone, viewControl, roomy = false }: { items: readonly CalendarAgendaItem[]; holidays: readonly PublicHoliday[]; calendars: readonly IcsCalendar[]; todayKey: string; weekStart: 'locale' | 'sunday' | 'monday'; timeZone: string; viewControl?: ReactNode; roomy?: boolean }) {
   const [todayYear, todayMonth] = todayKey.split('-').map(Number)
   const [view, setView] = useState(() => new Date(todayYear!, todayMonth! - 1, 1))
   const locale = typeof navigator === 'undefined' ? 'en-US' : navigator.language
   const cells = calendarMonthCells(view, weekStart, locale)
   const label = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(view)
+  const shortLabel = new Intl.DateTimeFormat(locale, { month: 'short', year: 'numeric' }).format(view)
+  const rowCount = cells.length / 7
+  const monthKey = `${view.getFullYear()}-${String(view.getMonth() + 1).padStart(2, '0')}`
+  const monthHolidays = holidays.filter((holiday) => holiday.date.startsWith(`${monthKey}-`))
+  const rowHeight = roomy
+    ? rowCount === 4 ? 26 : rowCount === 5 ? 24 : 22
+    : monthHolidays.length > 0
+      ? rowCount === 4 ? 28 : rowCount === 5 ? 24 : 20
+      : rowCount === 4 ? 32 : rowCount === 5 ? 28 : 24
   const weekdays = calendarMonthCells(new Date(2026, 1, 1), weekStart, locale)
     .slice(0, 7)
     .map((cell) => new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(new Date(`${cell.key}T12:00:00`)))
-  const occupied = new Set(items.map((item) => item.dateKey))
-  const monthKey = `${view.getFullYear()}-${String(view.getMonth() + 1).padStart(2, '0')}`
-  const holiday = items.find((item) => item.kind === 'holiday' && item.dateKey >= `${monthKey}-01`)
+  const visibleDateKeys = new Set(cells.map((cell) => cell.key))
+  const contextRows = new Map<string, CalendarContextRow[]>()
+  for (const holiday of holidays) {
+    if (!visibleDateKeys.has(holiday.date)) continue
+    const rows = contextRows.get(holiday.date) ?? []
+    rows.push({
+      key: `holiday:${holiday.date}:${publicHolidayDisplayName(holiday)}`,
+      kind: 'holiday',
+      title: publicHolidayDisplayName(holiday),
+      detail: 'Public holiday',
+    })
+    contextRows.set(holiday.date, rows)
+  }
+  for (const item of items) {
+    if (item.kind !== 'event' || !visibleDateKeys.has(item.dateKey)) continue
+    const rows = contextRows.get(item.dateKey) ?? []
+    const calendar = calendars[item.cal]
+    const color = calendarColorOf(calendar?.color, item.cal)
+    const when = item.allDay
+      ? 'All day'
+      : new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone }).format(item.start)
+    rows.push({
+      key: `event:${item.dateKey}:${item.start}:${item.title}:${item.cal}`,
+      kind: 'event',
+      title: item.title,
+      detail: calendar?.name ? `${when} · ${calendar.name}` : when,
+      color,
+    })
+    contextRows.set(item.dateKey, rows)
+  }
   const step = (delta: number) => setView((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
   return (
-    <div className="min-h-0" data-calendar-density={roomy ? 'roomy' : 'standard'}>
-      <div className="flex h-7 items-center justify-between gap-1.5">
+    <div className="min-h-0" data-calendar-density={roomy ? 'roomy' : 'standard'} data-calendar-row-count={rowCount}>
+      <div className="flex h-6 items-center justify-between gap-1.5">
         <div className="flex min-w-0 items-center gap-0.5">
-          <button type="button" aria-label="Previous month" onClick={() => step(-1)} className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">‹</button>
-          <span className="min-w-0 truncate text-sm font-semibold text-fg">{label}</span>
-          <button type="button" aria-label="Next month" onClick={() => step(1)} className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">›</button>
+          <button type="button" aria-label="Previous month" onClick={() => step(-1)} className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">‹</button>
+          <span className="min-w-0 truncate text-sm font-semibold text-fg">{shortLabel}</span>
+          <button type="button" aria-label="Next month" onClick={() => step(1)} className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">›</button>
         </div>
         {viewControl}
       </div>
       <table aria-label={label} className="mt-0.5 w-full table-fixed border-collapse text-center">
-        <thead><tr>{weekdays.map((day, index) => <th key={`${day}-${index}`} scope="col" className="pb-0.5 text-[11px] font-medium text-fg-muted">{day}</th>)}</tr></thead>
+        <thead><tr>{weekdays.map((day, index) => <th key={`${day}-${index}`} scope="col" className="pb-px text-[11px] font-medium leading-none text-fg-muted">{day}</th>)}</tr></thead>
         <tbody>
-          {Array.from({ length: 6 }, (_, row) => (
-            <tr key={row}>
+          {Array.from({ length: rowCount }, (_, row) => (
+            <tr key={row} style={{ height: `${rowHeight}px` }}>
               {cells.slice(row * 7, row * 7 + 7).map((cell) => (
-                <td key={cell.key} data-calendar-cell data-cell-key={cell.key} className={`${roomy ? 'h-6' : 'h-[18px]'} p-0 align-middle`}>
-                  <span className={`relative mx-auto flex items-center justify-center rounded-full leading-none ${roomy ? 'size-5 text-xs' : 'size-[18px] text-[11px]'} ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} ${cell.key === todayKey ? 'ring-1 ring-accent' : ''}`}>
-                    {cell.day}
-                    <span aria-hidden className={`absolute -bottom-[2px] size-[2px] rounded-full bg-accent ${occupied.has(cell.key) ? '' : 'invisible'}`} />
-                  </span>
+                <td key={cell.key} data-calendar-cell data-cell-key={cell.key} className="p-0 align-middle">
+                  {contextRows.has(cell.key) ? (
+                    <CalendarContextPopover
+                      label={`${shortCalendarDate(cell.key)}, ${contextRows.get(cell.key)!.length} ${contextRows.get(cell.key)!.length === 1 ? 'item' : 'items'}`}
+                      heading={longCalendarDate(cell.key)}
+                      rows={contextRows.get(cell.key)!}
+                      className={`relative mx-auto flex h-full flex-col items-center justify-start rounded-md leading-none ${roomy ? 'w-7 pt-[3px] text-xs' : 'w-6 pt-[2px] text-[11px]'} ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} ${cell.key === todayKey ? 'ring-1 ring-accent' : ''} hover:bg-panel-border focus-visible:outline-2 focus-visible:outline-accent`}
+                    >
+                      <span data-calendar-day-number="">{cell.day}</span>
+                      <span
+                        aria-hidden
+                        data-calendar-occupancy-markers=""
+                        className={`mt-1 flex h-[3px] items-center gap-0.5 ${cell.inMonth ? '' : 'opacity-50'}`}
+                      >
+                        {calendarMarkerColors(contextRows.get(cell.key)!).map((color) => (
+                          <span
+                            key={color}
+                            data-calendar-occupancy-marker=""
+                            data-calendar-color={color}
+                            className={`rounded-full ${calendarColorClass(color)}`}
+                            style={{ width: '3px', height: '3px' }}
+                          />
+                        ))}
+                      </span>
+                    </CalendarContextPopover>
+                  ) : (
+                    <span className={`relative mx-auto flex h-full flex-col items-center justify-start rounded-md leading-none ${roomy ? 'w-7 pt-[3px] text-xs' : 'w-6 pt-[2px] text-[11px]'} ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} ${cell.key === todayKey ? 'ring-1 ring-accent' : ''}`}>
+                      <span data-calendar-day-number="">{cell.day}</span>
+                    </span>
+                  )}
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
-      <div className="mt-2 min-h-4 border-t border-panel-border pt-1.5 text-[11px] leading-4 text-fg-muted">
-        {holiday ? <span><span className="text-accent">{shortCalendarDate(holiday.dateKey)}</span> {holiday.title}</span> : <span>No holidays this month</span>}
-      </div>
+      {monthHolidays.length > 0 ? <MonthHolidaySummary holidays={monthHolidays} /> : null}
     </div>
   )
 }
 
+function MonthHolidaySummary({ holidays }: { holidays: readonly PublicHoliday[] }) {
+  const first = holidays[0]!
+  const summary = holidays.length === 1
+    ? `${shortCalendarDate(first.date)} ${publicHolidayDisplayName(first)}`
+    : `${holidays.length} holidays this month`
+  const rows: CalendarContextRow[] = holidays.map((holiday) => ({
+    key: `${holiday.date}:${publicHolidayDisplayName(holiday)}`,
+    kind: 'holiday',
+    title: `${shortCalendarDate(holiday.date)} ${publicHolidayDisplayName(holiday)}`,
+    detail: 'Public holiday',
+  }))
+
+  return (
+    <div data-calendar-holiday-summary="" className="relative mt-0.5 border-t border-panel-border pt-0.5">
+      <CalendarContextPopover
+        label={summary}
+        heading="Holidays this month"
+        rows={rows}
+        className="min-h-5 max-w-full truncate rounded-md text-left text-[11px] leading-4 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        {holidays.length === 1 ? <><span className="text-accent">{shortCalendarDate(first.date)}</span>{' '}</> : null}
+        {holidays.length === 1 ? publicHolidayDisplayName(first) : summary}
+      </CalendarContextPopover>
+    </div>
+  )
+}
+
+function calendarMarkerColors(rows: readonly CalendarContextRow[]): ReturnType<typeof calendarColorOf>[] {
+  return [...new Set(rows.map((row) => row.color ?? 'accent'))].slice(0, 3)
+}
+
 function shortCalendarDate(dateKey: string): string {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(`${dateKey}T12:00:00`))
+}
+
+function longCalendarDate(dateKey: string): string {
+  return new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(`${dateKey}T12:00:00`))
 }
 
 function CalendarInner({

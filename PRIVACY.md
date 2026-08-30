@@ -15,21 +15,19 @@ transfer it for advertising, profiling, lending, or any unrelated purpose.
 There is no analytics and no tracking of any kind. Everything
 Aurora stores lives only on your own device. The outbound network calls
 Aurora makes on its own, with no action from you beyond turning a widget
-on, are four read-only, keyless weather/location lookups described in full
+on, are five read-only, keyless weather/location lookups described in full
 below. Beyond those, Aurora's **Connectors** framework lets you point it at
-outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel, Crypto,
-Calendar, Status, and Home Assistant today — and every such request goes
+outside sites yourself or enable a built-in public source. Fifteen connectors
+ship today: RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status,
+Home Assistant, Linear, Sentry, Todoist, On This Day, Public Holidays, and
+Aurora & Kp. Every such request goes
 directly from your browser to the site you configured, never through any
-server Aurora operates (it has none). Eight of those nine only ever read;
-Home Assistant is the one exception — its action buttons also send a
-command to **your own instance**, and only in the instant you click one
-(see "Connectors" below for the full write-path disclosure). Five of
-those nine (GitHub, GitLab, Jira, Vercel, Home Assistant) need a
-credential — a personal access token, or for Jira, an email + API token —
-which is stored locally like everything else and sent only to the one
-service it authenticates to; the other four (RSS, Crypto, Calendar,
-Status) need no credential at all. See "Connectors" below for the complete
-disclosure.
+server Aurora operates (it has none). Thirteen only read. Home Assistant
+sends a configured command to your own instance only when you click its
+action, and Todoist closes a task only after you confirm it. Eight connectors
+(GitHub, GitLab, Jira, Vercel, Home Assistant, Linear, Sentry, and Todoist)
+need a credential stored locally and sent only to its provider. The other
+seven need no credential. See "Connectors" below for the complete disclosure.
 
 Connector credentials and RSS/Calendar capability URLs are stored as local
 plaintext in `chrome.storage.local`, protected by your Chrome/OS profile.
@@ -68,14 +66,17 @@ anywhere except as explicitly described under "Network calls" below:
 - Widget layout (the on-screen position of each widget, if you've used
   "Arrange layout" to move anything from its default spot)
 - Connector configuration (e.g., for RSS: which feed URLs you've added; for
-  GitHub/GitLab/Jira/Vercel: the token or email+token you connected with;
+  GitHub/GitLab/Jira/Vercel/Linear/Sentry/Todoist: the token or email+token
+  you connected with;
   for Calendar: the calendar addresses you added, up to 5; for Crypto: the
   coins you chose; for Status: the services you've added — curated picks
   or custom status page URLs — up to 8; for Home Assistant: the instance
   URL and long-lived access token you connected with, plus up to 6
   entities and 3 actions you picked from your instance, each one's
-  display name cached at the moment you picked it)
-  and a local cache of what each connector last fetched, so a widget
+  display name cached at the moment you picked it; and each public connector's
+  selected display options)
+- Your per-source refresh-frequency choices
+- A local cache of what each connector last fetched, so a widget
   doesn't need to refetch every time you open a new tab. See "Connectors"
   below.
 
@@ -95,7 +96,8 @@ photo-of-the-day cache to empty, the same "rebuilds on next use" treatment
 every other excluded cache gets, rather than carrying an old day's photo
 forward. Connector configuration itself is included in the export, minus
 any field that connector
-declares as secret — every GitHub/GitLab/Jira/Vercel/Home Assistant
+declares as secret — every GitHub/GitLab/Jira/Vercel/Home Assistant/Linear/
+Sentry/Todoist
 token, every calendar address you've added to the Calendar connector, and
 every RSS feed URL,
 is stripped from the exported file automatically, before it's ever
@@ -114,56 +116,58 @@ through.
 
 ## Network calls
 
-Aurora makes network requests to exactly four **fixed** endpoints, all
+Aurora makes network requests to exactly five **fixed** endpoints, all
 operated by third-party services (Aurora itself has no server), all
 read-only, all keyless (no account, sign-in, or API key involved), and all
 sent no more data than described below — plus two **opt-in** sources: a
-Connector, if and only if you've configured one (the site(s) you configured,
-item 5 below), and NASA's Astronomy Picture of the Day, if and only if
-you've chosen it as your background (item 6 below):
+Connector, if and only if you've configured or enabled one (item 6 below),
+and NASA's Astronomy Picture of the Day, if and only if you've chosen it as
+your background (item 7 below):
 
 1. **Weather forecast** — `api.open-meteo.com`, once the Weather widget is
    turned on and a location is set. Sends only your saved latitude/longitude
    normalized to at most four decimal places. Device-derived coordinates were
    already rounded to two decimal places; a selected city's provider
    coordinates can retain up to four. Refreshed periodically while the widget
-   is visible and on demand when you click refresh.
+   is visible, according to the selected safe preset, and on demand when you
+   click refresh. Manual mode disables forecast timers.
 2. **Weather environmental context** - `air-quality-api.open-meteo.com`, once
    the Weather widget is turned on and a location is set. Sends only the same
    normalized coordinates as the forecast request and receives current
    US AQI, UV index, and provider-available pollen values. The result is
-   stored inside the included weather cache and follows the same 30-minute freshness window
-   and manual refresh control as the forecast. Open-Meteo currently provides
+   stored inside the included weather cache and follows the selected forecast
+   refresh preset and manual refresh control. Severe-weather alerts keep their
+   separate five-minute visible-tab check. Open-Meteo currently provides
    pollen values only in Europe during pollen season, so Aurora shows them as
    unavailable when the provider does not return them.
-3. **City search (geocoding)** — `geocoding-api.open-meteo.com`, only while
+3. **Severe-weather alerts** - `api.weather.gov`, once the Weather widget is
+   turned on and a location is set. Sends only the same normalized coordinates
+   and receives active NWS watches, warnings, and advisories. This safety data
+   retains a separate five-minute visible-tab check even when forecast refresh
+   is Manual.
+4. **City search (geocoding)** — `geocoding-api.open-meteo.com`, only while
    the Weather widget is on and you're actively typing into its city search
    box (debounced ~300ms, and only once you've typed at least 2 characters —
    not on every keystroke, and not at all unless you open that search box).
    Sends only the text you've typed so far.
-4. **One-time reverse geocode** — `api.bigdatacloud.net`, only at the exact
+5. **One-time reverse geocode** — `api.bigdatacloud.net`, only at the exact
    moment you click "Use my location" in the Weather widget, so Aurora can
    label the forecast with a real place name instead of "My location." Sends
    the device coordinates after Aurora rounds them to two decimal places
    (roughly 1 km). This
    call happens once per click of that button, never on a schedule.
-5. **Connector fetches** — only to the connector(s) you've actually
-   configured yourself in Settings → Connectors (RSS, GitHub, GitLab, Jira,
-   Vercel, Crypto, Calendar, Status, Home Assistant); there are none until
-   you add or connect one. Each fetch is a single HTTP request sent
+6. **Connector fetches** — only to a connector you've configured or a built-in
+   public source you've enabled in Settings → Connectors. Each fetch is sent
    directly from your browser to that connector's own host — nothing is
-   sent but the request itself (plus a token/credential for the five that
-   need one), and no Aurora server sees or relays it, because Aurora has
-   none. Refreshed on a per-connector interval (5 minutes for GitHub/
-   GitLab/Vercel/Crypto/Status, 10 for Jira, 15 for Calendar, 30 for RSS,
-   60 seconds for Home Assistant — the shortest in the fleet, because home
-   state goes stale far faster than a PR list or a coin price), or sooner
-   if you open a widget with a stale cache. Home Assistant is also the
-   only connector that ever writes, not just reads: see "Connectors"
-   below for the full disclosure of that write path. See "Connectors"
+   sent but the request itself and, for the eight credentialed connectors,
+   the provider credential and scoped request data. Configurable sources use
+   source-safe presets, Manual mode, and Refresh now while visible tabs
+   coordinate one refresh owner. On This Day and Public Holidays retain a
+   fixed daily cadence. Home Assistant and Todoist have the only connector
+   write paths, both explicitly user-triggered. See "Connectors"
    below for the full, per-connector disclosure, including the permission
    model that gates which sites Aurora is even allowed to reach.
-6. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
+7. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
    lookup) and `apod.nasa.gov` (the separate host that actually serves the
    image), only once you've chosen "NASA photo of the day" as your
    background in Settings → General → Background. Sends only NASA's shared,
@@ -274,18 +278,19 @@ Aurora requests the following Chrome permissions:
 
 ## Connectors
 
-Connectors are Aurora's framework for reaching a source you configure
-yourself, rather than a fixed built-in service. Eight of the nine
-connectors only ever read. **Home Assistant is the one exception, and this
-is disclosed plainly:** clicking one of its action buttons sends a single
+Connectors are Aurora's framework for reaching a source you configure or a
+built-in public source you enable. Thirteen of the fifteen only read.
+**Home Assistant and Todoist are the two exceptions, disclosed plainly:**
+clicking one of Home Assistant's action buttons sends a single
 command — `scene.turn_on`, `script.turn_on`, or `switch.toggle`, whichever
 matches the action you picked — to **your own Home Assistant instance**,
 the same one you typed the URL for when you connected it. That command
 fires only in the instant you click the button: never on a timer, never
 bundled with the widget's own state poll, never anywhere else in the
-app. Nothing else is ever written to any connector, Home Assistant
-included — every other request any connector makes, and Home Assistant's
-own `/api/states` poll, is a plain read. Apart from that one write path,
+app. Todoist sends a task-close request only after you explicitly confirm
+that task. Nothing else is ever written to any connector. Every other
+request, including Home Assistant's own `/api/states` poll, is a plain read.
+Apart from those two write paths,
 the pattern holds exactly as it always has — **direct client → provider**:
 every connector request, read or write, goes straight from your browser to
 the site you configured, never through any server Aurora operates (it has
@@ -293,22 +298,25 @@ none) and never past any other third party. Nothing about the request —
 not its contents, not the fact that it happened — is visible to Aurora's
 developer or anyone else.
 
-**Per-origin grants, on your action only.** A connector gets no network
-access to anything until you explicitly configure it to reach a specific
-site. Adding a feed URL, or clicking "Connect" on a token-based connector,
+**Per-origin grants, on your action only.** A user-configured external source
+gets no network access until you explicitly configure its site. Adding a feed
+URL, or clicking "Connect" on a token-based connector,
 triggers Chrome's native permission prompt for that one origin the instant
 you act — see "Permissions" above for the mechanism. Nothing is
 pre-granted at install, nothing is granted in the background, and removing
 the last thing pointed at a given origin releases that origin's permission
-automatically.
+automatically. The three built-in public connectors use only their disclosed
+fixed public hosts, need no credential, and do not ask for a per-origin grant.
 
-**Authentication and capability secrets.** RSS, Crypto, Calendar, and Status
+**Authentication and capability secrets.** RSS, Crypto, Calendar, Status,
+On This Day, Public Holidays, and Aurora & Kp
 need no credential (`auth: 'none'`). RSS feed URLs and Calendar addresses are
 still capability secrets: possession of the full URL may grant read access,
-even though it is not an account sign-in. GitHub, GitLab, Jira, Vercel, and
-Home Assistant do require a credential — to read your own data, and for
-Home Assistant alone, to also send it a command — and each one stores that
-credential only in `chrome.storage.local`, on your device, exactly like
+even though it is not an account sign-in. GitHub, GitLab, Jira, Vercel,
+Home Assistant, Linear, Sentry, and Todoist do require a credential to read
+your own data. Home Assistant can also send a configured command, and Todoist
+can close a confirmed task. Each stores its credential only in
+`chrome.storage.local`, on your device, exactly like
 everything else Aurora stores — never sent anywhere except to the one
 provider it authenticates to. This is enforced mechanically, not just
 promised: every connector declares, in Aurora's connector registry, which
@@ -316,20 +324,23 @@ of its config fields (if any) are secret; the backup exporter reads that
 declaration and strips every field so listed before a backup file is ever
 written, for every connector, automatically — there is no separate list to
 remember to update. GitHub/GitLab/Vercel/Home Assistant each declare their
-token secret; Jira declares its API token secret (the email address
+token secret; Linear, Sentry, and Todoist also declare their tokens secret;
+Jira declares its API token secret (the email address
 travels with the rest of the config, unstripped — it identifies you to
 Jira, the same way a username would, and isn't itself a bearer
 credential); RSS uses its descriptor's backup redactor to remove every feed
 URL; Calendar declares its whole `calendars` list (every entry's
 own address) secret, since each address alone is what grants read access
-to that calendar — up to 5 per the connector's own cap; Crypto and Status
-declare no secret fields because they have none — a status page
+to that calendar — up to 5 per the connector's own cap; Crypto, Status,
+On This Day, Public Holidays, and Aurora & Kp declare no secret fields
+because they have none — a status page
 URL, curated or custom, grants no access to anything and identifies no
 one.
 
 **RSS, concretely.** Aurora fetches only the feed URLs you've added in
-Settings → Connectors — nothing else — at most about once every 30 minutes
-per feed (or sooner, on demand, if you open the widget with a stale cache).
+Settings → Connectors — nothing else. The Balanced preset refreshes about
+once every 30 minutes per feed while Tab Two is visible; you can choose
+another listed preset, Manual only, or refresh on demand.
 Each fetch is a single HTTP GET straight to that feed's own host; nothing
 is sent but the request itself. Each full feed URL is treated as a capability
 secret and removed from backup exports. The response — headline titles, links,
@@ -337,38 +348,40 @@ source names, and publish dates — is parsed on your device and cached
 locally (as part of "What Aurora stores," above) purely so the widget
 doesn't need to refetch on every new tab; that cache is excluded from
 backup exports entirely, same as uploaded photos, because it's disposable
-and rebuilds itself rather than being data you entered.
+and rebuilds itself rather than being data you entered. Open Tab Two tabs
+coordinate refresh ownership so they do not intentionally multiply the same
+request.
 
-**The other eight, concretely** — each fetch is a single HTTP request sent
+**The remaining connectors, concretely** — each fetch is a single HTTP request sent
 directly from your browser to the named host, cached locally the same way
 RSS is (and excluded from backup exports the same way), and refreshed on
-its own interval or sooner on demand (Home Assistant's bullet below also
-covers its one write path, the only one in this whole list):
+its own interval or sooner on demand. Home Assistant and Todoist below also
+cover the only two write paths in this list:
 
 - **GitHub** — talks only to api.github.com; sends only your token (as the
   Authorization header) and the queries for your own PRs, issues,
   notifications, and (opt-in, off by default) your contribution calendar
-  via GitHub's GraphQL endpoint. Refreshed roughly every 5 minutes.
+  via GitHub's GraphQL endpoint. The Balanced preset is 5 minutes.
 - **GitLab** — talks only to your configured GitLab instance (gitlab.com
   unless you've pointed it at your own); sends only your token (as the
   Authorization header) and the queries for your own merge requests and
   to-dos, plus, opt-in and off by default: merge requests where you're the
   requested reviewer, and your contribution calendar (fetched from
   `/users/{username}/calendar.json` on that same configured instance — no
-  new host). Refreshed roughly every 5 minutes.
+  new host). The Balanced preset is 5 minutes.
 - **Jira** — talks only to your own Jira Cloud site
   (`yoursite.atlassian.net`); sends only your email and API token (as
-  HTTP Basic auth) and the query for issues assigned to you. Refreshed
-  roughly every 10 minutes.
+  HTTP Basic auth) and the query for issues assigned to you. The Balanced
+  preset is 10 minutes.
 - **Vercel** — talks only to api.vercel.com; sends only your token (as the
-  Authorization header) and the query for your own recent deployments.
-  Refreshed roughly every 5 minutes.
+  Authorization header) and the query for your own recent deployments. The
+  Balanced preset is 5 minutes.
 - **Crypto** — talks only to api.coingecko.com; sends only the coin ids
-  you chose — no account, no token. Refreshed roughly every 5 minutes.
+  you chose — no account, no token. The Balanced preset is 5 minutes.
 - **Calendar** — fetches only the secret calendar addresses you've added,
   up to 5; each address itself is treated as a secret (see "Token
   connectors" above) and never leaves your device except to its own
-  calendar host. Refreshed roughly every 15 minutes. Meeting URLs (Zoom,
+  calendar host. The Balanced preset is 15 minutes. Meeting URLs (Zoom,
   Meet, Teams, Webex, Whereby) are parsed locally out of whatever your
   calendar feed already sent — no separate fetch, and Aurora never sends
   the URL anywhere; a link only opens when you click it.
@@ -380,8 +393,8 @@ covers its one write path, the only one in this whole list):
   dot), never as a stale "healthy" reading carried over from an earlier
   check — the one connector where a failed fetch is deliberately shown
   rather than papered over, since a status widget that could show a stale
-  green during a real outage would be actively misleading. Refreshed
-  roughly every 5 minutes.
+  green during a real outage would be actively misleading. The Balanced
+  preset is 5 minutes.
 - **Home Assistant** — talks only to **your own Home Assistant instance**,
   at the `https://` URL you typed in when connecting; plain
   `http://homeassistant.local:8123` cannot be granted, because Chrome's
@@ -400,9 +413,10 @@ covers its one write path, the only one in this whole list):
   depending on what you choose; Aurora treats it only as dashboard data and
   sends it nowhere except in requests to that same connected instance. The
   action controller checks `/api/` for health and does not use that endpoint
-  for ordinary state polling. Selected entities are polled at most once
-  every 60 seconds, and only while a tab with the widget open is
-  on-screen — there's no background timer of its own. A chip's text
+  for ordinary state polling. The Balanced preset polls selected entities at
+  most once every 60 seconds, and only while a tab with the widget open is
+  on-screen; you can choose a slower listed preset or Manual only. There is no
+  background timer of its own. A chip's text
   (the name and the value both) comes from that live poll, so renaming or
   changing an entity inside Home Assistant is reflected the next time it
   refreshes; only an action button's label is fixed at the moment you
@@ -414,8 +428,31 @@ covers its one write path, the only one in this whole list):
   `/api/services/switch/toggle`, matching what you picked — carrying
   nothing but that one entity's id, to that same instance, only in the
   instant you click, never on a schedule and never bundled with the poll
-  above. This is the only place in Aurora that ever sends a command
-  rather than a request for data.
+  above. This is the only place in Aurora that sends a command to Home
+  Assistant rather than a request for data.
+- **Linear** - talks only to `api.linear.app`; sends your personal API key,
+  an assigned-work GraphQL query, and selected team identifiers. It receives
+  account identity, team names, assigned issues, workflow state, priority,
+  due date, and cycle context. The Balanced preset is 15 minutes.
+- **Sentry** - talks only to the official `sentry.io`, `us.sentry.io`, or
+  `de.sentry.io` region you select; sends your bearer token, organization slug,
+  unresolved query, and selected project slugs. It receives unresolved issue
+  details and provider links. The Balanced preset is 5 minutes.
+- **Todoist** - talks only to `api.todoist.com`; sends your bearer token,
+  selected project identifiers, pagination cursors, and task queries. It
+  receives project names and due task content. The only write is a POST to
+  close one task, sent only after you explicitly confirm that task. The
+  Balanced preset is 5 minutes.
+- **On This Day** - talks only to `en.wikipedia.org`; sends the local month
+  and day and receives public historical events, births, deaths, and article
+  links. It has a fixed daily cadence and no frequency control.
+- **Public Holidays** - talks only to `date.nager.at`; sends the selected
+  country code and current or next local year and receives public country and
+  national-holiday facts. It has a fixed daily cadence and no frequency
+  control. Empty months remain silent.
+- **Aurora & Kp** - talks only to `services.swpc.noaa.gov`; sends no user data
+  and receives the public planetary K-index forecast. The Balanced preset is
+  15 minutes.
 
 ## Data collection, sale, and sharing
 

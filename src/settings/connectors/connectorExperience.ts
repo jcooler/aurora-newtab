@@ -46,7 +46,7 @@ const EXPERIENCES: Record<ConnectorId, ConnectorExperienceBase> = {
   crypto: {
     mark: '₿',
     outcome: 'Follow the market prices and daily movement of the coins you choose.',
-    benefits: ['Choose a focused watch list', 'See price and daily movement', 'Refresh public market data automatically'],
+    benefits: ['Choose a focused watch list', 'See price and daily movement', 'Refresh public market data on your schedule'],
     privacySummary: 'Crypto uses public market data and stores only your selected coin list in this Chrome profile.',
   },
   ics: {

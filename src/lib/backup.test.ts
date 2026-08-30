@@ -796,6 +796,26 @@ describe('Progress goal export / import (schema v20)', () => {
   })
 })
 
+describe('refresh preference export / import', () => {
+  it('round-trips valid source presets and manual mode', () => {
+    const input = { ...defaults(), refreshPreferences: { crypto: 1, jira: 'manual' as const } }
+    const prepared = prepareBackup(serializeBackup(input))
+
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.refreshPreferences).toEqual(input.refreshPreferences)
+  })
+
+  it('rejects an unsupported preset for a known source', () => {
+    const envelope = JSON.parse(serializeBackup(defaults()))
+    envelope.data.refreshPreferences = { crypto: 2 }
+
+    expect(prepareBackup(JSON.stringify(envelope))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "refreshPreferences" data is invalid.',
+    })
+  })
+})
+
 describe('parseBackup rejections', () => {
   it('rejects non-JSON with a distinct reason', () => {
     const result = parseBackup('not json at all {')

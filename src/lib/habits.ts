@@ -2,6 +2,15 @@
 // argument anywhere in this module: every "today" is the caller's injected
 // `todayKey`, every "now" is a `Date` the caller constructs.
 
+import type { Habit } from './storage/schema'
+
+export const MAX_HABITS = 6
+
+export type HabitIntent =
+  | { kind: 'add'; id: string; name: string; createdAt: number }
+  | { kind: 'rename'; id: string; name: string }
+  | { kind: 'remove'; id: string }
+
 /** Local (not UTC) YYYY-MM-DD for the given Date. toISOString() is UTC and
  *  would shift a late-night/early-morning local time onto the wrong calendar
  *  day; getFullYear/getMonth/getDate read the wall-clock date the caller
@@ -62,4 +71,20 @@ export function toggleDay(log: string[], key: string): string[] {
     marked.add(key)
   }
   return Array.from(marked).sort()
+}
+
+/** Applies one settings mutation to the authoritative list read at write
+ * time. Intent payloads never carry a stale Habit object, so a rename cannot
+ * replace a completion logged by another open tab while the editor was open. */
+export function applyHabitIntent(habits: Habit[], intent: HabitIntent): Habit[] {
+  if (intent.kind === 'remove') return habits.filter((habit) => habit.id !== intent.id)
+
+  const name = intent.name.trim()
+  if (!name) return habits
+  if (intent.kind === 'rename') {
+    return habits.map((habit) => habit.id === intent.id ? { ...habit, name } : habit)
+  }
+
+  if (habits.length >= MAX_HABITS || habits.some((habit) => habit.id === intent.id)) return habits
+  return [...habits, { id: intent.id, name, createdAt: intent.createdAt, log: [] }]
 }

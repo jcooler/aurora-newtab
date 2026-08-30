@@ -4,7 +4,6 @@ import { ensurePermission } from '../../services/permissions'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type {
   Countdown,
-  Habit,
   Settings,
   StoredLocation,
   WidgetToggles,
@@ -16,9 +15,10 @@ import Switch from '../Switch'
 import Countdowns from './Countdowns'
 import Weather from './Weather'
 import WorldClocks from './WorldClocks'
-import { row, label, control, submitBtn } from './shared'
+import { row, label, control } from './shared'
 import type { CalendarLayoutPreference, CalendarWeekStart, NamedLayout } from '../../lib/layout/namedLayouts'
 import CalendarConsolidationSettings from './CalendarConsolidationSettings'
+import type { RefreshPreferences } from '../../services/refreshPolicy'
 
 interface WidgetGroup {
   title: string
@@ -42,8 +42,8 @@ const WIDGET_GROUPS: readonly WidgetGroup[] = [
     widgets: [
       ['weather', 'Weather'],
       ['quote', 'Daily quote'],
-      ['habits', 'Habits'],
-      ['progress', 'Progress'],
+      ['habits', 'Habits summary'],
+      ['progress', 'Progress rail'],
       ['monthCal', 'Month calendar'],
     ],
   },
@@ -92,12 +92,9 @@ export const WIDGET_CONTROL_KEYS: readonly (keyof WidgetToggles)[] = Object.free
 )
 
 const SKY_LOCATION_HINT_ID = 'w-sky-location-hint'
-const MAX_HABITS = 6
-
 export default function Widgets({
   settings,
   patch,
-  habits,
   worldClocks,
   countdowns,
   storage,
@@ -106,10 +103,10 @@ export default function Widgets({
   saveCalendarWeekStart,
   calendarConsolidationLayout,
   calendarConsolidationPreference,
+  refreshPreferences,
 }: {
   settings: Settings
   patch: (p: Partial<Settings>) => void
-  habits: Habit[] | undefined
   worldClocks: WorldClock[] | undefined
   countdowns: Countdown[] | undefined
   storage: AuroraStorage
@@ -118,24 +115,10 @@ export default function Widgets({
   saveCalendarWeekStart: (value: CalendarWeekStart) => void
   calendarConsolidationLayout: NamedLayout | null
   calendarConsolidationPreference: CalendarLayoutPreference
+  refreshPreferences: RefreshPreferences | undefined
 }) {
   const [bookmarksPermissionDenied, setBookmarksPermissionDenied] = useState(false)
   const [browserPermissionDenied, setBrowserPermissionDenied] = useState<BrowserWidgetKey | null>(null)
-
-  const updateHabits = (fn: (list: Habit[]) => Habit[]) => void storage.update('habits', fn)
-
-  function handleAddHabit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const name = String(data.get('name') ?? '').trim()
-    if (!name) return
-    updateHabits((list) =>
-      list.length >= MAX_HABITS
-        ? list
-        : [...list, { id: crypto.randomUUID(), name, createdAt: Date.now(), log: [] }],
-    )
-    event.currentTarget.reset()
-  }
 
   async function handleWidgetToggle(key: keyof WidgetToggles, checked: boolean) {
     if (key === 'bookmarks' && checked) {
@@ -268,7 +251,7 @@ export default function Widgets({
 
         {location ? (
           <DisclosureSection title="Weather location">
-            <Weather location={location} storage={storage} />
+            <Weather location={location} storage={storage} refreshPreferences={refreshPreferences} />
           </DisclosureSection>
         ) : null}
 
@@ -280,60 +263,6 @@ export default function Widgets({
           <Countdowns countdowns={countdowns} storage={storage} />
         </DisclosureSection>
 
-        {settings.widgets.habits ? (
-          <DisclosureSection title="Habits">
-            {(habits ?? []).map((habit) => (
-              <div key={habit.id} className={row}>
-                <label htmlFor={`habit-name-${habit.id}`} className="sr-only">
-                  Habit name
-                </label>
-                <input
-                  id={`habit-name-${habit.id}`}
-                  key={habit.name}
-                  defaultValue={habit.name}
-                  onBlur={(event) => {
-                    const value = event.currentTarget.value.trim()
-                    if (!value || value === habit.name) return
-                    updateHabits((list) =>
-                      list.map((item) =>
-                        item.id === habit.id ? { ...item, name: value } : item,
-                      ),
-                    )
-                  }}
-                  className={`${control} w-32`}
-                />
-                <button
-                  type="button"
-                  aria-label={`Remove ${habit.name}`}
-                  onClick={() =>
-                    updateHabits((list) => list.filter((item) => item.id !== habit.id))
-                  }
-                  className="min-h-9 min-w-9 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {(habits?.length ?? 0) < MAX_HABITS ? (
-              <form className={row} onSubmit={handleAddHabit}>
-                <label htmlFor="habit-new-name" className="sr-only">
-                  New habit name
-                </label>
-                <input
-                  id="habit-new-name"
-                  name="name"
-                  placeholder="Habit name"
-                  className={`${control} w-32`}
-                />
-                <button type="submit" className={submitBtn}>
-                  Add
-                </button>
-              </form>
-            ) : (
-              <p className="text-xs text-fg-muted">Max 6 habits.</p>
-            )}
-          </DisclosureSection>
-        ) : null}
       </div>
     </Section>
   )

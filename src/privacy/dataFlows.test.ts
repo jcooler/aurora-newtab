@@ -35,6 +35,7 @@ const DATA_KEYS = [
   'calendarWeekStart',
   'connectors',
   'connectorSnapshots',
+  'refreshPreferences',
   'attentionLedger',
   'habits',
   'progressGoals',
@@ -279,8 +280,9 @@ describe('code-backed privacy inventory', () => {
   })
 
   it('keeps the canonical privacy policy synchronized with the fixed environmental flow', () => {
-    expect(privacyPolicy).toContain('exactly four **fixed** endpoints')
+    expect(privacyPolicy).toContain('exactly five **fixed** endpoints')
     expect(privacyPolicy).toContain('air-quality-api.open-meteo.com')
+    expect(privacyPolicy).toContain('api.weather.gov')
     expect(privacyPolicy).toContain('US AQI, UV index, and provider-available pollen values')
     expect(privacyPolicy).toContain('stored inside the included weather cache')
     expect(privacyPolicy).toMatch(/Device location is rounded to two\s+decimal places/)

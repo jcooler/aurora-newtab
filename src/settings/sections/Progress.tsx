@@ -1,28 +1,32 @@
 import { useRef, useState } from 'react'
 
 import ProgressRing from '../../components/ProgressRing'
-import { streak, toggleDay } from '../../lib/habits'
+import { applyHabitIntent, MAX_HABITS, streak, toggleDay, type HabitIntent } from '../../lib/habits'
 import { readLocalDay, useLocalDay } from '../../lib/hooks/useLocalDay'
 import { MAX_PROGRESS_GOALS, applyProgressIntent, progressValueForDay, validProgressGoals, type ProgressIntent } from '../../lib/progress'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { Habit, ProgressGoal } from '../../lib/storage/schema'
 import Section from '../Section'
-import { btnPrimary, btnQuiet } from './shared'
+import { btnDanger, btnPrimary, btnQuiet, control } from './shared'
 import ProgressGoalDialog from './ProgressGoalDialog'
 
 type OpenDialog = { kind: 'add' } | { kind: 'edit'; id: string }
-type FailedMutation = { authority: 'progress'; intent: ProgressIntent } | { authority: 'habit'; id: string }
+type FailedMutation =
+  | { authority: 'progress'; intent: ProgressIntent }
+  | { authority: 'habit-toggle'; id: string }
+  | { authority: 'habit-settings'; intent: HabitIntent }
 
-export default function Progress({ goals, habits, storage, onManageHabits }: {
+export default function Progress({ goals, habits, storage }: {
   goals: ProgressGoal[] | undefined
   habits: Habit[] | undefined
   storage: AuroraStorage
-  onManageHabits: () => void
 }) {
   const today = useLocalDay()
   const manualGoals = validProgressGoals(goals)
   const habitRows = habits ?? []
   const [dialog, setDialog] = useState<OpenDialog | null>(null)
+  const [habitEditor, setHabitEditor] = useState<{ id: string; name: string; deleteArmed: boolean } | null>(null)
+  const [newHabitName, setNewHabitName] = useState('')
   const [failedMutation, setFailedMutation] = useState<FailedMutation | null>(null)
   const dialogInvokerRef = useRef<HTMLButtonElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
@@ -50,7 +54,18 @@ export default function Progress({ goals, habits, storage, onManageHabits }: {
       setFailedMutation(null)
       return true
     } catch {
-      setFailedMutation({ authority: 'habit', id })
+      setFailedMutation({ authority: 'habit-toggle', id })
+      return false
+    }
+  }
+
+  async function applyHabitSettingsIntent(intent: HabitIntent): Promise<boolean> {
+    try {
+      await storage.update('habits', (list) => applyHabitIntent(list, intent))
+      setFailedMutation(null)
+      return true
+    } catch {
+      setFailedMutation({ authority: 'habit-settings', intent })
       return false
     }
   }
@@ -63,7 +78,8 @@ export default function Progress({ goals, habits, storage, onManageHabits }: {
   async function retryFailedMutation() {
     if (!failedMutation) return
     if (failedMutation.authority === 'progress') await applyManualIntent(failedMutation.intent)
-    else await toggleHabit(failedMutation.id)
+    else if (failedMutation.authority === 'habit-toggle') await toggleHabit(failedMutation.id)
+    else await applyHabitSettingsIntent(failedMutation.intent)
   }
 
   return (
@@ -100,18 +116,63 @@ export default function Progress({ goals, habits, storage, onManageHabits }: {
             {habitRows.map((habit) => {
               const done = habit.log.includes(today.key)
               const days = streak(habit.log, today.key)
+              const editing = habitEditor?.id === habit.id
               return (
                 <div key={habit.id} data-testid="progress-row" className="flex items-center gap-4 py-4 first:pt-2 max-[520px]:flex-wrap">
                   <ProgressRing value={done ? 1 : 0} target={1} unit="habit" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">Habit</p>
-                    <h3 className="truncate text-sm font-medium text-fg">{habit.name}</h3>
-                    <p className="text-xs text-fg-muted">{days} day streak</p>
-                  </div>
-                  <div className="flex gap-2 max-[520px]:ml-[3.75rem]">
-                    <button type="button" aria-label={`${done ? 'Reopen' : 'Done'} ${habit.name}`} onClick={() => void toggleHabit(habit.id)} className={btnQuiet}>{done ? 'Reopen' : 'Done'}</button>
-                    <button type="button" onClick={onManageHabits} className={btnQuiet}>Manage habits</button>
-                  </div>
+                  {editing ? (
+                    <form
+                      className="flex min-w-0 flex-1 flex-wrap items-end gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        const name = habitEditor.name.trim()
+                        if (!name) return
+                        void applyHabitSettingsIntent({ kind: 'rename', id: habit.id, name }).then((saved) => {
+                          if (saved) setHabitEditor(null)
+                        })
+                      }}
+                    >
+                      <label className="min-w-40 flex-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+                        Habit name
+                        <input
+                          autoFocus
+                          aria-label="Habit name"
+                          value={habitEditor.name}
+                          onChange={(event) => setHabitEditor({ ...habitEditor, name: event.currentTarget.value, deleteArmed: false })}
+                          className={`${control} mt-1 w-full normal-case tracking-normal`}
+                        />
+                      </label>
+                      <button type="submit" className={btnPrimary}>Save habit</button>
+                      <button type="button" onClick={() => setHabitEditor(null)} className={btnQuiet}>Cancel</button>
+                      <button
+                        type="button"
+                        className={btnDanger}
+                        onClick={() => {
+                          if (!habitEditor.deleteArmed) {
+                            setHabitEditor({ ...habitEditor, deleteArmed: true })
+                            return
+                          }
+                          void applyHabitSettingsIntent({ kind: 'remove', id: habit.id }).then((saved) => {
+                            if (saved) setHabitEditor(null)
+                          })
+                        }}
+                      >
+                        {habitEditor.deleteArmed ? 'Confirm delete habit' : 'Delete habit'}
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">Habit</p>
+                        <h3 className="truncate text-sm font-medium text-fg">{habit.name}</h3>
+                        <p className="text-xs text-fg-muted">{days} day streak</p>
+                      </div>
+                      <div className="flex gap-2 max-[520px]:ml-[3.75rem]">
+                        <button type="button" aria-label={`${done ? 'Reopen' : 'Done'} ${habit.name}`} onClick={() => void toggleHabit(habit.id)} className={btnQuiet}>{done ? 'Reopen' : 'Done'}</button>
+                        <button type="button" aria-label={`Edit ${habit.name}`} onClick={() => setHabitEditor({ id: habit.id, name: habit.name, deleteArmed: false })} className={btnQuiet}>Edit</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )
             })}
@@ -122,6 +183,28 @@ export default function Progress({ goals, habits, storage, onManageHabits }: {
           <button type="button" onClick={(event) => openDialog({ kind: 'add' }, event.currentTarget)} className={`${btnPrimary} mt-4`}>Add progress</button>
         ) : (
           <p className="mt-4 text-xs text-fg-muted">Maximum of 6 manual goals.</p>
+        )}
+
+        {habitRows.length < MAX_HABITS ? (
+          <form
+            className="mt-5 flex max-w-md items-end gap-2 border-t border-hairline pt-5"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const name = newHabitName.trim()
+              if (!name) return
+              void applyHabitSettingsIntent({ kind: 'add', id: crypto.randomUUID(), name, createdAt: Date.now() }).then((saved) => {
+                if (saved) setNewHabitName('')
+              })
+            }}
+          >
+            <label className="min-w-0 flex-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+              New habit name
+              <input aria-label="New habit name" value={newHabitName} onChange={(event) => setNewHabitName(event.currentTarget.value)} className={`${control} mt-1 w-full normal-case tracking-normal`} />
+            </label>
+            <button type="submit" className={btnQuiet}>Add habit</button>
+          </form>
+        ) : (
+          <p className="mt-5 border-t border-hairline pt-5 text-xs text-fg-muted">Maximum of 6 habits.</p>
         )}
 
         <div aria-live="polite" className="mt-3 min-h-5 text-xs text-fg-muted">

@@ -53,15 +53,13 @@ direct provider requests only as disclosed below.
   location. Off by default; needs a location set in Weather first.
 - **Connectors** — an extensible framework for reaching outside sources
   from the dashboard, one card per source under Settings → Connectors,
-  each asking Chrome for access to exactly the site you add and nothing
-  more. Nine connectors ship today: **RSS**, **GitHub**, **GitLab**,
-  **Jira**, **Vercel**, **Crypto**, **Calendar** (any ICS/iCal feed),
-  **Status** (a quiet dot row for services you depend on), and
-  **Home Assistant** (state chips and one-tap action buttons for your own
-  smart home — the one connector that can also send a command, not just
-  read). See [Connectors](#connectors) below for what each one shows,
-  what it reads (and, for Home Assistant, sends), and how the permission
-  model works.
+  with user-configured external sources asking Chrome for access to exactly
+  the site you add and nothing more. Fifteen connectors ship today: **RSS**, **GitHub**, **GitLab**,
+  **Jira**, **Vercel**, **Crypto**, **Calendar**, **Status**,
+  **Home Assistant**, **Linear**, **Sentry**, **Todoist**,
+  **On This Day**, **Public Holidays**, and **Aurora & Kp**. See
+  [Connectors](#connectors) below for what each one shows, what it reads,
+  the two explicit write actions, and how the permission model works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
 - **Focus timer & Flow:** A Pomodoro-style work/break timer with a chime.
   Start Flow to clear the page down to today's focus, the live timer, and the
@@ -179,10 +177,10 @@ fetched, asking Chrome for permission to reach a site, and keeping anything
 sensitive out of backup exports) is written once and shared. **RSS** was the
 first connector; the framework was built so adding another source meant
 writing that connector's own card/widget/service, not re-solving caching,
-permissions, or backups again — the other eight below are exactly that.
-Every connector reads; one, Home Assistant, can also send a command back
-to the source you connected — see its own entry below for exactly what
-that means.
+  permissions, or backups again. Every connector reads. Home Assistant can
+  send a command to your instance when you click a configured action, and
+  Todoist can close a task only after you confirm it; all other connector
+  operations are read-only.
 
 Find connectors by name or purpose — the catalog is searchable, and
 anything on your board stays pinned on top.
@@ -191,14 +189,15 @@ anything on your board stays pinned on top.
 `https://` feed URLs, and pick how many headlines to show (3–8). Aurora
 fetches each feed directly from your browser — there's no Aurora server in
 the middle relaying the request — merges the results newest-first, and
-caches them locally so the widget doesn't refetch on every new tab (about
-once every 30 minutes, or sooner if you refresh). Treat each full feed URL
+caches them locally so the widget doesn't refetch on every new tab. Its
+Balanced setting refreshes about every 30 minutes while Tab Two is visible,
+or you can choose another safe preset or Manual only. Treat each full feed URL
 as a capability secret: it can contain an unguessable token that grants read
 access, so Aurora redacts it from JSON backups and requires re-entry after
 restore.
 
-The other eight, briefly — what you see, and what Aurora reads (and, for
-one connector, writes) to show it. Every connector card is composable —
+The remaining connectors, briefly, show what Aurora reads and the two explicit
+write actions. Every connector card is composable —
 choose what each shows in Settings → Connectors:
 
 - **GitHub** — your open PRs waiting on your review, issues assigned to
@@ -253,33 +252,62 @@ a single request that keeps firing as long as either section is on.
   connector that writes as well as reads: pressing an action button sends
   that one command to your own instance, only on that click, never on a
   schedule — every other connector on this page, Home Assistant's own
-  state poll included, only ever reads. Polled at most once a minute,
-  Aurora's shortest interval, since home state goes stale faster than
-  anything else here. The bulk `/api/states` request runs only when you open
+  state poll included, only ever reads. Its Balanced setting polls at most
+  once a minute while Tab Two is visible, since home state goes stale faster
+  than anything else here; you can choose a slower safe preset or Manual only.
+  The bulk `/api/states` request runs only when you open
   the entity picker; regular refreshes request each selected
   `/api/states/{entity_id}`. Aurora uses `/api/config` once while connecting,
   `/api/` only for action health, and posts to the selected service endpoint
   only on an action click.
+- **Linear** - assigned issues with workflow state, priority, due date, and
+  cycle context from `api.linear.app`. Connect with a personal API key and
+  optionally filter to selected teams. The Balanced preset is 15 minutes.
+- **Sentry** - unresolved issues for an organization and selected projects,
+  read from the official Sentry region you choose. Connect with a bearer
+  token. The Balanced preset is 5 minutes.
+- **Todoist** - due tasks and project names from `api.todoist.com`. Connect
+  with a bearer token. Closing a task is the second and only other connector
+  write path, and happens only after you explicitly confirm it. The Balanced
+  preset is 5 minutes.
+- **On This Day** - public historical events from Wikipedia for the current
+  local month and day. It has no account or credential and refreshes on a
+  fixed daily cadence.
+- **Public Holidays** - public national holiday names from Nager.Date for the
+  selected country and current or next year. It has no account or credential
+  and stays on a fixed daily cadence without a frequency control.
+- **Aurora & Kp** - the public NOAA planetary K-index forecast. It sends no
+  user data and uses a 15-minute Balanced preset.
 
-**The permission model** is per-site, not all-or-nothing. Aurora's manifest
+Each configurable connector offers source-safe refresh presets, Manual mode,
+and **Refresh now**. Automatic refreshes run only while Tab Two is visible;
+visible tabs coordinate through a Web Lock so they do not intentionally repeat
+the same source request. On This Day and Public Holidays remain fixed daily
+sources. Weather uses its own matching control, while severe-weather alerts
+retain a separate five-minute safety check.
+
+**The permission model** for user-configured external sources is per-site,
+not all-or-nothing. Aurora's manifest
 lists every `https://` origin as *requestable*, but none is granted until
 you act: the moment you click "Add" on a feed URL or "Connect" on a
 token-based connector, Chrome shows its own native permission prompt scoped
 to that one site only (the same kind of prompt Bookmarks bar uses) —
 decline it, and the connector simply isn't added. Remove the last
 feed/connection pointed at a given site, and Aurora releases that site's
-permission automatically; other sites are unaffected. Every connector added
-or removed follows the same site-by-site rule.
+permission automatically; other sites are unaffected. The three built-in
+public connectors use only their fixed disclosed hosts and need no credential
+or per-origin prompt.
 
 ## Photo credits
 
-The bundled background set is 23 hand-curated landscape and aurora/night-sky
-photos, shipped as two AVIF resolution tiers each (2560x1600 and 3840x2400 —
-see [`src/services/photos/tier.ts`](src/services/photos/tier.ts) for how the
-tier is picked). 21 are used under the
+The bundled background set is 27 hand-curated landscape and aurora/night-sky
+photos. Twenty legacy entries ship as two AVIF resolution tiers (2560x1600 and
+3840x2400; see [`src/services/photos/tier.ts`](src/services/photos/tier.ts) for
+how the tier is picked), while six newer Unsplash entries retain their approved
+native originals. 26 are used under the
 [Unsplash License](https://unsplash.com/license) (free to use, no
-attribution legally required — credited here anyway); 2 are Public Domain
-U.S. government works (NASA and the National Park Service). Full curation
+attribution legally required, credited here anyway); 1 is a Public Domain
+NASA U.S. government work. Full curation
 notes, including every candidate that was reviewed and rejected and why,
 live in [`scripts/photo-candidates.json`](scripts/photo-candidates.json).
 
@@ -301,11 +329,15 @@ live in [`scripts/photo-candidates.json`](scripts/photo-candidates.json).
 - [Sebastian Unrau](https://unsplash.com/photos/trees-on-forest-with-sun-rays-sp-p7uuT0tw) — Unsplash License
 - [Luca Bravo](https://unsplash.com/photos/body-of-water-surrounded-by-pine-trees-during-daytime-ESkw2ayO2As) — Unsplash License
 - [Oleksii Piekhov](https://unsplash.com/photos/a-large-body-of-water-surrounded-by-mountains-meFvVI-mz0k) — Unsplash License
-- [Reed Naliboff](https://unsplash.com/photos/a-large-sand-dune-in-the-middle-of-a-desert-23tpftFIAD0) — Unsplash License
 - [Andrew Svk](https://unsplash.com/photos/a-group-of-sand-dunes-with-a-blue-sky-in-the-background-0s9oD70F-l4) — Unsplash License
 - [Ze Paulo Galveias](https://unsplash.com/photos/brown-sand-dunes-under-white-sky-during-daytime-GeReAnOMiZ8) — Unsplash License
 - Image credit: NASA / Expedition 72 crew, International Space Station — [details](https://images.nasa.gov/details/iss072e159172) — Public Domain (U.S. government work)
-- Mary Lewandowski / National Park Service, via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Aurora_in_Denali_(7c1dff32-ca2f-41f1-bbc1-65cf123bc3cf).jpg) — Public Domain
+- [Venti Views](https://unsplash.com/photos/milky-way-shines-over-mountain-peaks-qNXhVgRfU0E) — Unsplash License
+- [Oleg Demakov](https://unsplash.com/photos/milky-way-over-a-snow-capped-mountain-peak-0hU6r-vMtao) — Unsplash License
+- [Troy Olson](https://unsplash.com/photos/milky-way-over-a-dark-mountain-landscape-P-wAARoptz8) — Unsplash License
+- [Roberto Shumski](https://unsplash.com/photos/misty-forest-valley-with-mountains-in-background-oYEGPZebzGw) — Unsplash License
+- [Patrick Untersee](https://unsplash.com/photos/dramatic-sunset-over-a-dark-mountain-valley-j3f1lwXBuAI) — Unsplash License
+- [Pascal Debrunner](https://unsplash.com/photos/santis-peak-in-alpstein-region-V7EgUtCnvLY) — Unsplash License
 
 ## Font credits
 
@@ -386,8 +418,8 @@ as a single JSON file:
   envelope (`app`, `version`, `exportedAt`, and `data`) containing every
   stored key: settings, quick links, to-do lists, the focus timer config,
   today's focus text, background preferences, weather cache, location,
-  notes, world clocks, countdowns, habits, manual Progress goals, and
-  connector configuration — with any
+  notes, world clocks, countdowns, habits, manual Progress goals, per-source
+  refresh preferences, and connector configuration — with any
   field a connector marks as secret (a GitHub/
   GitLab/Jira/Vercel/Home Assistant token, or the Calendar connector's
   saved calendar addresses, or an RSS feed list) stripped out first (see
@@ -441,13 +473,15 @@ with a real place name. That lookup happens once, only for device location,
 and sends the same two-decimal device coordinates. Weather provider requests
 normalize a selected city's returned coordinates to at most four decimals.
 Beyond those fixed calls, the **Connectors** framework lets you point
-Aurora at outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel,
-Crypto, Calendar, Status, and Home Assistant today: every connector fetch
+  Aurora at outside sites yourself or enable a built-in public source: RSS,
+  GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status, Home Assistant,
+  Linear, Sentry, Todoist, On This Day, Public Holidays, and Aurora & Kp.
+  Every connector fetch
 goes directly from your browser to that connector's own host, with no
 Aurora server in between, only for connectors you've actually configured.
-GitHub/GitLab/Jira/Vercel/Home Assistant send only the token (or, for
-Jira, email + token) you connected with; Crypto, Calendar, and Status need
-no third-party account. RSS and Calendar URLs are capability secrets even
+  GitHub/GitLab/Jira/Vercel/Home Assistant/Linear/Sentry/Todoist send only
+  the credentials and scoped request data described in the privacy policy;
+  the other connectors need no third-party account. RSS and Calendar URLs are capability secrets even
 without an account and are redacted from backups. Home Assistant is the one connector that also writes:
 its action buttons send a single command to your own instance, only when
 you click one, never on a schedule (see [Connectors](#connectors) and
@@ -455,7 +489,7 @@ you click one, never on a schedule (see [Connectors](#connectors) and
 analytics, no telemetry, and no tracking of any kind.
 
 Connector credentials and RSS/Calendar capability URLs remain local
-plaintext in `chrome.storage.local`, protected by the Chrome/OS profile—not
+  plaintext in `chrome.storage.local`, protected by the Chrome/OS profile, not
 encrypted or vault-grade. On a shared or untrusted profile, disconnect
 connectors or clear Aurora's extension data after use. Provider responses are
 cached locally after direct receipt; Aurora never relays them through a

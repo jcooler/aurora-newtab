@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { StoredLocation } from '../../lib/storage/schema'
 import { row, label, btnQuiet } from './shared'
+import RefreshFrequencyControl from './RefreshFrequencyControl'
+import type { RefreshPreferences } from '../../services/refreshPolicy'
 
 /** Shows the current weather location with a one-click way to clear it
  *  (also clearing the cached forecast, so a stale location's weather never
@@ -10,9 +12,11 @@ import { row, label, btnQuiet } from './shared'
 export default function Weather({
   location,
   storage,
+  refreshPreferences,
 }: {
   location: StoredLocation
   storage: AuroraStorage
+  refreshPreferences: RefreshPreferences | undefined
 }) {
   const [clearing, setClearing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,6 +54,16 @@ export default function Weather({
           {error}
         </p>
       )}
+      <RefreshFrequencyControl
+        source="weather"
+        label="Weather forecast"
+        storage={storage}
+        preferences={refreshPreferences}
+        onRefreshNow={() => storage.setMany({ weatherCache: null, weatherAlertCache: null })}
+      />
+      <p className="mt-2 text-xs leading-relaxed text-fg-muted">
+        Severe weather alerts keep a five-minute visible-tab check for safety.
+      </p>
     </>
   )
 }

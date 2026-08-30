@@ -2,6 +2,7 @@ import { emptyLayoutV3, type StoredLayout } from '../layout/canvasTypes'
 import type { CalendarLayoutPreferences, CalendarWeekStart, LayoutsDocument } from '../layout/namedLayouts'
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
+import type { RefreshPreferences } from '../../services/refreshPolicy'
 
 export const CURRENT_VERSION = 20
 
@@ -388,6 +389,9 @@ export interface AuroraData {
   calendarWeekStart: CalendarWeekStart
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>
   connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
+  /** User-selected, device-local polling cadence. Credentials and cache
+   * identity remain connector-owned; changing cadence never invalidates data. */
+  refreshPreferences: RefreshPreferences
   /** Device-local derived first-observation state. Excluded from backups. */
   attentionLedger: AttentionLedger
   habits: Habit[]
@@ -462,6 +466,7 @@ export function defaults(): AuroraData {
     calendarWeekStart: 'locale',
     connectors: {},
     connectorSnapshots: {},
+    refreshPreferences: {},
     attentionLedger: { version: 1, sources: {} },
     habits: [],
     progressGoals: [],

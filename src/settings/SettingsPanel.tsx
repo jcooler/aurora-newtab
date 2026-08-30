@@ -102,6 +102,7 @@ export default function SettingsPanel({
   const [habits] = useStoredKey('habits')
   const [progressGoals] = useStoredKey('progressGoals')
   const [connectors] = useStoredKey('connectors')
+  const [refreshPreferences] = useStoredKey('refreshPreferences')
   const [calendarWeekStart, saveCalendarWeekStart] = useStoredKey('calendarWeekStart')
   const [calendarPreferences] = useStoredKey('calendarPreferences')
   const cleanup = usePermissionCleanup(storage)
@@ -175,7 +176,6 @@ export default function SettingsPanel({
           <Widgets
             settings={settings}
             patch={patch}
-            habits={habits}
             worldClocks={worldClocks}
             countdowns={countdowns}
             storage={storage}
@@ -187,6 +187,7 @@ export default function SettingsPanel({
               calendarPreferences,
               calendarConsolidationLayout?.id,
             )}
+            refreshPreferences={refreshPreferences}
           />
 
           <Layout storage={storage} open={open} layoutsDocument={layoutsDocument} />
@@ -198,15 +199,13 @@ export default function SettingsPanel({
           goals={progressGoals}
           habits={habits}
           storage={storage}
-          onManageHabits={() => {
-            focusSettingsTarget('widgets', 'habits')
-          }}
         />
       )}
 
       {tab === 'connectors' && premium && (
         <Connectors
           connectors={connectors}
+          refreshPreferences={refreshPreferences}
           storage={storage}
           reportPendingCleanup={cleanup.reportPendingCleanup}
         />

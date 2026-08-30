@@ -42,6 +42,7 @@ export const STORED_DATA_FLOWS: Record<DataKey, StoredDataFlow> = {
   calendarWeekStart: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Global Calendar week-start convention.' },
   connectors: { storage: 'chrome.storage.local', sensitivity: ['preferences', 'authentication', 'capability-url', 'public-selection'], export: 'redacted', transmission: 'provider-direct', description: 'Connector configuration, credentials, capability URLs, and selected resources.' },
   connectorSnapshots: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'excluded', transmission: 'none', description: 'Rebuildable connector response cache.' },
+  refreshPreferences: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Per-source connector and Weather refresh cadence choices.' },
   attentionLedger: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'excluded', transmission: 'none', description: 'Device-local stable work-item ids and first-observation timestamps.' },
   habits: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'Habit names and completion history.' },
   progressGoals: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'Manual goal names, units, targets, and daily values.' },

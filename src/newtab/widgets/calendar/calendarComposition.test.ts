@@ -47,10 +47,18 @@ describe('composeCalendarItems', () => {
 })
 
 describe('calendarMonthCells', () => {
-  it.each(['locale', 'sunday', 'monday'] as const)('returns a complete %s month grid', (weekStart) => {
-    const cells = calendarMonthCells(new Date(2026, 7, 1), weekStart, 'en-US')
-    expect(cells).toHaveLength(42)
-    expect(cells.filter((cell) => cell.inMonth)).toHaveLength(31)
+  it.each([
+    { label: 'four-row February', month: new Date(2026, 1, 1), weekStart: 'sunday' as const, length: 28, first: '2026-02-01', last: '2026-02-28', days: 28 },
+    { label: 'five-row September', month: new Date(2026, 8, 1), weekStart: 'sunday' as const, length: 35, first: '2026-08-30', last: '2026-10-03', days: 30 },
+    { label: 'six-row August', month: new Date(2026, 7, 1), weekStart: 'sunday' as const, length: 42, first: '2026-07-26', last: '2026-09-05', days: 31 },
+    { label: 'Monday-start September', month: new Date(2026, 8, 1), weekStart: 'monday' as const, length: 35, first: '2026-08-31', last: '2026-10-04', days: 30 },
+    { label: 'leap-year February', month: new Date(2028, 1, 1), weekStart: 'sunday' as const, length: 35, first: '2028-01-30', last: '2028-03-04', days: 29 },
+  ])('returns the natural complete grid for $label', ({ month, weekStart, length, first, last, days }) => {
+    const cells = calendarMonthCells(month, weekStart, 'en-US')
+    expect(cells).toHaveLength(length)
+    expect(cells[0]?.key).toBe(first)
+    expect(cells.at(-1)?.key).toBe(last)
+    expect(cells.filter((cell) => cell.inMonth)).toHaveLength(days)
   })
 
   it('shifts the same complete month between Sunday and Monday origins', () => {

@@ -17,6 +17,7 @@ import { ownedOriginPatterns } from '../services/originOwnership'
 import { migrate } from './storage/migrations'
 import { isSafeQuickLinkUrl } from './quickLinkUrl'
 import { validProgressGoals } from './progress'
+import { cleanRefreshPreferences, isRefreshPreferences } from '../services/refreshPolicy'
 
 const APP_ID = 'aurora'
 export const BACKUP_REDACTION_NOTICE = 'Connector secrets and capability URLs were not included. Re-enter them after restore.' as const
@@ -524,6 +525,7 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'attentionLedge
   calendarPreferences: isCalendarLayoutPreferences,
   calendarWeekStart: (v) => v === 'locale' || v === 'sunday' || v === 'monday',
   connectors: isConnectors,
+  refreshPreferences: isRefreshPreferences,
   habits: isHabits,
   progressGoals: isProgressGoals,
 }
@@ -638,9 +640,11 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
           ? cleanLayoutsKey(value)
           : key === 'connectors'
             ? cleanConnectors(value)
-            : key === 'habits'
-              ? cleanHabits(value)
-              : value
+            : key === 'refreshPreferences'
+              ? cleanRefreshPreferences(value as AuroraData['refreshPreferences'])
+              : key === 'habits'
+                ? cleanHabits(value)
+                : value
   }
   return { ok: true, data: cleaned as unknown as AuroraData }
 }

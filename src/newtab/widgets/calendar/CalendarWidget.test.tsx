@@ -213,7 +213,7 @@ describe('CalendarWidget', () => {
     expect(screen.getByText('Eye Exam').closest('li')?.querySelector('[data-calendar-color="fuchsia"]')).toBeTruthy()
   })
 
-  it('Standard Month renders one complete 42-cell semantic month without an internal scroller', async () => {
+  it('Standard Month uses a short heading, natural row count, and faded adjacent-month dates', async () => {
     const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
     const holidayConfig = { enabled: true, countryCode: 'US' } as const
     await storage.set('connectors', { ics: CONNECTED, publicHolidays: holidayConfig })
@@ -236,12 +236,185 @@ describe('CalendarWidget', () => {
     expect(frame.getAttribute('data-tier-frame')).toBe('standard')
     expect(frame.querySelectorAll('[data-calendar-cell]')).toHaveLength(42)
     expect(screen.getByRole('table', { name: /August 2026/ })).toBeTruthy()
-    const monthHeader = screen.getByText('August 2026').parentElement?.parentElement
+    const monthHeader = screen.getByText('Aug 2026').parentElement?.parentElement
     expect(monthHeader?.contains(screen.getByRole('tablist', { name: 'Calendar view' }))).toBe(true)
     expect(frame.querySelector('[class*="overflow-y"]')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
+    const table = screen.getByRole('table', { name: /September 2026/ })
+    expect(screen.getByText('Sep 2026')).toBeTruthy()
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(5)
+    expect(table.querySelectorAll('[data-calendar-cell]')).toHaveLength(35)
+    expect(table.closest('[data-calendar-row-count]')?.getAttribute('data-calendar-row-count')).toBe('5')
+    expect((table.querySelector('tbody tr') as HTMLTableRowElement).style.height).toBe('24px')
+    expect(table.querySelectorAll('[data-calendar-day-number]')).toHaveLength(35)
+    expect(table.querySelector('[data-cell-key="2026-08-30"]')?.textContent).toBe('30')
+    expect(table.querySelector('[data-cell-key="2026-10-03"]')?.textContent).toBe('3')
+    expect((table.querySelector('[data-cell-key="2026-08-30"]')?.firstElementChild as HTMLElement).className).toContain('text-fg-muted/40')
+    expect((table.querySelector('[data-cell-key="2026-10-03"]')?.firstElementChild as HTMLElement).className).toContain('text-fg-muted/40')
+    expect(table.querySelector('[data-cell-key="2026-09-07"]')?.textContent).toBe('7')
   })
 
-  it('centers the Standard selected view inside the exact frame', async () => {
+  it('spends the empty lower frame space on 24px rows in a six-row month without a holiday summary', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
+    await storage.set('calendarPreferences', { work: { defaultView: 'month', includePublicHolidays: false } })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+
+    const table = screen.getByRole('table', { name: /August 2026/ })
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(6)
+    expect(table.closest('[data-calendar-row-count]')?.getAttribute('data-calendar-row-count')).toBe('6')
+    expect((table.querySelector('tbody tr') as HTMLTableRowElement).style.height).toBe('24px')
+  })
+
+  it('keeps an empty holiday month silent and shows the selected month holiday from the holiday snapshot', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
+    const holidayConfig = { enabled: true, countryCode: 'US' } as const
+    await storage.set('connectors', { ics: CONNECTED, publicHolidays: holidayConfig })
+    await storage.set('connectorSnapshots', {
+      ...(await storage.get('connectorSnapshots')),
+      publicHolidays: {
+        scope: await connectorSnapshotScope('publicHolidays', holidayConfig, '2026-08-07'),
+        fetchedAt: NOW,
+        data: { countryCode: 'US', year: 2026, holidays: [{ date: '2026-09-07', name: 'Labour Day', localName: 'Labor Day' }] },
+      },
+    })
+    await storage.set('calendarPreferences', { work: { defaultView: 'month', includePublicHolidays: true } })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+
+    expect(screen.queryByText(/No holidays this month/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /holiday/i })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
+    expect(screen.getByRole('button', { name: 'Sep 7 Labor Day' })).toBeTruthy()
+    expect(screen.queryByText('Labour Day')).toBeNull()
+  })
+
+  it('summarizes multiple holidays and exposes their names and dates on hover, focus, and click', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
+    const holidayConfig = { enabled: true, countryCode: 'US' } as const
+    await storage.set('connectors', { ics: CONNECTED, publicHolidays: holidayConfig })
+    await storage.set('connectorSnapshots', {
+      ...(await storage.get('connectorSnapshots')),
+      publicHolidays: {
+        scope: await connectorSnapshotScope('publicHolidays', holidayConfig, '2026-08-07'),
+        fetchedAt: NOW,
+        data: {
+          countryCode: 'US',
+          year: 2026,
+          holidays: [
+            { date: '2026-09-07', name: 'Labor Day' },
+            { date: '2026-09-17', name: 'Constitution Day' },
+          ],
+        },
+      },
+    })
+    await storage.set('calendarPreferences', { work: { defaultView: 'month', includePublicHolidays: true } })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
+
+    const summary = screen.getByRole('button', { name: '2 holidays this month' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.mouseEnter(summary)
+    expect(screen.getByRole('tooltip').textContent).toContain('Sep 7 Labor Day')
+    expect(screen.getByRole('tooltip').textContent).toContain('Sep 17 Constitution Day')
+    fireEvent.mouseLeave(summary)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(summary)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    fireEvent.blur(summary)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.click(summary)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    fireEvent.mouseLeave(summary)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    fireEvent.click(summary)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('explains an occupied date with holidays first and calendar-colored events on hover, focus, and click', async () => {
+    const colored: IcsConfig = {
+      enabled: true,
+      calendars: [
+        { name: 'Home', url: 'https://calendar.example.com/home.ics', color: 'sky' },
+        { name: 'Family', url: 'https://calendar.example.com/family.ics', color: 'fuchsia' },
+      ],
+    }
+    const homeEvent = ev(
+      'Home standup',
+      new Date(2026, 8, 7, 13).getTime(),
+      new Date(2026, 8, 7, 13, 30).getTime(),
+      0,
+    )
+    const familyEvent = ev(
+      'Family lunch',
+      new Date(2026, 8, 7, 14).getTime(),
+      new Date(2026, 8, 7, 15).getTime(),
+      1,
+    )
+    const spilloverEvent = ev(
+      'October kickoff',
+      new Date(2026, 9, 1, 10).getTime(),
+      new Date(2026, 9, 1, 11).getTime(),
+      0,
+    )
+    const storage = await seededStorage(colored, { events: [homeEvent, familyEvent, spilloverEvent] })
+    const holidayConfig = { enabled: true, countryCode: 'US' } as const
+    await storage.set('connectors', { ics: colored, publicHolidays: holidayConfig })
+    await storage.set('connectorSnapshots', {
+      ...(await storage.get('connectorSnapshots')),
+      publicHolidays: {
+        scope: await connectorSnapshotScope('publicHolidays', holidayConfig, '2026-08-07'),
+        fetchedAt: NOW,
+        data: { countryCode: 'US', year: 2026, holidays: [{ date: '2026-09-07', name: 'Labour Day', localName: 'Labor Day' }] },
+      },
+    })
+    await storage.set('calendarPreferences', { work: { defaultView: 'month', includePublicHolidays: true } })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
+
+    const date = screen.getByRole('button', { name: 'Sep 7, 3 items' })
+    const markers = [...date.querySelectorAll('[data-calendar-occupancy-marker]')] as HTMLElement[]
+    const number = date.querySelector('[data-calendar-day-number]')
+    const markerLane = date.querySelector('[data-calendar-occupancy-markers]')
+    expect(number?.nextElementSibling).toBe(markerLane)
+    expect(markerLane?.className).toContain('mt-1')
+    expect(markerLane?.className).not.toContain('absolute')
+    expect(markers.map((marker) => marker.getAttribute('data-calendar-color'))).toEqual(['accent', 'sky', 'fuchsia'])
+    expect(markers.every((marker) => marker.parentElement?.hasAttribute('data-calendar-occupancy-markers'))).toBe(true)
+    expect(markers.every((marker) => marker.style.width === '3px' && marker.style.height === '3px')).toBe(true)
+    fireEvent.mouseEnter(date)
+    let tooltip = screen.getByRole('tooltip')
+    expect([...tooltip.querySelectorAll('[data-calendar-context-kind]')].map((row) => row.getAttribute('data-calendar-context-kind'))).toEqual(['holiday', 'event', 'event'])
+    expect(tooltip.textContent).toContain('Labor Day')
+    expect(tooltip.textContent).toContain('Home standup')
+    expect(tooltip.textContent).toContain('Family lunch')
+    expect(tooltip.querySelector('[data-calendar-color="sky"]')).toBeTruthy()
+    expect(tooltip.querySelector('[data-calendar-color="fuchsia"]')).toBeTruthy()
+    fireEvent.mouseLeave(date)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+
+    fireEvent.focus(date)
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    fireEvent.blur(date)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.click(date)
+    fireEvent.mouseLeave(date)
+    tooltip = screen.getByRole('tooltip')
+    expect(tooltip.textContent).toContain('Monday, September 7')
+    fireEvent.keyDown(date, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+
+    const spilloverDate = screen.getByRole('button', { name: 'Oct 1, 1 item' })
+    expect(spilloverDate.className).toContain('text-fg-muted/40')
+    expect(spilloverDate.querySelector('[data-calendar-occupancy-marker]')?.getAttribute('data-calendar-color')).toBe('sky')
+    fireEvent.mouseEnter(spilloverDate)
+    expect(screen.getByRole('tooltip').textContent).toContain('October kickoff')
+  })
+
+  it('top-aligns the Standard selected view to spend the frame height on the month grid', async () => {
     const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
     await storage.set('calendarPreferences', {
       work: { defaultView: 'month', includePublicHolidays: false },
@@ -250,7 +423,7 @@ describe('CalendarWidget', () => {
     await act(async () => {})
     const frame = screen.getByRole('region', { name: 'Calendar' })
     const composition = frame.querySelector('[data-calendar-standard-composition]')!
-    expect(frame.className).toContain('justify-center')
+    expect(frame.className).toContain('justify-start')
     expect(composition).toBeTruthy()
     expect(within(frame).getByRole('table').querySelectorAll('[data-calendar-cell]')).toHaveLength(42)
   })

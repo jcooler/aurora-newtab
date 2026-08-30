@@ -54,6 +54,7 @@ beforeEach(() => {
     configurable: true,
     value: 'visible',
   })
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
 })
 
 afterEach(() => {
@@ -336,6 +337,62 @@ describe('useConnectorSnapshot', () => {
 
     await screen.findByText('data:cached')
     expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('honors the source preference and manual mode without discarding cached data', async () => {
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now() - 20 * 60_000,
+      data: 'cached',
+    })
+    await storage.set('refreshPreferences', { rss: 'manual' })
+    const refresh = vi.fn(() => Promise.resolve('fresh'))
+
+    mount(storage, refresh)
+    await screen.findByText('data:cached')
+    expect(refresh).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await storage.set('connectorSnapshots', {})
+      await tick()
+    })
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
+  it('does not spend a request in a hidden tab and catches up when visible', async () => {
+    const storage = await freshStorage()
+    const refresh = vi.fn(() => Promise.resolve('visible-data'))
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+
+    mount(storage, refresh)
+    await act(async () => { await tick() })
+    expect(refresh).not.toHaveBeenCalled()
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      await tick()
+    })
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
+  it('runs refresh ownership through a cross-tab Web Lock', async () => {
+    const storage = await freshStorage()
+    const refresh = vi.fn(() => Promise.resolve('locked-data'))
+    const request = vi.fn(async (...args: unknown[]) => {
+      const callback = args.at(-1) as (lock: Lock | null) => unknown
+      return callback(null)
+    })
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: { request: request as unknown as LockManager['request'] },
+    })
+
+    mount(storage, refresh)
+    await act(async () => { await tick() })
+
+    expect(request).toHaveBeenCalledOnce()
+    expect(request.mock.calls[0]?.[0]).toContain('aurora:connector-refresh:rss')
+    expect(refresh).toHaveBeenCalledOnce()
   })
 
   it('two mounted consumers: exactly one refresh (in-flight dedupe)', async () => {

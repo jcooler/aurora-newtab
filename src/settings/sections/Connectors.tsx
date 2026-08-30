@@ -48,6 +48,8 @@ import {
   type ConnectorCardMode,
 } from '../connectors/connectorCardState'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import RefreshFrequencyControl from './RefreshFrequencyControl'
+import type { RefreshPreferences } from '../../services/refreshPolicy'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -281,10 +283,12 @@ export function connectorCardState(
  *  See Drawer.tsx's own structural warning (the panel element doc comment). */
 export default function Connectors({
   connectors,
+  refreshPreferences,
   storage,
   reportPendingCleanup,
 }: {
   connectors: AuroraData['connectors'] | undefined
+  refreshPreferences?: RefreshPreferences
   storage: AuroraStorage
   reportPendingCleanup(patterns: readonly string[]): void
 }) {
@@ -393,6 +397,7 @@ export default function Connectors({
       config={connectors?.[d.id]}
       storage={storage}
       reportPendingCleanup={reportPendingCleanup}
+      refreshPreferences={refreshPreferences}
       activeMode={editor?.id === d.id ? editor.mode : null}
       onOpen={(mode) => openEditor(d.id, mode)}
       onClose={() => closeEditor(d.id)}
@@ -545,6 +550,7 @@ function ConnectorCard({
   config,
   storage,
   reportPendingCleanup,
+  refreshPreferences,
   activeMode,
   onOpen,
   onClose,
@@ -553,6 +559,7 @@ function ConnectorCard({
   config: ConnectorConfig | undefined
   storage: AuroraStorage
   reportPendingCleanup(patterns: readonly string[]): void
+  refreshPreferences: RefreshPreferences | undefined
   activeMode: ConnectorCardMode | null
   onOpen(mode: ConnectorCardMode): void
   onClose(): void
@@ -588,6 +595,19 @@ function ConnectorCard({
           reportPendingCleanup={reportPendingCleanup}
           mode={activeMode}
           closeEditor={onClose}
+        />
+      ) : null}
+      {activeMode && presentation.configured ? (
+        <RefreshFrequencyControl
+          source={descriptor.id}
+          label={descriptor.label}
+          storage={storage}
+          preferences={refreshPreferences}
+          onRefreshNow={() => storage.update('connectorSnapshots', (snapshots) => {
+            const next = { ...snapshots }
+            delete next[descriptor.id]
+            return next
+          }).then(() => undefined)}
         />
       ) : null}
     </ConnectorCardShell>

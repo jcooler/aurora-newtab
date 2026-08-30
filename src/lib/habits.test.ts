@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { localDateKey, prevDayKey, streak, toggleDay } from './habits'
+import { applyHabitIntent, localDateKey, prevDayKey, streak, toggleDay } from './habits'
+import type { Habit } from './storage/schema'
 
 describe('localDateKey', () => {
   it('formats a local date as YYYY-MM-DD, zero-padded', () => {
@@ -99,5 +100,35 @@ describe('toggleDay', () => {
     const result = toggleDay(original, '2026-07-07')
     expect(original).toEqual(['2026-07-06'])
     expect(result).not.toBe(original)
+  })
+})
+
+describe('applyHabitIntent', () => {
+  const habits: Habit[] = [
+    { id: 'walk', name: 'Walk', createdAt: 10, log: ['2026-08-29'] },
+    { id: 'read', name: 'Read', createdAt: 20, log: [] },
+  ]
+
+  it('renames the current same-id habit without replacing its newer log', () => {
+    expect(applyHabitIntent(habits, { kind: 'rename', id: 'walk', name: 'Morning walk' })).toEqual([
+      { id: 'walk', name: 'Morning walk', createdAt: 10, log: ['2026-08-29'] },
+      habits[1],
+    ])
+  })
+
+  it('adds one trimmed habit while below the six-habit limit', () => {
+    expect(applyHabitIntent(habits, {
+      kind: 'add',
+      id: 'water',
+      name: '  Drink water  ',
+      createdAt: 30,
+    })).toEqual([
+      ...habits,
+      { id: 'water', name: 'Drink water', createdAt: 30, log: [] },
+    ])
+  })
+
+  it('removes only the requested habit', () => {
+    expect(applyHabitIntent(habits, { kind: 'remove', id: 'walk' })).toEqual([habits[1]])
   })
 })

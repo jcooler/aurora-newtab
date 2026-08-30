@@ -375,6 +375,7 @@ describe('backup restore coordinator', () => {
       calendarWeekStart: 'locale',
       connectors: {},
       connectorSnapshots: {},
+      refreshPreferences: {},
       attentionLedger: { version: 1, sources: {} },
       habits: [{ id: 'before-habit', name: 'Before habit', createdAt: 10, log: ['2026-08-13'] }],
       progressGoals: [],

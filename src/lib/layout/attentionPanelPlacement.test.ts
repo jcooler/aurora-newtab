@@ -27,4 +27,19 @@ describe('attention panel placement', () => {
     expect(placed.left).toBe(8)
     expect(placed.top).toBeGreaterThanOrEqual(8)
   })
+
+  it('keeps a context panel outside its owner before minimizing other widget overlap', () => {
+    const owner = { left: 27.5, top: 16, right: 347.5, bottom: 216, width: 320, height: 200 }
+    const placed = placeAttentionPanel({
+      viewport: { width: 375, height: 812 },
+      trigger: owner,
+      avoid: owner,
+      panel: { width: 288, height: 114 },
+      obstacles: [
+        { left: 0, top: 216, right: 375, bottom: 520, width: 375, height: 304 },
+      ],
+    })
+
+    expect(placed.top).toBeGreaterThanOrEqual(224)
+  })
 })

@@ -6,8 +6,7 @@ import { openMeteoProvider } from '../../../services/weather/openMeteo'
 import { environmentRequestIdentity } from '../../../services/weather/environmentIdentity'
 import { weatherRequestIdentity } from '../../../services/weather/identity'
 import { resourceStateOf } from '../../../lib/asyncState'
-
-const MAX_AGE_MS = 30 * 60 * 1000
+import { effectiveRefreshMs } from '../../../services/refreshPolicy'
 
 interface InFlightWeather {
   identity: string
@@ -27,6 +26,8 @@ export function useWeather() {
   const storage = useStorage()
   const [location] = useStoredKey('location')
   const [storedSnapshot] = useStoredKey('weatherCache')
+  const [refreshPreferences] = useStoredKey('refreshPreferences')
+  const refreshTtlMs = effectiveRefreshMs('weather', refreshPreferences)
   const storageReady = location !== undefined && storedSnapshot !== undefined
   const [loading, setLoading] = useState(false)
   const [enrichmentPending, setEnrichmentPending] = useState(false)
@@ -68,8 +69,8 @@ export function useWeather() {
   const now = Date.now()
   const forecastFetchedAt = matchingSnapshot?.fetchedAt ?? null
   const environmentFetchedAt = matchingEnvironment?.fetchedAt ?? null
-  const forecastFresh = forecastFetchedAt !== null && now - forecastFetchedAt < MAX_AGE_MS
-  const environmentCurrent = environmentFetchedAt !== null && now - environmentFetchedAt < MAX_AGE_MS
+  const forecastFresh = forecastFetchedAt !== null && (refreshTtlMs === null || now - forecastFetchedAt < refreshTtlMs)
+  const environmentCurrent = environmentFetchedAt !== null && (refreshTtlMs === null || now - environmentFetchedAt < refreshTtlMs)
 
   useLayoutEffect(() => {
     mountedRef.current = true
@@ -107,14 +108,14 @@ export function useWeather() {
     const requestTime = Date.now()
     const enrichmentOnly = (
       forecastFetchedAt !== null &&
-      requestTime - forecastFetchedAt < MAX_AGE_MS &&
+      (refreshTtlMs === null || requestTime - forecastFetchedAt < refreshTtlMs) &&
       (
         environmentFetchedAt === null ||
-        requestTime - environmentFetchedAt >= MAX_AGE_MS ||
+        (refreshTtlMs !== null && requestTime - environmentFetchedAt >= refreshTtlMs) ||
         matchingEnvironment?.status === 'unavailable'
       )
     )
-    const request = (async () => {
+    const work = async () => {
       if (
         mountedRef.current &&
         identityRef.current === currentIdentity &&
@@ -125,6 +126,28 @@ export function useWeather() {
         setError(null)
       }
       try {
+        const shared = await storage.get('weatherCache')
+        const sharedForecastFresh = shared?.requestIdentity === currentIdentity && (
+          refreshTtlMs === null || Date.now() - shared.fetchedAt < refreshTtlMs
+        )
+        const sharedEnvironmentFresh = shared?.environment?.requestIdentity === currentEnvironmentIdentity && (
+          refreshTtlMs === null || Date.now() - shared.environment.fetchedAt < refreshTtlMs
+        ) && (
+          shared.environment.status !== 'unavailable' ||
+          shared.environment.fetchedAt !== environmentFetchedAt
+        )
+        if (sharedForecastFresh && sharedEnvironmentFresh) return
+
+        const authoritativeLocation = await storage.get('location')
+        if (!authoritativeLocation) return
+        try {
+          if (
+            weatherRequestIdentity(authoritativeLocation.lat, authoritativeLocation.lon) !== currentIdentity ||
+            environmentRequestIdentity(authoritativeLocation.lat, authoritativeLocation.lon) !== currentEnvironmentIdentity
+          ) return
+        } catch {
+          return
+        }
         const nextSnapshot = await openMeteoProvider().fetchSnapshot(
           location.lat,
           location.lon,
@@ -180,7 +203,11 @@ export function useWeather() {
           }
         }
       }
-    })()
+    }
+    const lockManager = typeof navigator === 'undefined' ? undefined : navigator.locks
+    const request = lockManager
+      ? lockManager.request<void>(`aurora:weather-refresh:${currentIdentity}`, { mode: 'exclusive' }, work)
+      : work()
     inFlightRef.current = {
       identity: currentIdentity,
       environmentIdentity: currentEnvironmentIdentity,
@@ -197,6 +224,7 @@ export function useWeather() {
     forecastFetchedAt,
     location,
     matchingEnvironment?.status,
+    refreshTtlMs,
     storage,
     storageReady,
   ])
@@ -216,16 +244,17 @@ export function useWeather() {
       forecastFetchedAt === null ||
       environmentFetchedAt === null
     ) return
+    if (refreshTtlMs === null) return
     const remaining = Math.min(
-      MAX_AGE_MS - (Date.now() - forecastFetchedAt),
-      MAX_AGE_MS - (Date.now() - environmentFetchedAt),
+      refreshTtlMs - (Date.now() - forecastFetchedAt),
+      refreshTtlMs - (Date.now() - environmentFetchedAt),
     )
     if (remaining <= 0) return
     const timeout = window.setTimeout(() => {
       if (document.visibilityState === 'visible') void refresh()
     }, remaining)
     return () => window.clearTimeout(timeout)
-  }, [coordinateError, currentEnvironmentIdentity, currentIdentity, environmentFetchedAt, forecastFetchedAt, refresh])
+  }, [coordinateError, currentEnvironmentIdentity, currentIdentity, environmentFetchedAt, forecastFetchedAt, refresh, refreshTtlMs])
 
   useEffect(() => {
     function onVisibilityChange() {
@@ -236,23 +265,24 @@ export function useWeather() {
         coordinateError
       ) return
       const currentTime = Date.now()
+      if (refreshTtlMs === null) return
       if (
         forecastFetchedAt === null ||
-        currentTime - forecastFetchedAt >= MAX_AGE_MS ||
+        currentTime - forecastFetchedAt >= refreshTtlMs ||
         environmentFetchedAt === null ||
-        currentTime - environmentFetchedAt >= MAX_AGE_MS
+        currentTime - environmentFetchedAt >= refreshTtlMs
       ) {
         void refresh()
       }
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
-  }, [coordinateError, currentEnvironmentIdentity, currentIdentity, environmentFetchedAt, forecastFetchedAt, refresh])
+  }, [coordinateError, currentEnvironmentIdentity, currentIdentity, environmentFetchedAt, forecastFetchedAt, refresh, refreshTtlMs])
 
   const state = resourceStateOf({
     hasData: matchingSnapshot !== null,
     fetchedAt: matchingSnapshot?.fetchedAt ?? null,
-    ttlMs: MAX_AGE_MS,
+    ttlMs: refreshTtlMs ?? Number.MAX_SAFE_INTEGER,
     pending: loading,
     error: coordinateError ?? error,
     now,

@@ -288,6 +288,13 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(washBlock).not.toContain('var(--panel-solid)')
   })
 
+  it('prevents accidental canvas text selection while preserving editable fields', () => {
+    const rootBlock = indexCss.match(/body\s*\{[^}]*\}/)?.[0] ?? ''
+    const editorBlock = indexCss.match(/:is\(input, textarea, \[contenteditable="true"\]\)\s*\{[^}]*\}/)?.[0] ?? ''
+    expect(rootBlock).toMatch(/user-select:\s*none/)
+    expect(editorBlock).toMatch(/user-select:\s*text/)
+  })
+
   it('dock-line typography is pinned to the chip metrics AND actually wins the cascade against the type roles', () => {
     expect(indexCss).toMatch(/\.aurora-canvas \.dock-line \[data-canvas-type-role\]\s*\{[^}]*font-size:\s*14px/)
     expect(indexCss).toMatch(/\.aurora-canvas \.dock-line \[data-canvas-type-role="metadata"\]\s*\{[^}]*font-size:\s*11px/)

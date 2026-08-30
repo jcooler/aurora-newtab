@@ -1,17 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useStorage } from '../storage/context'
+import { useStoredKey } from './useStoredKey'
 import {
   currentCacheAuthorityEpoch,
   subscribeCacheAuthority,
 } from '../cacheAuthority'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
-import { getConnector } from '../../services/connectors/registry'
 import {
   canonicalConnectorEventConfig,
   canonicalConnectorRuntimeScope,
   connectorSnapshotScope,
 } from '../../services/connectors/snapshotIdentity'
 import { resourceStateOf, type AsyncResourceState } from '../asyncState'
+import { effectiveRefreshMs } from '../../services/refreshPolicy'
 
 const inFlight = new Map<string, Promise<unknown>>()
 const latestConfigKeys = new Map<ConnectorId, string>()
@@ -46,7 +47,7 @@ export function useConnectorSnapshot<T>(
   id: ConnectorId,
   config: ConnectorConfig,
   refresh: (prev: T | null) => Promise<T>,
-  ttlMs: number = getConnector(id)?.ttlMs ?? 0,
+  ttlMs?: number,
   runtimeScope?: unknown,
   isData?: (value: unknown) => value is T,
 ): {
@@ -57,6 +58,9 @@ export function useConnectorSnapshot<T>(
   state: AsyncResourceState
 } {
   const storage = useStorage()
+  const [refreshPreferences] = useStoredKey('refreshPreferences')
+  const policyTtlMs = effectiveRefreshMs(id, refreshPreferences)
+  const resolvedTtlMs = ttlMs ?? policyTtlMs ?? null
   const cacheAuthorityEpoch = useSyncExternalStore(
     subscribeCacheAuthority,
     currentCacheAuthorityEpoch,
@@ -125,16 +129,19 @@ export function useConnectorSnapshot<T>(
       let checkFreshness: () => Promise<void>
 
       const scheduleSnapshot = (snapshot: ConnectorSnapshot) => {
-        const dueIn = Math.max(0, snapshot.fetchedAt + ttlMs - Date.now())
+        if (resolvedTtlMs === null) return
+        const dueIn = Math.max(0, snapshot.fetchedAt + resolvedTtlMs - Date.now())
         scheduleCheck(dueIn, checkFreshness)
       }
 
       const scheduleRetry = () => {
-        const retryIn = Math.min(Math.max(ttlMs, 1_000), 30_000)
+        if (resolvedTtlMs === null || document.visibilityState !== 'visible') return
+        const retryIn = Math.min(Math.max(resolvedTtlMs, 1_000), 30_000)
         scheduleCheck(retryIn, checkFreshness)
       }
 
       const runRefresh = async (previousData: T | null): Promise<void> => {
+        if (document.visibilityState !== 'visible') return
         const connectors = await storage.get('connectors')
         if (!live || !isCurrent()) return
         const authoritativeConfig = connectors[id]
@@ -148,56 +155,80 @@ export function useConnectorSnapshot<T>(
         if (!authoritativeConfig?.enabled || authoritativeConfigKey !== connectorConfigKey) return
 
         const requestKey = `${id}\n${scope}\ncache:${cacheAuthorityEpoch}`
-        let pending = inFlight.get(requestKey)
-        const owner = pending === undefined
-        if (pending === undefined) {
-          pending = Promise.resolve().then(() => refreshRef.current(previousData))
-          inFlight.set(requestKey, pending)
-        }
+        const work = async () => {
+          // Another open tab may have refreshed while this owner waited for
+          // the Web Lock. Re-read the shared snapshot inside the lock before
+          // spending a request.
+          const shared = (await storage.get('connectorSnapshots'))?.[id]
+          if (
+            shared?.scope === scope &&
+            (!isDataRef.current || isDataRef.current(shared.data)) &&
+            (resolvedTtlMs === null || Date.now() - shared.fetchedAt < resolvedTtlMs)
+          ) {
+            showSnapshot(shared)
+            scheduleSnapshot(shared)
+            return
+          }
 
-        setCurrentState((current) => ({ ...current, refreshing: true }))
-        try {
-          const result = await pending
-          if (isDataRef.current && !isDataRef.current(result)) {
-            throw new Error(`Invalid ${id} snapshot payload`)
+          const lockedConnectors = await storage.get('connectors')
+          const lockedConfig = lockedConnectors[id]
+          const lockedConfigKey = lockedConfig
+            ? `${canonicalConnectorEventConfig(id, lockedConfig)}\n${runtimeKey}`
+            : null
+          if (!live || !isCurrent() || !lockedConfig?.enabled || lockedConfigKey !== connectorConfigKey) return
+
+          let pending = inFlight.get(requestKey)
+          const owner = pending === undefined
+          if (pending === undefined) {
+            pending = Promise.resolve().then(() => refreshRef.current(previousData))
+            inFlight.set(requestKey, pending)
           }
-          if (owner && isCurrent()) {
-            const snapshot: ConnectorSnapshot = {
-              scope,
-              fetchedAt: Date.now(),
-              data: result,
+
+          setCurrentState((current) => ({ ...current, refreshing: true }))
+          try {
+            const result = await pending
+            if (isDataRef.current && !isDataRef.current(result)) {
+              throw new Error(`Invalid ${id} snapshot payload`)
             }
-            await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
-              const authoritativeConfig = connectors[id]
-              const authoritativeConfigKey = authoritativeConfig
-                ? `${canonicalConnectorEventConfig(id, authoritativeConfig)}\n${runtimeKey}`
-                : null
-              // A restore/config save can commit before React propagates the
-              // new props into this mounted owner. Revalidate against the
-              // authoritative connector record inside the same queued update
-              // that would write the derived cache; render-local generation
-              // ownership alone cannot authorize a stale completion.
-              if (!isCurrent() || !authoritativeConfig?.enabled || authoritativeConfigKey !== connectorConfigKey) {
-                return {}
+            if (owner && isCurrent()) {
+              const snapshot: ConnectorSnapshot = {
+                scope,
+                fetchedAt: Date.now(),
+                data: result,
               }
-              return {
-                connectorSnapshots: {
-                  ...connectorSnapshots,
-                  [id]: snapshot,
-                },
-              }
-            })
+              await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+                const authoritativeConfig = connectors[id]
+                const authoritativeConfigKey = authoritativeConfig
+                  ? `${canonicalConnectorEventConfig(id, authoritativeConfig)}\n${runtimeKey}`
+                  : null
+                if (!isCurrent() || !authoritativeConfig?.enabled || authoritativeConfigKey !== connectorConfigKey) {
+                  return {}
+                }
+                return {
+                  connectorSnapshots: {
+                    ...connectorSnapshots,
+                    [id]: snapshot,
+                  },
+                }
+              })
+            }
+            setCurrentState((current) => ({ ...current, lastError: null }))
+          } catch (error) {
+            setCurrentState((current) => ({
+              ...current,
+              lastError: error instanceof Error ? error.message : String(error),
+            }))
+            if (live && isCurrent()) scheduleRetry()
+          } finally {
+            if (owner && inFlight.get(requestKey) === pending) inFlight.delete(requestKey)
+            setCurrentState((current) => ({ ...current, refreshing: false }))
           }
-          setCurrentState((current) => ({ ...current, lastError: null }))
-        } catch (error) {
-          setCurrentState((current) => ({
-            ...current,
-            lastError: error instanceof Error ? error.message : String(error),
-          }))
-          if (live && isCurrent()) scheduleRetry()
-        } finally {
-          if (owner && inFlight.get(requestKey) === pending) inFlight.delete(requestKey)
-          setCurrentState((current) => ({ ...current, refreshing: false }))
+        }
+        const lockManager = typeof navigator === 'undefined' ? undefined : navigator.locks
+        if (lockManager) {
+          await lockManager.request(`aurora:connector-refresh:${requestKey}`, { mode: 'exclusive' }, work)
+        } else {
+          await work()
         }
       }
 
@@ -218,7 +249,7 @@ export function useConnectorSnapshot<T>(
           await runRefresh(null)
           return
         }
-        if (Date.now() - snapshot.fetchedAt >= ttlMs) {
+        if (resolvedTtlMs !== null && Date.now() - snapshot.fetchedAt >= resolvedTtlMs) {
           await runRefresh(snapshot.data as T)
         } else {
           scheduleSnapshot(snapshot)
@@ -234,12 +265,12 @@ export function useConnectorSnapshot<T>(
         const snapshot = snapshots?.[id]
         if (!snapshot || snapshot.scope !== scope) {
           setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
-          void runRefresh(null)
+          if (document.visibilityState === 'visible') void runRefresh(null)
           return
         }
         if (!showSnapshot(snapshot)) {
           setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
-          void runRefresh(null)
+          if (document.visibilityState === 'visible') void runRefresh(null)
           return
         }
         scheduleSnapshot(snapshot)
@@ -275,14 +306,14 @@ export function useConnectorSnapshot<T>(
       const snapshot = snapshots[id]
       if (!snapshot || snapshot.scope !== scope) {
         setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
-        await runRefresh(null)
+        if (document.visibilityState === 'visible') await runRefresh(null)
       } else {
         if (!showSnapshot(snapshot)) {
           setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
-          await runRefresh(null)
+          if (document.visibilityState === 'visible') await runRefresh(null)
           return
         }
-        if (Date.now() - snapshot.fetchedAt >= ttlMs) {
+        if (resolvedTtlMs !== null && Date.now() - snapshot.fetchedAt >= resolvedTtlMs) {
           await runRefresh(snapshot.data as T)
         } else {
           scheduleSnapshot(snapshot)
@@ -301,7 +332,7 @@ export function useConnectorSnapshot<T>(
       unsubscribeConnectors()
       removeRestorationListeners()
     }
-  }, [id, storage, configKey, connectorConfigKey, cacheAuthorityEpoch, ttlMs])
+  }, [id, storage, configKey, connectorConfigKey, cacheAuthorityEpoch, resolvedTtlMs])
 
   const current = state.configKey === configKey ? state : EMPTY_STATE
   const now = Date.now()
@@ -313,7 +344,7 @@ export function useConnectorSnapshot<T>(
     state: resourceStateOf({
       hasData: current.data !== null,
       fetchedAt: current.fetchedAt,
-      ttlMs,
+      ttlMs: resolvedTtlMs ?? Number.MAX_SAFE_INTEGER,
       pending: current.refreshing,
       error: current.lastError,
       now,

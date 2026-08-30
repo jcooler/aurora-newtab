@@ -45,6 +45,7 @@ const KNOWN_KEYS = [
   'calendarWeekStart',
   'connectors',
   'connectorSnapshots',
+  'refreshPreferences',
   'attentionLedger',
   'habits',
   'progressGoals',
