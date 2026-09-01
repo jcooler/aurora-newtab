@@ -15,13 +15,24 @@ async function loadClient(mode: 'production' | 'preview' | 'account-local', sear
 }
 
 describe('createAccountClient', () => {
-  it('keeps production frozen in Local mode without network, storage, or navigation effects', async () => {
+  it('activates production without a backend request when the isolated session is absent', async () => {
     const fetchSpy = vi.fn()
-    const storageGet = vi.fn()
+    const storageGet = vi.fn(async () => ({}))
     const storageSet = vi.fn()
+    const storageRemove = vi.fn()
+    const launchWebAuthFlow = vi.fn(async () => undefined)
     const openSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
-    vi.stubGlobal('chrome', { storage: { local: { get: storageGet, set: storageSet } } })
+    vi.stubGlobal('chrome', {
+      identity: {
+        getRedirectURL: vi.fn(() => 'https://akjalbmacojpmebkgohhcaaiacicpgkh.chromiumapp.org/account-auth'),
+        launchWebAuthFlow,
+      },
+      storage: {
+        local: { get: storageGet, set: storageSet, remove: storageRemove },
+        onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+    })
     vi.stubGlobal('open', openSpy)
 
     const client = await loadClient('production')
@@ -46,7 +57,11 @@ describe('createAccountClient', () => {
     expect(Object.isFrozen(snapshot)).toBe(true)
     expect(Object.isFrozen(snapshot.sync)).toBe(true)
     expect(Object.isFrozen(snapshot.devices)).toBe(true)
-    expect(await client.actions.beginSignIn()).toEqual({ ok: false, code: 'not_configured' })
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(storageGet).toHaveBeenCalledWith('tab-two:account-session:v1')
+
+    expect(await client.actions.beginSignIn()).toEqual({ ok: false, code: 'cancelled' })
+    expect(launchWebAuthFlow).toHaveBeenCalledOnce()
 
     await client.actions.signOut()
     await client.actions.enableSync()
@@ -59,7 +74,6 @@ describe('createAccountClient', () => {
     await client.actions.deleteAccount()
 
     expect(fetchSpy).not.toHaveBeenCalled()
-    expect(storageGet).not.toHaveBeenCalled()
     expect(storageSet).not.toHaveBeenCalled()
     expect(openSpy).not.toHaveBeenCalled()
   })

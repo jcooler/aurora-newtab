@@ -1,4 +1,5 @@
 import { defineManifest } from '@crxjs/vite-plugin'
+import { PRODUCTION_SUPABASE_HOST_PERMISSION } from './account/productionAccountServiceConfig'
 import { MANIFEST_PRIVACY_DESCRIPTION } from './privacy/dataFlows'
 
 // `bookmarks` is normally an OPTIONAL permission: real users are never
@@ -58,6 +59,9 @@ import { MANIFEST_PRIVACY_DESCRIPTION } from './privacy/dataFlows'
 // cross-build state to keep in sync beyond package.json's own scripts.
 const PREVIEW = 'preview'
 const ACCOUNT_LOCAL = 'account-local'
+const PRODUCTION = 'production'
+const PRODUCTION_CHROME_PUBLIC_KEY =
+  'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtAbH6UoDbP1vwkX+cbad/VDVAkzbHYKFo8ARCahpdc8IP664lIJCCZZk8r/lrgcgOb9hlcqECOIXp/35YpwpE/kyMo5xcihDa+RXFk3QP8IgTip6QjQq/Ag/IDmBWmqWcCiHQjr8EOHk4zX8Ex+0kVjKYQzdlLJUfo+zIu9qqCkkTqdXPqq2dt/OWjV4tmCNaxMIez4etT60KqQjqmLFSEjcg9yC/aHyKNzB6zMsjTE2RTino4g5oVkoHOBXwTJB3BW5A60jlD0xofHWqQhA1aUjT0T+O19Wcg0QwvkTLWMolXapPvrmfFTxI3PHj0Gvxam5Qj089dPKnOqsqpCLaQIDAQAB'
 const OPTIONAL_BROWSER_WIDGET_PERMISSIONS = [
   'readingList',
   'sessions',
@@ -70,6 +74,7 @@ export default defineManifest((env) => ({
   name: 'Tab Two',
   version: '2.0.0',
   description: MANIFEST_PRIVACY_DESCRIPTION,
+  ...(env.mode === PRODUCTION ? { key: PRODUCTION_CHROME_PUBLIC_KEY } : {}),
   // `search` (Red Argon remediation, v1.2.1): gives access to chrome.search
   // — see src/services/search.ts, the ONLY caller of chrome.search.query()
   // in this codebase. Chrome's optional-permissions allow-list (the same
@@ -90,7 +95,9 @@ export default defineManifest((env) => ({
         // Explicitly approved local-only gate: Chrome Identity is present only
         // in the account-local build used against the loopback Supabase stack.
         ? ['storage', 'favicon', 'geolocation', 'search', 'identity']
-        : ['storage', 'favicon', 'geolocation', 'search'],
+        : env.mode === PRODUCTION
+          ? ['storage', 'favicon', 'geolocation', 'search', 'identity']
+          : ['storage', 'favicon', 'geolocation', 'search'],
   // Chrome disallows (warns/rejects) listing the same permission as both
   // install-time and optional, so the preview build drops `bookmarks` from
   // here rather than duplicating it — it MOVES, it doesn't get held twice.
@@ -114,7 +121,9 @@ export default defineManifest((env) => ({
   // time host access; account-local may reach only the loopback Supabase API.
   ...(env.mode === ACCOUNT_LOCAL
     ? { host_permissions: ['http://127.0.0.1/*'] }
-    : {}),
+    : env.mode === PRODUCTION
+      ? { host_permissions: [PRODUCTION_SUPABASE_HOST_PERMISSION] }
+      : {}),
   icons: {
     16: 'icons/icon16.png',
     32: 'icons/icon32.png',

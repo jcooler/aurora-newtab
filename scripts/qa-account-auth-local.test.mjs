@@ -47,24 +47,29 @@ test('requires sign-in, account binding, replay rejection, and sign-out cleanup'
   ])
 })
 
-test('permits identity and localhost only in account-local', () => {
+test('permits exact production identity while keeping preview and account-local isolated', () => {
   const base = {
     permissions: ['storage', 'favicon', 'geolocation', 'search'],
     optional_permissions: ['bookmarks'],
     optional_host_permissions: ['https://*/*'],
   }
+  const production = {
+    ...base,
+    permissions: [...base.permissions, 'identity'],
+    host_permissions: ['https://ovlobmvxtryitupxwylg.supabase.co/*'],
+  }
   assert.doesNotThrow(() => assertManifestIsolation(
-    base,
+    production,
     base,
     { ...base, permissions: [...base.permissions, 'identity'], host_permissions: ['http://127.0.0.1/*'] },
   ))
   assert.throws(() => assertManifestIsolation(
-    { ...base, permissions: [...base.permissions, 'identity'] },
+    { ...production, host_permissions: ['https://other-project.supabase.co/*'] },
     base,
     { ...base, permissions: [...base.permissions, 'identity'], host_permissions: ['http://127.0.0.1/*'] },
-  ), /production.*identity/i)
+  ), /strictly deep-equal/u)
   assert.throws(() => assertManifestIsolation(
-    base,
+    production,
     { ...base, host_permissions: ['http://127.0.0.1/*'] },
     { ...base, permissions: [...base.permissions, 'identity'], host_permissions: ['http://127.0.0.1/*'] },
   ), /preview.*localhost/i)

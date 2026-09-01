@@ -20,15 +20,11 @@ import { assertExactBuildTrackedStatus } from './build-contracts.mjs'
 const SESSION_KEY = 'tab-two:account-session:v1'
 const LOCAL_ORIGIN = 'http://127.0.0.1:54321'
 const PRODUCTION_FORBIDDEN = Object.freeze([
-  SESSION_KEY,
-  'launchWebAuthFlow',
   LOCAL_ORIGIN,
   'TAB_TWO_LEASE_SIGNING',
   'BEGIN PRIVATE KEY',
   'sb_secret_',
   'preview_fixture',
-  'account-snapshot',
-  'entitlement-lease',
 ])
 
 export const ACCOUNT_AUTH_VIEWPORTS = Object.freeze([
@@ -67,10 +63,12 @@ function hasLocalHost(manifest) {
 }
 
 export function assertManifestIsolation(production, preview, accountLocal) {
-  assert(!production.permissions?.includes('identity'), 'production manifest contains identity')
+  assert(production.permissions?.includes('identity'), 'production manifest is missing identity')
   assert(!hasLocalHost(production), 'production manifest contains localhost host access')
+  assert.deepEqual(production.host_permissions, ['https://ovlobmvxtryitupxwylg.supabase.co/*'])
   assert(!preview.permissions?.includes('identity'), 'preview manifest contains identity')
   assert(!hasLocalHost(preview), 'preview manifest contains localhost host access')
+  assert.equal(preview.host_permissions, undefined, 'preview manifest contains install-time host access')
   assert(accountLocal.permissions?.includes('identity'), 'account-local manifest is missing identity')
   assert.deepEqual(accountLocal.host_permissions, ['http://127.0.0.1/*'])
 }
