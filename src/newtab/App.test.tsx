@@ -1270,8 +1270,9 @@ describe('App Canvas composition', () => {
       clientX: 40,
       clientY: 30,
     })
-    await act(async () => {})
 
+    // fireEvent flushes the release update synchronously. Assert before yielding
+    // to the zero-delay unlock task, then prove that task restores interaction.
     expect(toolbar.hasAttribute('inert')).toBe(true)
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
