@@ -57,6 +57,7 @@ import { MANIFEST_PRIVACY_DESCRIPTION } from './privacy/dataFlows'
 // building, so this recomputes per build with no extra env var or
 // cross-build state to keep in sync beyond package.json's own scripts.
 const PREVIEW = 'preview'
+const ACCOUNT_LOCAL = 'account-local'
 const OPTIONAL_BROWSER_WIDGET_PERMISSIONS = [
   'readingList',
   'sessions',
@@ -85,7 +86,11 @@ export default defineManifest((env) => ({
   permissions:
     env.mode === PREVIEW
       ? ['storage', 'favicon', 'bookmarks', ...OPTIONAL_BROWSER_WIDGET_PERMISSIONS, 'geolocation', 'search']
-      : ['storage', 'favicon', 'geolocation', 'search'],
+      : env.mode === ACCOUNT_LOCAL
+        // Explicitly approved local-only gate: Chrome Identity is present only
+        // in the account-local build used against the loopback Supabase stack.
+        ? ['storage', 'favicon', 'geolocation', 'search', 'identity']
+        : ['storage', 'favicon', 'geolocation', 'search'],
   // Chrome disallows (warns/rejects) listing the same permission as both
   // install-time and optional, so the preview build drops `bookmarks` from
   // here rather than duplicating it — it MOVES, it doesn't get held twice.
@@ -105,6 +110,11 @@ export default defineManifest((env) => ({
   // defeat the entire per-origin, ask-only-for-what-you-use point), so it's
   // identical in both build modes.
   optional_host_permissions: ['https://*/*'],
+  // Explicitly approved local-only gate. Production and preview omit install-
+  // time host access; account-local may reach only the loopback Supabase API.
+  ...(env.mode === ACCOUNT_LOCAL
+    ? { host_permissions: ['http://127.0.0.1/*'] }
+    : {}),
   icons: {
     16: 'icons/icon16.png',
     32: 'icons/icon32.png',
