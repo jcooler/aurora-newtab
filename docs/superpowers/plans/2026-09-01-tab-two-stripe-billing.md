@@ -243,7 +243,7 @@ Use Stripe-hosted test Checkout and Portal, documented test cards, legitimate sa
 
 - Create: `scripts/qa-stripe-billing.mjs`
 - Create: `scripts/qa-stripe-billing.test.mjs`
-- Create: `docs/superpowers/reports/TAB-TWO-STRIPE-BILLING-QA.md`
+- Create: `docs/superpowers/reports/TAB-TWO-STRIPE-BILLING-LOCAL-QA.md`
 - Modify: `docs/superpowers/aurora-2/STATUS.md`
 - Modify: `docs/superpowers/aurora-2/ROADMAP.md`
 - Modify: `docs/superpowers/aurora-2/DECISIONS.md`
@@ -254,7 +254,7 @@ Use Stripe-hosted test Checkout and Portal, documented test cards, legitimate sa
 
 Review raw-body signature ordering, secret separation, sandbox enforcement, exact account/customer binding, catalog authority, idempotency, object retrieval, stale-event rejection, paid-through/courtesy expiry, intro races, owner-grant union, local/free isolation, URLs, CORS, rate limits, RLS, logs, privacy, and rollback. Apply at most one focused fix/rereview cycle.
 
-- [ ] **Step 2: Run the stabilized gate**
+- [x] **Step 2: Run the stabilized gate**
 
 ```powershell
 npm test
