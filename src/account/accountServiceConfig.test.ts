@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { readAccountServiceConfig } from './accountServiceConfig'
+import { readProductionAccountServiceConfig } from './productionAccountServiceConfig'
 
 const publicKey = 'MCowBQYDK2VwAyEAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const productionDescriptor = Object.freeze({
@@ -11,7 +12,7 @@ const productionDescriptor = Object.freeze({
 
 describe('readAccountServiceConfig', () => {
   it('accepts a complete exact production descriptor', () => {
-    expect(readAccountServiceConfig({ MODE: 'production' }, productionDescriptor)).toEqual(
+    expect(readProductionAccountServiceConfig({ MODE: 'production' }, productionDescriptor)).toEqual(
       productionDescriptor,
     )
   })
@@ -24,7 +25,7 @@ describe('readAccountServiceConfig', () => {
     ['secret key', { ...productionDescriptor, publishableKey: 'sb_secret_forbidden-value' }],
     ['missing trusted key', { ...productionDescriptor, trustedLeaseKeys: {} }],
   ])('rejects production %s', (_name, descriptor) => {
-    expect(readAccountServiceConfig({ MODE: 'production' }, descriptor)).toBeNull()
+    expect(readProductionAccountServiceConfig({ MODE: 'production' }, descriptor)).toBeNull()
   })
 
   it('preserves the exact account-local boundary', () => {
@@ -33,7 +34,7 @@ describe('readAccountServiceConfig', () => {
       VITE_TAB_TWO_SUPABASE_URL: 'http://127.0.0.1:54321',
       VITE_TAB_TWO_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_local-test-value',
       VITE_TAB_TWO_TRUSTED_LEASE_KEYS: JSON.stringify({ 'local-test-key': publicKey }),
-    }, productionDescriptor)).toEqual({
+    })).toEqual({
       supabaseUrl: 'http://127.0.0.1:54321',
       publishableKey: 'sb_publishable_local-test-value',
       trustedLeaseKeys: { 'local-test-key': publicKey },
@@ -41,6 +42,6 @@ describe('readAccountServiceConfig', () => {
   })
 
   it('keeps preview disabled even when a production descriptor exists', () => {
-    expect(readAccountServiceConfig({ MODE: 'preview' }, productionDescriptor)).toBeNull()
+    expect(readProductionAccountServiceConfig({ MODE: 'preview' }, productionDescriptor)).toBeNull()
   })
 })

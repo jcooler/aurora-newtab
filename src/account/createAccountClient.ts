@@ -6,12 +6,20 @@ export async function createAccountClient(): Promise<AccountClient> {
     const { createPreviewAccountClient } = await import('./previewAccountClient')
     return createPreviewAccountClient()
   }
-  if (import.meta.env.MODE === 'production' || import.meta.env.MODE === 'account-local') {
+  if (import.meta.env.MODE === 'production') {
+    const {
+      productionAccountServiceConfig,
+      readProductionAccountServiceConfig,
+    } = await import('./productionAccountServiceConfig')
+    const config = readProductionAccountServiceConfig(import.meta.env, productionAccountServiceConfig)
+    if (config) {
+      const { createConfiguredSupabaseAccountClient } = await import('./supabaseAccountClient')
+      return createConfiguredSupabaseAccountClient(config)
+    }
+  }
+  if (import.meta.env.MODE === 'account-local') {
     const { readAccountServiceConfig } = await import('./accountServiceConfig')
-    const productionDescriptor = import.meta.env.MODE === 'production'
-      ? (await import('./productionAccountServiceConfig')).productionAccountServiceConfig
-      : undefined
-    const config = readAccountServiceConfig(import.meta.env, productionDescriptor)
+    const config = readAccountServiceConfig()
     if (config) {
       const { createConfiguredSupabaseAccountClient } = await import('./supabaseAccountClient')
       return createConfiguredSupabaseAccountClient(config)

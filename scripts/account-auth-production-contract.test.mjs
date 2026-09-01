@@ -22,7 +22,10 @@ test('commits only the public production account descriptor', () => {
   assert.match(descriptor, /https:\/\/[a-z0-9]{20}\.supabase\.co/u)
   assert.match(descriptor, /sb_publishable_[A-Za-z0-9_-]{10,256}/u)
   assert.match(descriptor, /production-2026-09-01/u)
-  assert.doesNotMatch(descriptor, /sb_secret_|service_role|BEGIN PRIVATE KEY|PRIVATE KEY-----/iu)
+  assert.doesNotMatch(
+    descriptor,
+    /sb_secret_[A-Za-z0-9_-]{10,}|service_role|BEGIN PRIVATE KEY|PRIVATE KEY-----/iu,
+  )
 })
 
 test('gives production identity and one exact Supabase origin only', () => {

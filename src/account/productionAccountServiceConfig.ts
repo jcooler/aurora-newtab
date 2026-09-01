@@ -1,4 +1,19 @@
-import type { ProductionAccountServiceDescriptor } from './accountServiceConfig'
+import type { AccountServiceConfig } from './accountServiceConfig'
+
+export interface ProductionAccountServiceDescriptor {
+  supabaseUrl: string
+  publishableKey: string
+  trustedLeaseKeys: Readonly<Record<string, string>>
+}
+
+interface ProductionEnvironment {
+  MODE: string
+}
+
+const keyIdPattern = /^[A-Za-z0-9_-]{1,100}$/u
+const base64UrlPattern = /^[A-Za-z0-9_-]{40,256}$/u
+const publishableKeyPattern = /^sb_publishable_[A-Za-z0-9_-]{10,256}$/u
+const productionSupabaseUrlPattern = /^https:\/\/[a-z0-9]{20}\.supabase\.co$/u
 
 export const PRODUCTION_SUPABASE_HOST_PERMISSION =
   'https://ovlobmvxtryitupxwylg.supabase.co/*' as const
@@ -10,3 +25,31 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
     'production-2026-09-01': 'MCowBQYDK2VwAyEA_HQX_9dTJSkjpDV-ZBiEC3bqu0bR6s81reGCbIJKlyg',
   }),
 })
+
+export function readProductionAccountServiceConfig(
+  environment: ProductionEnvironment = import.meta.env,
+  descriptor: ProductionAccountServiceDescriptor = productionAccountServiceConfig,
+): AccountServiceConfig | null {
+  if (environment.MODE !== 'production') return null
+  const trustedEntries = descriptor.trustedLeaseKeys && typeof descriptor.trustedLeaseKeys === 'object'
+    && !Array.isArray(descriptor.trustedLeaseKeys)
+    ? Object.entries(descriptor.trustedLeaseKeys)
+    : []
+  if (
+    !productionSupabaseUrlPattern.test(descriptor.supabaseUrl)
+    || !publishableKeyPattern.test(descriptor.publishableKey)
+    || descriptor.publishableKey.startsWith('sb_secret_')
+    || trustedEntries.length < 1
+    || trustedEntries.length > 4
+    || trustedEntries.some(([keyId, spki]) => !keyIdPattern.test(keyId)
+      || typeof spki !== 'string'
+      || !base64UrlPattern.test(spki))
+  ) {
+    return null
+  }
+  return Object.freeze({
+    supabaseUrl: descriptor.supabaseUrl,
+    publishableKey: descriptor.publishableKey,
+    trustedLeaseKeys: Object.freeze(Object.fromEntries(trustedEntries)),
+  })
+}
