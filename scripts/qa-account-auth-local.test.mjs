@@ -9,7 +9,7 @@ import {
   ACCOUNT_AUTH_VIEWPORTS,
   assertAccountAuthEvidence,
   assertManifestIsolation,
-  command,
+  localNodeEntry,
   requireExact,
 } from './qa-account-auth-local.mjs'
 
@@ -20,11 +20,10 @@ test('requires exact execution before build or browser work', () => {
   assert.doesNotThrow(() => requireExact(['--exact']))
 })
 
-test('uses Windows command shims only for npm executables', () => {
-  assert.equal(command('git', 'win32'), 'git')
-  assert.equal(command('npm', 'win32'), 'npm.cmd')
-  assert.equal(command('npx', 'win32'), 'npx.cmd')
-  assert.equal(command('npm', 'linux'), 'npm')
+test('uses pinned local Node entry points without Windows command shims', () => {
+  assert.match(localNodeEntry('supabase'), /node_modules[\\/]supabase[\\/]dist[\\/]supabase\.js$/u)
+  assert.match(localNodeEntry('vitest'), /node_modules[\\/]vitest[\\/]vitest\.mjs$/u)
+  assert.throws(() => localNodeEntry('npx'), /unknown pinned Node entry/u)
 })
 
 test('pins installed desktop and touch account-auth viewports', () => {

@@ -116,17 +116,27 @@ export function assertAccountAuthEvidence(evidence) {
   return evidence
 }
 
-export function command(name, platform = process.platform) {
-  return platform === 'win32' && (name === 'npm' || name === 'npx') ? `${name}.cmd` : name
+export function localNodeEntry(name) {
+  const entries = {
+    supabase: 'node_modules/supabase/dist/supabase.js',
+    vitest: 'node_modules/vitest/vitest.mjs',
+    build: 'scripts/build.mjs',
+  }
+  assert(Object.hasOwn(entries, name), `unknown pinned Node entry: ${name}`)
+  return resolve(repoRoot, entries[name])
 }
 
 function run(name, args, options = {}) {
-  return execFileSync(command(name), args, {
+  return execFileSync(name, args, {
     cwd: repoRoot,
     encoding: 'utf8',
     stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
     env: options.env ?? process.env,
   })
+}
+
+function runNode(entry, args, options = {}) {
+  return run(process.execPath, [localNodeEntry(entry), ...args], options)
 }
 
 function base64Url(value) {
@@ -189,8 +199,9 @@ function readBuild(dist, commit, mode) {
 }
 
 function buildAndCopy(mode, destination, environment = {}) {
-  const script = mode === 'production' ? 'build' : `build:${mode}`
-  run('npm', ['run', script], { env: { ...process.env, ...environment } })
+  runNode('build', mode === 'production' ? [] : [`--mode=${mode}`], {
+    env: { ...process.env, ...environment },
+  })
   cpSync(resolve(repoRoot, 'dist'), destination, { recursive: true })
 }
 
@@ -444,7 +455,7 @@ async function main() {
   requireExact(process.argv.slice(2))
   assertExactBuildTrackedStatus(run('git', ['status', '--porcelain', '--untracked-files=no'], { capture: true }))
   const commit = run('git', ['rev-parse', 'HEAD'], { capture: true }).trim()
-  const supabase = JSON.parse(run('npx', ['supabase', 'status', '-o', 'json'], { capture: true }))
+  const supabase = JSON.parse(runNode('supabase', ['status', '-o', 'json'], { capture: true }))
   assert.equal(supabase.API_URL, LOCAL_ORIGIN, 'local Supabase API is not healthy at the pinned origin')
   assert(/^sb_publishable_[A-Za-z0-9_-]{10,256}$/u.test(supabase.PUBLISHABLE_KEY), 'local publishable key is unavailable')
 
@@ -474,8 +485,8 @@ async function main() {
   }
 
   try {
-    run('npx', ['supabase', 'test', 'db'])
-    run('npx', ['vitest', 'run',
+    runNode('supabase', ['test', 'db'])
+    runNode('vitest', ['run',
       'supabase/functions/tests/account-functions.test.ts',
       'src/account/googlePkceAuth.test.ts',
       'src/account/sessionStorage.test.ts',
