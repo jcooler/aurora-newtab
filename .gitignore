@@ -5,6 +5,16 @@ node_modules/
 dist/
 coverage/
 
+# Account-service credentials and generated signing material are never tracked.
+.env
+.env.*
+*.pem
+*.key
+
+# Local Supabase runtime metadata is machine-owned and reproducible.
+supabase/.temp/
+supabase/.branches/
+
 # Claude Code's local working dir — per-machine settings (settings.local.json)
 # and the board-worktree scratch (worktrees/). Never committed; ignoring the
 # whole dir keeps a stray `git add -A` from sweeping it in.

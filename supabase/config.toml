@@ -1,0 +1,23 @@
+project_id = "tab-two-local"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[auth]
+enabled = true
+site_url = "https://tab-two.invalid"
+additional_redirect_urls = []
+enable_signup = false
+
+[auth.external.google]
+enabled = false
+client_id = ""
+secret = ""

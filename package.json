@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build.mjs",
+    "build:account-local": "node scripts/build.mjs --mode=account-local",
     "build:preview": "node scripts/build.mjs --mode=preview",
     "package": "npm run build && node scripts/package.mjs",
     "pretest": "node scripts/verify-photo-manifest.mjs",
@@ -21,13 +22,16 @@
     "qa:attention-signals": "node scripts/qa-attention-signals.mjs --exact",
     "qa:free-baseline": "node scripts/qa-free-baseline.mjs",
     "qa:account-sync-shell": "node scripts/qa-account-sync-shell.mjs",
+    "qa:account-auth-local": "node scripts/qa-account-auth-local.mjs",
     "qa:tab-two-v2-connectors": "node scripts/qa-tab-two-v2-connectors.mjs --exact",
     "qa:tab-two-v2-progress": "node scripts/qa-tab-two-v2-progress.mjs --exact",
     "qa:canvas-polish": "node scripts/qa-canvas-polish.mjs",
     "qa:weather-enrichment": "node scripts/qa-weather-enrichment.mjs",
-    "verify:photos": "node scripts/verify-photo-manifest.mjs"
+    "verify:photos": "node scripts/verify-photo-manifest.mjs",
+    "test:supabase-local": "supabase test db"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.112.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -44,6 +48,7 @@
     "jsdom": "^29.1.1",
     "playwright": "^1.62.0",
     "sharp": "^0.35.3",
+    "supabase": "2.116.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^6.4.3",
