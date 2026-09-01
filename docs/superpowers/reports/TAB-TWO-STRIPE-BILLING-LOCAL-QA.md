@@ -4,12 +4,13 @@
 **Branch:** `feat/aurora-2-observatory`  
 **Implementation commit:** `95df3a206d80ceebe52b11bd0dcf74630408f789`  
 **Visual containment fix:** `db83c38`  
+**Plan presentation follow-up:** `f7073a5`
 **Result:** PASS for local source, database, fake-gateway, Edge runtime loading, extension integration, and installed Chromium preview. The Stripe sandbox external-state gate remains closed.
 
 ## Delivered local boundary
 
 - Typed monthly, annual, introductory annual, complimentary, active, canceling, past-due, and expired billing states in Account & Sync.
-- Exact approved copy: `$1.99 monthly`, `$19.99 annually`, and `$9.99 for your first year, then renews at $19.99 annually`.
+- Conversion-focused plan hierarchy: eligible accounts see only `$1.99` per month and one highlighted `$9.99` first-year annual offer with a `50% off first year` badge and muted `Renews at $19.99/year.` disclosure. Ineligible accounts see the standard `$19.99` annual choice instead. The UI never presents both annual prices as competing choices.
 - Server-owned Checkout and Customer Portal session handlers, exact Stripe-host URL validation, fixed return URLs, and a static non-authoritative return page.
 - Stripe SDK pinned only in the Edge Function tree as `npm:stripe@22.6.0` with API version `2026-08-26.dahlia`.
 - A reviewed catalog with two recurring prices and one USD 10 `duration=once` introductory coupon. `intro_annual` renews on the USD 19.99 annual price and cannot become a perpetual USD 9.99 subscription.
@@ -19,6 +20,10 @@
 - Signature-first raw-byte webhook verification, sandbox rejection, payload hashing, duplicate resume, current-object retrieval, deterministic same-second precedence, confirmed full-refund and dispute handling, bounded courtesy, and transition-only billing audits.
 - `complimentary_owner` remains independent of every Stripe state. Browser returns and mutable extension state never grant access.
 - Public disclosure updates for Stripe/Link hosted payment handling, minimal identifiers, retention, non-authoritative returns, and the local/test-only state.
+
+## Owner-approved plan presentation follow-up
+
+The original three equal-weight rows made the USD 9.99 introductory amount and USD 19.99 renewal amount look like separate annual products. The owner approved a two-choice hierarchy: Monthly remains a quiet secondary choice, while Annual receives the single accent treatment, a truthful first-year discount badge, a primary `Start annual plan` action, and a visually subordinate renewal disclosure. The semantic Checkout mapping remains unchanged: eligible Annual uses `intro_annual`; ineligible Annual uses `annual`.
 
 ## Bounded review closure
 
@@ -39,7 +44,7 @@ The same pass also closed stale-refresh success reporting, preserved the payload
 
 | Gate | Evidence |
 |---|---|
-| Whole repository | `npm test -- --reporter=dot`: 235 files, 3,722 tests passed |
+| Whole repository | `npm test -- --reporter=dot`: 235 files, 3,724 tests passed |
 | TypeScript | `npx tsc --noEmit`: exit 0 |
 | Node contracts | 25 account/auth/billing contracts passed |
 | Fresh database | `npx supabase db reset`: all three migrations applied |
@@ -52,8 +57,8 @@ The same pass also closed stale-refresh success reporting, preserved the payload
 | Preview build | 280 modules; deterministic preview fixture only; no Stripe SDK or secret/config marker |
 | Account-local build | 327 modules; no Stripe SDK, secret/config marker, Managed Payments marker, or preview fixture |
 | Manifest | no new production Chrome permission or Stripe host authority; production retains only the approved Supabase host |
-| Chromium desktop | installed preview at 1600x900; exact copy, controls contained, one Settings scroll owner, no runtime/request failures |
-| Chromium touch-narrow | installed preview at 390x844 with touch; plan rows stacked, no horizontal overflow or viewport escape, one Settings scroll owner, no runtime/request failures |
+| Chromium desktop | installed preview at 1600x900; exactly two plan actions, highlighted annual offer, muted renewal disclosure, 36px controls, no horizontal overflow, one Settings scroll owner, no browser errors |
+| Chromium touch-narrow | installed preview at 390x844 with touch; exactly two full-width stacked actions, contained annual treatment, no horizontal overflow, one Settings scroll owner, no browser errors |
 | Hygiene | `git diff --check` clean; temporary local Edge environment deleted; protected untracked paths preserved |
 
 The full suite still emits one pre-existing React `act(...)` warning in an unrelated Progress rail test. It is not a PM-P3 failure. The repository also has no project-level `.npmrc`, dependency-review workflow, or Dependabot configuration; those are pre-existing repository-wide hardening recommendations, not unreviewed additions to this packet.
