@@ -1,6 +1,58 @@
 @import "tailwindcss";
 @import "../theme/themes.css";
 
+/* PM-P1 Account & Sync uses the approved flat, hairline-divided Settings
+   language. These helpers keep facts and inventory readable without creating
+   dashboard cards inside the drawer. */
+.account-sync-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+.account-sync-fact {
+  min-width: 0;
+}
+.account-sync-fact dt {
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.account-sync-fact dd {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.4;
+  text-transform: capitalize;
+}
+.account-sync-inventory {
+  display: grid;
+  gap: 0.625rem;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.account-sync-inventory li {
+  position: relative;
+  padding-left: 1rem;
+}
+.account-sync-inventory li::before {
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  content: "";
+}
+@media (max-width: 560px) {
+  .account-sync-facts {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+
 /* SF-P1 shared framed-widget foundation: exact desktop geometry is owned by
    the tier, while only a viewport narrower than the frame plus 24px can scale
    it down. This surface uses the panel-adaptive ink chain rather than photo

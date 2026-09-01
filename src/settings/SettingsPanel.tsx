@@ -12,12 +12,13 @@ import Layout from './sections/Layout'
 import About from './sections/About'
 import Connectors from './sections/Connectors'
 import Progress from './sections/Progress'
+import AccountSync from './sections/AccountSync'
 import Tabs from './Tabs'
 import PermissionCleanupAlert from './PermissionCleanupAlert'
 import { usePermissionCleanup } from './usePermissionCleanup'
 import { calendarPreferenceFor } from '../lib/layout/calendarConsolidation'
 
-type TabId = 'general' | 'progress' | 'widgets' | 'connectors' | 'data'
+type TabId = 'general' | 'progress' | 'widgets' | 'connectors' | 'data' | 'account'
 
 const TABS: readonly { id: TabId; label: string }[] = [
   { id: 'general', label: 'General' },
@@ -25,6 +26,7 @@ const TABS: readonly { id: TabId; label: string }[] = [
   { id: 'widgets', label: 'Widgets' },
   { id: 'connectors', label: 'Connectors' },
   { id: 'data', label: 'Data' },
+  { id: 'account', label: 'Account & Sync' },
 ]
 
 export default function SettingsPanel({
@@ -210,6 +212,7 @@ export default function SettingsPanel({
           <About />
         </>
       )}
+      {tab === 'account' && <AccountSync />}
       </Tabs>
     </>
   )

@@ -260,7 +260,7 @@ async function renderPanel(
  *  so a test whose section moved off the default General tab clicks its tab
  *  first. Purely mechanical: nothing else about any pre-existing test below
  *  changed. */
-function openTab(name: 'General' | 'Progress' | 'Widgets' | 'Connectors' | 'Data') {
+function openTab(name: 'General' | 'Progress' | 'Widgets' | 'Connectors' | 'Data' | 'Account & Sync') {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
 
@@ -347,6 +347,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
       'Widgets',
       'Connectors',
       'Data',
+      'Account & Sync',
     ])
     expect(attr(screen.getByRole('tab', { name: 'General' }), 'aria-selected')).toBe('true')
 
@@ -367,7 +368,28 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Connectors' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Data' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Local mode' })).toBeNull()
     expect(document.querySelector('footer')).toBeNull()
+  })
+
+  it('keeps Account & Sync permanently available in Local mode without writing storage or requesting a backend', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    const write = vi.spyOn(driver, 'write')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    await renderPanel(storage)
+    write.mockClear()
+    fetchSpy.mockClear()
+
+    openTab('Account & Sync')
+    expect(await screen.findByRole('heading', { name: 'Local mode' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+    fireEvent.click(screen.getByRole('button', { name: 'View plans' }))
+
+    await screen.findByText('Google sign-in is not configured in this build.')
+    expect(write).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('keeps Habit editing inside Progress instead of routing to Widgets', async () => {

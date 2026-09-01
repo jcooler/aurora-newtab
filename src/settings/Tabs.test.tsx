@@ -107,7 +107,7 @@ describe('Tabs (ARIA tabs pattern)', () => {
     expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
   })
 
-  it('keeps both three-tab and four-tab sets in one bounded horizontal row', () => {
+  it('keeps both compact and six-tab sets in one bounded horizontal row', () => {
     const { rerender } = render(<Host />)
     const assertNarrowRow = (expected: number) => {
       expect(tablist().className).not.toContain('max-[420px]:grid')
@@ -124,14 +124,19 @@ describe('Tabs (ARIA tabs pattern)', () => {
     assertNarrowRow(3)
     rerender(
       <Tabs
-        tabs={[...TABS, { id: 'connectors' as Id, label: 'Connectors' }]}
+        tabs={[
+          ...TABS,
+          { id: 'progress' as Id, label: 'Progress' },
+          { id: 'connectors' as Id, label: 'Connectors' },
+          { id: 'account' as Id, label: 'Account & Sync' },
+        ]}
         active="general"
         onChange={() => {}}
       >
         <p>general content</p>
       </Tabs>,
     )
-    assertNarrowRow(4)
+    assertNarrowRow(6)
   })
 
   it('uses an 11rem roomy rail and a bounded readable content measure', () => {
