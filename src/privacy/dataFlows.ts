@@ -283,7 +283,7 @@ export const BROWSER_DATA_FLOWS = {
 }
 
 export const MANIFEST_PRIVACY_DESCRIPTION =
-  'A calm, local-first new-tab dashboard. No Tab Two account, no tracking, no backend.' as const
+  'A calm, local-first new-tab dashboard with optional Google sign-in. No tracking; Local mode stays on your device.' as const
 
 export const LOCAL_SECRET_STORAGE_NOTICE =
   'Connector credentials and RSS feed/calendar URLs are stored as local plaintext protected by this Chrome/OS profile, not encrypted or vault-grade. On a shared or untrusted profile, disconnect connectors or clear Tab Two extension data after use.' as const

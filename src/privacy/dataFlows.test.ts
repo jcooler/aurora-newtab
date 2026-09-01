@@ -52,6 +52,7 @@ async function manifestFor(mode: 'production' | 'preview') {
     permissions?: string[]
     optional_permissions?: string[]
     optional_host_permissions?: string[]
+    host_permissions?: string[]
   }
 }
 
@@ -288,7 +289,7 @@ describe('code-backed privacy inventory', () => {
   })
 
   it('keeps the canonical privacy policy synchronized with the fixed environmental flow', () => {
-    expect(privacyPolicy).toContain('exactly five **fixed** endpoints')
+    expect(privacyPolicy).toContain('exactly five **fixed** weather/location')
     expect(privacyPolicy).toContain('air-quality-api.open-meteo.com')
     expect(privacyPolicy).toContain('api.weather.gov')
     expect(privacyPolicy).toContain('US AQI, UV index, and provider-available pollen values')
@@ -300,7 +301,7 @@ describe('code-backed privacy inventory', () => {
 
   it('drives both manifest modes and the in-product local plaintext warning', async () => {
     expect(MANIFEST_PRIVACY_DESCRIPTION).toBe(
-      'A calm, local-first new-tab dashboard. No Tab Two account, no tracking, no backend.',
+      'A calm, local-first new-tab dashboard with optional Google sign-in. No tracking; Local mode stays on your device.',
     )
     expect(LOCAL_SECRET_STORAGE_NOTICE).toContain('local plaintext')
     expect(LOCAL_SECRET_STORAGE_NOTICE).toContain('shared or untrusted profile')
@@ -315,9 +316,10 @@ describe('code-backed privacy inventory', () => {
         48: 'icons/icon48.png',
         128: 'icons/icon128.png',
       },
-      permissions: ['storage', 'favicon', 'geolocation', 'search'],
+      permissions: ['storage', 'favicon', 'geolocation', 'search', 'identity'],
       optional_permissions: ['bookmarks', 'readingList', 'sessions', 'downloads', 'tabGroups'],
       optional_host_permissions: ['https://*/*'],
+      host_permissions: ['https://ovlobmvxtryitupxwylg.supabase.co/*'],
     })
     const preview = await manifestFor('preview')
     expect(preview).toMatchObject({
