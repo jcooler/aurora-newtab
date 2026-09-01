@@ -295,6 +295,16 @@ approval time.
 - Stripe webhooks are the billing source of truth.
 - Privileged backend code translates billing state into a signed entitlement
   lease; the extension never receives Stripe secrets.
+- Effective premium access is the union of active server-side grants. Customer
+  grants use Stripe as their source; the owner's real account receives a
+  complimentary grant keyed to the provider-neutral Tab Two account UUID.
+- The owner grant does not depend on an email comparison in the extension,
+  Stripe subscription state, or mutable local storage. It is created only
+  through a privileged audited backend operation and survives ordinary billing
+  cancellation, payment failure, or webhook delay.
+- Development and preview builds use a deterministic test entitlement so paid
+  states can be exercised without a real purchase. Production-build contracts
+  must prove that this fixture and every client-side bypass symbol are absent.
 - The extension refreshes entitlement periodically and caches a 30-day offline
   lease.
 - Free behavior never depends on an entitlement check.
@@ -513,6 +523,7 @@ Customer-facing language:
 | Connector maintenance exceeds one-person capacity | Broken premium value and unsustainable support | Ship a small reviewed portfolio, use self-service recovery, monitor provider changes, and avoid a support SLA |
 | Supabase usage or provider pricing changes | Margin falls below the $1.99 plan's assumptions | Enforce quotas and spend caps, review usage monthly, and retain a portable schema and export path |
 | A new OAuth scope or extension permission changes Store review requirements | Release delay or unexpected customer warning | Request least privilege incrementally and require separate permission, privacy, Chromium, and Store-review approval |
+| Owner or test access becomes a client-side bypass | Anyone can forge premium or the owner can be locked out by billing state | Keep preview fixtures out of production, bind the complimentary owner grant to the server account UUID, sign every lease, and test Stripe failure with the owner grant still active |
 
 ## Implementation questions that remain open
 
@@ -547,6 +558,9 @@ implementation plan must resolve them before code or provisioning:
   encryption.
 - Billing, entitlement, offline grace, cancellation, refund, deletion, and
   retention states are exhaustively specified and tested.
+- Preview/test premium is deterministic, production contains no client-side
+  bypass, and the signed complimentary owner grant remains active independently
+  of Stripe billing state.
 - Device revocation cannot claim to erase remote local data.
 - Conflict tests prove that concurrent named-layout, text, habit, metric, and
   deletion changes do not silently disappear or resurrect.
