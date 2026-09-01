@@ -73,6 +73,14 @@ describe('code-backed privacy inventory', () => {
       transmission: 'none',
       description: 'Non-user schema metadata used only for local migrations.',
     })
+    expect(OTHER_LOCAL_DATA_FLOWS.accountSession).toEqual({
+      key: 'tab-two:account-session:v1',
+      storage: 'chrome.storage.local',
+      sensitivity: ['authentication'],
+      export: 'outside-json-backup',
+      transmission: 'tab-two-account-service',
+      description: 'Minimum Supabase access and refresh session used only for explicit Tab Two account authentication and refresh.',
+    })
   })
 
   it('records the exact cache export contract against real backup behavior', () => {

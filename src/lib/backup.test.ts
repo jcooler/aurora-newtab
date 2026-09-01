@@ -1644,3 +1644,24 @@ describe('layouts document backup boundary (NL-P1)', () => {
     })
   })
 })
+
+describe('paid account session backup isolation', () => {
+  it('never serializes an account session key or token even if a raw storage-shaped object is supplied', () => {
+    const data = {
+      ...defaults(),
+      'tab-two:account-session:v1': {
+        version: 1,
+        accessToken: 'access-token-must-not-export',
+        refreshToken: 'refresh-token-must-not-export',
+        expiresAt: Date.now() + 60_000,
+        tokenType: 'bearer',
+      },
+    }
+
+    const serialized = serializeBackup(data as never)
+    const exported = JSON.parse(serialized).data
+    expect(exported).not.toHaveProperty('tab-two:account-session:v1')
+    expect(serialized).not.toContain('access-token-must-not-export')
+    expect(serialized).not.toContain('refresh-token-must-not-export')
+  })
+})

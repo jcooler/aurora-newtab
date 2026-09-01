@@ -125,7 +125,11 @@ export function redactBackupData(data: AuroraData): { data: BackupEnvelope['data
     weatherAlertCache: _weatherAlertCache,
     ...rest
   } = data
-  const redactedData = { ...rest, connectors }
+  const knownDataKeys = new Set(Object.keys(defaults()))
+  const knownRest = Object.fromEntries(
+    Object.entries(rest).filter(([key]) => knownDataKeys.has(key)),
+  ) as typeof rest
+  const redactedData = { ...knownRest, connectors }
   return {
     data: redactedData,
     redactions: {

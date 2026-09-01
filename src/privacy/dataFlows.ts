@@ -12,7 +12,11 @@ type DataSensitivity =
   | 'public-selection'
 
 type ExportDisposition = 'included' | 'redacted' | 'excluded' | 'outside-json-backup'
-type TransmissionBoundary = 'none' | 'browser-mediated' | 'provider-direct'
+type TransmissionBoundary =
+  | 'none'
+  | 'browser-mediated'
+  | 'provider-direct'
+  | 'tab-two-account-service'
 
 interface StoredDataFlow {
   storage: 'chrome.storage.local'
@@ -64,6 +68,14 @@ export const OTHER_LOCAL_DATA_FLOWS = {
     export: 'outside-json-backup' as ExportDisposition,
     transmission: 'none' as TransmissionBoundary,
     description: 'Non-user schema metadata used only for local migrations.',
+  },
+  accountSession: {
+    key: 'tab-two:account-session:v1',
+    storage: 'chrome.storage.local',
+    sensitivity: ['authentication'] as DataSensitivity[],
+    export: 'outside-json-backup' as ExportDisposition,
+    transmission: 'tab-two-account-service' as TransmissionBoundary,
+    description: 'Minimum Supabase access and refresh session used only for explicit Tab Two account authentication and refresh.',
   },
 } as const
 

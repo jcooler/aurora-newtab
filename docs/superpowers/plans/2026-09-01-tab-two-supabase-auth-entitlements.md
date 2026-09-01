@@ -380,6 +380,7 @@ git commit -m 'feat: issue local signed entitlement leases'
 
 - Create: `src/account/sessionStorage.ts`
 - Create: `src/account/sessionStorage.test.ts`
+- Modify: `src/lib/backup.ts`
 - Modify: `src/privacy/dataFlows.ts`
 - Modify: `src/privacy/dataFlows.test.ts`
 - Modify: `src/lib/backup.test.ts`
@@ -389,7 +390,7 @@ git commit -m 'feat: issue local signed entitlement leases'
 - Consumes: `chrome.storage.local` directly through an injected four-method boundary.
 - Produces: `AccountSessionStore` for `tab-two:account-session:v1`; it never touches `AuroraStorage`.
 
-- [ ] **Step 1: Write failing storage and redaction tests**
+- [x] **Step 1: Write failing storage and redaction tests**
 
 Require absent, valid, malformed, expired, and unknown-version reads; write-then-read; clear; fail-closed cleanup; no token text in thrown errors; subscription propagation through `chrome.storage.onChanged`; and exact exclusion from `serializeBackup`, privacy backup inventory, preview fixtures, and diagnostic-safe values.
 
@@ -405,17 +406,17 @@ export interface StoredAccountSessionV1 {
 }
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 npx vitest run src/account/sessionStorage.test.ts src/privacy/dataFlows.test.ts src/lib/backup.test.ts
 ```
 
-- [ ] **Step 3: Implement the typed adapter**
+- [x] **Step 3: Implement the typed adapter**
 
 The adapter validates every field and length, rejects unknown keys, clears malformed/expired state, serializes only the exact v1 object, and emits fixed error codes. Extend `TransmissionBoundary` with `tab-two-account-service`, then add an `OTHER_LOCAL_DATA_FLOWS.accountSession` entry classified as authentication, excluded from JSON backup/sync/diagnostics, and transmitted only to Tab Two's configured Supabase Auth boundary when the user signs in or refreshes an existing session. Do not add the key to `AuroraData`, `defaults()`, migrations, or backup envelopes.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```powershell
 npx vitest run src/account/sessionStorage.test.ts src/privacy/dataFlows.test.ts src/lib/backup.test.ts
