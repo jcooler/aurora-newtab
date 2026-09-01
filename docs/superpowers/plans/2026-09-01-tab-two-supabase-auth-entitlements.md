@@ -521,7 +521,7 @@ It returns `null` outside `account-local` or when any value is missing/malformed
 
 Only `beginSignIn` and `signOut` become active in PM-P2. Sync, billing, device, vault, and account-deletion actions remain fixed unavailable operations for their later packets and must make no request. Subscription is `complimentary` only for a verified complimentary lease, otherwise `none`; no Stripe lifecycle is inferred in PM-P2.
 
-- [ ] **Step 4: Run GREEN and production isolation scan**
+- [x] **Step 4: Run GREEN and production isolation scan**
 
 ```powershell
 npx vitest run src/account/supabaseAccountClient.test.ts src/account/createAccountClient.test.ts src/settings/sections/AccountSync.test.tsx src/account/AccountContext.test.tsx
