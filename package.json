@@ -24,6 +24,7 @@
     "qa:account-sync-shell": "node scripts/qa-account-sync-shell.mjs",
     "qa:account-auth-local": "node scripts/qa-account-auth-local.mjs",
     "qa:account-auth-production": "node scripts/qa-account-auth-production.mjs",
+    "qa:stripe-billing": "node scripts/qa-stripe-billing.mjs",
     "qa:tab-two-v2-connectors": "node scripts/qa-tab-two-v2-connectors.mjs --exact",
     "qa:tab-two-v2-progress": "node scripts/qa-tab-two-v2-progress.mjs --exact",
     "qa:canvas-polish": "node scripts/qa-canvas-polish.mjs",

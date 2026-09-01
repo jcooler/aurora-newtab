@@ -37,6 +37,14 @@ function dependencies(): AccountFunctionDependencies {
     repository: {
       findAccountForAuthUser: vi.fn(async () => account),
       getEffectiveEntitlement: vi.fn(async () => ownerEntitlement),
+      getBillingSummary: vi.fn(async () => ({
+        state: 'none' as const,
+        plan: null,
+        currentPeriodEnd: null,
+        courtesyEnd: null,
+        cancelAtPeriodEnd: false,
+        introductoryEligible: true,
+      })),
     },
     now: () => now,
     randomUUID: () => 'lease-a',
@@ -102,7 +110,14 @@ describe('account Edge Function handlers', () => {
       accountId: 'account-a',
       email: 'alex@example.test',
       displayName: 'Alex Morgan',
-      subscription: { state: 'complimentary' },
+      subscription: {
+        state: 'complimentary',
+        plan: null,
+        currentPeriodEnd: null,
+        courtesyEnd: null,
+        cancelAtPeriodEnd: false,
+        introductoryEligible: false,
+      },
     })
   })
 
@@ -177,13 +192,48 @@ describe('account Edge Function handlers', () => {
       .fn()
       .mockResolvedValueOnce({ capabilities: ['strava'], grantSources: ['stripe'], earliestExpiry: null })
       .mockResolvedValueOnce({ capabilities: [], grantSources: [], earliestExpiry: null })
+    deps.repository.getBillingSummary = vi
+      .fn()
+      .mockResolvedValueOnce({
+        state: 'active', plan: 'monthly', currentPeriodEnd: now + 60_000,
+        courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: false,
+      })
+      .mockResolvedValueOnce({
+        state: 'none', plan: null, currentPeriodEnd: null,
+        courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true,
+      })
     const handlers = createAccountHandlers(deps)
 
     expect(await body(await handlers.accountSnapshot(request('account-snapshot', 'GET')))).toEqual(
-      expect.objectContaining({ subscription: { state: 'active' } }),
+      expect.objectContaining({ subscription: expect.objectContaining({ state: 'active', plan: 'monthly' }) }),
     )
     expect(await body(await handlers.accountSnapshot(request('account-snapshot', 'GET')))).toEqual(
-      expect.objectContaining({ subscription: { state: 'none' } }),
+      expect.objectContaining({ subscription: expect.objectContaining({ state: 'none', introductoryEligible: true }) }),
+    )
+  })
+
+  it('reports bounded courtesy and canceling fields from normalized server billing only', async () => {
+    deps.repository.getEffectiveEntitlement = vi.fn(async () => ({
+      capabilities: ['encrypted_sync'], grantSources: ['stripe'], earliestExpiry: now + 60_000,
+    }))
+    deps.repository.getBillingSummary = vi.fn(async () => ({
+      state: 'past_due' as const,
+      plan: 'annual' as const,
+      currentPeriodEnd: now - 1,
+      courtesyEnd: now + 60_000,
+      cancelAtPeriodEnd: false,
+      introductoryEligible: false,
+    }))
+
+    expect(await body(await createAccountHandlers(deps).accountSnapshot(request('account-snapshot', 'GET')))).toEqual(
+      expect.objectContaining({ subscription: {
+        state: 'past_due',
+        plan: 'annual',
+        currentPeriodEnd: now - 1,
+        courtesyEnd: now + 60_000,
+        cancelAtPeriodEnd: false,
+        introductoryEligible: false,
+      } }),
     )
   })
 })

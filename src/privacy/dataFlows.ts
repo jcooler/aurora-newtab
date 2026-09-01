@@ -255,6 +255,10 @@ export const BROWSER_DATA_FLOWS = {
   bookmarks: { transmission: 'none' as const, description: 'Bookmarks are read through the optional Chrome bookmarks API.' },
   favicon: { transmission: 'browser-mediated' as const, description: 'Chrome supplies favicons through its local extension API.' },
   navigation: { transmission: 'browser-mediated' as const, description: 'Opening a Quick Link hands its safe HTTP(S) URL to Chrome.' },
+  billing: {
+    transmission: 'browser-mediated' as const,
+    description: 'After an explicit Account & Sync action, Tab Two accepts only a server-selected exact checkout.stripe.com or billing.stripe.com HTTPS URL and opens it in a normal tab. The URL is never stored or treated as entitlement authority.',
+  },
   geolocation: { transmission: 'none' as const, description: 'Chrome provides coordinates; Tab Two sends them only in the separately listed weather flows.' },
   readingList: {
     transmission: 'none' as const,
@@ -281,6 +285,18 @@ export const BROWSER_DATA_FLOWS = {
     stored: 'preferences-only' as const,
   },
 }
+
+export const ACCOUNT_SERVICE_DATA_FLOWS = {
+  billing: {
+    destinations: ['the exact production Supabase account origin', 'checkout.stripe.com', 'billing.stripe.com'],
+    trigger: ['explicit plan selection, Manage billing, or Refresh billing'],
+    sends: ['Supabase account session to Tab Two account functions', 'provider-neutral account UUID and semantic plan from server to Stripe sandbox'],
+    receives: ['server-normalized billing summary', 'short-lived hosted Checkout or Customer Portal URL', 'signed capability lease after refresh'],
+    storesLocally: ['no Checkout or Portal URL', 'no card, billing address, receipt, or payment-method data'],
+    authority: 'Only a verified signed lease grants capabilities; browser return state and URLs never grant access.',
+    currentState: 'PM-P3 Stripe integration is local/test-mode only and is not deployed or provisioned.',
+  },
+} as const
 
 export const MANIFEST_PRIVACY_DESCRIPTION =
   'A calm, local-first new-tab dashboard with optional Google sign-in. No tracking; Local mode stays on your device.' as const

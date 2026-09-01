@@ -21,3 +21,15 @@ enable_signup = false
 enabled = false
 client_id = ""
 secret = ""
+
+[functions.billing-checkout-session]
+verify_jwt = true
+
+[functions.billing-portal-session]
+verify_jwt = true
+
+[functions.billing-return]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false

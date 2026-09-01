@@ -19,8 +19,9 @@ function actions(): AccountActions {
     disableSync: vi.fn(async () => {}),
     syncNow: vi.fn(async () => {}),
     revokeDevice: vi.fn(async () => {}),
-    openPlans: vi.fn(async () => {}),
-    openBilling: vi.fn(async () => {}),
+    openPlans: vi.fn(async () => ({ status: 'opened' as const })),
+    openBilling: vi.fn(async () => ({ status: 'opened' as const })),
+    refreshBilling: vi.fn(async () => ({ status: 'refreshed' as const })),
     deleteVault: vi.fn(async () => {}),
     deleteAccount: vi.fn(async () => {}),
   }
@@ -32,7 +33,14 @@ function signedSnapshot(overrides: Partial<AccountSnapshot> = {}): AccountSnapsh
     accountId: 'account-1',
     email: 'alex@example.com',
     displayName: 'Alex Morgan',
-    subscription: 'active',
+    billing: {
+      state: 'active',
+      plan: 'monthly',
+      currentPeriodEnd: Date.UTC(2026, 9, 1),
+      courtesyEnd: null,
+      cancelAtPeriodEnd: false,
+      introductoryEligible: false,
+    },
     lease: null,
     sync: {
       enabled: false,
@@ -61,7 +69,8 @@ describe('AccountSync', () => {
     const localActions = actions()
     vi.mocked(localActions.beginSignIn).mockResolvedValue({ ok: false, code: 'not_configured' })
     renderAccount({
-      mode: 'local', accountId: null, email: null, displayName: null, subscription: 'none', lease: null,
+      mode: 'local', accountId: null, email: null, displayName: null,
+      billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true }, lease: null,
       sync: { enabled: false, phase: 'disabled', lastSuccessAt: null, usedBytes: 0, quotaBytes: 2_097_152 },
       devices: [],
     }, localActions)
@@ -77,14 +86,15 @@ describe('AccountSync', () => {
     expect(status.textContent).toBe('Google sign-in is not configured in this build.')
     expect(signIn.getAttribute('aria-describedby')).toBe(status.id)
 
-    fireEvent.click(screen.getByRole('button', { name: 'View plans' }))
-    expect(localActions.openPlans).toHaveBeenCalledOnce()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Choose monthly' })) })
+    expect(localActions.openPlans).toHaveBeenCalledWith('monthly')
   })
 
   it('does not enable sync or invoke any data action after a successful sign-in click', async () => {
     const localActions = actions()
     renderAccount({
-      mode: 'local', accountId: null, email: null, displayName: null, subscription: 'none', lease: null,
+      mode: 'local', accountId: null, email: null, displayName: null,
+      billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true }, lease: null,
       sync: { enabled: false, phase: 'disabled', lastSuccessAt: null, usedBytes: 0, quotaBytes: 2_097_152 },
       devices: [],
     }, localActions)
@@ -102,6 +112,9 @@ describe('AccountSync', () => {
 
     expect(await screen.findByRole('heading', { name: 'Alex Morgan' })).toBeTruthy()
     expect(screen.getByText('Active subscription')).toBeTruthy()
+    expect(screen.getByText('$1.99 monthly')).toBeTruthy()
+    expect(screen.getByText('$19.99 annually')).toBeTruthy()
+    expect(screen.getByText('$9.99 for your first year, then renews at $19.99 annually')).toBeTruthy()
     expect(screen.getByRole('switch', { name: 'Enable sync' }).getAttribute('aria-checked')).toBe('false')
     expect(screen.getByText('Not synced yet')).toBeTruthy()
     expect(screen.getByText('0 KB of 2 MB')).toBeTruthy()
@@ -109,13 +122,57 @@ describe('AccountSync', () => {
 
     fireEvent.click(screen.getByRole('switch', { name: 'Enable sync' }))
     fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Manage billing' }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Manage billing' })) })
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
     expect(signedActions.enableSync).toHaveBeenCalledOnce()
     expect(signedActions.syncNow).toHaveBeenCalledOnce()
     expect(signedActions.openBilling).toHaveBeenCalledOnce()
     expect(signedActions.signOut).toHaveBeenCalledOnce()
+  })
+
+  it('disables billing actions while opening and reports a typed handoff failure', async () => {
+    const signedActions = actions()
+    let resolve!: (value: { status: 'unavailable' }) => void
+    vi.mocked(signedActions.openPlans).mockReturnValue(new Promise((done) => { resolve = done }))
+    renderAccount(signedSnapshot({
+      billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true },
+    }), signedActions)
+
+    const choose = await screen.findByRole('button', { name: 'Choose introductory annual' })
+    fireEvent.click(choose)
+    expect(choose.hasAttribute('disabled')).toBe(true)
+    await act(async () => { resolve({ status: 'unavailable' }) })
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Billing is unavailable right now. Try again.')
+    expect(choose.hasAttribute('disabled')).toBe(false)
+  })
+
+  it('refreshes signed billing authority explicitly and once after a hosted handoff regains focus', async () => {
+    const signedActions = actions()
+    renderAccount(signedSnapshot({
+      billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true },
+    }), signedActions)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh billing' }))
+    await waitFor(() => expect(signedActions.refreshBilling).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose annual' }))
+    await waitFor(() => expect(signedActions.openPlans).toHaveBeenCalledWith('annual'))
+    fireEvent.focus(window)
+    await waitFor(() => expect(signedActions.refreshBilling).toHaveBeenCalledTimes(2))
+    fireEvent.focus(window)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(signedActions.refreshBilling).toHaveBeenCalledTimes(2)
+  })
+
+  it('prevents a second Checkout while an existing subscription is active', async () => {
+    const signedActions = renderAccount(signedSnapshot())
+
+    expect((await screen.findByRole('button', { name: 'Choose monthly' })).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Choose annual' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Choose introductory annual' }).hasAttribute('disabled')).toBe(true)
+    expect(signedActions.openPlans).not.toHaveBeenCalled()
   })
 
   it('blocks only sync activation when five devices are active and never auto-evicts', async () => {

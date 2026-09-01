@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
 import { useAccount } from '../../account/AccountContext'
-import type { AccountActions, SubscriptionState } from '../../account/types'
+import { billingPlanCopy } from '../../account/billing'
+import type { BillingActionOutcome, BillingPlan, BillingSummary } from '../../account/billing'
+import type { AccountActions } from '../../account/types'
 import { AssertiveAlert, PoliteStatus } from '../../components/StateFeedback'
 import { useDialogEscape } from '../../lib/dialogStack'
 import { useFocusTrap } from '../../lib/hooks/useFocusTrap'
@@ -12,19 +14,63 @@ import { btnDanger, btnPrimary, btnQuiet, control, label } from './shared'
 
 const SIGN_IN_STATUS_ID = 'account-sign-in-status'
 const DEVICE_LIMIT_ID = 'account-device-limit'
+const billingButton = `${btnQuiet} disabled:cursor-not-allowed disabled:opacity-40`
 
 type DestructiveTarget =
   | { kind: 'vault' }
   | { kind: 'account' }
   | { kind: 'device'; deviceId: string; deviceName: string }
 
-const subscriptionLabels: Record<SubscriptionState, string> = {
+const subscriptionLabels: Record<BillingSummary['state'], string> = {
   none: 'No subscription',
   active: 'Active subscription',
   past_due: 'Payment needs attention',
   canceling: 'Subscription canceling',
   expired: 'Subscription expired',
   complimentary: 'Complimentary subscription',
+}
+
+const billingErrorCopy: Record<Exclude<BillingActionOutcome['status'], 'opened'>, string> = {
+  authentication_required: 'Sign in with Google to continue.',
+  not_configured: 'Billing is not configured in this build.',
+  unavailable: 'Billing is unavailable right now. Try again.',
+}
+
+function BillingPlans({
+  billing,
+  pending,
+  onChoose,
+}: {
+  billing: BillingSummary
+  pending: boolean
+  onChoose: (plan: BillingPlan) => void
+}) {
+  const hasManagedSubscription = ['active', 'past_due', 'canceling'].includes(billing.state)
+  return (
+    <Section title="Plans">
+      <ul className="space-y-3" aria-label="Tab Two plans">
+        <li className="flex items-center justify-between gap-3 max-[420px]:flex-col max-[420px]:items-stretch">
+          <p className="text-sm text-fg">{billingPlanCopy.monthly}</p>
+          <button type="button" disabled={pending || hasManagedSubscription} onClick={() => onChoose('monthly')} className={billingButton}>Choose monthly</button>
+        </li>
+        <li className="flex items-center justify-between gap-3 max-[420px]:flex-col max-[420px]:items-stretch">
+          <p className="text-sm text-fg">{billingPlanCopy.annual}</p>
+          <button type="button" disabled={pending || hasManagedSubscription} onClick={() => onChoose('annual')} className={billingButton}>Choose annual</button>
+        </li>
+        <li className="flex items-center justify-between gap-3 max-[420px]:flex-col max-[420px]:items-stretch">
+          <p className="text-sm text-fg">{billingPlanCopy.intro_annual}</p>
+          <button
+            type="button"
+            disabled={pending || hasManagedSubscription || !billing.introductoryEligible}
+            onClick={() => onChoose('intro_annual')}
+            className={billingButton}
+          >
+            Choose introductory annual
+          </button>
+        </li>
+      </ul>
+    </Section>
+  )
 }
 
 function formatBytes(bytes: number): string {
@@ -199,8 +245,29 @@ function DestructiveAccountDialog({
 export default function AccountSync() {
   const { snapshot, actions } = useAccount()
   const [signInStatus, setSignInStatus] = useState<string | null>(null)
+  const [billingPending, setBillingPending] = useState(false)
+  const [billingError, setBillingError] = useState<string | null>(null)
   const [destructiveTarget, setDestructiveTarget] = useState<DestructiveTarget | null>(null)
   const destructiveInvokerRef = useRef<HTMLButtonElement>(null)
+  const refreshAfterHandoff = useRef(false)
+
+  useEffect(() => {
+    const refreshOnFocus = async () => {
+      if (!refreshAfterHandoff.current) return
+      const result = await actions.refreshBilling()
+      if (result.status === 'refreshed') {
+        refreshAfterHandoff.current = false
+        setBillingError(null)
+      } else {
+        setBillingError(result.status === 'authentication_required'
+          ? billingErrorCopy.authentication_required
+          : billingErrorCopy.unavailable)
+      }
+    }
+    const listener = () => { void refreshOnFocus() }
+    window.addEventListener('focus', listener)
+    return () => window.removeEventListener('focus', listener)
+  }, [actions])
 
   async function signIn() {
     setSignInStatus(null)
@@ -220,6 +287,42 @@ export default function AccountSync() {
     setDestructiveTarget(target)
   }
 
+  async function choosePlan(plan: BillingPlan) {
+    setBillingPending(true)
+    setBillingError(null)
+    const result = await actions.openPlans(plan)
+    setBillingPending(false)
+    if (result.status === 'opened') {
+      refreshAfterHandoff.current = true
+      return
+    }
+    setBillingError(billingErrorCopy[result.status])
+  }
+
+  async function manageBilling() {
+    setBillingPending(true)
+    setBillingError(null)
+    const result = await actions.openBilling()
+    setBillingPending(false)
+    if (result.status === 'opened') {
+      refreshAfterHandoff.current = true
+      return
+    }
+    setBillingError(billingErrorCopy[result.status])
+  }
+
+  async function refreshBilling() {
+    setBillingPending(true)
+    setBillingError(null)
+    const result = await actions.refreshBilling()
+    setBillingPending(false)
+    if (result.status !== 'refreshed') {
+      setBillingError(result.status === 'authentication_required'
+        ? billingErrorCopy.authentication_required
+        : billingErrorCopy.unavailable)
+    }
+  }
+
   if (snapshot.mode === 'local') {
     return (
       <>
@@ -236,7 +339,6 @@ export default function AccountSync() {
             >
               Sign in with Google
             </button>
-            <button type="button" onClick={() => void actions.openPlans()} className={btnQuiet}>View plans</button>
           </div>
           {signInStatus ? (
             <PoliteStatus id={SIGN_IN_STATUS_ID} className="mt-3 block text-xs text-fg-muted">
@@ -245,6 +347,10 @@ export default function AccountSync() {
           ) : null}
           <p className="mt-3 text-xs text-fg-muted">Signing in does not enable sync or upload local data.</p>
         </Section>
+
+        <BillingPlans billing={snapshot.billing} pending={billingPending} onChoose={(plan) => void choosePlan(plan)} />
+
+        <AssertiveAlert className="block text-xs text-red-400">{billingError}</AssertiveAlert>
 
         <Section title="What sync can include">
           <ul className="account-sync-inventory">
@@ -269,8 +375,18 @@ export default function AccountSync() {
           {snapshot.displayName ?? snapshot.email ?? 'Tab Two account'}
         </h2>
         {snapshot.email && snapshot.displayName ? <p className="mt-1 text-sm text-fg-muted">{snapshot.email}</p> : null}
-        <p className="mt-3 text-sm text-fg">{subscriptionLabels[snapshot.subscription]}</p>
+        <p className="mt-3 text-sm text-fg">{subscriptionLabels[snapshot.billing.state]}</p>
+        {snapshot.billing.state === 'past_due' && snapshot.billing.courtesyEnd !== null ? (
+          <p className="mt-1 text-xs text-amber-300">Courtesy access ends {new Date(snapshot.billing.courtesyEnd).toLocaleDateString()}.</p>
+        ) : null}
+        {snapshot.billing.state === 'canceling' && snapshot.billing.currentPeriodEnd !== null ? (
+          <p className="mt-1 text-xs text-fg-muted">Access continues through {new Date(snapshot.billing.currentPeriodEnd).toLocaleDateString()}.</p>
+        ) : null}
       </Section>
+
+      <BillingPlans billing={snapshot.billing} pending={billingPending} onChoose={(plan) => void choosePlan(plan)} />
+
+      <AssertiveAlert className="block text-xs text-red-400">{billingError}</AssertiveAlert>
 
       <Section title="Encrypted sync">
         <div className="flex min-h-9 items-center justify-between gap-4">
@@ -329,7 +445,8 @@ export default function AccountSync() {
 
       <Section title="Account actions">
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void actions.openBilling()} className={btnQuiet}>Manage billing</button>
+          <button type="button" disabled={billingPending} onClick={() => void manageBilling()} className={billingButton}>Manage billing</button>
+          <button type="button" disabled={billingPending} onClick={() => void refreshBilling()} className={billingButton}>Refresh billing</button>
           <button type="button" onClick={() => void actions.signOut()} className={btnQuiet}>Sign out</button>
         </div>
         <div className="mt-5 border-t border-hairline pt-5">

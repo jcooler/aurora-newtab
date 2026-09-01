@@ -10,7 +10,11 @@ function snapshot(lease: VerifiedEntitlementLease | null): AccountSnapshot {
     accountId: lease?.accountId ?? null,
     email: lease ? 'alex@example.com' : null,
     displayName: lease ? 'Alex Morgan' : null,
-    subscription: lease ? 'active' : 'none',
+    billing: {
+      state: lease ? 'active' : 'none', plan: lease ? 'monthly' : null,
+      currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false,
+      introductoryEligible: !lease,
+    },
     lease,
     sync: {
       enabled: false,
@@ -61,8 +65,12 @@ describe('hasCapability', () => {
 
   it.each(['none', 'past_due', 'canceling', 'expired'] as const)(
     'does not infer capability from %s subscription state without a lease',
-    (subscription) => {
-      expect(hasCapability({ ...snapshot(null), mode: 'signed_in', subscription }, 'encrypted_sync', now)).toBe(false)
+    (state) => {
+      expect(hasCapability({
+        ...snapshot(null),
+        mode: 'signed_in',
+        billing: { ...snapshot(null).billing, state },
+      }, 'encrypted_sync', now)).toBe(false)
     },
   )
 

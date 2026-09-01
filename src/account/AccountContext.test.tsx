@@ -21,7 +21,10 @@ const signedInSnapshot: AccountSnapshot = {
   accountId: 'account-1',
   email: 'alex@example.com',
   displayName: 'Alex Morgan',
-  subscription: 'active',
+  billing: {
+    state: 'active', plan: 'monthly', currentPeriodEnd: null, courtesyEnd: null,
+    cancelAtPeriodEnd: false, introductoryEligible: false,
+  },
   lease: null,
   sync: {
     enabled: false,
@@ -49,8 +52,9 @@ function fakeClient(initial: Promise<AccountSnapshot>) {
     disableSync: vi.fn(async () => {}),
     syncNow: vi.fn(async () => {}),
     revokeDevice: vi.fn(async () => {}),
-    openPlans: vi.fn(async () => {}),
-    openBilling: vi.fn(async () => {}),
+    openPlans: vi.fn(async () => ({ status: 'opened' as const })),
+    openBilling: vi.fn(async () => ({ status: 'opened' as const })),
+    refreshBilling: vi.fn(async () => ({ status: 'refreshed' as const })),
     deleteVault: vi.fn(async () => {}),
     deleteAccount: vi.fn(async () => {}),
   }

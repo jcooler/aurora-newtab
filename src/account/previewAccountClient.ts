@@ -1,4 +1,6 @@
 import type { AccountClient } from './client'
+import { createBillingSummary } from './billing'
+import type { BillingPlan } from './billing'
 import type { AccountActions, AccountSnapshot, PremiumCapability } from './types'
 import { localAccountSnapshot } from './localAccountClient'
 
@@ -41,7 +43,14 @@ function signedSnapshot(
     accountId: 'preview-account-1',
     email: 'alex@example.com',
     displayName: 'Alex Morgan',
-    subscription: state === 'past-due' ? 'past_due' as const : active ? 'active' as const : 'none' as const,
+    billing: createBillingSummary({
+      state: state === 'past-due' ? 'past_due' : active ? 'active' : 'none',
+      plan: active ? 'monthly' : null,
+      currentPeriodEnd: active ? 1_809_216_000_000 : null,
+      courtesyEnd: state === 'past-due' ? 1_809_820_800_000 : null,
+      cancelAtPeriodEnd: false,
+      introductoryEligible: !active,
+    }),
     lease: active
       ? Object.freeze({
           verification: 'verified' as const,
@@ -125,8 +134,19 @@ const previewActions: AccountActions = Object.freeze({
   disableSync: noOp,
   syncNow: noOp,
   async revokeDevice(_deviceId: string) {},
-  openPlans: noOp,
-  openBilling: noOp,
+  async openPlans(plan: BillingPlan) {
+    globalThis.open(
+      `https://checkout.stripe.com/c/pay/tab-two-preview-${plan.replace('_', '-')}`,
+      '_blank',
+      'noopener',
+    )
+    return { status: 'opened' as const }
+  },
+  async openBilling() {
+    globalThis.open('https://billing.stripe.com/p/session/tab-two-preview', '_blank', 'noopener')
+    return { status: 'opened' as const }
+  },
+  async refreshBilling() { return { status: 'refreshed' as const } },
   deleteVault: noOp,
   deleteAccount: noOp,
 })

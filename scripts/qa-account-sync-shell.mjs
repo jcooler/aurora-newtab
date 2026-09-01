@@ -299,7 +299,8 @@ async function exerciseProduction(page, viewport, output, judgments, evidence, r
   const signIn = page.getByRole('button', { name: 'Sign in with Google' })
   await signIn.click()
   await page.getByRole('status').filter({ hasText: 'not configured' }).waitFor()
-  await page.getByRole('button', { name: 'View plans' }).click()
+  await page.getByRole('button', { name: 'Choose monthly' }).click()
+  await page.getByRole('alert').filter({ hasText: 'Billing is not configured' }).waitFor()
   assert.notEqual(await drawer.getAttribute('aria-hidden'), 'true')
   evidence.interactions['production-local'] = true
   await harvestStorageWrites(page, evidence)

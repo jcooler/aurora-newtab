@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.4'
 import { createAccountHandlers } from './accountHandlers.ts'
-import type { EffectiveEntitlement, ProviderNeutralAccount } from './accountHandlers.ts'
+import type { BillingSummary, EffectiveEntitlement, ProviderNeutralAccount } from './accountHandlers.ts'
 import { signLeaseV1 } from './lease.ts'
 import type { PremiumCapability, SignedGrantSource } from './lease.ts'
 import { authenticateBearerRequest } from './requestAuth.ts'
@@ -60,6 +60,23 @@ function entitlementRow(value: unknown): EffectiveEntitlement {
   }
 }
 
+function billingRow(value: unknown): BillingSummary {
+  const row = oneRow(value)
+  if (!row) return {
+    state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null,
+    cancelAtPeriodEnd: false, introductoryEligible: true,
+  }
+  const date = (input: unknown) => input === null || input === undefined ? null : Date.parse(String(input))
+  return {
+    state: row.state as BillingSummary['state'],
+    plan: (row.plan ?? null) as BillingSummary['plan'],
+    currentPeriodEnd: date(row.current_period_end),
+    courtesyEnd: date(row.courtesy_end),
+    cancelAtPeriodEnd: row.cancel_at_period_end === true,
+    introductoryEligible: row.introductory_eligible === true,
+  }
+}
+
 export async function createRuntimeAccountHandlers(
   environment: RuntimeEnvironment,
   options: { signing: 'required' | 'unavailable' },
@@ -104,6 +121,13 @@ export async function createRuntimeAccountHandlers(
         })
         if (error) throw new Error('entitlement_repository_unavailable')
         return entitlementRow(data)
+      },
+      async getBillingSummary(accountId) {
+        const { data, error } = await supabase.rpc('tab_two_billing_summary_for_account', {
+          target_account_id: accountId,
+        })
+        if (error) throw new Error('billing_repository_unavailable')
+        return billingRow(data)
       },
     },
     now: Date.now,

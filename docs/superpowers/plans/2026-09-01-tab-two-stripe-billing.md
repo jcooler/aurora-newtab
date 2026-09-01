@@ -30,7 +30,7 @@
 
 ## Frozen product and catalog contract
 
-- Plans: `monthly` at USD 1.99, `annual` at USD 19.99, and `intro_annual` at USD 9.99 for the first year with a clearly disclosed USD 19.99 annual renewal.
+- Plans: `monthly` at USD 1.99, `annual` at USD 19.99, and `intro_annual` at USD 9.99 for the first year with a clearly disclosed USD 19.99 annual renewal. The introductory plan uses the standard USD 19.99 annual recurring price plus a server-owned USD 10.00 `duration=once` coupon; it is not a perpetual USD 9.99 recurring price.
 - Monthly and annual plans grant the same six capabilities already defined by PM-P2.
 - No free trial, lifetime plan, client-supplied price id, promotion-code authority, quantity, currency, tax behavior, customer id, redirect URL, entitlement, or grant source.
 - The extension may request only the semantic plan key. A server-only catalog maps that key to reviewed sandbox price ids.
@@ -55,17 +55,17 @@
 - Modify: `src/settings/sections/AccountSync.tsx`
 - Modify: `src/settings/sections/AccountSync.test.tsx`
 
-- [ ] **Step 1: Write RED for typed billing state**
+- [x] **Step 1: Write RED for typed billing state**
 
 Add a frozen `BillingSummary` with `state: 'none' | 'active' | 'past_due' | 'canceling' | 'expired' | 'complimentary'`, semantic plan, current-period end, courtesy end, cancel-at-period-end, and introductory eligibility. Do not expose Stripe ids in `AccountSnapshot`.
 
 Require `openPlans(plan)` and `openBilling()` to return typed outcomes such as `opened`, `authentication_required`, `not_configured`, and `unavailable`. Local mode remains request-free. Preview uses deterministic URLs that compile out of production.
 
-- [ ] **Step 2: Write RED for UI behavior**
+- [x] **Step 2: Write RED for UI behavior**
 
 Account & Sync must show exact monthly, annual, and first-year renewal copy, disabled/pending/error states, and one normal-tab handoff. Checkout return never sets subscription state locally. Signed-in focus or an explicit Refresh billing action must re-read the account snapshot and signed lease.
 
-- [ ] **Step 3: Run observed RED**
+- [x] **Step 3: Run observed RED**
 
 ```powershell
 npx vitest run src/account/billing.test.ts src/account/supabaseAccountClient.test.ts src/settings/sections/AccountSync.test.tsx
@@ -81,7 +81,7 @@ Expected: failures identify only the missing PM-P3 contracts and actions.
 - Create: `supabase/tests/stripe_billing_rls.sql`
 - Modify: `supabase/tests/account_entitlements.sql`
 
-- [ ] **Step 1: Write pgTAP RED for private tables and grants**
+- [x] **Step 1: Write pgTAP RED for private tables and grants**
 
 Require private, service-only tables for:
 
@@ -93,7 +93,7 @@ Require private, service-only tables for:
 
 Do not persist raw webhook JSON, Checkout/Portal URLs, card data, billing addresses, receipts, or payment-method details.
 
-- [ ] **Step 2: Implement transactional service-role functions**
+- [x] **Step 2: Implement transactional service-role functions**
 
 Create narrowly scoped private functions that:
 
@@ -106,7 +106,7 @@ Create narrowly scoped private functions that:
 
 The `stripe` grant must contain the exact six capabilities. Its `expires_at` is bounded to the authoritative paid-through or courtesy boundary so a newly issued lease cannot outlive billing authority. `private.effective_entitlement` remains the union across active grants.
 
-- [ ] **Step 3: Prove the adversary matrix**
+- [x] **Step 3: Prove the adversary matrix**
 
 Anonymous and authenticated roles cannot select or mutate billing, webhook, introductory, grant, or audit tables and cannot execute private billing functions. Cross-account reads and mutations fail. Service-role fixtures prove duplicate delivery, payload-hash mismatch, concurrent introductory reservation, completed redemption, expired reservation reuse, stale event, canceling, courtesy, refund, chargeback, and owner-grant survival.
 
@@ -127,15 +127,15 @@ npx supabase db lint --local --level error
 - Create: `supabase/functions/tests/billing-functions.test.ts`
 - Modify: `supabase/functions/_shared/http.ts`
 
-- [ ] **Step 1: Write fake-gateway RED**
+- [x] **Step 1: Write fake-gateway RED**
 
 Test all handlers with an injected fake gateway before adding a Stripe SDK. Require sandbox objects, bounded strings, exact object ownership, stable error codes, no secret reflection, and zero email-based account selection.
 
-- [ ] **Step 2: Freeze the server-owned catalog**
+- [x] **Step 2: Freeze the server-owned catalog**
 
-Map `monthly`, `annual`, and `intro_annual` to environment-supplied sandbox price ids. Validate `price_` shape, exact USD currency, recurring interval, amount, tax behavior, product eligibility metadata, and `livemode: false` by retrieving the catalog object before first use and caching only in function memory. The client can never send a raw price id.
+Map `monthly` and `annual` to environment-supplied sandbox price ids. Map `intro_annual` to the reviewed annual price plus an environment-supplied one-use USD 10 coupon. Validate exact currency, recurring interval, amount, tax behavior, coupon amount/duration, product eligibility metadata, and `livemode: false` by retrieving the catalog objects before first use and caching only in function memory. The client can never send a raw price or coupon id.
 
-- [ ] **Step 3: Pin and audit the server-only SDK**
+- [x] **Step 3: Pin and audit the server-only SDK**
 
 At implementation time, choose a current supported Stripe SDK and API version compatible with Managed Payments, pin them exactly, trace the dependency path, run the JS security audit, and prove neither enters the extension production chunk. If Managed Payments still requires a preview API version, record it explicitly and keep the live gate closed.
 
@@ -152,15 +152,15 @@ At implementation time, choose a current supported Stripe SDK and API version co
 - Modify: `supabase/config.toml`
 - Modify: `supabase/functions/tests/billing-functions.test.ts`
 
-- [ ] **Step 1: Require an authenticated provider-neutral account**
+- [x] **Step 1: Require an authenticated provider-neutral account**
 
 Checkout and Portal accept POST only, verify the Supabase user JWT, resolve the exact account UUID through the PM-P2 service boundary, and rate-limit per account. Portal requires an existing server-owned customer mapping. Neither accepts account id, customer id, price id, return URL, capability, or entitlement from the client.
 
-- [ ] **Step 2: Create hosted sessions server-side**
+- [x] **Step 2: Create hosted sessions server-side**
 
 Checkout uses subscription mode, quantity one, server-selected price, the existing or newly created sandbox customer, `client_reference_id` set to the internal account UUID, minimal metadata with the same UUID and semantic plan, and fixed success/cancel URLs. Store only identifiers required for reconciliation. Portal creates a fresh short-lived sandbox URL for the server-owned customer and uses a fixed return URL.
 
-- [ ] **Step 3: Keep the return page non-authoritative**
+- [x] **Step 3: Keep the return page non-authoritative**
 
 `billing-return` serves static success/cancel/return guidance, contains no account data or token, performs no mutation, and tells the customer to return to Tab Two. It may not read a Checkout session, issue a lease, or claim payment success.
 
@@ -174,15 +174,15 @@ Checkout uses subscription mode, quantity one, server-selected price, the existi
 - Modify: `supabase/functions/_shared/billingHandlers.ts`
 - Modify: `supabase/functions/tests/billing-functions.test.ts`
 
-- [ ] **Step 1: Verify before parsing**
+- [x] **Step 1: Verify before parsing**
 
-The webhook is the only PM-P3 function with Supabase JWT verification disabled. Read the request as raw bytes exactly once, enforce a small maximum body size, require the Stripe signature header, verify it with the sandbox endpoint secret and bounded timestamp tolerance, and only then parse the event. Reject `livemode: true` before database work. Never log the body or signature.
+The webhook is the only mutation-capable PM-P3 function with Supabase JWT verification disabled; the static, non-authoritative billing-return page is also public. Read the webhook request as raw bytes exactly once, enforce a small maximum body size, require the Stripe signature header, verify it with the sandbox endpoint secret and bounded timestamp tolerance, and only then parse the event. Reject `livemode: true` before database work. Never log the body or signature.
 
-- [ ] **Step 2: Make duplicates identity and order irrelevant**
+- [x] **Step 2: Make duplicates identity and order irrelevant**
 
 Hash the verified raw body. Claim `event.id` transactionally. An exact duplicate returns success without replaying effects; the same id with a different hash is a hard failure and audit signal. Because Stripe does not guarantee event order, retrieve the current Checkout Session, Subscription, Invoice, Refund, Charge, or Dispute object when necessary and derive the normalized state from that authoritative object plus the server-owned catalog. Do not apply an older snapshot over a newer stored billing boundary.
 
-- [ ] **Step 3: Cover the lifecycle**
+- [x] **Step 3: Cover the lifecycle**
 
 Handle only the minimum reviewed event set needed for Checkout completion, subscription create/update/delete, invoice paid/payment failed/action required, refund, and chargeback/dispute. Unknown valid events are recorded as ignored and return success. Prove:
 
@@ -209,21 +209,21 @@ Handle only the minimum reviewed event set needed for Checkout completion, subsc
 - Modify: `PRIVACY.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: Add bounded API calls**
+- [x] **Step 1: Add bounded API calls**
 
 Use the existing Supabase session and origin for Checkout and Portal session creation. Accept only an HTTPS URL with no user information, no non-default port, and the exact host `checkout.stripe.com` for Checkout or `billing.stripe.com` for Portal. Reject every other host, including lookalike suffixes and custom domains, then open the accepted URL in a normal tab with `noopener`. Do not store the URL. Authentication failures clear account authority through the PM-P2 path; service failures leave free behavior intact.
 
-- [ ] **Step 2: Refresh signed authority after billing**
+- [x] **Step 2: Refresh signed authority after billing**
 
 On explicit Refresh billing and the next Account & Sync focus after a hosted handoff, fetch the account snapshot and signed lease. Ignore URL query strings and browser return state as entitlement input. Show subscription and error/courtesy/canceling copy from the server snapshot only. Capabilities still come only from a verified lease bound to the signed-in account.
 
-- [ ] **Step 3: Reconcile public disclosure**
+- [x] **Step 3: Reconcile public disclosure**
 
 Disclose Stripe/Link hosted Checkout and Portal, account/billing identifiers retained by Supabase and Stripe, no card handling by Tab Two, webhook authority, retention/deletion behavior, and the test-mode-only implementation state. Do not update a live Store listing without its separate gate.
 
 ### Task 7: Request the sandbox gate and run hosted evidence
 
-**External state, separately approved at execution time:** Stripe sandbox, three test prices, Customer Portal sandbox configuration, webhook endpoint, test secrets, and deployment of PM-P3 functions/migration to the approved Supabase project.
+**External state, separately approved at execution time:** Stripe sandbox, two recurring test prices, one one-use introductory coupon, Customer Portal sandbox configuration, webhook endpoint, test secrets, and deployment of PM-P3 functions/migration to the approved Supabase project.
 
 - [ ] **Step 1: Stop for explicit approval**
 
@@ -250,7 +250,7 @@ Use Stripe-hosted test Checkout and Portal, documented test cards, legitimate sa
 - Modify: `PRIVACY.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: Run one bounded Critical/Important review**
+- [x] **Step 1: Run one bounded Critical/Important review**
 
 Review raw-body signature ordering, secret separation, sandbox enforcement, exact account/customer binding, catalog authority, idempotency, object retrieval, stale-event rejection, paid-through/courtesy expiry, intro races, owner-grant union, local/free isolation, URLs, CORS, rate limits, RLS, logs, privacy, and rollback. Apply at most one focused fix/rereview cycle.
 

@@ -19,9 +19,19 @@ export interface EffectiveEntitlement {
   earliestExpiry: number | null
 }
 
+export interface BillingSummary {
+  state: 'none' | 'active' | 'past_due' | 'canceling' | 'expired'
+  plan: 'monthly' | 'annual' | 'intro_annual' | null
+  currentPeriodEnd: number | null
+  courtesyEnd: number | null
+  cancelAtPeriodEnd: boolean
+  introductoryEligible: boolean
+}
+
 export interface AccountRepository {
   findAccountForAuthUser(authUserId: string): Promise<ProviderNeutralAccount | null>
   getEffectiveEntitlement(accountId: string, effectiveAt: number): Promise<EffectiveEntitlement>
+  getBillingSummary(accountId: string): Promise<BillingSummary>
 }
 
 export interface AccountFunctionDependencies {
@@ -82,6 +92,20 @@ function normalizeEntitlement(value: EffectiveEntitlement): EffectiveEntitlement
   }
 }
 
+function normalizeBilling(value: BillingSummary): BillingSummary {
+  if (
+    !value
+    || !['none', 'active', 'past_due', 'canceling', 'expired'].includes(value.state)
+    || (value.plan !== null && !['monthly', 'annual', 'intro_annual'].includes(value.plan))
+    || (value.state === 'none' ? value.plan !== null : value.plan === null)
+    || (value.currentPeriodEnd !== null && !Number.isSafeInteger(value.currentPeriodEnd))
+    || (value.courtesyEnd !== null && !Number.isSafeInteger(value.courtesyEnd))
+    || typeof value.cancelAtPeriodEnd !== 'boolean'
+    || typeof value.introductoryEligible !== 'boolean'
+  ) throw new Error('invalid_billing_record')
+  return { ...value }
+}
+
 async function resolveAccount(
   request: Request,
   dependencies: AccountFunctionDependencies,
@@ -108,16 +132,24 @@ export function createAccountHandlers(dependencies: AccountFunctionDependencies)
         const entitlement = normalizeEntitlement(
           await dependencies.repository.getEffectiveEntitlement(resolved.account.accountId, effectiveAt),
         )
-        const state = entitlement.grantSources.includes('complimentary_owner')
-          ? 'complimentary'
-          : entitlement.grantSources.includes('stripe')
-            ? 'active'
-            : 'none'
+        const billing = normalizeBilling(
+          await dependencies.repository.getBillingSummary(resolved.account.accountId),
+        )
+        const subscription = entitlement.grantSources.includes('complimentary_owner')
+          ? {
+              state: 'complimentary' as const,
+              plan: null,
+              currentPeriodEnd: null,
+              courtesyEnd: null,
+              cancelAtPeriodEnd: false,
+              introductoryEligible: false,
+            }
+          : billing
         return jsonResponse({
           accountId: resolved.account.accountId,
           email: resolved.account.email,
           displayName: resolved.account.displayName,
-          subscription: { state },
+          subscription,
         })
       } catch {
         return errorResponse('service_unavailable', 503)

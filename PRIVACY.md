@@ -12,7 +12,10 @@ The production Tab Two build includes an optional Google sign-in for Account &
 Sync. You can continue using Local mode without an account; Local mode makes no
 Tab Two account-service request. If you explicitly sign in, Tab Two uses the
 production Supabase account service only for Google authentication, a
-provider-neutral Tab Two account snapshot, and a signed capability lease.
+provider-neutral Tab Two account snapshot, and a signed capability lease. The
+checked-in PM-P3 billing implementation is local/test-mode only: no Stripe
+account, catalog, webhook, secret, Checkout, or payment has been provisioned or
+deployed for production.
 Signing in does not enable sync and does not upload settings, notes, connector
 credentials, locations, layouts, backups, or any other dashboard product data.
 Tab Two does not collect data for its developer, sell or rent your data, or
@@ -95,6 +98,15 @@ and creation/update timestamps. It also stores server-side entitlement grants
 and append-only entitlement audit events. It does not receive dashboard
 settings, notes, connector credentials, location, layout, backup, or sync data
 from this account-only production packet.
+
+The local/test-mode PM-P3 billing schema stores only the provider-neutral Tab
+Two account UUID, sandbox Stripe customer/subscription/Checkout identifiers,
+normalized plan and subscription boundaries, one-use introductory-offer state,
+webhook id/type/object/time/hash/outcome metadata, bounded rate-limit state, and
+append-only billing transitions. It never stores raw webhook bodies, hosted
+Checkout or Portal URLs, card data, billing addresses, receipts, payment-method
+details, or customer email as billing authority. This schema and its Stripe
+functions are not deployed in production at this checkpoint.
 
 **Uploaded background photos** are the one exception to `chrome.storage.local`:
 if you choose "My photo" and upload your own image(s), each image is stored
@@ -210,6 +222,16 @@ existing session or explicit Account & Sync action (item 8 below):
    HTTPS request metadata. No dashboard product data or connector credential is
    sent. Sign out removes the local account session. Supabase and Google process
    authentication data under their own privacy terms.
+   Explicit plan, Manage billing, and Refresh billing actions use that same
+   Supabase session. The local/test-mode implementation can ask the server to
+   select a semantic sandbox price and return a short-lived Stripe-hosted URL.
+   Tab Two accepts only exact HTTPS `checkout.stripe.com` Checkout URLs or
+   `billing.stripe.com` Customer Portal URLs and opens one in a normal browser
+   tab. Stripe and Link collect and process payment and billing details on their
+   hosted pages; Tab Two never handles or stores card data. A signed lease
+   refreshed from Supabase is the only capability authority. Checkout success,
+   cancel, Portal return state, URL parameters, and the return page never grant
+   access. These Stripe paths remain unprovisioned and undeployed in production.
 
 Tab Two makes no other network calls. In particular: no analytics, no
 telemetry, no crash reporting, no ad networks, no remote fonts or scripts,

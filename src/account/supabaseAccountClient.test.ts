@@ -54,12 +54,21 @@ function dependencies(initialSession: StoredAccountSessionV1 | null = session) {
         },
       })),
       getEntitlementLease: vi.fn(async () => ({ ok: true as const, value: { signed: 'envelope' } })),
+      createCheckoutSession: vi.fn(async () => ({
+        ok: true as const,
+        value: { url: 'https://checkout.stripe.com/c/pay/cs_test_a' },
+      })),
+      createPortalSession: vi.fn(async () => ({
+        ok: true as const,
+        value: { url: 'https://billing.stripe.com/p/session/bps_test_a' },
+      })),
     },
     verifyLease: vi.fn(async (_envelope, accountId) => accountId === 'account-a' ? lease : null),
     refreshLock: {
       request: vi.fn(async (_name, callback) => callback()),
     },
     now: () => now,
+    openExternal: vi.fn(),
   }
   return { deps, stored: () => stored }
 }
@@ -127,7 +136,14 @@ describe('Supabase AccountClient', () => {
       accountId: 'account-a',
       email: 'alex@example.test',
       displayName: 'Alex Morgan',
-      subscription: 'complimentary',
+      billing: {
+        state: 'complimentary',
+        plan: null,
+        currentPeriodEnd: null,
+        courtesyEnd: null,
+        cancelAtPeriodEnd: false,
+        introductoryEligible: false,
+      },
       lease,
       sync: expect.objectContaining({ enabled: false, phase: 'disabled' }),
       devices: [],
@@ -156,6 +172,20 @@ describe('Supabase AccountClient', () => {
       'account-a',
       serverIssuedAt,
     )
+  })
+
+  it('does not display complimentary authority without a matching verified owner lease', async () => {
+    value.deps.api.getEntitlementLease = vi.fn(async () => ({
+      ok: false as const,
+      kind: 'not_entitled' as const,
+    }))
+    const client = createSupabaseAccountClient(value.deps)
+
+    await expect(client.getSnapshot()).resolves.toEqual(expect.objectContaining({
+      mode: 'signed_in',
+      billing: expect.objectContaining({ state: 'none' }),
+      lease: null,
+    }))
   })
 
   it('stores only the validated auth session and never enables sync or uploads product data on sign-in', async () => {
@@ -251,22 +281,67 @@ describe('Supabase AccountClient', () => {
     await expect(client.getSnapshot()).resolves.toEqual(expect.objectContaining({ mode: 'local' }))
   })
 
-  it('keeps every PM-P3+ action inert and request-free', async () => {
+  it('opens only server-selected hosted billing URLs in one normal tab', async () => {
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+
+    await expect(client.actions.openPlans('annual')).resolves.toEqual({ status: 'opened' })
+    await expect(client.actions.openBilling()).resolves.toEqual({ status: 'opened' })
+    expect(value.deps.api.createCheckoutSession).toHaveBeenCalledWith('access-token', 'annual')
+    expect(value.deps.api.createPortalSession).toHaveBeenCalledWith('access-token')
+    expect(value.deps.openExternal).toHaveBeenNthCalledWith(1, 'https://checkout.stripe.com/c/pay/cs_test_a')
+    expect(value.deps.openExternal).toHaveBeenNthCalledWith(2, 'https://billing.stripe.com/p/session/bps_test_a')
+  })
+
+  it.each([
+    ['Checkout lookalike', 'createCheckoutSession', 'https://checkout.stripe.com.attacker.example/c/pay/x'],
+    ['Checkout user info', 'createCheckoutSession', 'https://user@checkout.stripe.com/c/pay/x'],
+    ['Checkout port', 'createCheckoutSession', 'https://checkout.stripe.com:444/c/pay/x'],
+    ['Portal custom domain', 'createPortalSession', 'https://example.test/portal'],
+  ] as const)('rejects a %s without opening a tab', async (_name, method, url) => {
+    value.deps.api[method] = vi.fn(async () => ({ ok: true as const, value: { url } }))
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+
+    const result = method === 'createCheckoutSession'
+      ? await client.actions.openPlans('monthly')
+      : await client.actions.openBilling()
+
+    expect(result).toEqual({ status: 'unavailable' })
+    expect(value.deps.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('requires authentication before billing and clears authority on a rejected billing session', async () => {
+    value = dependencies(null)
+    const local = createSupabaseAccountClient(value.deps)
+    await expect(local.actions.openPlans('monthly')).resolves.toEqual({ status: 'authentication_required' })
+    expect(value.deps.api.createCheckoutSession).not.toHaveBeenCalled()
+
+    value = dependencies()
+    value.deps.api.createPortalSession = vi.fn(async () => ({ ok: false as const, kind: 'unauthorized' as const }))
+    const signed = createSupabaseAccountClient(value.deps)
+    await signed.getSnapshot()
+    await expect(signed.actions.openBilling()).resolves.toEqual({ status: 'authentication_required' })
+    expect(value.deps.sessionStore.clear).toHaveBeenCalled()
+  })
+
+  it('refreshes the account snapshot and signed lease without trusting browser return state', async () => {
     const client = createSupabaseAccountClient(value.deps)
     await client.getSnapshot()
     vi.mocked(value.deps.api.getAccountSnapshot).mockClear()
     vi.mocked(value.deps.api.getEntitlementLease).mockClear()
 
-    await client.actions.enableSync()
-    await client.actions.disableSync()
-    await client.actions.syncNow()
-    await client.actions.revokeDevice('device-a')
-    await client.actions.openPlans()
-    await client.actions.openBilling()
-    await client.actions.deleteVault()
-    await client.actions.deleteAccount()
+    await expect(client.actions.refreshBilling()).resolves.toEqual({ status: 'refreshed' })
+    expect(value.deps.api.getAccountSnapshot).toHaveBeenCalledOnce()
+    expect(value.deps.api.getEntitlementLease).toHaveBeenCalledOnce()
+  })
 
-    expect(value.deps.api.getAccountSnapshot).not.toHaveBeenCalled()
-    expect(value.deps.api.getEntitlementLease).not.toHaveBeenCalled()
+  it('reports an unavailable billing refresh when only the stale offline snapshot survives', async () => {
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+    value.deps.api.getAccountSnapshot = vi.fn(async () => ({ ok: false as const, kind: 'unavailable' as const }))
+
+    await expect(client.actions.refreshBilling()).resolves.toEqual({ status: 'unavailable' })
+    expect((await client.getSnapshot()).mode).toBe('signed_in')
   })
 })

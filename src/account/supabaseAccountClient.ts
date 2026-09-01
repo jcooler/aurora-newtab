@@ -1,4 +1,6 @@
 import type { AccountServiceConfig } from './accountServiceConfig'
+import { createBillingSummary, isTrustedBillingHandoff } from './billing'
+import type { BillingPlan, BillingState } from './billing'
 import type { AccountClient } from './client'
 import { verifyEntitlementLeaseV1 } from './entitlementLease'
 import {
@@ -18,7 +20,14 @@ export interface AccountServiceSnapshot {
   accountId: string
   email: string
   displayName: string | null
-  subscription: { state: 'none' | 'active' | 'complimentary' }
+  subscription: {
+    state: BillingState
+    plan?: 'monthly' | 'annual' | 'intro_annual' | null
+    currentPeriodEnd?: number | null
+    courtesyEnd?: number | null
+    cancelAtPeriodEnd?: boolean
+    introductoryEligible?: boolean
+  }
 }
 
 type ServiceResult<T> =
@@ -42,6 +51,8 @@ export interface SupabaseAccountClientDependencies {
   api: {
     getAccountSnapshot(accessToken: string): Promise<ServiceResult<AccountServiceSnapshot>>
     getEntitlementLease(accessToken: string): Promise<ServiceResult<unknown>>
+    createCheckoutSession(accessToken: string, plan: BillingPlan): Promise<ServiceResult<{ url: string }>>
+    createPortalSession(accessToken: string): Promise<ServiceResult<{ url: string }>>
   }
   verifyLease(
     envelope: unknown,
@@ -52,6 +63,7 @@ export interface SupabaseAccountClientDependencies {
     request<T>(name: string, callback: () => Promise<T>): Promise<T>
   }
   now(): number
+  openExternal(url: string): void
 }
 
 const refreshLockName = 'tab-two:account-session-refresh:v1'
@@ -79,7 +91,20 @@ function validAccountSnapshot(value: AccountServiceSnapshot): boolean {
     && (value.displayName === null
       || (typeof value.displayName === 'string' && value.displayName.length > 0 && value.displayName.length <= 200))
     && value.subscription
-    && ['none', 'active', 'complimentary'].includes(value.subscription.state),
+    && ['none', 'active', 'past_due', 'canceling', 'expired', 'complimentary'].includes(value.subscription.state)
+    && (value.subscription.plan === undefined
+      || value.subscription.plan === null
+      || ['monthly', 'annual', 'intro_annual'].includes(value.subscription.plan))
+    && (value.subscription.currentPeriodEnd === undefined
+      || value.subscription.currentPeriodEnd === null
+      || Number.isSafeInteger(value.subscription.currentPeriodEnd))
+    && (value.subscription.courtesyEnd === undefined
+      || value.subscription.courtesyEnd === null
+      || Number.isSafeInteger(value.subscription.courtesyEnd))
+    && (value.subscription.cancelAtPeriodEnd === undefined
+      || typeof value.subscription.cancelAtPeriodEnd === 'boolean')
+    && (value.subscription.introductoryEligible === undefined
+      || typeof value.subscription.introductoryEligible === 'boolean'),
   )
 }
 
@@ -93,9 +118,18 @@ function signedSnapshot(
     accountId: account.accountId,
     email: account.email,
     displayName: account.displayName,
-    subscription: lease?.grantSources.includes('complimentary_owner')
-      ? 'complimentary' as const
-      : 'none' as const,
+    billing: createBillingSummary({
+      state: lease?.grantSources.includes('complimentary_owner')
+        ? 'complimentary'
+        : account.subscription.state === 'complimentary'
+          ? 'none'
+          : account.subscription.state,
+      plan: account.subscription.plan ?? null,
+      currentPeriodEnd: account.subscription.currentPeriodEnd ?? null,
+      courtesyEnd: account.subscription.courtesyEnd ?? null,
+      cancelAtPeriodEnd: account.subscription.cancelAtPeriodEnd ?? false,
+      introductoryEligible: account.subscription.introductoryEligible ?? account.subscription.state === 'none',
+    }),
     lease,
     sync: fixedSync(phase),
     devices: Object.freeze([]),
@@ -163,7 +197,10 @@ export function createSupabaseAccountClient(
     })
   }
 
+  let lastHydrationFresh = false
+
   async function hydrate(): Promise<AccountSnapshot> {
+    lastHydrationFresh = false
     const at = dependencies.now()
     let stored: StoredAccountSessionV1 | null
     try {
@@ -191,6 +228,7 @@ export function createSupabaseAccountClient(
     if (!leaseResult.ok) {
       if (leaseResult.kind === 'unauthorized') return clearAuthority()
       if (leaseResult.kind === 'not_entitled') {
+        lastHydrationFresh = true
         return publish(signedSnapshot(accountResult.value, null))
       }
       return offlineOrLocal(at)
@@ -201,6 +239,7 @@ export function createSupabaseAccountClient(
       dependencies.now(),
     )
     if (!verified) return clearAuthority()
+    lastHydrationFresh = true
     return publish(signedSnapshot(accountResult.value, verified))
   }
 
@@ -235,6 +274,60 @@ export function createSupabaseAccountClient(
     await clearAuthority()
   }
 
+  async function billingSession(): Promise<StoredAccountSessionV1 | null> {
+    let stored: StoredAccountSessionV1 | null
+    try {
+      stored = await dependencies.sessionStore.read()
+    } catch {
+      return null
+    }
+    return stored ? usableSession(stored) : null
+  }
+
+  async function openPlans(plan: BillingPlan) {
+    try {
+      const prepared = await billingSession()
+      if (!prepared) return { status: 'authentication_required' as const }
+      const result = await dependencies.api.createCheckoutSession(prepared.accessToken, plan)
+      if (!result.ok) {
+        if (result.kind === 'unauthorized') {
+          await clearAuthority()
+          return { status: 'authentication_required' as const }
+        }
+        return { status: 'unavailable' as const }
+      }
+      if (!result.value || !isTrustedBillingHandoff(result.value.url, 'checkout.stripe.com')) {
+        return { status: 'unavailable' as const }
+      }
+      dependencies.openExternal(result.value.url)
+      return { status: 'opened' as const }
+    } catch {
+      return { status: 'unavailable' as const }
+    }
+  }
+
+  async function openBilling() {
+    try {
+      const prepared = await billingSession()
+      if (!prepared) return { status: 'authentication_required' as const }
+      const result = await dependencies.api.createPortalSession(prepared.accessToken)
+      if (!result.ok) {
+        if (result.kind === 'unauthorized') {
+          await clearAuthority()
+          return { status: 'authentication_required' as const }
+        }
+        return { status: result.kind === 'not_entitled' ? 'not_configured' as const : 'unavailable' as const }
+      }
+      if (!result.value || !isTrustedBillingHandoff(result.value.url, 'billing.stripe.com')) {
+        return { status: 'unavailable' as const }
+      }
+      dependencies.openExternal(result.value.url)
+      return { status: 'opened' as const }
+    } catch {
+      return { status: 'unavailable' as const }
+    }
+  }
+
   async function unavailable(): Promise<void> {}
   const actions: AccountActions = Object.freeze({
     beginSignIn,
@@ -243,8 +336,13 @@ export function createSupabaseAccountClient(
     disableSync: unavailable,
     syncNow: unavailable,
     revokeDevice: async (_deviceId: string) => {},
-    openPlans: unavailable,
-    openBilling: unavailable,
+    openPlans,
+    openBilling,
+    async refreshBilling() {
+      const snapshot = await getSnapshot()
+      if (snapshot.mode !== 'signed_in') return { status: 'authentication_required' as const }
+      return lastHydrationFresh ? { status: 'refreshed' as const } : { status: 'unavailable' as const }
+    },
     deleteVault: unavailable,
     deleteAccount: unavailable,
   })
@@ -287,12 +385,18 @@ async function serviceRequest<T>(
   url: string,
   method: 'GET' | 'POST',
   token: string,
+  body?: unknown,
 ): Promise<ServiceResult<T>> {
   let response: Response
   try {
     response = await fetch(url, {
       method,
-      headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
+      headers: {
+        authorization: `Bearer ${token}`,
+        accept: 'application/json',
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
     return { ok: false, kind: 'unavailable' }
@@ -366,6 +470,18 @@ export function createConfiguredSupabaseAccountClient(config: AccountServiceConf
         'POST',
         token,
       ),
+      createCheckoutSession: (token, plan) => serviceRequest<{ url: string }>(
+        `${config.supabaseUrl}/functions/v1/billing-checkout-session`,
+        'POST',
+        token,
+        { plan },
+      ),
+      createPortalSession: (token) => serviceRequest<{ url: string }>(
+        `${config.supabaseUrl}/functions/v1/billing-portal-session`,
+        'POST',
+        token,
+        {},
+      ),
     },
     verifyLease: (envelope, expectedAccountId, at) => verifyEntitlementLeaseV1(
       envelope as never,
@@ -377,5 +493,8 @@ export function createConfiguredSupabaseAccountClient(config: AccountServiceConf
       },
     },
     now: Date.now,
+    openExternal(url) {
+      globalThis.open(url, '_blank', 'noopener')
+    },
   })
 }

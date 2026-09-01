@@ -1,4 +1,6 @@
 import type { AccountClient } from './client'
+import { localBillingSummary } from './billing'
+import type { BillingPlan } from './billing'
 import type { AccountActions, AccountSnapshot } from './types'
 
 export const localAccountSnapshot: AccountSnapshot = Object.freeze({
@@ -6,7 +8,7 @@ export const localAccountSnapshot: AccountSnapshot = Object.freeze({
   accountId: null,
   email: null,
   displayName: null,
-  subscription: 'none',
+  billing: localBillingSummary,
   lease: null,
   sync: Object.freeze({
     enabled: false,
@@ -29,8 +31,9 @@ const localActions: AccountActions = Object.freeze({
   disableSync: noOp,
   syncNow: noOp,
   async revokeDevice(_deviceId: string) {},
-  openPlans: noOp,
-  openBilling: noOp,
+  async openPlans(_plan: BillingPlan) { return { status: 'not_configured' as const } },
+  async openBilling() { return { status: 'not_configured' as const } },
+  async refreshBilling() { return { status: 'authentication_required' as const } },
   deleteVault: noOp,
   deleteAccount: noOp,
 })

@@ -26,13 +26,12 @@ export interface SignedEntitlementLeaseV1 {
   signature: string
 }
 
-export type SubscriptionState =
-  | 'none'
-  | 'active'
-  | 'past_due'
-  | 'canceling'
-  | 'expired'
-  | 'complimentary'
+import type {
+  BillingActionOutcome,
+  BillingPlan,
+  BillingRefreshOutcome,
+  BillingSummary,
+} from './billing'
 
 export type SyncPhase =
   | 'disabled'
@@ -58,7 +57,7 @@ export interface AccountSnapshot {
   accountId: string | null
   email: string | null
   displayName: string | null
-  subscription: SubscriptionState
+  billing: BillingSummary
   lease: VerifiedEntitlementLease | null
   sync: {
     enabled: boolean
@@ -85,8 +84,9 @@ export interface AccountActions {
   disableSync(): Promise<void>
   syncNow(): Promise<void>
   revokeDevice(deviceId: string): Promise<void>
-  openPlans(): Promise<void>
-  openBilling(): Promise<void>
+  openPlans(plan: BillingPlan): Promise<BillingActionOutcome>
+  openBilling(): Promise<BillingActionOutcome>
+  refreshBilling(): Promise<BillingRefreshOutcome>
   deleteVault(): Promise<void>
   deleteAccount(): Promise<void>
 }

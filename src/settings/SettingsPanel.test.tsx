@@ -384,10 +384,13 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
 
     openTab('Account & Sync')
     expect(await screen.findByRole('heading', { name: 'Local mode' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
-    fireEvent.click(screen.getByRole('button', { name: 'View plans' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Choose monthly' }))
+    })
 
     await screen.findByText('Google sign-in is not configured in this build.')
+    await screen.findByText('Billing is not configured in this build.')
     expect(write).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })

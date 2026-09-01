@@ -43,7 +43,14 @@ describe('createAccountClient', () => {
       accountId: null,
       email: null,
       displayName: null,
-      subscription: 'none',
+      billing: {
+        state: 'none',
+        plan: null,
+        currentPeriodEnd: null,
+        courtesyEnd: null,
+        cancelAtPeriodEnd: false,
+        introductoryEligible: true,
+      },
       lease: null,
       sync: {
         enabled: false,
@@ -55,6 +62,7 @@ describe('createAccountClient', () => {
       devices: [],
     })
     expect(Object.isFrozen(snapshot)).toBe(true)
+    expect(Object.isFrozen(snapshot.billing)).toBe(true)
     expect(Object.isFrozen(snapshot.sync)).toBe(true)
     expect(Object.isFrozen(snapshot.devices)).toBe(true)
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -68,8 +76,9 @@ describe('createAccountClient', () => {
     await client.actions.disableSync()
     await client.actions.syncNow()
     await client.actions.revokeDevice('device-1')
-    await client.actions.openPlans()
-    await client.actions.openBilling()
+    expect(await client.actions.openPlans('monthly')).toEqual({ status: 'authentication_required' })
+    expect(await client.actions.openBilling()).toEqual({ status: 'authentication_required' })
+    expect(await client.actions.refreshBilling()).toEqual({ status: 'authentication_required' })
     await client.actions.deleteVault()
     await client.actions.deleteAccount()
 
@@ -84,7 +93,7 @@ describe('createAccountClient', () => {
     await expect(client.getSnapshot()).resolves.toEqual(
       expect.objectContaining({
         mode: 'signed_in',
-        subscription: 'active',
+        billing: expect.objectContaining({ state: 'active', plan: 'monthly' }),
         sync: expect.objectContaining({ enabled: false, phase: 'needs_attention' }),
         devices: expect.arrayContaining([
           expect.objectContaining({ id: 'preview-device-5', revoked: false }),

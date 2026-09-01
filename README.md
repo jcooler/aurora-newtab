@@ -9,6 +9,10 @@ and signed capability leases; signing in does not enable sync or upload local
 dashboard data. There is no analytics or tracking. Selected features make only
 the direct provider requests disclosed below.
 
+PM-P3 billing code is currently local/test-mode only. It has server-owned
+sandbox catalog, Checkout, Portal, and webhook boundaries, but no Stripe
+account, object, secret, deployment, Checkout, or payment has been created.
+
 ## Features
 
 - **Clock & greeting** — large local time, time-of-day greeting.
@@ -468,6 +472,15 @@ habits, manual Progress goals, widget layout, and connector configuration (e.g. 
 list) — is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).
+
+The local/test-mode billing path sends only an authenticated account request and
+semantic plan to the Tab Two Supabase service. The server selects the sandbox
+price and may return an exact Stripe-hosted Checkout or Customer Portal URL for
+a normal browser tab. Stripe/Link, not Tab Two, handle card and billing details.
+Tab Two stores no hosted URL or payment-method data, ignores browser return state
+as authority, and enables capabilities only after refreshing an account-bound
+signed lease. The billing service is not deployed or provisioned in production
+at this checkpoint.
 
 
 The **fixed** outbound network calls Tab Two makes on its own are to
