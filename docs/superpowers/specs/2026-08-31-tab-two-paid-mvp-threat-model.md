@@ -1,7 +1,7 @@
 # Tab Two Paid MVP Threat Model
 
 **Date:** 2026-08-31
-**Status:** Owner-approved security direction; revised 2026-09-01; implementation not started
+**Status:** Owner-approved consolidated security direction; implementation not started
 **Authority:** `2026-08-31-tab-two-freemium-product-architecture-design.md`
 
 ## Purpose
