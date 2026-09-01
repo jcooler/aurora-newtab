@@ -212,7 +212,9 @@ async function geometry(page) {
         && rect.left < innerWidth
         && rect.top < innerHeight
     }
-    const activeDialog = document.querySelector('[role="dialog"][aria-modal="true"]')
+    const activeDialog = document.querySelector(
+      '[role="dialog"][aria-modal="true"]:not([data-settings-scroll-owner="document"])',
+    )
     const controlRoot = activeDialog ?? document.querySelector('[data-settings-scroll-owner="document"]')
     const candidates = controlRoot
       ? [...controlRoot.querySelectorAll('button, input')].filter(visible)
