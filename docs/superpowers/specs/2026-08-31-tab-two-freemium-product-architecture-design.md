@@ -1,8 +1,10 @@
 # Tab Two Freemium Product and Architecture Design
 
-**Status:** Owner-approved direction, consolidated specification review pending
+**Status:** Owner-approved direction; 2026-09-01 consolidation awaiting owner review
 
 **Date:** 2026-08-31
+
+**Revised:** 2026-09-01
 
 **Product:** Tab Two
 
@@ -173,7 +175,7 @@ premium-flow checks are not visual acceptance. Before launch, QA must:
   manual-device check.
 - Cover Settings, Account & Sync, device management, billing, cancellation,
   encrypted-vault status, Metrics, premium locked and unlocked states, expired
-  entitlement, offline lease, failed-payment courtesy, quota, conflict-copy,
+  entitlement, offline lease, failed-payment courtesy, quota, conflict backup,
   deletion, and connector recovery flows.
 - Capture storage and request ledgers against explicit allowlists. Free local use
   must produce no Tab Two backend traffic; every interaction must produce only
@@ -248,6 +250,8 @@ payloads. Disconnecting a source offers an explicit delete-history choice.
 - Sign-in is explicit and user-initiated; Tab Two does not silently adopt the
   active Chrome profile.
 - The customer selects the Google account during sign-in.
+- Signing in checks account and entitlement state only. It does not enable sync
+  or upload local product data.
 - The database uses a provider-neutral Tab Two account ID. Google email is not
   the primary key.
 - Billing, devices, vaults, and entitlements attach to the internal account ID.
@@ -260,6 +264,28 @@ payloads. Disconnecting a source offers an explicit delete-history choice.
 Google account recovery is the MVP account-recovery path. Losing Google access
 does not remove data that remains on an existing local installation.
 
+## Account & Sync experience
+
+- Settings gains a dedicated sixth **Account & Sync** tab. It is visible to
+  every user; Data remains responsible for local backup, restore, deletion, and
+  privacy controls.
+- Signed-out users see **Local mode**, reassurance that current data stays on
+  the device, an optional **Sign in with Google** action, the sync inclusion and
+  exclusion inventory, and concise plan information.
+- Tab Two never forces sign-in during installation, first run, or ordinary free
+  use. No persistent account or avatar control appears on the canvas.
+- Premium connectors and features explain their value inline and offer **Sign
+  in** for existing subscribers and **View plans** for everyone else. Ordinary
+  free use never opens an upgrade modal.
+- Signed-in users see account identity, subscription status, the separate
+  **Enable sync** control, sync state, last successful sync, quota usage,
+  **Sync now**, and device management.
+- Self-service actions include **Manage billing**, **Delete synced data**,
+  **Sign out**, and **Delete account**.
+- The MVP uses one sync switch for all eligible data. Per-category sync controls
+  are deferred.
+- Onboarding remains deferred and is not coupled to accounts or premium launch.
+
 ## Payments and pricing
 
 ### Provider
@@ -268,6 +294,12 @@ Stripe Managed Payments is the preferred merchant of record. It preserves
 Stripe Checkout and subscription management while assigning supported indirect
 tax calculation, collection, filing, remittance, fraud handling, dispute
 handling, and transaction-level support to Stripe and Link.
+
+Upgrade opens Stripe-hosted Checkout in a normal browser tab. Manage billing
+opens Stripe's hosted Customer Portal for payment methods, invoices, plan
+changes, and cancellation. Authenticated Edge Functions create both sessions;
+Tab Two never receives or stores card details. The extension refreshes its
+signed entitlement after Checkout rather than trusting the return page.
 
 Lemon Squeezy remains the fallback if Tab Two is ineligible for Stripe Managed
 Payments or the public-preview service is not production-ready at implementation
@@ -325,6 +357,9 @@ approval time.
 - Google sign-in alone authorizes a new device; no recovery key or existing-device
   approval is required.
 - At the limit, the customer chooses an existing device to revoke.
+- A sixth installation may sign in and continue using all local features, but
+  sync activation is blocked until the customer explicitly revokes one of the
+  five active installations. Tab Two never auto-evicts a device.
 - Revocation stops future sync but does not remotely erase local data.
 - Device state includes only the identifier, friendly name, last sync time, and
   revocation status needed to operate the feature.
@@ -335,11 +370,12 @@ The approved experience prioritizes Google-authenticated recovery over
 zero-knowledge encryption.
 
 - Each account receives a distinct data-encryption key.
-- The extension encrypts the sync payload before upload.
+- The extension encrypts record-level sync envelopes before upload.
 - Privileged backend code protects the account key and releases it only after
   verified Google authentication and entitlement checks.
-- Supabase stores ciphertext, the protected account key, versions, and required
-  metadata.
+- Supabase stores ciphertext, the protected account key, versions, tombstones,
+  and minimal routing metadata: entity type, stable ID, revision, size, and
+  server sequence.
 - Tab Two's service can technically obtain the account key; therefore customer
   copy must say **encrypted sync**, not end-to-end encrypted or zero-knowledge
   sync.
@@ -347,11 +383,14 @@ zero-knowledge encryption.
 - Key access must be isolated to privileged functions, excluded from logs, and
   covered by rotation and incident procedures before production.
 
-The sync allowlist contains approved text, settings, stable entity identifiers,
-and aggregate metrics. A central schema strips connector credential fields,
-RSS and ICS capability URLs, caches, raw responses, and photo/blob data before
-serialization. Deny-by-default is authoritative when a new field has no sync
-classification.
+The single-switch sync allowlist contains layouts, widget configuration,
+appearance, habits and Progress, tasks, notes, non-secret connector
+preferences, stable entity identifiers, and approved aggregate metrics. A
+central schema strips connector credentials and tokens, authentication
+sessions, signed leases, RSS and ICS capability URLs, provider caches and raw
+responses, custom images and other blobs, device-local image references, and
+browser-local operational state before serialization. Deny-by-default is
+authoritative when a new field has no sync classification.
 
 ## Sync semantics
 
@@ -360,11 +399,16 @@ classification.
   stable IDs and revisions.
 - A device uploads changes against the server version it last received.
 - Independent entity changes merge automatically.
-- Conflicting scalar revisions use the latest confirmed revision.
+- Conflicting revisions of the same record use the latest server-accepted
+  revision. Server sequence, not a device clock, determines order.
+- A stale upload is rejected rather than overwriting the current server record.
+  The client backs up its unsynced local version and adopts the current server
+  revision; it does not retry the stale change automatically.
 - Habit completion merges per habit and date.
 - Metrics merge per source and daily bucket.
-- Concurrent edits to valuable text or the same named layout create a labeled
-  recovered copy instead of silently discarding one side.
+- Before a conflicting remote revision replaces local state, Tab Two creates a
+  recoverable local backup through the existing local backup authority. The MVP
+  does not show technical conflict dialogs or create cloud conflict copies.
 - Deletions create tombstones so stale devices cannot resurrect removed data.
 - Tombstones compact only after every active device acknowledges the deletion or
   a stale device is revoked.
@@ -458,11 +502,16 @@ User controls include:
 - Delete the cloud account after fresh Google authentication.
 - Use local JSON backup independently.
 
-Account deletion cancels renewal, removes the cloud vault, and schedules removal
-of account data. Minimal transaction records may remain where Stripe or
-applicable accounting obligations require them. Revoking Google access alone
-does not silently cancel a paid subscription; the product must warn customers to
-cancel billing first.
+Subscription cancellation stops renewal but preserves premium access through
+the paid period. Deleting synced data removes the cloud vault while preserving
+the account and subscription. Account deletion requires fresh Google
+authentication, immediately revokes Tab Two sessions and premium access, stops
+future billing, and deletes the vault, device records, and Tab Two account data.
+It does not erase local data on any installation and is not recoverable through
+support. Minimal transaction records may remain with Stripe or where applicable
+accounting obligations require them. Revoking Google access alone does not
+silently cancel a paid subscription; the product must warn customers to cancel
+billing first.
 
 ## Support model
 
@@ -519,7 +568,7 @@ Customer-facing language:
 | Google-only identity is unavailable to a customer or blocked by an employer | Customer cannot create or recover a paid account | Keep free local use complete; disclose the requirement; retain provider-neutral account identity for a later approved provider |
 | Backend key access is described inaccurately | Privacy promise exceeds the architecture | Use "encrypted sync" only; complete threat modeling, access isolation, rotation, and incident procedures |
 | Sync schema accidentally admits a secret or capability URL | Sensitive connector authority reaches the backend | Deny by default, maintain one typed allowlist, add exhaustive secret fixtures, and fail closed on unknown fields |
-| Concurrent or stale devices lose or resurrect data | Layout, text, habit, or metric corruption | Implement versioned entity merges, recovered copies, acknowledged tombstones, and destructive conflict tests |
+| Concurrent or stale devices lose or resurrect data | Layout, text, habit, or metric corruption | Implement versioned entity merges, pre-overwrite local backups, acknowledged tombstones, and destructive conflict tests |
 | Connector maintenance exceeds one-person capacity | Broken premium value and unsustainable support | Ship a small reviewed portfolio, use self-service recovery, monitor provider changes, and avoid a support SLA |
 | Supabase usage or provider pricing changes | Margin falls below the $1.99 plan's assumptions | Enforce quotas and spend caps, review usage monthly, and retain a portable schema and export path |
 | A new OAuth scope or extension permission changes Store review requirements | Release delay or unexpected customer warning | Request least privilege incrementally and require separate permission, privacy, Chromium, and Store-review approval |
@@ -533,8 +582,8 @@ implementation plan must resolve them before code or provisioning:
 - Exact Google, Microsoft, and Strava OAuth scopes and approval artifacts.
 - Account-key wrapping algorithm, secret storage, rotation, and emergency
   recovery procedure.
-- Exact sync entity map, revision format, tombstone acknowledgement, and
-  conflict-copy presentation.
+- Exact sync entity map, revision format, tombstone acknowledgement, and local
+  conflict-backup retention and restoration behavior.
 - Supabase region, data processing terms, migration workflow, backup restore
   drill, and encrypted-vault export procedure.
 - Exact tax-inclusive Stripe catalog configuration and introductory-price
@@ -543,8 +592,8 @@ implementation plan must resolve them before code or provisioning:
   security records.
 - The owner-visible alert path for provider, security, privacy, deletion, quota,
   and spend events.
-- Final Metrics and Account & Sync UI, which requires a separate visual approval
-  before production implementation.
+- Final Metrics and Account & Sync visual treatment, which requires separate
+  owner-visible approval before production implementation.
 
 ## Acceptance criteria for the architecture phase
 
@@ -562,8 +611,9 @@ implementation plan must resolve them before code or provisioning:
   bypass, and the signed complimentary owner grant remains active independently
   of Stripe billing state.
 - Device revocation cannot claim to erase remote local data.
-- Conflict tests prove that concurrent named-layout, text, habit, metric, and
-  deletion changes do not silently disappear or resurrect.
+- Conflict tests prove that concurrent same-record changes create a recoverable
+  local backup before replacement, independent entity changes merge, and
+  deletion changes do not resurrect.
 - Provider API access, retention, commercial-use, and quota terms are recorded
   before each connector is implemented.
 - The paid launch does not depend on Spotify.

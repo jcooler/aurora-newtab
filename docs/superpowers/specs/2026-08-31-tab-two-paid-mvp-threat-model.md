@@ -1,7 +1,7 @@
 # Tab Two Paid MVP Threat Model
 
 **Date:** 2026-08-31
-**Status:** Owner-approved security direction; implementation not started
+**Status:** Owner-approved security direction; revised 2026-09-01; implementation not started
 **Authority:** `2026-08-31-tab-two-freemium-product-architecture-design.md`
 
 ## Purpose
@@ -93,6 +93,8 @@ flowchart LR
 ### Authentication and sessions
 
 - Google sign-in is explicit and begins only from the Account & Sync surface.
+- Signing in checks account and entitlement state only. Sync remains a separate
+  explicit opt-in and sign-in alone uploads no local product data.
 - OAuth uses PKCE, a cryptographically random state value, an exact redirect
   allowlist, short-lived authorization codes, and single-use callback state.
 - Development, staging, and production use separate Google projects and
@@ -161,9 +163,12 @@ flowchart LR
 - Exhaustive fixtures include every connector secret, nested RSS/ICS capability
   URL, Supabase session, signed lease, provider token, cache, raw response, and
   photo/blob field and prove that none can serialize.
-- Uploads use optimistic server versions. Conflicting valuable text or layouts
-  create recovered copies; deletions use acknowledged tombstones; failed sync
-  never replaces valid local state.
+- Uploads use optimistic server versions. A stale upload is rejected rather
+  than overwriting the current server record. The latest server-accepted
+  same-record revision wins without trusting device clocks; the client first
+  backs up its unsynced local version and then adopts the server revision
+  without automatically retrying the stale change. Deletions use acknowledged
+  tombstones; failed sync never replaces valid local state.
 
 ### Devices, deletion, and diagnostics
 
@@ -171,6 +176,9 @@ flowchart LR
   server access but does not claim to erase the device's existing local data.
 - Device-limit replacement requires fresh account authentication and an
   explicit selected device; requests cannot revoke an arbitrary foreign id.
+- A sixth installation may sign in and use local features, but cannot activate
+  sync until the customer explicitly revokes an active installation. No device
+  is auto-evicted.
 - Vault deletion and account deletion require fresh authentication, explicit
   confirmation, idempotent backend jobs, and an owner-visible final state.
 - User-generated diagnostics are assembled locally, shown for review, and sent
@@ -196,7 +204,7 @@ flowchart LR
 | Secret enters sync, backup, diagnostics, or logs | Critical | Exhaustive deny-list fixtures and production artifact scans | A compromised local OS profile can read local secrets |
 | Forged entitlement or client-side owner bypass | Critical | Signature, account binding, production symbol scan, and tamper tests | Privileged backend operators can grant access |
 | Webhook forgery, replay, or stale rollback | Critical | Signature, raw-body, idempotency, reordering, and recovery tests | Stripe outage delays current billing state |
-| Lost or resurrected sync data | Important | Concurrent entity, conflict-copy, tombstone, revoked-device, and rollback tests | User must resolve an explicit recovered copy |
+| Lost or resurrected sync data | Important | Concurrent entity, pre-overwrite local-backup, tombstone, revoked-device, and rollback tests | The latest server-accepted same-record revision wins; the displaced local state remains recoverable through a local backup |
 | OAuth CSRF, redirect substitution, or token leak | Critical | PKCE/state/replay/redirect and log-redaction tests | Provider or browser account compromise remains external |
 | Owner locked out by Stripe state | Important | Complimentary grant remains active through cancel, fail, refund, and webhook delay | Google/Tab Two account loss still requires account recovery |
 | Cost exhaustion or abusive requests | Important | Quota, rate-limit, payload-size, spend-alert, and failure-mode tests | Spend cap does not cover every Supabase charge |
