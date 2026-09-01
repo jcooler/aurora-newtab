@@ -6,6 +6,7 @@ import type {
   ProviderNeutralAccount,
 } from '../_shared/accountHandlers'
 import { authenticateBearerRequest } from '../_shared/requestAuth'
+import { withExtensionCors } from '../_shared/http'
 
 const now = Date.UTC(2026, 8, 1, 14, 0, 0)
 const account: ProviderNeutralAccount = {
@@ -184,6 +185,65 @@ describe('account Edge Function handlers', () => {
     expect(await body(await handlers.accountSnapshot(request('account-snapshot', 'GET')))).toEqual(
       expect.objectContaining({ subscription: { state: 'none' } }),
     )
+  })
+})
+
+describe('extension CORS boundary', () => {
+  const extensionOrigin = `chrome-extension://${'a'.repeat(32)}`
+
+  it('answers a bounded extension preflight without invoking account logic', async () => {
+    const handler = vi.fn()
+    const response = await withExtensionCors(new Request(
+      'http://127.0.0.1:54321/functions/v1/account-snapshot',
+      {
+        method: 'OPTIONS',
+        headers: {
+          origin: extensionOrigin,
+          'access-control-request-method': 'GET',
+          'access-control-request-headers': 'authorization, apikey, x-client-info',
+        },
+      },
+    ), 'GET', handler)
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe(extensionOrigin)
+    expect(response.headers.get('access-control-allow-methods')).toBe('GET, OPTIONS')
+    expect(response.headers.get('access-control-allow-headers')).toBe('authorization, apikey, content-type, x-client-info, x-supabase-api-version')
+    expect(response.headers.get('vary')).toBe('Origin')
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('reflects only a syntactically valid Chrome extension origin on actual responses', async () => {
+    const valid = await withExtensionCors(new Request('http://local.test', {
+      headers: { origin: extensionOrigin },
+    }), 'GET', async () => new Response('{}'))
+    const invalid = await withExtensionCors(new Request('http://local.test', {
+      headers: { origin: 'https://attacker.example' },
+    }), 'GET', async () => new Response('{}'))
+
+    expect(valid.headers.get('access-control-allow-origin')).toBe(extensionOrigin)
+    expect(invalid.headers.has('access-control-allow-origin')).toBe(false)
+  })
+
+  it('rejects unapproved origins and headers at preflight', async () => {
+    const invalidOrigin = await withExtensionCors(new Request('http://local.test', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://attacker.example',
+        'access-control-request-method': 'GET',
+      },
+    }), 'GET', vi.fn())
+    const invalidHeader = await withExtensionCors(new Request('http://local.test', {
+      method: 'OPTIONS',
+      headers: {
+        origin: extensionOrigin,
+        'access-control-request-method': 'GET',
+        'access-control-request-headers': 'authorization, x-unapproved',
+      },
+    }), 'GET', vi.fn())
+
+    expect(invalidOrigin.status).toBe(403)
+    expect(invalidHeader.status).toBe(403)
   })
 })
 

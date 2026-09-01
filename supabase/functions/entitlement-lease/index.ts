@@ -1,5 +1,6 @@
 import { createRuntimeAccountHandlers } from '../_shared/runtime.ts'
+import { withExtensionCors } from '../_shared/http.ts'
 
 const handlers = await createRuntimeAccountHandlers(Deno.env, { signing: 'required' })
 
-Deno.serve((request) => handlers.entitlementLease(request))
+Deno.serve((request) => withExtensionCors(request, 'POST', handlers.entitlementLease))
