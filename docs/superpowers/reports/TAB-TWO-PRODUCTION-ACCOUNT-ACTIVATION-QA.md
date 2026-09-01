@@ -4,7 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Manual sign-in runtime source:** `35a0853c093d78dec5cb1a387380f5e602c5fb83`<br>
 **Final reviewed source checkpoint:** `a6f24563a7981e083b00d0ba942ee66457c95fb6`<br>
-**Result:** Hosted authority activated; manual client ceiling recorded
+**Hosted hydration repair source:** `a6be8691717a657ac6486711282940671673e0af`<br>
+**Result:** Hosted authority active; corrected manual client retry pending
 
 ## Scope and gates
 
@@ -55,6 +56,21 @@ The production build was manually loaded and Google sign-in completed in the own
 Therefore this packet does not claim automated hosted screenshots, request/storage ledgers, exact client snapshot UUID equality, in-panel owner-entitlement display, or sign-out cleanup. Those client interactions remain manual ceilings. The independently verified database mapping and grant establish the hosted identity and entitlement authority, but they do not substitute for a retained visual witness of the final Account & Sync state.
 
 The automated production QA harness remains on Playwright Chromium because that is the channel capable of loading unpacked extensions. It is suitable for non-provider and local callback contract coverage, not for claiming successful real Google authentication.
+
+## Post-activation hydration defect and repair
+
+The owner's next real production attempt completed Google authentication but the Account & Sync panel reported that sign-in could not be completed. Redacted hosted diagnostics established the component boundary without reading or exposing any token, UUID, email, or secret:
+
+- `auth.users.last_sign_in_at` advanced during the attempt, proving Google callback and PKCE session exchange success;
+- `account-snapshot` recorded a successful invocation with zero 4xx/5xx rate;
+- `entitlement-lease` recorded a successful invocation with zero 4xx/5xx rate; and
+- the active owner grant remained present.
+
+The client captured `now` before user validation and both hosted requests, then passed that stale time to future-issued lease verification. The server necessarily signed the lease after those requests began, so its `issuedAt` was newer than the client comparison instant and the fail-closed verifier cleared account authority.
+
+An observed RED advances the clock while the lease request is in flight and reproduces the Local-mode fallback. The minimal fix obtains the verification time after the lease response. The focused gate passed 43/43 tests and TypeScript. The stabilized clean-tree gate at `a6be8691717a657ac6486711282940671673e0af` passed 233 files / 3,649 tests, TypeScript, 21/21 account build/QA contracts, diff hygiene, and exact production/preview/account-local builds of 326/279/326 modules. The correction changes no server, secret, permission, manifest, storage schema, data flow, sync, billing, merge, release, or Store state.
+
+The corrected in-panel owner entitlement still requires one manual stable-Chrome retry because real Google authentication cannot be completed in the extension-capable automated browser combination.
 
 ## Review and verification
 
