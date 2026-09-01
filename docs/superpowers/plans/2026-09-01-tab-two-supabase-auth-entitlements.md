@@ -627,7 +627,7 @@ Expected: the production scan exits 1 and exact local evidence passes. Do not cl
 
 Record exact test/build/evidence provenance. Update PRIVACY and README only to distinguish the locally implemented, production-disabled account foundation from shipped production behavior. Mark PM-P2 verified only as a local foundation; keep hosted Supabase, production Google OAuth, exact Supabase host authority, production signing key, real owner account UUID/grant, deployment, merge, release, and Store action as explicit gates before PM-P3.
 
-- [ ] **Step 5: Commit, push, and prove boundaries**
+- [x] **Step 5: Commit, push, and prove boundaries**
 
 ```powershell
 git add docs/superpowers/aurora-2/STATUS.md docs/superpowers/aurora-2/ROADMAP.md docs/superpowers/aurora-2/DECISIONS.md docs/superpowers/reports/TAB-TWO-SUPABASE-AUTH-ENTITLEMENTS-QA.md PRIVACY.md README.md
