@@ -134,6 +134,30 @@ describe('Supabase AccountClient', () => {
     }))
   })
 
+  it('verifies a server-issued lease against the current time after the network response', async () => {
+    let clock = now
+    const serverIssuedAt = now + 5_000
+    value.deps.now = () => clock
+    value.deps.api.getEntitlementLease = vi.fn(async () => {
+      clock = serverIssuedAt
+      return { ok: true as const, value: { signed: 'fresh-server-envelope' } }
+    })
+    value.deps.verifyLease = vi.fn(async (_envelope, accountId, verificationAt) => (
+      accountId === 'account-a' && verificationAt >= serverIssuedAt ? lease : null
+    ))
+    const client = createSupabaseAccountClient(value.deps)
+
+    await expect(client.getSnapshot()).resolves.toEqual(expect.objectContaining({
+      mode: 'signed_in',
+      accountId: 'account-a',
+    }))
+    expect(value.deps.verifyLease).toHaveBeenCalledWith(
+      { signed: 'fresh-server-envelope' },
+      'account-a',
+      serverIssuedAt,
+    )
+  })
+
   it('stores only the validated auth session and never enables sync or uploads product data on sign-in', async () => {
     value = dependencies(null)
     const client = createSupabaseAccountClient(value.deps)

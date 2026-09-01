@@ -198,7 +198,7 @@ export function createSupabaseAccountClient(
     const verified = await dependencies.verifyLease(
       leaseResult.value,
       accountResult.value.accountId,
-      at,
+      dependencies.now(),
     )
     if (!verified) return clearAuthority()
     return publish(signedSnapshot(accountResult.value, verified))
