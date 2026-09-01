@@ -388,8 +388,10 @@ export async function runAccountSyncShellQa(args = process.argv.slice(2)) {
     screenshots: [],
   }
 
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-  execFileSync(npm, ['run', 'build'], { cwd: repoRoot, stdio: 'inherit' })
+  execFileSync(process.execPath, [resolve(repoRoot, 'scripts/build.mjs')], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  })
   const productionText = artifactText(dist)
   const productionMarkerPresent = FIXTURE_MARKERS.some((marker) => productionText.includes(marker))
   assertArtifactIsolation(productionText, previewText)
