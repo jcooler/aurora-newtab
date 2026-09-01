@@ -25,6 +25,8 @@ function snapshot(lease: VerifiedEntitlementLease | null): AccountSnapshot {
 
 const activeLease: VerifiedEntitlementLease = {
   verification: 'verified',
+  leaseVersion: 1,
+  keyId: 'test-key',
   accountId: 'account-123',
   capabilities: ['encrypted_sync', 'metrics_history'],
   grantSources: ['stripe'],

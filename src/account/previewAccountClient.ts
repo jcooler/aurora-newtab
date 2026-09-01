@@ -45,6 +45,8 @@ function signedSnapshot(
     lease: active
       ? Object.freeze({
           verification: 'verified' as const,
+          leaseVersion: 1 as const,
+          keyId: 'preview-fixture',
           accountId: 'preview-account-1',
           capabilities,
           grantSources: Object.freeze(['preview_fixture'] as const),

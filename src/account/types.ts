@@ -7,6 +7,24 @@ export type PremiumCapability =
   | 'strava'
 
 export type GrantSource = 'stripe' | 'complimentary_owner' | 'preview_fixture'
+export type SignedGrantSource = Exclude<GrantSource, 'preview_fixture'>
+
+export interface LeasePayloadV1 {
+  version: 1
+  leaseId: string
+  accountId: string
+  capabilities: readonly PremiumCapability[]
+  grantSources: readonly SignedGrantSource[]
+  issuedAt: number
+  expiresAt: number
+}
+
+export interface SignedEntitlementLeaseV1 {
+  algorithm: 'Ed25519'
+  keyId: string
+  payload: string
+  signature: string
+}
 
 export type SubscriptionState =
   | 'none'
@@ -25,6 +43,8 @@ export type SyncPhase =
 
 export interface VerifiedEntitlementLease {
   verification: 'verified'
+  leaseVersion: 1
+  keyId: string
   accountId: string
   capabilities: readonly PremiumCapability[]
   grantSources: readonly GrantSource[]

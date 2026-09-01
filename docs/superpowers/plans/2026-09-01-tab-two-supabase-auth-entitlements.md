@@ -253,7 +253,7 @@ git commit -m 'feat: add default-deny account entitlement schema'
 - Consumes: Web Crypto `Ed25519` and the PM-P1 capability vocabulary.
 - Produces: `SignedEntitlementLeaseV1`, `signLeaseV1()`, and `verifyEntitlementLeaseV1()` returning `VerifiedEntitlementLease | null`.
 
-- [ ] **Step 1: Write failing tamper and account-binding tests**
+- [x] **Step 1: Write failing tamper and account-binding tests**
 
 Generate an Ed25519 key pair in each test and cover valid verification, payload mutation, signature mutation, unknown key id, wrong account, future issue time, expiry boundary, duplicate/unknown capabilities, unsupported version/algorithm, invalid base64url, non-canonical payload, and a `preview_fixture` grant source. Include this acceptance shape:
 
@@ -271,13 +271,13 @@ expect(verified).toEqual(expect.objectContaining({
 }))
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 npx vitest run src/account/entitlementLease.test.ts src/account/capabilities.test.ts
 ```
 
-- [ ] **Step 3: Implement the exact wire contract**
+- [x] **Step 3: Implement the exact wire contract**
 
 Use a base64url UTF-8 canonical payload and signature envelope:
 
@@ -302,7 +302,7 @@ export interface SignedEntitlementLeaseV1 {
 
 Canonical JSON uses this exact property order, lexically sorted unique capability and grant arrays, integer epoch milliseconds, and no unknown property. Verification imports an SPKI public key, verifies before trusting fields, reparses and canonicalizes the payload byte-for-byte, checks account binding and time bounds, and only then returns the existing verified lease plus `leaseVersion: 1` and `keyId`. Never accept `preview_fixture` on the signed wire.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```powershell
 npx vitest run src/account/entitlementLease.test.ts src/account/capabilities.test.ts
