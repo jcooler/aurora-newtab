@@ -9,6 +9,7 @@ import {
   ACCOUNT_AUTH_VIEWPORTS,
   assertAccountAuthEvidence,
   assertManifestIsolation,
+  command,
   requireExact,
 } from './qa-account-auth-local.mjs'
 
@@ -17,6 +18,13 @@ const repoRoot = resolve(import.meta.dirname, '..')
 test('requires exact execution before build or browser work', () => {
   assert.throws(() => requireExact([]), /requires --exact/)
   assert.doesNotThrow(() => requireExact(['--exact']))
+})
+
+test('uses Windows command shims only for npm executables', () => {
+  assert.equal(command('git', 'win32'), 'git')
+  assert.equal(command('npm', 'win32'), 'npm.cmd')
+  assert.equal(command('npx', 'win32'), 'npx.cmd')
+  assert.equal(command('npm', 'linux'), 'npm')
 })
 
 test('pins installed desktop and touch account-auth viewports', () => {

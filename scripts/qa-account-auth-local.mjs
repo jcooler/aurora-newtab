@@ -116,8 +116,8 @@ export function assertAccountAuthEvidence(evidence) {
   return evidence
 }
 
-function command(name) {
-  return process.platform === 'win32' ? `${name}.cmd` : name
+export function command(name, platform = process.platform) {
+  return platform === 'win32' && (name === 'npm' || name === 'npx') ? `${name}.cmd` : name
 }
 
 function run(name, args, options = {}) {
