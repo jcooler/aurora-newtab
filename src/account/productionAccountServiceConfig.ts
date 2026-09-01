@@ -13,13 +13,13 @@ interface ProductionEnvironment {
 const keyIdPattern = /^[A-Za-z0-9_-]{1,100}$/u
 const base64UrlPattern = /^[A-Za-z0-9_-]{40,256}$/u
 const publishableKeyPattern = /^sb_publishable_[A-Za-z0-9_-]{10,256}$/u
-const productionSupabaseUrlPattern = /^https:\/\/[a-z0-9]{20}\.supabase\.co$/u
+const PRODUCTION_SUPABASE_ORIGIN = 'https://ovlobmvxtryitupxwylg.supabase.co' as const
 
 export const PRODUCTION_SUPABASE_HOST_PERMISSION =
   'https://ovlobmvxtryitupxwylg.supabase.co/*' as const
 
 export const productionAccountServiceConfig: ProductionAccountServiceDescriptor = Object.freeze({
-  supabaseUrl: 'https://ovlobmvxtryitupxwylg.supabase.co',
+  supabaseUrl: PRODUCTION_SUPABASE_ORIGIN,
   publishableKey: 'sb_publishable_6bBAntosI02GD4QV89bddw_JAj3jrDs',
   trustedLeaseKeys: Object.freeze({
     'production-2026-09-01': 'MCowBQYDK2VwAyEA_HQX_9dTJSkjpDV-ZBiEC3bqu0bR6s81reGCbIJKlyg',
@@ -36,7 +36,7 @@ export function readProductionAccountServiceConfig(
     ? Object.entries(descriptor.trustedLeaseKeys)
     : []
   if (
-    !productionSupabaseUrlPattern.test(descriptor.supabaseUrl)
+    descriptor.supabaseUrl !== PRODUCTION_SUPABASE_ORIGIN
     || !publishableKeyPattern.test(descriptor.publishableKey)
     || descriptor.publishableKey.startsWith('sb_secret_')
     || trustedEntries.length < 1

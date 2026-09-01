@@ -2,12 +2,12 @@
 
 *The best tab for your second screen.*
 
-A calm, local-first new-tab dashboard for Chrome. The production build requires
-no Tab Two account and has no Tab Two backend or tracking — stored data stays on
-your machine, with selected features making direct provider requests only as
-disclosed below. This repository also contains a production-disabled
-`account-local` development foundation for future optional account services; it
-uses only a local Supabase stack and is not shipped or activated in production.
+A calm, local-first new-tab dashboard for Chrome. Local mode requires no Tab
+Two account and makes no Tab Two backend request. The production build also
+offers explicit, optional Google sign-in backed by Supabase for account identity
+and signed capability leases; signing in does not enable sync or upload local
+dashboard data. There is no analytics or tracking. Selected features make only
+the direct provider requests disclosed below.
 
 ## Features
 
@@ -455,12 +455,13 @@ The full, standalone privacy policy (Chrome Web Store submission copy,
 audited line-by-line against this codebase) lives in
 [`PRIVACY.md`](PRIVACY.md). Summary:
 
-The production build has no Tab Two backend and requires no Tab Two account.
-Third-party accounts are used only when you choose a credentialed connector.
-The repository's `account-local` development mode can exercise Google-shaped
-PKCE, an isolated Supabase session, and signed entitlement leases against the
-loopback development stack; production contains none of that account runtime,
-permission, host access, or session storage. All production user data — settings, quick
+Local mode has no Tab Two account requirement and makes no Tab Two account
+request. If you explicitly use Account & Sync, production opens Google OAuth and
+uses the single disclosed Supabase project for a provider-neutral account
+snapshot and a signed, account-bound capability lease. The isolated
+`tab-two:account-session:v1` session is excluded from AuroraData, JSON backup,
+diagnostics, screenshots, and UI, and Sign out removes it. Sign-in alone never
+enables sync or uploads product data. All dashboard product data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
 preferences, weather cache, location, notes, world clocks, countdowns,
 habits, manual Progress goals, widget layout, and connector configuration (e.g. your RSS feed
@@ -486,8 +487,8 @@ Beyond those fixed calls, the **Connectors** framework lets you point
   GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status, Home Assistant,
   Linear, Sentry, Todoist, On This Day, Public Holidays, and Aurora & Kp.
   Every connector fetch
-goes directly from your browser to that connector's own host, with no
-Tab Two server in between, only for connectors you've actually configured.
+goes directly from your browser to that connector's own host, never through
+the Tab Two account service, and only for connectors you've actually configured.
   GitHub/GitLab/Jira/Vercel/Home Assistant/Linear/Sentry/Todoist send only
   the credentials and scoped request data described in the privacy policy;
   the other connectors need no third-party account. RSS and Calendar URLs are capability secrets even
@@ -501,8 +502,8 @@ Connector credentials and RSS/Calendar capability URLs remain local
   plaintext in `chrome.storage.local`, protected by the Chrome/OS profile, not
 encrypted or vault-grade. On a shared or untrusted profile, disconnect
 connectors or clear Tab Two's extension data after use. Provider responses are
-cached locally after direct receipt; Tab Two never relays them through a
-backend.
+cached locally after direct receipt; Tab Two never relays them through its
+account service.
 
 The **Bookmarks bar** widget is off by default, and the `bookmarks`
 permission it needs is requested only when you turn it on — not at install.

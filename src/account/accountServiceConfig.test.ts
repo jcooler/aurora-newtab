@@ -5,7 +5,7 @@ import { readProductionAccountServiceConfig } from './productionAccountServiceCo
 
 const publicKey = 'MCowBQYDK2VwAyEAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const productionDescriptor = Object.freeze({
-  supabaseUrl: 'https://abcdefghijklmnopqrst.supabase.co',
+  supabaseUrl: 'https://ovlobmvxtryitupxwylg.supabase.co',
   publishableKey: 'sb_publishable_production-test-value',
   trustedLeaseKeys: Object.freeze({ 'production-2026-09-01': publicKey }),
 })
@@ -18,10 +18,11 @@ describe('readAccountServiceConfig', () => {
   })
 
   it.each([
-    ['http origin', { ...productionDescriptor, supabaseUrl: 'http://abcdefghijklmnopqrst.supabase.co' }],
+    ['http origin', { ...productionDescriptor, supabaseUrl: 'http://ovlobmvxtryitupxwylg.supabase.co' }],
     ['localhost', { ...productionDescriptor, supabaseUrl: 'http://127.0.0.1:54321' }],
     ['foreign host', { ...productionDescriptor, supabaseUrl: 'https://example.com' }],
-    ['path', { ...productionDescriptor, supabaseUrl: 'https://abcdefghijklmnopqrst.supabase.co/auth' }],
+    ['foreign Supabase project', { ...productionDescriptor, supabaseUrl: 'https://zzzzzzzzzzzzzzzzzzzz.supabase.co' }],
+    ['path', { ...productionDescriptor, supabaseUrl: 'https://ovlobmvxtryitupxwylg.supabase.co/auth' }],
     ['secret key', { ...productionDescriptor, publishableKey: 'sb_secret_forbidden-value' }],
     ['missing trusted key', { ...productionDescriptor, trustedLeaseKeys: {} }],
   ])('rejects production %s', (_name, descriptor) => {

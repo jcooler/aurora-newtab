@@ -12,8 +12,8 @@ import {
   requireProductionExact,
 } from './qa-account-auth-production.mjs'
 
-test('uses installed stable Google Chrome for production OAuth', () => {
-  assert.equal(PRODUCTION_BROWSER_CHANNEL, 'chrome')
+test('uses the Playwright channel that can load unpacked extensions', () => {
+  assert.equal(PRODUCTION_BROWSER_CHANNEL, 'chromium')
 })
 
 test('distinguishes rejection markers from secret-shaped values', () => {

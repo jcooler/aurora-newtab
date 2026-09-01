@@ -6,7 +6,9 @@
 
 **Architecture:** The normal production build gains the already-reviewed authenticated account adapter only when a checked-in public production descriptor is complete. That descriptor contains the exact Supabase project URL, publishable client key, trusted Ed25519 public key, and key id; it contains no secret. Chrome receives `identity` and exactly one install-time Supabase origin. The Ed25519 PKCS8 private key and Google OAuth client secret live only in hosted server/provider secret stores. Versioned migrations and Edge Functions are deployed from the repository. The owner grant is created only after a successful Google sign-in creates a provider-neutral Tab Two account and its exact UUID is independently confirmed.
 
-**Tech Stack:** React 19, TypeScript 5.9, Vitest, Node test runner, Vite/CRXJS, Chrome MV3, Supabase Pro/Postgres/Auth/Edge Functions/CLI 2.116.0, Google Auth Platform, Web Crypto Ed25519, Playwright Chromium.
+**Tech Stack:** React 19, TypeScript 5.9, Vitest, Node test runner, Vite/CRXJS, Chrome MV3, Supabase Free/Postgres/Auth/Edge Functions/CLI 2.116.0, Google Auth Platform, Web Crypto Ed25519, Playwright Chromium, and manual stable-Chrome OAuth verification where Google rejects automation-only browsers.
+
+**Execution amendment (owner-approved 2026-09-01):** Start on Supabase Free with no payment method or paid add-on. Supabase Pro, spend-cap confirmation, and any paid compute remain a separate pre-launch approval gate. This replaces the plan's original Pro-at-provisioning assumption without broadening any other authority.
 
 **Spec:** `docs/superpowers/specs/2026-08-31-tab-two-freemium-product-architecture-design.md`
 
@@ -15,8 +17,8 @@
 ## Global Constraints
 
 - Work only in `D:\DEV\Chrome plugin-aurora-2` on `feat/aurora-2-observatory`; preserve the protected original and both protected untracked paths exactly.
-- This addendum consumes the owner's explicit approval to provision Supabase Pro and associated billing, register the production Google OAuth application/redirect, add production `identity` and one exact Supabase host permission, generate/store the production signing key server-side, deploy the existing PM-P2 migrations/functions, and create one audited `complimentary_owner` grant after confirming the exact provider-neutral account UUID.
-- Keep the Supabase spend cap enabled. Use the smallest production compute size. Do not add paid add-ons, custom domains, branches, replicas, IPv4, log drains, or other infrastructure.
+- This addendum consumes the owner's explicit approval to provision Supabase Free without billing, register the production Google OAuth application/redirect, add production `identity` and one exact Supabase host permission, generate/store the production signing key server-side, deploy the existing PM-P2 migrations/functions, and create one audited `complimentary_owner` grant after confirming the exact provider-neutral account UUID.
+- Use the included Free compute allocation. Do not add paid add-ons, custom domains, branches, replicas, IPv4, log drains, or other infrastructure. Supabase Pro and spend-cap configuration remain separately gated before launch.
 - Public client configuration may be committed: the exact `https://<project-ref>.supabase.co` URL, Supabase publishable key, Ed25519 SPKI public key, and signing key id. Never commit, print, screenshot, log, or put into a prompt the database password, service-role/secret key, Google client secret, PKCS8 private key, access/refresh tokens, or owner email.
 - The production extension identity is the already-documented existing Store item `akjalbmacojpmebkgohhcaaiacicpgkh`; this packet does not open or mutate the Chrome Web Store.
 - Google uses a Web application OAuth client whose authorized redirect URI exactly equals `https://<project-ref>.supabase.co/auth/v1/callback`. Supabase Auth allows the exact extension return URL `https://akjalbmacojpmebkgohhcaaiacicpgkh.chromiumapp.org/account-auth`. Request only `openid`, email, and profile.
@@ -79,11 +81,11 @@ Use browser/CLI OAuth without copying credentials into source, shell history, di
 
 - [ ] **Step 2: Create or select the production organization and project**
 
-Use `Tab Two` for the organization when a dedicated organization is needed and `tab-two-production` for the project. Select Pro, smallest production compute, US East/North Virginia when offered, and spend cap on. Record only non-secret identifiers needed by the repository. Do not add optional paid infrastructure.
+Use `Tab Two` for the organization when a dedicated organization is needed and `tab-two-production` for the project. Select Free, the included smallest compute allocation, and US East/North Virginia when offered. Record only non-secret identifiers needed by the repository. Do not add optional paid infrastructure.
 
 - [ ] **Step 3: Prove the bounded billing state**
 
-Record plan, project name/ref, region, compute, spend-cap state, and absence of add-ons in the QA report. Do not record payment details.
+Record plan, project name/ref, region, compute, absence of add-ons, and the deferred Pro/spend-cap gate in the QA report. Do not record payment details.
 
 ---
 
@@ -221,4 +223,4 @@ Use `superpowers:writing-plans` to create `docs/superpowers/plans/2026-09-01-tab
 - Revoke the signing key secret and rotate the trusted public key through a new reviewed descriptor if key custody is in doubt; never reuse exposed private material.
 - Disable the complimentary grant through the same audited function when explicitly directed; never delete audit history to simulate rollback.
 - Database reversal uses a separately reviewed forward migration or isolated restore. Do not destructively edit hosted migration history.
-- Downgrading/deleting paid Supabase resources is a separate destructive/billing action and is not implied by code rollback.
+- Upgrading, downgrading, or deleting Supabase resources is a separate destructive or billing action and is not implied by code rollback.

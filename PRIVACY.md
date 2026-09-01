@@ -1,6 +1,6 @@
 # Tab Two Privacy Policy
 
-**Effective date:** August 30, 2026
+**Effective date:** September 1, 2026
 
 Tab Two is a new-tab dashboard extension for Chrome. This policy describes,
 completely, what Tab Two stores, what it sends over the network, and to whom.
@@ -8,18 +8,17 @@ If something isn't listed here, Tab Two doesn't do it.
 
 ## Summary
 
-The production Tab Two build has no Tab Two backend and requires no Tab Two
-account. Optional credentialed connectors can use accounts you already have
-with their third-party providers. The source repository includes an unshipped,
-production-disabled `account-local` development mode that can store one
-Supabase access/refresh session under `tab-two:account-session:v1` and talk only
-to the loopback Supabase stack. That development mode is excluded from the
-production bundle, JSON backup, diagnostics, screenshots, and UI; it does not
-describe data collected by the production extension.
+The production Tab Two build includes an optional Google sign-in for Account &
+Sync. You can continue using Local mode without an account; Local mode makes no
+Tab Two account-service request. If you explicitly sign in, Tab Two uses the
+production Supabase account service only for Google authentication, a
+provider-neutral Tab Two account snapshot, and a signed capability lease.
+Signing in does not enable sync and does not upload settings, notes, connector
+credentials, locations, layouts, backups, or any other dashboard product data.
 Tab Two does not collect data for its developer, sell or rent your data, or
 transfer it for advertising, profiling, lending, or any unrelated purpose.
-There is no analytics and no tracking of any kind. Everything
-Tab Two stores lives only on your own device. The outbound network calls
+There is no analytics and no tracking of any kind. Dashboard product data
+remains on your own device. The outbound network calls
 Tab Two makes on its own, with no action from you beyond turning a widget
 on, are five read-only, keyless weather/location lookups described in full
 below. Beyond those, Tab Two's **Connectors** framework lets you point it at
@@ -27,8 +26,8 @@ outside sites yourself or enable a built-in public source. Fifteen connectors
 ship today: RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status,
 Home Assistant, Linear, Sentry, Todoist, On This Day, Public Holidays, and
 Aurora & Kp. Every such request goes
-directly from your browser to the site you configured, never through any
-server Tab Two operates (it has none). Thirteen only read. Home Assistant
+directly from your browser to the site you configured, never through the Tab
+Two account service. Thirteen only read. Home Assistant
 sends a configured command to your own instance only when you click its
 action, and Todoist closes a task only after you confirm it. Eight connectors
 (GitHub, GitLab, Jira, Vercel, Home Assistant, Linear, Sentry, and Todoist)
@@ -85,6 +84,17 @@ anywhere except as explicitly described under "Network calls" below:
 - A local cache of what each connector last fetched, so a widget
   doesn't need to refetch every time you open a new tab. See "Connectors"
   below.
+- If you explicitly sign in: one isolated Supabase access/refresh session under
+  `tab-two:account-session:v1`. It is not part of `AuroraData`, JSON backup,
+  diagnostics, screenshots, or the visible UI, and Sign out removes it.
+
+The production account service stores a provider-neutral Tab Two account UUID
+and the Google identity needed to maintain that mapping: Google's provider
+subject, authentication-user UUID, email address, display name when provided,
+and creation/update timestamps. It also stores server-side entitlement grants
+and append-only entitlement audit events. It does not receive dashboard
+settings, notes, connector credentials, location, layout, backup, or sync data
+from this account-only production packet.
 
 **Uploaded background photos** are the one exception to `chrome.storage.local`:
 if you choose "My photo" and upload your own image(s), each image is stored
@@ -117,18 +127,18 @@ control.
 Tab Two never uploads the local store or a backup file wholesale to the
 developer, analytics, or any outside service. Individual values leave the
 device only through the specific functionality-necessary network calls
-disclosed below. There is no Tab Two server that storage or backups pass
-through.
+disclosed below. Dashboard storage and backups never pass through the Tab Two
+account service.
 
 ## Network calls
 
-Tab Two makes network requests to exactly five **fixed** endpoints, all
-operated by third-party services (Tab Two itself has no server), all
-read-only, all keyless (no account, sign-in, or API key involved), and all
-sent no more data than described below — plus two **opt-in** sources: a
+Tab Two makes network requests to exactly five **fixed** weather/location
+endpoints, all operated by third-party services, all read-only and keyless,
+and all sent no more data than described below — plus three **opt-in** sources: a
 Connector, if and only if you've configured or enabled one (item 6 below),
-and NASA's Astronomy Picture of the Day, if and only if you've chosen it as
-your background (item 7 below):
+NASA's Astronomy Picture of the Day, if and only if you've chosen it as your
+background (item 7 below), and the Tab Two account service, only after an
+existing session or explicit Account & Sync action (item 8 below):
 
 1. **Weather forecast** — `api.open-meteo.com`, once the Weather widget is
    turned on and a location is set. Sends only your saved latitude/longitude
@@ -189,6 +199,17 @@ your background (item 7 below):
    unless a Connector you've separately configured happens to still need
    that same host, in which case only your no-longer-needed portion is
    released and the Connector's own access is left untouched.
+8. **Optional Tab Two account service** —
+   `ovlobmvxtryitupxwylg.supabase.co`, only when an account session already
+   exists or you explicitly use Account & Sync. "Sign in with Google" opens
+   Google's OAuth flow with `openid`, email, and profile scopes. Google returns
+   the authentication result to Supabase, which creates or refreshes the
+   provider-neutral account mapping described above. Tab Two then requests an
+   account snapshot and a short-lived, signed capability lease bound to that
+   account UUID. Requests include the Supabase session credential and standard
+   HTTPS request metadata. No dashboard product data or connector credential is
+   sent. Sign out removes the local account session. Supabase and Google process
+   authentication data under their own privacy terms.
 
 Tab Two makes no other network calls. In particular: no analytics, no
 telemetry, no crash reporting, no ad networks, no remote fonts or scripts,
@@ -225,9 +246,11 @@ using this API — that's gone; every search now goes through Chrome.)
 
 ## Permissions
 
-The production Tab Two build requests the following Chrome permissions. A
-separate unshipped `account-local` development manifest additionally holds
-`identity` and `http://127.0.0.1/*`; production and preview do not hold either.
+The production Tab Two build requests the following Chrome permissions and the
+single fixed host authority `https://ovlobmvxtryitupxwylg.supabase.co/*` for the
+optional account service. Preview does not receive that production authority;
+the separate unshipped `account-local` development manifest uses loopback
+instead.
 
 - **`storage`** (installed automatically, no prompt) — used for everything
   under "What Tab Two stores" above.
@@ -243,6 +266,11 @@ separate unshipped `account-local` development manifest additionally holds
   default-on widget shown from the very first new tab — Chrome does allow
   `search` to be requested at runtime instead, but doing so here would put
   a permission prompt between you and the first thing on the page.
+- **`identity`** (installed automatically) — used only after you click the
+  Account & Sync Google sign-in or fresh-verification action. It opens the
+  Google/Supabase OAuth flow and returns to Tab Two's fixed extension callback.
+  It is not used to silently sign in, enable sync, inspect other Chrome
+  profiles, or read browsing history.
 - **`bookmarks`** (optional — requested at runtime, never at install).
   Tab Two's Bookmarks bar widget is off by default. Turning it on in Settings
   triggers Chrome's own native permission prompt; declining leaves the
@@ -464,15 +492,16 @@ cover the only two write paths in this list:
 
 ## Data collection, sale, and sharing
 
-Tab Two does not collect any data on the developer's behalf, in any form —
-there is no server for it to be collected to. Tab Two transfers data only
-when necessary to provide the user-requested dashboard feature described in
-this policy: directly to Chrome or to the weather, NASA, cloud, feed,
-calendar, status, or self-hosted provider the user selected. Tab Two does not
+Tab Two's account service processes only the account identity, session,
+entitlement, and audit data described above. Dashboard product data is not
+collected by that service. Other transfers occur only when necessary to
+provide the user-requested feature described in this policy: directly to
+Chrome or to the weather, NASA, cloud, feed, calendar, status, or self-hosted
+provider the user selected. Tab Two does not
 sell, rent, or trade user data; transfer it to advertising platforms, data
 brokers, or information resellers; use it for personalized advertising or
-profiling; allow the developer or other humans to read it; use or transfer it
-for a purpose unrelated to the extension's single disclosed purpose; or use
+profiling; use or transfer it for a purpose unrelated to the extension's
+single disclosed purpose; or use
 or transfer it to determine creditworthiness or for lending.
 
 Tab Two's use of information received from Chrome APIs complies with the
@@ -484,17 +513,17 @@ transfers disclosed above.
 ## Children's privacy
 
 Tab Two is not directed at children and does not knowingly collect information
-on the developer's behalf from anyone, of any age. See "What Tab Two stores"
-above: every value listed there is generated by your own use of the dashboard
-and stored only on your device, except for the functionality-necessary direct
-requests disclosed under "Network calls."
+from children. See "What Tab Two stores" above: dashboard values are generated
+by your own use and remain on your device, while optional account identity and
+entitlement data and functionality-necessary direct requests are limited to
+the disclosures under "Network calls."
 
 ## Changes to this policy
 
 If this policy changes, the updated version will be published at the same
-location with a new effective date above. Because Tab Two has no Tab Two account
-and no way to contact users directly, checking this page is the only way to
-learn of changes.
+location with a new effective date above. Tab Two does not use account email
+for marketing or product announcements; checking this page is the way to learn
+of policy changes.
 
 ## Contact
 

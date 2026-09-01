@@ -38,7 +38,7 @@ export const PRODUCTION_ACCOUNT_SCREENSHOTS = Object.freeze([
   'account-production-signed-in-touch',
 ])
 
-export const PRODUCTION_BROWSER_CHANNEL = 'chrome'
+export const PRODUCTION_BROWSER_CHANNEL = 'chromium'
 
 export const PRODUCTION_ACCOUNT_INTERACTIONS = Object.freeze([
   'explicit-google-sign-in',
@@ -309,7 +309,7 @@ async function main() {
       await openAccountSettings(page)
       await page.getByRole('heading', { name: 'Local mode' }).waitFor()
       const beforeSignIn = await storageSnapshot(page)
-      process.stdout.write('PRODUCTION_AUTH_READY: complete Google sign-in in the opened Google Chrome window.\n')
+      process.stdout.write('PRODUCTION_AUTH_READY: complete Google sign-in in the opened Chromium window.\n')
       await page.getByRole('button', { name: 'Sign in with Google' }).click()
       await page.getByRole('button', { name: 'Sign out' }).waitFor({ timeout: 600_000 })
       evidence.interactions['explicit-google-sign-in'] = true
