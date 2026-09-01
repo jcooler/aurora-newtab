@@ -157,6 +157,10 @@ async function launchInstalled(profile, dist, viewport, evidence, label) {
   const page = context.pages()[0] ?? await context.newPage()
   page.setDefaultTimeout(20_000)
   attachRuntimeLedgers(page, evidence, label)
+  if (viewport.touch) {
+    const cdp = await context.newCDPSession(page)
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 })
+  }
   await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
   await page.locator('[data-canvas-surface]').waitFor()
   assert(page.url().startsWith('chrome-extension://'), `${label} is not an installed-extension page: ${page.url()}`)
