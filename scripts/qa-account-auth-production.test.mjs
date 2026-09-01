@@ -5,11 +5,16 @@ import test from 'node:test'
 import {
   PRODUCTION_ACCOUNT_INTERACTIONS,
   PRODUCTION_ACCOUNT_SCREENSHOTS,
+  PRODUCTION_BROWSER_CHANNEL,
   assertNoProductionSecrets,
   assertProductionEvidence,
   assertProductionManifest,
   requireProductionExact,
 } from './qa-account-auth-production.mjs'
+
+test('uses installed stable Google Chrome for production OAuth', () => {
+  assert.equal(PRODUCTION_BROWSER_CHANNEL, 'chrome')
+})
 
 test('distinguishes rejection markers from secret-shaped values', () => {
   assert.doesNotThrow(() => assertNoProductionSecrets("candidate.startsWith('sb_secret_')"))
