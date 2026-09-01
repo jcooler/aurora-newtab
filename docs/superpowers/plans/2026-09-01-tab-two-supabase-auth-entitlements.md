@@ -44,7 +44,7 @@
 - Consumes: Node 24 and Docker Desktop already installed on the workstation.
 - Produces: reproducible local CLI commands and an `account-local` build mode that has no production effect.
 
-- [ ] **Step 1: Write the failing build-boundary contract**
+- [x] **Step 1: Write the failing build-boundary contract**
 
 Create `scripts/account-auth-build-contract.test.mjs` with Node tests that read source files and require all of the following:
 
@@ -60,7 +60,7 @@ assert.doesNotMatch(manifestSource, /sb_secret_/)
 
 Also require `supabase/config.toml` to use project id `tab-two-local`, ports 54321/54322, Postgres 17, Google external auth disabled, sign-up disabled, and no remote project reference.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 node --test scripts/account-auth-build-contract.test.mjs
@@ -68,7 +68,7 @@ node --test scripts/account-auth-build-contract.test.mjs
 
 Expected: FAIL because the dependencies, script, ignore rules, and local configuration do not exist.
 
-- [ ] **Step 3: Add exact dependencies and local configuration**
+- [x] **Step 3: Add exact dependencies and local configuration**
 
 Run:
 
@@ -123,7 +123,7 @@ secret = ""
 
 The committed local configuration never contains a Google client id, Google secret, project ref, service-role key, signing key, or owner identity.
 
-- [ ] **Step 4: Audit the dependency change and run GREEN**
+- [x] **Step 4: Audit the dependency change and run GREEN**
 
 ```powershell
 npm audit
@@ -133,7 +133,7 @@ node --test scripts/account-auth-build-contract.test.mjs
 
 Expected: dependency tree is valid, the audit has no unresolved supported high/critical finding, and the contract passes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add .gitignore package.json package-lock.json supabase/config.toml scripts/account-auth-build-contract.test.mjs
@@ -152,7 +152,7 @@ git commit -m 'build: add local Supabase account toolchain'
 - Consumes: local Supabase Postgres and `auth.users`.
 - Produces: `public.tab_two_accounts`, `public.tab_two_identities`, private grants/audits, `private.current_account_id()`, `private.effective_entitlement()`, and `private.set_complimentary_owner_grant()`.
 
-- [ ] **Step 1: Write the failing pgTAP adversary matrix**
+- [x] **Step 1: Write the failing pgTAP adversary matrix**
 
 Create tests that begin a transaction, set `request.jwt.claim.sub` for two Google-auth test users, and prove:
 
@@ -166,7 +166,7 @@ select throws_ok('select private.set_complimentary_owner_grant(gen_random_uuid()
 
 Cover anonymous and authenticated select/insert/update/delete, same-account reads, cross-account reads, provider constraints, duplicate identity subjects, direct grant mutation, privileged-function execution, expired/revoked grants, capability union, idempotent owner enable/disable, and one audit row per effective mutation.
 
-- [ ] **Step 2: Start local Supabase and observe RED**
+- [x] **Step 2: Start local Supabase and observe RED**
 
 Start Docker Desktop if its engine is not running, then run:
 
@@ -178,7 +178,7 @@ npx supabase test db
 
 Expected: the database tests fail because the migration objects do not exist. Do not log in, link a project, or contact a hosted Supabase project.
 
-- [ ] **Step 3: Implement the migration**
+- [x] **Step 3: Implement the migration**
 
 Create these enum domains in schema `private`:
 
@@ -217,20 +217,20 @@ private.entitlement_audit_events(
 )
 ```
 
-Enable RLS on both public tables, revoke all from `anon` and `authenticated`, then grant only `select` to `authenticated` with per-operation policies using `private.current_account_id()`. Revoke all schema/table/function access to `private` from client roles. `private.set_complimentary_owner_grant(target uuid, enabled boolean, actor text, reason text)` is security definer, executable only by `service_role`, rejects blank actor/reason, uses the exact account UUID, grants all six capabilities, and writes an audit event only when effective state changes. It never accepts email.
+Enable RLS on both public tables, revoke all from `anon` and `authenticated`, then grant only `select` to `authenticated` with policies bound directly to `auth.uid()`. Keep `private.current_account_id()` as a service-role helper so client roles retain no schema or function access to `private`. Revoke all schema/table/function access to `private` from client roles. `private.set_complimentary_owner_grant(target uuid, enabled boolean, actor text, reason text)` is security definer, executable only by `service_role`, rejects blank actor/reason, uses the exact account UUID, grants all six capabilities, and writes an audit event only when effective state changes. It never accepts email.
 
-- [ ] **Step 4: Run GREEN and local restore rehearsal**
+- [x] **Step 4: Run GREEN and local restore rehearsal**
 
 ```powershell
 npx supabase db reset
 npx supabase test db
 npx supabase db lint --local --level error
-npx supabase db dump --local --schema-only --file .superpowers/pm-p2-schema.sql
+npx supabase db dump --local --schema public,private --file .superpowers/pm-p2-schema.sql
 ```
 
 Reset the local database once more and rerun the tests to prove migrations recreate the schema from zero. The schema dump is local scratch and is never staged.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add supabase/migrations/20260901000100_account_entitlement_foundation.sql supabase/tests/database/account_entitlements_rls.test.sql
