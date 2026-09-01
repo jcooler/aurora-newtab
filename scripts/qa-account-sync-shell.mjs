@@ -204,9 +204,11 @@ async function geometry(page) {
       const rect = element.getBoundingClientRect()
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
     }
-    const candidates = [...document.querySelectorAll(
-      '[data-settings-scroll-owner="document"] button, [data-settings-scroll-owner="document"] input, [role="dialog"] button, [role="dialog"] input',
-    )].filter(visible)
+    const activeDialog = document.querySelector('[role="dialog"][aria-modal="true"]')
+    const controlRoot = activeDialog ?? document.querySelector('[data-settings-scroll-owner="document"]')
+    const candidates = controlRoot
+      ? [...controlRoot.querySelectorAll('button, input')].filter(visible)
+      : []
     const controls = candidates.map((element, index) => {
       const rect = element.getBoundingClientRect()
       return {
@@ -308,7 +310,15 @@ async function exercisePreviewDesktop(page, viewport, output, judgments, evidenc
     await page.getByText(expected, { exact: state !== 'device-limit' }).first().waitFor()
     if (state === 'device-limit') {
       assert.equal(await page.getByRole('switch', { name: 'Enable sync' }).getAttribute('aria-disabled'), 'true')
-      assert.equal(await page.getByRole('region', { name: 'Devices' }).getByRole('button', { name: /^Remove / }).count(), 4)
+      const devices = page.getByRole('region', { name: 'Devices' })
+      assert.equal(await devices.getByRole('button', { name: /^Remove / }).count(), 4)
+      const remove = devices.getByRole('button', { name: 'Remove Travel Chromebook' })
+      await remove.click()
+      const dialog = page.getByRole('dialog', { name: 'Remove Travel Chromebook?' })
+      await dialog.getByRole('button', { name: 'Verify with Google' }).click()
+      await dialog.getByRole('button', { name: 'Remove device' }).click()
+      await dialog.waitFor({ state: 'detached' })
+      assert(await remove.evaluate((element) => document.activeElement === element), 'device removal did not restore invoker focus')
     }
     evidence.interactions[`preview-${state}`] = true
     await capture(page, viewport, `preview-${state}-desktop`, output, judgments, evidence, repoRoot)

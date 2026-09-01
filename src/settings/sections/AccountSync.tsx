@@ -13,6 +13,11 @@ import { btnDanger, btnPrimary, btnQuiet, control, label } from './shared'
 const SIGN_IN_STATUS_ID = 'account-sign-in-status'
 const DEVICE_LIMIT_ID = 'account-device-limit'
 
+type DestructiveTarget =
+  | { kind: 'vault' }
+  | { kind: 'account' }
+  | { kind: 'device'; deviceId: string; deviceName: string }
+
 const subscriptionLabels: Record<SubscriptionState, string> = {
   none: 'No subscription',
   active: 'Active subscription',
@@ -42,17 +47,17 @@ function Fact({ label: factLabel, children }: { label: string; children: React.R
 }
 
 function DestructiveAccountDialog({
-  kind,
+  target,
   invokerRef,
   actions,
   onClose,
 }: {
-  kind: 'vault' | 'account' | null
+  target: DestructiveTarget | null
   invokerRef: RefObject<HTMLButtonElement | null>
   actions: AccountActions
   onClose: () => void
 }) {
-  const open = kind !== null
+  const open = target !== null
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousOpen = useRef(false)
   const [verified, setVerified] = useState(false)
@@ -79,13 +84,19 @@ function DestructiveAccountDialog({
     previousOpen.current = open
   }, [invokerRef, open])
 
-  if (!kind) return null
+  if (!target) return null
 
-  const deletingAccount = kind === 'account'
-  const title = deletingAccount ? 'Delete your Tab Two account?' : 'Delete synced data?'
-  const actionLabel = deletingAccount ? 'Delete account' : 'Delete synced data'
-  const titleId = `account-${kind}-dialog-title`
-  const descriptionId = `account-${kind}-dialog-description`
+  const deletingAccount = target.kind === 'account'
+  const removingDevice = target.kind === 'device'
+  const deviceId = target.kind === 'device' ? target.deviceId : null
+  const title = deletingAccount
+    ? 'Delete your Tab Two account?'
+    : removingDevice
+      ? `Remove ${target.deviceName}?`
+      : 'Delete synced data?'
+  const actionLabel = deletingAccount ? 'Delete account' : removingDevice ? 'Remove device' : 'Delete synced data'
+  const titleId = `account-${target.kind}-dialog-title`
+  const descriptionId = `account-${target.kind}-dialog-description`
 
   async function verify() {
     setPending(true)
@@ -100,11 +111,12 @@ function DestructiveAccountDialog({
   }
 
   async function confirmDelete() {
-    if (!verified || confirmation !== 'DELETE') return
+    if (!verified || (!removingDevice && confirmation !== 'DELETE')) return
     setPending(true)
     setError(null)
     try {
       if (deletingAccount) await actions.deleteAccount()
+      else if (deviceId) await actions.revokeDevice(deviceId)
       else await actions.deleteVault()
       onClose()
     } catch {
@@ -132,9 +144,15 @@ function DestructiveAccountDialog({
         <p id={descriptionId} className="mt-1 text-sm text-fg-muted">
           {deletingAccount
             ? 'Deletes your Tab Two account and its encrypted synced data.'
-            : 'Deletes the encrypted synced copy for this account.'}
+            : removingDevice
+              ? 'Stops this installation from accessing future synced updates.'
+              : 'Deletes the encrypted synced copy for this account.'}
         </p>
-        <p className="mt-3 text-sm text-fg">Does not erase local data on this or any other installation.</p>
+        <p className="mt-3 text-sm text-fg">
+          {removingDevice
+            ? 'Does not erase local data already stored on that installation.'
+            : 'Does not erase local data on this or any other installation.'}
+        </p>
 
         <div className="mt-5 space-y-4">
           {verified ? (
@@ -145,16 +163,18 @@ function DestructiveAccountDialog({
             </button>
           )}
 
-          <div>
-            <label htmlFor={`account-${kind}-confirmation`} className={label}>Type DELETE to confirm</label>
-            <input
-              id={`account-${kind}-confirmation`}
-              value={confirmation}
-              onChange={(event) => setConfirmation(event.currentTarget.value)}
-              autoComplete="off"
-              className={`${control} mt-1 w-full font-mono`}
-            />
-          </div>
+          {!removingDevice ? (
+            <div>
+              <label htmlFor={`account-${target.kind}-confirmation`} className={label}>Type DELETE to confirm</label>
+              <input
+                id={`account-${target.kind}-confirmation`}
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.currentTarget.value)}
+                autoComplete="off"
+                className={`${control} mt-1 w-full font-mono`}
+              />
+            </div>
+          ) : null}
 
           <AssertiveAlert className="block text-xs text-red-400">{error}</AssertiveAlert>
 
@@ -162,7 +182,7 @@ function DestructiveAccountDialog({
             <button type="button" disabled={pending} onClick={onClose} className={btnQuiet}>Cancel</button>
             <button
               type="button"
-              disabled={pending || !verified || confirmation !== 'DELETE'}
+              disabled={pending || !verified || (!removingDevice && confirmation !== 'DELETE')}
               onClick={() => void confirmDelete()}
               className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}
             >
@@ -179,7 +199,7 @@ function DestructiveAccountDialog({
 export default function AccountSync() {
   const { snapshot, actions } = useAccount()
   const [signInStatus, setSignInStatus] = useState<string | null>(null)
-  const [destructiveKind, setDestructiveKind] = useState<'vault' | 'account' | null>(null)
+  const [destructiveTarget, setDestructiveTarget] = useState<DestructiveTarget | null>(null)
   const destructiveInvokerRef = useRef<HTMLButtonElement>(null)
 
   async function signIn() {
@@ -195,9 +215,9 @@ export default function AccountSync() {
     )
   }
 
-  function openDestructive(kind: 'vault' | 'account', invoker: HTMLButtonElement) {
+  function openDestructive(target: DestructiveTarget, invoker: HTMLButtonElement) {
     destructiveInvokerRef.current = invoker
-    setDestructiveKind(kind)
+    setDestructiveTarget(target)
   }
 
   if (snapshot.mode === 'local') {
@@ -290,7 +310,15 @@ export default function AccountSync() {
                 </p>
               </div>
               {!device.current ? (
-                <button type="button" onClick={() => void actions.revokeDevice(device.id)} className={btnQuiet} aria-label={`Remove ${device.name}`}>
+                <button
+                  type="button"
+                  onClick={(event) => openDestructive(
+                    { kind: 'device', deviceId: device.id, deviceName: device.name },
+                    event.currentTarget,
+                  )}
+                  className={btnQuiet}
+                  aria-label={`Remove ${device.name}`}
+                >
                   Remove
                 </button>
               ) : null}
@@ -307,10 +335,10 @@ export default function AccountSync() {
         <div className="mt-5 border-t border-hairline pt-5">
           <p className="mb-3 text-xs text-fg-muted">Destructive actions require fresh Google verification and never erase local data.</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={(event) => openDestructive('vault', event.currentTarget)} className={btnDanger}>
+            <button type="button" onClick={(event) => openDestructive({ kind: 'vault' }, event.currentTarget)} className={btnDanger}>
               Delete synced data
             </button>
-            <button type="button" onClick={(event) => openDestructive('account', event.currentTarget)} className={btnDanger}>
+            <button type="button" onClick={(event) => openDestructive({ kind: 'account' }, event.currentTarget)} className={btnDanger}>
               Delete account
             </button>
           </div>
@@ -318,10 +346,10 @@ export default function AccountSync() {
       </Section>
 
       <DestructiveAccountDialog
-        kind={destructiveKind}
+        target={destructiveTarget}
         invokerRef={destructiveInvokerRef}
         actions={actions}
-        onClose={() => setDestructiveKind(null)}
+        onClose={() => setDestructiveTarget(null)}
       />
     </>
   )

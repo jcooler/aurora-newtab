@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccountProvider } from '../../account/AccountContext'
 import type { AccountClient } from '../../account/client'
@@ -122,6 +122,13 @@ describe('AccountSync', () => {
     expect(signedActions.revokeDevice).not.toHaveBeenCalled()
 
     fireEvent.click(within(list).getByRole('button', { name: 'Remove Device 2' }))
+    const dialog = screen.getByRole('dialog', { name: 'Remove Device 2?' })
+    expect(signedActions.revokeDevice).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Verify with Google' }))
+    expect(await within(dialog).findByText('Google account verified')).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Remove device' }))
+    })
     expect(signedActions.revokeDevice).toHaveBeenCalledWith('device-2')
   })
 

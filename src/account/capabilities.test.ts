@@ -49,6 +49,7 @@ describe('hasCapability', () => {
   it.each([
     ['expired', { ...activeLease, expiresAt: now - 1 }],
     ['at the expiry boundary', { ...activeLease, expiresAt: now }],
+    ['not yet issued', { ...activeLease, issuedAt: now + 1 }],
     ['not yet verified', { ...activeLease, verification: 'unverified' }],
   ])('rejects a %s lease', (_name, lease) => {
     expect(
@@ -62,4 +63,9 @@ describe('hasCapability', () => {
       expect(hasCapability({ ...snapshot(null), mode: 'signed_in', subscription }, 'encrypted_sync', now)).toBe(false)
     },
   )
+
+  it('rejects a verified lease bound to a different account', () => {
+    const active = { ...snapshot(activeLease), accountId: 'account-456' }
+    expect(hasCapability(active, 'encrypted_sync', now)).toBe(false)
+  })
 })
