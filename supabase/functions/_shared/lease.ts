@@ -1,9 +1,29 @@
-import type {
-  LeasePayloadV1,
-  PremiumCapability,
-  SignedEntitlementLeaseV1,
-  SignedGrantSource,
-} from '../../../src/account/types'
+export type PremiumCapability =
+  | 'encrypted_sync'
+  | 'multi_account'
+  | 'metrics_history'
+  | 'google_calendar'
+  | 'microsoft_calendar'
+  | 'strava'
+
+export type SignedGrantSource = 'stripe' | 'complimentary_owner'
+
+export interface LeasePayloadV1 {
+  version: 1
+  leaseId: string
+  accountId: string
+  capabilities: readonly PremiumCapability[]
+  grantSources: readonly SignedGrantSource[]
+  issuedAt: number
+  expiresAt: number
+}
+
+export interface SignedEntitlementLeaseV1 {
+  algorithm: 'Ed25519'
+  keyId: string
+  payload: string
+  signature: string
+}
 
 const capabilities = new Set<PremiumCapability>([
   'encrypted_sync',

@@ -3,12 +3,24 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(44);
+select plan(50);
 
 select has_table('public', 'tab_two_accounts', 'provider-neutral accounts table exists');
 select has_table('public', 'tab_two_identities', 'provider identities table exists');
 select has_table('private', 'account_grants', 'server-only account grants table exists');
 select has_table('private', 'entitlement_audit_events', 'server-only entitlement audit table exists');
+select has_function(
+  'public',
+  'tab_two_account_snapshot_for_auth',
+  array['uuid'],
+  'the service account snapshot RPC exists in the exposed schema'
+);
+select has_function(
+  'public',
+  'tab_two_effective_entitlement_for_account',
+  array['uuid', 'timestamp with time zone'],
+  'the service entitlement RPC exists in the exposed schema'
+);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.tab_two_accounts'::regclass),
@@ -200,6 +212,23 @@ select throws_ok(
   null,
   'authenticated clients cannot execute the owner grant function'
 );
+select throws_ok(
+  $$select * from public.tab_two_account_snapshot_for_auth(
+      '30000000-0000-4000-8000-000000000001'
+    )$$,
+  '42501',
+  null,
+  'authenticated clients cannot execute the account snapshot RPC'
+);
+select throws_ok(
+  $$select * from public.tab_two_effective_entitlement_for_account(
+      '10000000-0000-4000-8000-000000000001',
+      clock_timestamp()
+    )$$,
+  '42501',
+  null,
+  'authenticated clients cannot execute the entitlement RPC'
+);
 
 reset role;
 
@@ -252,6 +281,18 @@ select is(
   private.current_account_id(),
   '10000000-0000-4000-8000-000000000001'::uuid,
   'the service-only identity helper maps auth.uid to the provider-neutral account id'
+);
+select results_eq(
+  $$select account_id, email, display_name
+    from public.tab_two_account_snapshot_for_auth(
+      '30000000-0000-4000-8000-000000000001'
+    )$$,
+  $$values (
+    '10000000-0000-4000-8000-000000000001'::uuid,
+    'a@example.test'::text,
+    'Account A'::text
+  )$$,
+  'the service account RPC maps auth id to only its provider-neutral snapshot'
 );
 select throws_ok(
   $$select private.set_complimentary_owner_grant(
@@ -354,6 +395,21 @@ select results_eq(
     array['complimentary_owner', 'stripe']::text[]
   )$$,
   'effective entitlement returns the sorted union of active grant sources'
+);
+select results_eq(
+  $$select capabilities, grant_sources
+    from public.tab_two_effective_entitlement_for_account(
+      '10000000-0000-4000-8000-000000000001',
+      clock_timestamp()
+    )$$,
+  $$values (
+    array[
+      'encrypted_sync', 'google_calendar', 'metrics_history',
+      'microsoft_calendar', 'multi_account', 'strava'
+    ]::text[],
+    array['complimentary_owner', 'stripe']::text[]
+  )$$,
+  'the service entitlement RPC returns the same active sorted union'
 );
 
 update private.account_grants

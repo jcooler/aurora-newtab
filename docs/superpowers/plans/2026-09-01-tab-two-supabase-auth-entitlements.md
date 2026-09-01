@@ -317,20 +317,23 @@ git commit -m 'feat: verify signed account entitlement leases'
 - Create: `supabase/functions/_shared/http.ts`
 - Create: `supabase/functions/_shared/requestAuth.ts`
 - Create: `supabase/functions/_shared/accountHandlers.ts`
+- Create: `supabase/functions/_shared/runtime.ts`
 - Create: `supabase/functions/account-snapshot/index.ts`
 - Create: `supabase/functions/entitlement-lease/index.ts`
 - Create: `supabase/functions/tests/account-functions.test.ts`
+- Create: `supabase/migrations/20260901000200_account_function_service_boundary.sql`
+- Modify: `supabase/tests/database/account_entitlements_rls.test.sql`
 
 **Interfaces:**
 
 - Consumes: Supabase user JWT, service-role access confined to the function runtime, `private.effective_entitlement()`, and an injected PKCS8 Ed25519 key.
 - Produces: authenticated `GET /account-snapshot` and `POST /entitlement-lease` local function responses with bounded safe errors.
 
-- [ ] **Step 1: Write failing Deno function-core tests**
+- [x] **Step 1: Write failing Deno function-core tests**
 
 Test exported request handlers with injected auth, repository, clock, UUID, and signer boundaries. Require 401 for missing/invalid bearer tokens; 403 for an auth user without a Google-linked Tab Two account; 405 for wrong methods; bounded JSON and no reflected token/payload on failures; an account snapshot containing only account id, email, display name, and subscription summary; a 30-day lease; sorted capability union; `complimentary_owner` independent of missing/expired Stripe state; and no lease when no active grant exists.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 npx vitest run supabase/functions/tests/account-functions.test.ts
@@ -338,7 +341,7 @@ npx vitest run supabase/functions/tests/account-functions.test.ts
 
 Expected: FAIL because the pure request handlers do not exist. The tests import `accountHandlers.ts` and inject every environment, auth, repository, clock, UUID, and signer dependency, so no function server or secret is required for this unit boundary.
 
-- [ ] **Step 3: Implement narrow handlers**
+- [x] **Step 3: Implement narrow handlers**
 
 `requestAuth.ts` extracts one bearer token, calls Supabase Auth `getUser(token)`, rejects non-Google identity metadata, and returns only the auth user id. It never logs authorization headers or error bodies. The account repository maps that auth id to the provider-neutral account id and never accepts a client-supplied account id. `accountHandlers.ts` contains the runtime-neutral injected handlers; each `index.ts` is only the Deno environment and `Deno.serve` adapter.
 
@@ -355,7 +358,7 @@ type AccountFunctionError =
   | 'service_unavailable'
 ```
 
-- [ ] **Step 4: Run GREEN and secret scans**
+- [x] **Step 4: Run GREEN and secret scans**
 
 ```powershell
 npx vitest run supabase/functions/tests/account-functions.test.ts
@@ -364,7 +367,7 @@ rg -n 'BEGIN PRIVATE KEY|sb_secret_|service_role.*=' supabase src scripts
 
 Expected: tests pass and the scan finds no committed secret material or assigned service-role value.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add supabase/functions/_shared/http.ts supabase/functions/_shared/requestAuth.ts supabase/functions/_shared/accountHandlers.ts supabase/functions/account-snapshot/index.ts supabase/functions/entitlement-lease/index.ts supabase/functions/tests/account-functions.test.ts
