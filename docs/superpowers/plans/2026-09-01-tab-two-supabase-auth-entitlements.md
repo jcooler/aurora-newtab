@@ -437,7 +437,7 @@ git commit -m 'feat: isolate paid account sessions'
 - Consumes: an injected Supabase auth client, `chrome.identity.getRedirectURL`, and `chrome.identity.launchWebAuthFlow`.
 - Produces: `GooglePkceAuth.begin()` and `GooglePkceAuth.reauthenticate()` without changing the manifest yet.
 
-- [ ] **Step 1: Write failing PKCE/state/callback tests**
+- [x] **Step 1: Write failing PKCE/state/callback tests**
 
 Require one user click to initiate Google only, `flowType: 'pkce'`, `skipBrowserRedirect: true`, exact redirect origin/path, cryptographically generated per-attempt correlation, the Supabase flow id passed to `exchangeCodeForSession`, single-use callback consumption, cancellation, provider error, redirect substitution, missing/duplicate code, replay, overlapping-flow isolation, and bounded errors with no URL/query/token rendering.
 
@@ -450,17 +450,17 @@ export interface IdentityWebAuth {
 }
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 npx vitest run src/account/googlePkceAuth.test.ts
 ```
 
-- [ ] **Step 3: Implement the minimal launcher**
+- [x] **Step 3: Implement the minimal launcher**
 
 Create Supabase with `flowType: 'pkce'`, `persistSession: false`, `autoRefreshToken: false`, `detectSessionInUrl: false`, `experimental.appendPkceFlowIdToRedirects: true`, and an in-memory PKCE verifier store. Call only provider `google`. Retain the returned flow id in a per-attempt map, require the callback URL to exactly match `getRedirectURL('account-auth')` by origin and pathname, require its single `sb_flow_id` to match the retained flow id, accept one `code`, pass `{ flowId }` to `exchangeCodeForSession`, and delete the attempt before returning. Supabase Auth owns provider-state validation and the PKCE code verifier; Tab Two adds exact callback validation and single-use flow correlation.
 
-- [ ] **Step 4: Run GREEN without adding a permission**
+- [x] **Step 4: Run GREEN without adding a permission**
 
 ```powershell
 npx vitest run src/account/googlePkceAuth.test.ts
@@ -469,7 +469,7 @@ git diff -- src/manifest.ts
 
 Expected: tests pass and the manifest has no change.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/account/googlePkceAuth.ts src/account/googlePkceAuth.test.ts src/vite-env.d.ts
