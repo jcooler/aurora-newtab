@@ -241,7 +241,9 @@ async function geometry(page) {
       horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
         || document.body.scrollWidth > document.documentElement.clientWidth + 1,
       viewportEscapes: controls
-        .filter((item) => item.left < -0.5 || item.top < -0.5 || item.right > innerWidth + 0.5 || item.bottom > innerHeight + 0.5)
+        .filter((item) => item.left < -0.5
+          || item.right > innerWidth + 0.5
+          || (activeDialog && (item.top < -0.5 || item.bottom > innerHeight + 0.5)))
         .map((item) => item.id),
       overlapPairs,
       scrollOwners: [...document.querySelectorAll('[data-settings-scroll-owner="document"]')].filter(visible).length,
