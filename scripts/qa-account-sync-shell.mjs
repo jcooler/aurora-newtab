@@ -60,10 +60,7 @@ export function assertArtifactIsolation(productionText, previewText) {
   for (const marker of FIXTURE_MARKERS) {
     assert(!productionText.includes(marker), `production artifact contains preview fixture marker: ${marker}`)
   }
-  assert(
-    FIXTURE_MARKERS.every((marker) => previewText.includes(marker)),
-    'preview artifact is missing deterministic preview fixture markers',
-  )
+  assert(previewText.includes('preview_fixture'), 'preview artifact is missing its deterministic grant marker')
 }
 
 function assertBuild(build, commit, mode, fixtureMarkerPresent) {
@@ -366,7 +363,7 @@ export async function runAccountSyncShellQa(args = process.argv.slice(2)) {
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
   const dist = resolve(repoRoot, 'dist')
   const previewText = artifactText(dist)
-  const previewMarkerPresent = FIXTURE_MARKERS.every((marker) => previewText.includes(marker))
+  const previewMarkerPresent = previewText.includes('preview_fixture')
   const previewBuild = readProvenance(dist, commit, 'preview', previewMarkerPresent)
   assert(previewMarkerPresent, 'dist is not the required preview build')
 

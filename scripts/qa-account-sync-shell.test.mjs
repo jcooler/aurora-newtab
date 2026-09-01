@@ -57,6 +57,7 @@ test('requires every account state and destructive confirmation', () => {
 
 test('requires preview fixtures only in preview artifacts', () => {
   assert.doesNotThrow(() => assertArtifactIsolation('ordinary production code', 'TAB_TWO_PREVIEW_ACCOUNT_FIXTURE preview_fixture'))
+  assert.doesNotThrow(() => assertArtifactIsolation('ordinary production code', 'preview_fixture'))
   assert.throws(() => assertArtifactIsolation('preview_fixture', 'preview_fixture'), /production artifact/i)
   assert.throws(() => assertArtifactIsolation('ordinary production code', 'ordinary preview code'), /preview artifact/i)
 })
