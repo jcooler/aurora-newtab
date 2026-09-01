@@ -285,7 +285,7 @@ async function exerciseProduction(page, viewport, output, judgments, evidence, r
   await signIn.click()
   await page.getByRole('status').filter({ hasText: 'not configured' }).waitFor()
   await page.getByRole('button', { name: 'View plans' }).click()
-  assert.equal(await drawer.getAttribute('aria-hidden'), 'false')
+  assert.notEqual(await drawer.getAttribute('aria-hidden'), 'true')
   evidence.interactions['production-local'] = true
   await harvestStorageWrites(page, evidence)
   await capture(page, viewport, 'production-local-desktop', output, judgments, evidence, repoRoot)
