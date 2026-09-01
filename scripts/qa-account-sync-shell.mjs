@@ -351,10 +351,30 @@ async function exercisePreviewDesktop(page, viewport, output, judgments, evidenc
   await harvestStorageWrites(page, evidence)
 }
 
-async function exercisePreviewTouch(page, viewport, output, judgments, evidence, repoRoot) {
+async function exercisePreviewTouch(page, context, viewport, output, judgments, evidence, repoRoot) {
   await loadPreviewState(page, 'active')
-  assert(await page.evaluate(() => navigator.maxTouchPoints > 0), 'touch evidence did not run with touch enabled')
-  await page.getByRole('switch', { name: 'Enable sync' }).scrollIntoViewIfNeeded()
+  const syncSwitch = page.getByRole('switch', { name: 'Enable sync' })
+  await syncSwitch.scrollIntoViewIfNeeded()
+  const box = await syncSwitch.boundingBox()
+  assert(box, 'touch Account sync control has no bounding box')
+  await page.evaluate(() => {
+    window.__accountTouchObserved = false
+    window.addEventListener('touchstart', () => { window.__accountTouchObserved = true }, { once: true })
+  })
+  const cdp = await context.newCDPSession(page)
+  await cdp.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{
+      x: Math.round(box.x + box.width / 2),
+      y: Math.round(box.y + box.height / 2),
+      radiusX: 1,
+      radiusY: 1,
+      force: 1,
+      id: 1,
+    }],
+  })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  assert(await page.evaluate(() => window.__accountTouchObserved === true), 'touchstart did not reach the Account sync control')
   await capture(page, viewport, 'preview-active-touch', output, judgments, evidence, repoRoot)
 }
 
@@ -421,7 +441,7 @@ export async function runAccountSyncShellQa(args = process.argv.slice(2)) {
 
     const touch = await launchInstalled(profiles[2], previewDist, ACCOUNT_SYNC_VIEWPORTS[1], evidence, 'preview-touch')
     touchContext = touch.context
-    await exercisePreviewTouch(touch.page, ACCOUNT_SYNC_VIEWPORTS[1], output, judgments, evidence, repoRoot)
+    await exercisePreviewTouch(touch.page, touch.context, ACCOUNT_SYNC_VIEWPORTS[1], output, judgments, evidence, repoRoot)
 
     evidence.result = 'PASS'
     assertEvidenceContract(evidence)
