@@ -81,6 +81,22 @@ describe('AccountSync', () => {
     expect(localActions.openPlans).toHaveBeenCalledOnce()
   })
 
+  it('does not enable sync or invoke any data action after a successful sign-in click', async () => {
+    const localActions = actions()
+    renderAccount({
+      mode: 'local', accountId: null, email: null, displayName: null, subscription: 'none', lease: null,
+      sync: { enabled: false, phase: 'disabled', lastSuccessAt: null, usedBytes: 0, quotaBytes: 2_097_152 },
+      devices: [],
+    }, localActions)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with Google' }))
+    await waitFor(() => expect(localActions.beginSignIn).toHaveBeenCalledOnce())
+    expect(localActions.enableSync).not.toHaveBeenCalled()
+    expect(localActions.syncNow).not.toHaveBeenCalled()
+    expect(localActions.deleteVault).not.toHaveBeenCalled()
+    expect(screen.getByText('Signing in does not enable sync or upload local data.')).toBeTruthy()
+  })
+
   it('shows the complete signed-in sync-off surface and routes its actions', async () => {
     const signedActions = renderAccount(signedSnapshot())
 

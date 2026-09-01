@@ -6,7 +6,7 @@ afterEach(() => {
   vi.resetModules()
 })
 
-async function loadClient(mode: 'production' | 'preview', search = '') {
+async function loadClient(mode: 'production' | 'preview' | 'account-local', search = '') {
   vi.stubEnv('MODE', mode)
   vi.stubGlobal('location', { search })
   vi.resetModules()
@@ -85,5 +85,38 @@ describe('createAccountClient', () => {
     await expect(client.getSnapshot()).resolves.toEqual(
       expect.objectContaining({ mode: 'local', accountId: null }),
     )
+  })
+
+  it('fails closed to Local when account-local configuration is incomplete', async () => {
+    const fetchSpy = vi.fn()
+    const storageGet = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    vi.stubGlobal('chrome', { storage: { local: { get: storageGet } } })
+
+    const client = await loadClient('account-local')
+    await expect(client.getSnapshot()).resolves.toEqual(expect.objectContaining({ mode: 'local' }))
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(storageGet).not.toHaveBeenCalled()
+  })
+
+  it('creates the authenticated adapter only for complete account-local configuration', async () => {
+    vi.stubEnv('VITE_TAB_TWO_SUPABASE_URL', 'http://127.0.0.1:54321')
+    vi.stubEnv('VITE_TAB_TWO_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_local-test-key-value')
+    vi.stubEnv('VITE_TAB_TWO_TRUSTED_LEASE_KEYS', JSON.stringify({
+      'local-test-key': 'MCowBQYDK2VwAyEAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    }))
+    vi.stubGlobal('chrome', {
+      identity: {
+        getRedirectURL: vi.fn(() => 'https://abcdefghijklmnop.chromiumapp.org/account-auth'),
+        launchWebAuthFlow: vi.fn(async () => undefined),
+      },
+      storage: {
+        local: { get: vi.fn(), set: vi.fn(), remove: vi.fn() },
+        onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+    })
+
+    const client = await loadClient('account-local')
+    expect(await client.actions.beginSignIn()).toEqual({ ok: false, code: 'cancelled' })
   })
 })

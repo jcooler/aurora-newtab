@@ -107,7 +107,7 @@ export async function createRuntimeAccountHandlers(
       },
     },
     now: Date.now,
-    randomUUID: crypto.randomUUID,
+    randomUUID: () => crypto.randomUUID(),
     signLease: (payload) => {
       if (!privateKey) throw new Error('signing_unavailable')
       return signLeaseV1(payload, { keyId: signingKeyId, privateKey })

@@ -486,6 +486,8 @@ git commit -m 'feat: define explicit Google PKCE account flow'
 - Modify: `src/account/createAccountClient.ts`
 - Modify: `src/account/createAccountClient.test.ts`
 - Modify: `src/account/types.ts`
+- Modify: `src/account/googlePkceAuth.ts`
+- Modify: `supabase/functions/_shared/runtime.ts`
 - Modify: `src/settings/sections/AccountSync.test.tsx`
 
 **Interfaces:**
@@ -493,17 +495,17 @@ git commit -m 'feat: define explicit Google PKCE account flow'
 - Consumes: `AccountSessionStore`, `GooglePkceAuth`, local account/lease functions, and trusted Ed25519 public keys.
 - Produces: an `AccountClient` that is reachable only when `MODE === 'account-local'` and its complete non-secret configuration validates.
 
-- [ ] **Step 1: Write failing authenticated-client tests**
+- [x] **Step 1: Write failing authenticated-client tests**
 
 Cover: no session means zero network until Sign in; sign-in stores only the validated Supabase session; sign-in alone leaves sync disabled and uploads no product data; hydration validates the current user, fetches account snapshot and signed lease, verifies account binding before publishing signed-in state, refreshes an expiring session under one Web Lock, handles offline with the last still-valid verified lease, rejects tampered/expired/wrong-account leases, clears invalid/revoked sessions, signs out remotely then clears locally even if remote logout fails, and never calls any `AuroraStorage` or current-free capability path.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 npx vitest run src/account/supabaseAccountClient.test.ts src/account/createAccountClient.test.ts src/settings/sections/AccountSync.test.tsx
 ```
 
-- [ ] **Step 3: Implement fail-closed configuration and client state**
+- [x] **Step 3: Implement fail-closed configuration and client state**
 
 `readAccountServiceConfig()` accepts only:
 
@@ -529,7 +531,7 @@ rg -n 'tab-two:account-session:v1|launchWebAuthFlow|127\.0\.0\.1:54321|TAB_TWO_L
 
 Expected: tests/build pass and `rg` exits 1. Production remains the PM-P1 Local client with zero account request or storage access.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/account/accountServiceConfig.ts src/account/supabaseAccountClient.ts src/account/supabaseAccountClient.test.ts src/account/createAccountClient.ts src/account/createAccountClient.test.ts src/account/types.ts src/settings/sections/AccountSync.test.tsx

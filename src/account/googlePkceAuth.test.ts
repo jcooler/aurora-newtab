@@ -47,7 +47,7 @@ describe('GooglePkceAuth', () => {
     expect(authSource).toMatch(/autoRefreshToken:\s*false/u)
     expect(authSource).toMatch(/detectSessionInUrl:\s*false/u)
     expect(authSource).toMatch(/appendPkceFlowIdToRedirects:\s*true/u)
-    expect(authSource).toMatch(/randomUUID\s*=\s*dependencies\.randomUUID\s*\?\?\s*crypto\.randomUUID/u)
+    expect(authSource).toMatch(/randomUUID\s*=\s*dependencies\.randomUUID\s*\?\?\s*\(\(\)\s*=>\s*crypto\.randomUUID\(\)\)/u)
     expect(authSource).not.toMatch(/(?:window|globalThis)\.(?:localStorage|sessionStorage)/u)
   })
 

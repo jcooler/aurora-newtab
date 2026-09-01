@@ -138,7 +138,7 @@ export function createGooglePkceAuth(dependencies: {
   identity: IdentityWebAuth
   randomUUID?: () => string
 }): GooglePkceAuth {
-  const randomUUID = dependencies.randomUUID ?? crypto.randomUUID
+  const randomUUID = dependencies.randomUUID ?? (() => crypto.randomUUID())
   const activeAttempts = new Map<string, string>()
 
   async function run(fresh: boolean): Promise<GooglePkceAuthResult> {
