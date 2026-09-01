@@ -43,6 +43,17 @@ vi.mock('../lib/storage/authority', () => ({
   createWebLockStorageAuthority: () => ({}),
 }))
 
+vi.mock('../account/AccountContext', async () => {
+  const React = await import('react')
+  return {
+    AccountProvider: ({ children }: { children: React.ReactNode }) => React.createElement(
+      'div',
+      { 'data-account-provider': '' },
+      children,
+    ),
+  }
+})
+
 vi.mock('../services/permissionMirror', () => ({
   initializePermissionMirror: vi.fn().mockResolvedValue(undefined),
 }))
@@ -114,6 +125,7 @@ describe('new-tab React root caught-error handling', () => {
     await waitFor(() => {
       expect(document.querySelector('[role="alert"][aria-label="Calendar unavailable"]')).toBeTruthy()
       expect(document.body.textContent).toContain('Calendar sibling survives')
+      expect(document.querySelector('[data-account-provider]')).toBeTruthy()
     })
 
     const safeCalls = consoleError.mock.calls.filter((call) => (

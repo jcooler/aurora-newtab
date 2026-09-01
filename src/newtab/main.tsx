@@ -7,6 +7,7 @@ import type { StorageDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { createWebLockStorageAuthority } from '../lib/storage/authority'
 import { initializePermissionMirror } from '../services/permissionMirror'
+import { AccountProvider } from '../account/AccountContext'
 import './index.css'
 
 type NotesHarnessController = Readonly<{
@@ -116,7 +117,9 @@ createRoot(document.getElementById('root')!, {
 }).render(
   <StrictMode>
     <StorageProvider storage={storage}>
-      <App />
+      <AccountProvider>
+        <App />
+      </AccountProvider>
     </StorageProvider>
   </StrictMode>,
 )
