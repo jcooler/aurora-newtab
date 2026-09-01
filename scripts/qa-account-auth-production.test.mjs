@@ -5,10 +5,19 @@ import test from 'node:test'
 import {
   PRODUCTION_ACCOUNT_INTERACTIONS,
   PRODUCTION_ACCOUNT_SCREENSHOTS,
+  assertNoProductionSecrets,
   assertProductionEvidence,
   assertProductionManifest,
   requireProductionExact,
 } from './qa-account-auth-production.mjs'
+
+test('distinguishes rejection markers from secret-shaped values', () => {
+  assert.doesNotThrow(() => assertNoProductionSecrets("candidate.startsWith('sb_secret_')"))
+  assert.throws(
+    () => assertNoProductionSecrets('sb_secret_abcdefghijklmnopqrstuvwxyz0123456789'),
+    /secret-shaped Supabase key/u,
+  )
+})
 
 test('requires exact production execution', () => {
   assert.throws(() => requireProductionExact([]), /requires --exact/u)

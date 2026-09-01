@@ -26,7 +26,6 @@ const LEASE_KEY_ID = 'production-2026-09-01'
 const LEASE_PUBLIC_SPKI = 'MCowBQYDK2VwAyEA_HQX_9dTJSkjpDV-ZBiEC3bqu0bR6s81reGCbIJKlyg'
 const EXTENSION_RETURN_URL = `https://${PRODUCTION_EXTENSION_ID}.chromiumapp.org/account-auth`
 const BUILD_FORBIDDEN = Object.freeze([
-  'sb_secret_',
   'service_role',
   'BEGIN PRIVATE KEY',
   'PRIVATE KEY-----',
@@ -65,6 +64,14 @@ export function assertProductionManifest(manifest) {
   assert.equal(typeof manifest.key, 'string', 'production manifest key is missing')
   assert.equal(extensionIdForKey(manifest.key), PRODUCTION_EXTENSION_ID)
   return manifest
+}
+
+export function assertNoProductionSecrets(text) {
+  assert.equal(typeof text, 'string')
+  assert(!/sb_secret_[A-Za-z0-9_-]{10,}/u.test(text), 'production artifact contains a secret-shaped Supabase key')
+  for (const marker of BUILD_FORBIDDEN) {
+    assert(!text.includes(marker), `production artifact contains forbidden marker: ${marker}`)
+  }
 }
 
 export function assertProductionEvidence(evidence) {
@@ -277,7 +284,7 @@ async function main() {
     assert.equal(provenance.commit, commit)
     assertProductionManifest(JSON.parse(readFileSync(resolve(productionDist, 'manifest.json'), 'utf8')))
     const productionText = artifactText(productionDist)
-    for (const marker of BUILD_FORBIDDEN) assert(!productionText.includes(marker), `production artifact contains forbidden marker: ${marker}`)
+    assertNoProductionSecrets(productionText)
 
     const context = await chromium.launchPersistentContext(profile, {
       channel: 'chromium',
