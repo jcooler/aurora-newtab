@@ -44,6 +44,21 @@ describe('Drawer responsive workspace', () => {
     expect(classes).toContain('min-w-9')
   })
 
+  it('locks the document scrollport while open and restores its prior styles', () => {
+    document.documentElement.style.overflow = 'scroll'
+    document.body.style.overflow = 'auto'
+    const view = render(<Drawer open onClose={() => {}} title="Settings"><p>Content</p></Drawer>)
+
+    expect(document.documentElement.style.overflow).toBe('hidden')
+    expect(document.body.style.overflow).toBe('hidden')
+
+    view.rerender(<Drawer open={false} onClose={() => {}} title="Settings"><p>Content</p></Drawer>)
+    expect(document.documentElement.style.overflow).toBe('scroll')
+    expect(document.body.style.overflow).toBe('auto')
+    document.documentElement.style.removeProperty('overflow')
+    document.body.style.removeProperty('overflow')
+  })
+
   it('keeps the closed drawer prepainted beyond the viewport without exposing content or hit targets', () => {
     render(<Drawer open={false} onClose={() => {}} title="Settings"><button>Focusable content</button></Drawer>)
 

@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useDialogEscape } from '../lib/dialogStack'
 import { useFocusTrap } from '../lib/hooks/useFocusTrap'
 import BrandMark from '../brand/BrandMark'
@@ -17,6 +17,18 @@ export default function Drawer({
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(panelRef, open)
+
+  useEffect(() => {
+    if (!open) return
+    const documentOverflow = document.documentElement.style.overflow
+    const bodyOverflow = document.body.style.overflow
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.documentElement.style.overflow = documentOverflow
+      document.body.style.overflow = bodyOverflow
+    }
+  }, [open])
 
   // Newest-first shared stack: Escape closes whichever dialog registered most
   // recently (see src/lib/dialogStack.ts), so stacking this with the Tasks
