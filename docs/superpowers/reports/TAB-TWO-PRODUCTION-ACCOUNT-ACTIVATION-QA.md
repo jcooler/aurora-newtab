@@ -1,9 +1,9 @@
 # Tab Two Production Account Activation QA
 
-**Date:** 2026-09-01  
-**Branch:** `feat/aurora-2-observatory`  
-**Manual sign-in runtime source:** `35a0853c093d78dec5cb1a387380f5e602c5fb83`  
-**Final review checkpoint:** `ACTIVATION_CHECKPOINT_PENDING`  
+**Date:** 2026-09-01<br>
+**Branch:** `feat/aurora-2-observatory`<br>
+**Manual sign-in runtime source:** `35a0853c093d78dec5cb1a387380f5e602c5fb83`<br>
+**Final reviewed source checkpoint:** `a6f24563a7981e083b00d0ba942ee66457c95fb6`<br>
 **Result:** Hosted authority activated; manual client ceiling recorded
 
 ## Scope and gates
@@ -63,9 +63,23 @@ One bounded review found two Important issues:
 1. production validation accepted any syntactically valid 20-character Supabase project origin even though the manifest granted only the approved origin; and
 2. the production QA harness had been switched to stable Chrome even though current stable Chrome cannot load unpacked extensions through Playwright's command-line path.
 
-The sole focused fix pins validation to the exact production origin and restores the harness to the extension-capable Chromium channel. Focused RED/GREEN coverage passed before the stabilized gate.
+The sole focused fix pins validation to the exact production origin and restores the harness to the extension-capable Chromium channel. Focused RED/GREEN coverage passed before the stabilized gate. The first full run then exposed two stale privacy contract assertions: the old fixed-endpoint phrase and the old production manifest shape. The bounded correction updated the code-backed privacy description and asserted the approved production `identity` permission and exact Supabase host. The privacy file and TypeScript passed before the full gate was restarted from the beginning.
 
-Final stabilized command results and checkpoint provenance are recorded after the exact clean-tree gate.
+The exact clean tracked tree at `a6f24563a7981e083b00d0ba942ee66457c95fb6` passed:
+
+- `npm test`: 233 files / 3,648 tests;
+- `npx tsc --noEmit`;
+- four account build/QA contract files: 21/21 Node tests;
+- fresh `npx supabase db reset` with both PM-P2 migrations;
+- `npx supabase test db`: 50/50 pgTAP tests;
+- `npx supabase db lint --local --level error`: zero schema errors;
+- Edge Function contract suite: 24/24 tests;
+- exact production build: 326 modules;
+- exact preview build: 279 modules;
+- exact account-local build: 326 modules; and
+- `git diff --check`.
+
+The known pre-existing React test warning about an unwrapped `ProgressRail` update appeared without failing the suite. Vite also reported its existing large-chunk advisory. Neither changed gate status.
 
 ## Rollback
 
