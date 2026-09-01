@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tab Two Account & Sync visual gate</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --fg: #f5f5f4;
+      --muted: rgb(245 245 244 / 0.68);
+      --quiet: rgb(245 245 244 / 0.48);
+      --accent: #7dd3fc;
+      --panel: rgb(10 10 10 / 0.94);
+      --control: rgb(245 245 244 / 0.06);
+      --control-hover: rgb(245 245 244 / 0.11);
+      --border: rgb(245 245 244 / 0.14);
+      --hairline: rgb(245 245 244 / 0.09);
+      --danger: #f87171;
+      --success: #6ee7b7;
+      --warning: #fbbf24;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { color: var(--fg); background: #07131f; font-size: 14px; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+
+    .canvas {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgb(2 6 23 / 0.08), rgb(2 6 23 / 0.64)),
+        radial-gradient(circle at 18% 18%, rgb(125 211 252 / 0.22), transparent 26%),
+        radial-gradient(circle at 28% 86%, rgb(180 83 9 / 0.5), transparent 34%),
+        linear-gradient(145deg, #172638 0%, #213b4b 42%, #17120f 43%, #050607 100%);
+    }
+    .canvas::after {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent 0 36%, rgb(0 0 0 / 0.32) 57%, rgb(0 0 0 / 0.58));
+      content: "";
+    }
+    .canvas-time {
+      position: absolute;
+      top: 10px;
+      left: 14px;
+      color: rgb(245 245 244 / 0.82);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-size: 96px;
+      font-weight: 500;
+      letter-spacing: -0.07em;
+      line-height: 0.92;
+      text-shadow: 0 2px 16px rgb(0 0 0 / 0.35);
+    }
+    .canvas-focus {
+      position: absolute;
+      bottom: 32px;
+      left: 24px;
+      color: rgb(245 245 244 / 0.6);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+
+    .drawer {
+      position: fixed;
+      z-index: 2;
+      top: 16px;
+      right: 16px;
+      bottom: 16px;
+      width: min(960px, calc(100vw - 32px));
+      overflow-x: hidden;
+      overflow-y: auto;
+      border: 1px solid transparent;
+      border-radius: 24px;
+      background: var(--panel);
+      box-shadow: 0 22px 70px rgb(0 0 0 / 0.38);
+      backdrop-filter: blur(14px);
+      scrollbar-width: thin;
+      scrollbar-color: rgb(245 245 244 / 0.2) transparent;
+    }
+
+    .drawer-header {
+      display: flex;
+      min-height: 72px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+    }
+    .brand { display: flex; min-width: 0; align-items: center; gap: 12px; }
+    .mark { width: 36px; height: 36px; flex: none; border-radius: 10px; }
+    .brand-name {
+      margin: 0;
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-size: 16px;
+      font-weight: 650;
+      letter-spacing: -0.025em;
+    }
+    .brand-subtitle { margin: 2px 0 0; color: var(--muted); font-size: 12px; font-weight: 500; }
+    .close {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 176px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+      padding: 0 24px 24px;
+    }
+    .tabs {
+      position: sticky;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-right: 12px;
+      border-right: 1px solid var(--hairline);
+    }
+    .tab {
+      min-height: 36px;
+      padding: 6px 12px;
+      border: 0;
+      border-left: 2px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+    }
+    .tab.active { border-left-color: var(--accent); color: var(--fg); }
+
+    .account-page { width: 100%; max-width: 608px; min-width: 0; margin: 0; }
+    .section { padding: 18px 0; border-top: 1px solid var(--hairline); }
+    .section:first-child { padding-top: 3px; border-top: 0; }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+    h1, h2, p { margin-top: 0; }
+    h1 {
+      margin-bottom: 7px;
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-size: 30px;
+      font-weight: 610;
+      letter-spacing: -0.045em;
+      line-height: 1.08;
+    }
+    h2 { margin-bottom: 4px; font-size: 15px; font-weight: 650; }
+    .lede { max-width: 540px; margin-bottom: 0; color: var(--muted); line-height: 1.5; }
+    .helper { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .micro { color: var(--quiet); font-size: 11px; line-height: 1.4; }
+
+    .status-line { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+    .status-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 4px rgb(125 211 252 / 0.09); }
+    .status-dot.success { background: var(--success); box-shadow: 0 0 0 4px rgb(110 231 183 / 0.09); }
+    .status-dot.warning { background: var(--warning); box-shadow: 0 0 0 4px rgb(251 191 36 / 0.1); }
+    .status-label { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .button {
+      display: inline-flex;
+      min-width: 36px;
+      min-height: 40px;
+      cursor: default;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      padding: 8px 14px;
+      color: var(--muted);
+      line-height: 1.15;
+    }
+    .button.primary { border-color: transparent; background: var(--accent); color: #0a0a0a; font-weight: 650; }
+    .button.danger { color: var(--danger); }
+    .button:focus, .close:focus, .tab:focus, .switch:focus, .device-action:focus, input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .inventory { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+    .inventory h2 { margin-bottom: 10px; }
+    .plain-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+    .plain-list li { position: relative; padding-left: 16px; line-height: 1.4; }
+    .plain-list li::before { position: absolute; top: 0; left: 0; color: var(--accent); content: "•"; }
+    .plain-list.excluded li::before { color: var(--quiet); content: "–"; }
+
+    .identity-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .identity { display: flex; min-width: 0; align-items: center; gap: 12px; }
+    .avatar {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex: none;
+      place-items: center;
+      border: 1px solid rgb(125 211 252 / 0.35);
+      border-radius: 12px;
+      background: rgb(125 211 252 / 0.08);
+      color: var(--accent);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-weight: 700;
+    }
+    .identity-copy { min-width: 0; }
+    .identity-copy h1 { overflow: hidden; margin: 0 0 2px; font-size: 24px; text-overflow: ellipsis; white-space: nowrap; }
+    .identity-copy p { overflow: hidden; margin: 0; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .badge {
+      display: inline-flex;
+      min-height: 26px;
+      flex: none;
+      align-items: center;
+      border: 1px solid rgb(125 211 252 / 0.3);
+      border-radius: 999px;
+      background: rgb(125 211 252 / 0.08);
+      padding: 4px 9px;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .setting-row { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 20px; }
+    .setting-copy { min-width: 0; }
+    .setting-copy strong { display: block; margin-bottom: 2px; font-size: 14px; font-weight: 600; }
+    .setting-copy span { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 24px;
+      flex: none;
+      border: 0;
+      border-radius: 999px;
+      background: rgb(245 245 244 / 0.22);
+    }
+    .switch::after { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: white; content: ""; }
+    .switch.on { background: var(--accent); }
+    .switch.on::after { left: 19px; }
+    .switch.blocked { opacity: 0.42; }
+
+    .sync-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 12px; overflow: hidden; border: 1px solid var(--hairline); border-radius: 10px; background: var(--hairline); }
+    .fact { min-width: 0; background: rgb(10 10 10 / 0.92); padding: 10px 12px; }
+    .fact span { display: block; margin-bottom: 4px; color: var(--quiet); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .fact strong { display: block; overflow: hidden; color: var(--muted); font-size: 12px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+    .quota { height: 3px; margin-top: 7px; overflow: hidden; border-radius: 99px; background: rgb(245 245 244 / 0.1); }
+    .quota > span { display: block; height: 100%; margin: 0; border-radius: inherit; background: var(--accent); }
+
+    .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+    .section-heading h2 { margin: 0; }
+    .devices { display: grid; }
+    .device {
+      display: grid;
+      min-height: 45px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      border-top: 1px solid var(--hairline);
+    }
+    .device:first-child { border-top: 0; }
+    .device-main { display: flex; min-width: 0; align-items: center; gap: 10px; }
+    .device-glyph { width: 28px; height: 28px; flex: none; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); text-align: center; line-height: 26px; }
+    .device-name { display: block; overflow: hidden; font-size: 13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+    .device-meta { display: block; margin-top: 2px; color: var(--quiet); font-size: 11px; }
+    .device-action { min-height: 36px; border: 0; background: transparent; padding: 6px 8px; color: var(--accent); font-size: 12px; }
+    .current { color: var(--accent); }
+
+    .account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+    .text-action { min-height: 36px; border: 0; background: transparent; padding: 5px 0; color: var(--muted); font-size: 12px; }
+    .text-action.danger { color: var(--danger); }
+
+    .callout {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      margin: 12px 0 2px;
+      border: 1px solid rgb(251 191 36 / 0.3);
+      border-radius: 10px;
+      background: rgb(251 191 36 / 0.06);
+      padding: 12px;
+    }
+    .callout-icon { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 8px; background: rgb(251 191 36 / 0.12); color: var(--warning); font-weight: 800; }
+    .callout h2 { margin: 0 0 3px; }
+    .callout p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .modal-shade { position: absolute; z-index: 3; inset: 0; display: grid; place-items: center; border-radius: inherit; background: rgb(0 0 0 / 0.66); padding: 24px; }
+    .dialog {
+      width: min(520px, 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #0a0a0a;
+      box-shadow: 0 24px 80px rgb(0 0 0 / 0.58);
+      padding: 22px;
+    }
+    .danger-mark { display: grid; width: 36px; height: 36px; place-items: center; margin-bottom: 14px; border-radius: 10px; background: rgb(248 113 113 / 0.1); color: var(--danger); font-size: 20px; }
+    .dialog h1 { margin-bottom: 8px; font-size: 24px; }
+    .dialog .lede { font-size: 13px; }
+    .impact { display: grid; gap: 7px; margin: 15px 0; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+    .impact li { position: relative; padding-left: 18px; line-height: 1.4; }
+    .impact li::before { position: absolute; left: 1px; color: var(--danger); content: "×"; font-weight: 700; }
+    .verified { display: flex; align-items: center; gap: 8px; margin: 14px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); padding: 10px 0; color: var(--muted); font-size: 12px; }
+    .verified b { color: var(--success); font-weight: 650; }
+    .confirm-label { display: block; color: var(--muted); font-size: 12px; }
+    .confirm-label input { width: 100%; min-height: 40px; margin-top: 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--control); padding: 8px 10px; color: var(--fg); outline: none; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    .button.danger-solid { border-color: #ef4444; background: #ef4444; color: white; font-weight: 650; }
+
+    @media (max-width: 899px) {
+      .canvas { display: none; }
+      .drawer { inset: 0; width: 100%; border: 0; border-radius: 0; box-shadow: none; }
+      .drawer-header { min-height: 82px; padding: 18px 24px 14px; }
+      .settings-grid { display: block; padding: 0 24px 18px; }
+      .tabs {
+        position: static;
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 0;
+        margin-bottom: 14px;
+        overflow: hidden;
+        border-right: 0;
+        border-bottom: 1px solid var(--hairline);
+        padding: 0;
+      }
+      .tab { min-width: 0; min-height: 42px; border-left: 0; border-bottom: 2px solid transparent; padding: 7px 4px; text-align: center; white-space: nowrap; }
+      .tab.active { border-left-color: transparent; border-bottom-color: var(--accent); }
+      .account-page { max-width: 608px; margin: 0 auto; }
+      .section { padding: 13px 0; }
+      h1 { font-size: 25px; }
+      .sync-facts { margin-top: 9px; }
+      .device { min-height: 44px; }
+      .account-actions { gap: 4px 16px; }
+      .text-action { min-height: 40px; }
+    }
+
+    @media (max-width: 640px) {
+      .settings-grid { padding-inline: 14px; }
+      .drawer-header { padding-inline: 14px; }
+      .tabs { overflow-x: auto; grid-template-columns: repeat(6, max-content); justify-content: start; }
+      .tab { padding-inline: 10px; }
+      .inventory { grid-template-columns: 1fr; gap: 18px; }
+      .sync-facts { grid-template-columns: 1fr; }
+      .identity-row { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas" aria-hidden="true">
+    <div class="canvas-time">5:42</div>
+    <div class="canvas-focus">What deserves your attention?</div>
+  </div>
+
+  <main class="drawer" data-scroll-owner="settings" aria-label="Settings">
+    <header class="drawer-header">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 128 128" role="img" aria-label="Tab Two">
+          <defs><linearGradient id="signal" x1="22" y1="42" x2="94" y2="106" gradientUnits="userSpaceOnUse"><stop stop-color="#268CFF"/><stop offset="1" stop-color="#12C7E8"/></linearGradient></defs>
+          <rect width="128" height="128" rx="28" fill="#07131F"/>
+          <path d="M44 22h24l8 9h24a9 9 0 0 1 9 9v47a9 9 0 0 1-9 9H44a9 9 0 0 1-9-9V31a9 9 0 0 1 9-9Z" fill="#0C2235" stroke="#65D9F2" stroke-width="5"/>
+          <path d="M25 38h27l8 9h25a9 9 0 0 1 9 9v45a9 9 0 0 1-9 9H25a9 9 0 0 1-9-9V47a9 9 0 0 1 9-9Z" fill="url(#signal)"/>
+          <path d="M34 58h42M55 58v34" fill="none" stroke="#F7FBFF" stroke-width="9" stroke-linecap="round"/>
+        </svg>
+        <div><p class="brand-name">Tab Two</p><p class="brand-subtitle">Settings</p></div>
+      </div>
+      <button class="close" type="button" aria-label="Close settings">×</button>
+    </header>
+
+    <div class="settings-grid">
+      <nav class="tabs" aria-label="Settings sections">
+        <button class="tab" type="button">General</button>
+        <button class="tab" type="button">Progress</button>
+        <button class="tab" type="button">Widgets</button>
+        <button class="tab" type="button">Connectors</button>
+        <button class="tab" type="button">Data</button>
+        <button class="tab active" type="button" aria-current="page">Account &amp; Sync</button>
+      </nav>
+      <div id="state-root" class="account-page"></div>
+    </div>
+  </main>
+
+  <script>
+    const state = new URLSearchParams(location.search).get('state') || 'local'
+
+    const signedHeader = (badge = 'Premium · Active') => `
+      <section class="section">
+        <p class="eyebrow">Account &amp; Sync</p>
+        <div class="identity-row">
+          <div class="identity">
+            <div class="avatar" aria-hidden="true">A</div>
+            <div class="identity-copy"><h1>Alex Morgan</h1><p>alex@example.com</p></div>
+          </div>
+          <span class="badge">${badge}</span>
+        </div>
+      </section>`
+
+    const syncFacts = (phase, last, used, width) => `
+      <div class="sync-facts" aria-label="Sync details">
+        <div class="fact"><span>Status</span><strong>${phase}</strong></div>
+        <div class="fact"><span>Last successful sync</span><strong>${last}</strong></div>
+        <div class="fact"><span>Storage</span><strong>${used} of 2 MB</strong><div class="quota" aria-hidden="true"><span style="width:${width}"></span></div></div>
+      </div>`
+
+    const accountActions = `
+      <section class="section">
+        <p class="eyebrow">Account</p>
+        <div class="account-actions">
+          <button class="text-action" type="button">Manage billing</button>
+          <button class="text-action" type="button">Sign out</button>
+          <button class="text-action danger" type="button">Delete synced data</button>
+          <button class="text-action danger" type="button">Delete account</button>
+        </div>
+      </section>`
+
+    const local = `
+      <section class="section">
+        <p class="eyebrow">Account &amp; Sync</p>
+        <div class="status-line"><span class="status-dot"></span><span class="status-label">Local only</span></div>
+        <h1>Local mode</h1>
+        <p class="lede">Your Tab Two data stays on this device.</p>
+        <div class="actions">
+          <button class="button primary" type="button" data-autofocus>Sign in with Google</button>
+          <button class="button" type="button">View plans</button>
+        </div>
+        <p class="helper">Signing in does not enable sync or upload local data.</p>
+      </section>
+      <section class="section">
+        <p class="eyebrow">Encrypted sync</p>
+        <div class="inventory">
+          <div><h2>Included when you enable sync</h2><ul class="plain-list"><li>Layouts, widgets, and appearance</li><li>Habits, Progress, tasks, and notes</li><li>Non-secret preferences and aggregate metrics</li></ul></div>
+          <div><h2>Always stays on this device</h2><ul class="plain-list excluded"><li>Passwords, tokens, sessions, and feed URLs</li><li>Provider caches and raw responses</li><li>Custom images and device-local references</li></ul></div>
+        </div>
+        <p class="helper">Local backup, restore, and deletion stay available in Data.</p>
+      </section>`
+
+    const signedIn = `
+      ${signedHeader()}
+      <section class="section">
+        <p class="eyebrow">Encrypted sync</p>
+        <div class="setting-row">
+          <div class="setting-copy"><strong>Enable sync</strong><span>Sync eligible settings, text, and aggregate metrics across your devices.</span></div>
+          <button class="switch" type="button" role="switch" aria-checked="false" data-autofocus aria-label="Enable sync"></button>
+        </div>
+        ${syncFacts('Off', 'Not synced yet', '0 KB', '0%')}
+        <div class="actions"><button class="button" type="button">Sync now</button></div>
+        <p class="helper">You are signed in, but no local product data has been uploaded.</p>
+      </section>
+      <section class="section">
+        <div class="section-heading"><h2>Devices</h2><span class="micro">1 of 5 active</span></div>
+        <div class="devices">
+          <div class="device"><div class="device-main"><span class="device-glyph">▣</span><span><span class="device-name">This Windows PC</span><span class="device-meta">Current installation · Sync off</span></span></div><span class="micro current">Current</span></div>
+        </div>
+      </section>
+      ${accountActions}`
+
+    const sync = `
+      ${signedHeader()}
+      <section class="section">
+        <p class="eyebrow">Encrypted sync</p>
+        <div class="setting-row">
+          <div class="setting-copy"><strong>Sync is on</strong><span>Eligible changes stay current across active devices.</span></div>
+          <button class="switch on" type="button" role="switch" aria-checked="true" data-autofocus aria-label="Disable sync"></button>
+        </div>
+        ${syncFacts('Up to date', '2 minutes ago', '412 KB', '20%')}
+        <div class="actions"><button class="button" type="button">Sync now</button></div>
+      </section>
+      <section class="section">
+        <div class="section-heading"><h2>Devices</h2><span class="micro">2 of 5 active</span></div>
+        <div class="devices">
+          <div class="device"><div class="device-main"><span class="device-glyph">▣</span><span><span class="device-name">Studio PC</span><span class="device-meta">Current · Synced 2 minutes ago</span></span></div><span class="micro current">Current</span></div>
+          <div class="device"><div class="device-main"><span class="device-glyph">◇</span><span><span class="device-name">Travel Chromebook</span><span class="device-meta">Synced yesterday</span></span></div><button class="device-action" type="button">Remove</button></div>
+        </div>
+      </section>
+      ${accountActions}`
+
+    const deviceLimit = `
+      ${signedHeader()}
+      <section class="section">
+        <p class="eyebrow">Encrypted sync</p>
+        <div class="setting-row">
+          <div class="setting-copy"><strong>Enable sync</strong><span>This installation is signed in and remains fully usable in Local mode.</span></div>
+          <button class="switch blocked" type="button" role="switch" aria-checked="false" aria-disabled="true" aria-label="Enable sync unavailable"></button>
+        </div>
+        <div class="callout"><span class="callout-icon">!</span><div><h2>Device limit reached</h2><p>Five installations are already syncing. Remove one below before enabling sync here. Tab Two never removes a device automatically.</p></div></div>
+      </section>
+      <section class="section">
+        <div class="section-heading"><h2>Choose a device to remove</h2><span class="micro">5 of 5 active</span></div>
+        <div class="devices">
+          <div class="device"><div class="device-main"><span class="device-glyph">▣</span><span><span class="device-name">Studio PC</span><span class="device-meta">Synced 8 minutes ago</span></span></div><button class="device-action" type="button" data-autofocus>Remove</button></div>
+          <div class="device"><div class="device-main"><span class="device-glyph">◇</span><span><span class="device-name">Travel Chromebook</span><span class="device-meta">Synced yesterday</span></span></div><button class="device-action" type="button">Remove</button></div>
+          <div class="device"><div class="device-main"><span class="device-glyph">▣</span><span><span class="device-name">Office profile</span><span class="device-meta">Synced 3 days ago</span></span></div><button class="device-action" type="button">Remove</button></div>
+          <div class="device"><div class="device-main"><span class="device-glyph">◇</span><span><span class="device-name">Kitchen display</span><span class="device-meta">Synced 2 weeks ago</span></span></div><button class="device-action" type="button">Remove</button></div>
+          <div class="device"><div class="device-main"><span class="device-glyph">▣</span><span><span class="device-name">Old browser profile</span><span class="device-meta">Synced 1 month ago</span></span></div><button class="device-action" type="button">Remove</button></div>
+        </div>
+        <p class="helper">Removing a device stops future sync. It does not erase that device's local data.</p>
+      </section>
+      ${accountActions}`
+
+    const deleteState = `
+      ${signedHeader()}
+      <section class="section"><p class="eyebrow">Encrypted sync</p><div class="setting-row"><div class="setting-copy"><strong>Sync is on</strong><span>Eligible changes stay current across active devices.</span></div><button class="switch on" type="button" role="switch" aria-checked="true"></button></div>${syncFacts('Up to date', '2 minutes ago', '412 KB', '20%')}</section>
+      ${accountActions}
+      <div class="modal-shade">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+          <div class="danger-mark" aria-hidden="true">!</div>
+          <h1 id="delete-title">Delete your Tab Two account?</h1>
+          <p class="lede">This is immediate and cannot be undone through support.</p>
+          <ul class="impact"><li>Ends premium access and stops future billing.</li><li>Deletes synced data, device records, and Tab Two account data.</li><li>Does not erase local data on this or any other installation.</li></ul>
+          <div class="verified"><span class="status-dot success"></span><b>Google account verified</b><span>just now</span></div>
+          <label class="confirm-label">Type DELETE to confirm<input type="text" value="DELETE" aria-label="Type DELETE to confirm" /></label>
+          <div class="dialog-actions"><button class="button" type="button">Cancel</button><button class="button danger-solid" type="button" data-autofocus>Delete account</button></div>
+        </section>
+      </div>`
+
+    const states = { local, 'signed-in': signedIn, sync, 'device-limit': deviceLimit, delete: deleteState }
+    document.documentElement.dataset.state = state
+    document.getElementById('state-root').innerHTML = states[state] || local
+  </script>
+</body>
+</html>
