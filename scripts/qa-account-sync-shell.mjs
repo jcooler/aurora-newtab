@@ -203,7 +203,14 @@ async function geometry(page) {
     const visible = (element) => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      return style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && rect.width > 0
+        && rect.height > 0
+        && rect.right > 0
+        && rect.bottom > 0
+        && rect.left < innerWidth
+        && rect.top < innerHeight
     }
     const activeDialog = document.querySelector('[role="dialog"][aria-modal="true"]')
     const controlRoot = activeDialog ?? document.querySelector('[data-settings-scroll-owner="document"]')
