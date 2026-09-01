@@ -8,8 +8,14 @@ If something isn't listed here, Tab Two doesn't do it.
 
 ## Summary
 
-Tab Two has no backend and requires no Tab Two account. Optional credentialed
-connectors can use accounts you already have with their third-party providers.
+The production Tab Two build has no Tab Two backend and requires no Tab Two
+account. Optional credentialed connectors can use accounts you already have
+with their third-party providers. The source repository includes an unshipped,
+production-disabled `account-local` development mode that can store one
+Supabase access/refresh session under `tab-two:account-session:v1` and talk only
+to the loopback Supabase stack. That development mode is excluded from the
+production bundle, JSON backup, diagnostics, screenshots, and UI; it does not
+describe data collected by the production extension.
 Tab Two does not collect data for its developer, sell or rent your data, or
 transfer it for advertising, profiling, lending, or any unrelated purpose.
 There is no analytics and no tracking of any kind. Everything
@@ -219,7 +225,9 @@ using this API — that's gone; every search now goes through Chrome.)
 
 ## Permissions
 
-Tab Two requests the following Chrome permissions:
+The production Tab Two build requests the following Chrome permissions. A
+separate unshipped `account-local` development manifest additionally holds
+`identity` and `http://127.0.0.1/*`; production and preview do not hold either.
 
 - **`storage`** (installed automatically, no prompt) — used for everything
   under "What Tab Two stores" above.

@@ -552,7 +552,7 @@ git commit -m 'feat: connect the local account client boundary'
 - Consumes: local Supabase, an ephemeral test signing key, the `account-local` build, and a local mock OAuth redirect server.
 - Produces: installed-extension evidence without a hosted project, production permission, production OAuth registration, or committed secret.
 
-- [ ] **Step 1: Stop and request exact owner approval**
+- [x] **Step 1: Stop and request exact owner approval**
 
 Request approval for only these local development changes:
 
@@ -561,15 +561,15 @@ Request approval for only these local development changes:
 
 Explicitly state that production and preview manifests remain unchanged; no paid project, production Google application, real owner UUID/grant, production secret, deployment, merge, release, or Store action is included. Do not edit `src/manifest.ts` until approval is received.
 
-- [ ] **Step 2: Write the failing harness contract after approval**
+- [x] **Step 2: Write the failing harness contract after approval**
 
 Require `--exact`, exact source/build provenance, production and account-local builds, local Supabase health, database/RLS tests, Edge Function tests, installed Chromium at 1600x900 and touch-enabled 768x812, one explicit sign-in action through `launchWebAuthFlow`, exact callback/replay rejection, signed owner-fixture lease bound to a generated local account UUID, sign-out cleanup, zero AuroraData writes, production fixture/secret/permission exclusion, bounded request allowlists, zero console/page/failed-request errors, and original-resolution judgments.
 
-- [ ] **Step 3: Add the local-only manifest branch and QA harness**
+- [x] **Step 3: Add the local-only manifest branch and QA harness**
 
 In `src/manifest.ts`, add `identity` and `http://127.0.0.1/*` only when `env.mode === 'account-local'`. Production and preview arrays remain byte-for-byte at their PM-P1 authority. The harness generates the Ed25519 key pair in memory, writes any process bridge only under a temporary directory, obtains local publishable/service values from `npx supabase status -o json`, never prints them, and deletes the temporary directory on success or failure.
 
-- [ ] **Step 4: Run contract GREEN and exact local proof**
+- [x] **Step 4: Run contract GREEN and exact local proof**
 
 ```powershell
 node --test scripts/qa-account-auth-local.test.mjs
@@ -578,7 +578,7 @@ npm run qa:account-auth-local -- --exact
 
 Expected: local SQL, function, client, and browser gates pass; the production artifact contains neither `identity`, localhost host access, session/auth code, Supabase endpoints, private/test key material, nor preview fixtures.
 
-- [ ] **Step 5: Inspect every final PNG at original resolution and commit**
+- [x] **Step 5: Inspect every final PNG at original resolution and commit**
 
 Record PASS/FAIL for copy, focus, dialog restoration, overflow, clipping, overlap, and touch containment. Commit only after every retained screenshot passes:
 
@@ -596,11 +596,11 @@ git commit -m 'test: add local account authentication QA'
 - Consumes: Tasks 1 through 8.
 - Produces: one reviewed and pushed local PM-P2 checkpoint with production still Local and all hosted/production gates closed.
 
-- [ ] **Step 1: Perform one bounded review**
+- [x] **Step 1: Perform one bounded review**
 
 Review the complete PM-P2 diff against account identity separation, Google-only entry, PKCE/callback/replay handling, session exclusion, signed-lease verification, owner-grant privilege/audit, RLS/grants, local-only manifest branching, production tree shaking, free-path isolation, safe errors/logs, and rollback. Only Critical or Important findings block. Apply at most one focused fix and rereview cycle.
 
-- [ ] **Step 2: Run the single stabilized gate**
+- [x] **Step 2: Run the single stabilized gate**
 
 ```powershell
 npm test
@@ -613,7 +613,7 @@ npx vitest run supabase/functions/tests/account-functions.test.ts
 git diff --check
 ```
 
-- [ ] **Step 3: Build and scan exact provenance**
+- [x] **Step 3: Build and scan exact provenance**
 
 ```powershell
 npm run build
@@ -623,7 +623,7 @@ npm run qa:account-auth-local -- --exact
 
 Expected: the production scan exits 1 and exact local evidence passes. Do not claim a real Google provider, hosted Supabase project, production owner grant, production permission, or deployment.
 
-- [ ] **Step 4: Reconcile durable documentation**
+- [x] **Step 4: Reconcile durable documentation**
 
 Record exact test/build/evidence provenance. Update PRIVACY and README only to distinguish the locally implemented, production-disabled account foundation from shipped production behavior. Mark PM-P2 verified only as a local foundation; keep hosted Supabase, production Google OAuth, exact Supabase host authority, production signing key, real owner account UUID/grant, deployment, merge, release, and Store action as explicit gates before PM-P3.
 

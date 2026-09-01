@@ -2,9 +2,12 @@
 
 *The best tab for your second screen.*
 
-A calm, local-first new-tab dashboard for Chrome. No Tab Two account, no tracking,
-no backend — stored data stays on your machine, with selected features making
-direct provider requests only as disclosed below.
+A calm, local-first new-tab dashboard for Chrome. The production build requires
+no Tab Two account and has no Tab Two backend or tracking — stored data stays on
+your machine, with selected features making direct provider requests only as
+disclosed below. This repository also contains a production-disabled
+`account-local` development foundation for future optional account services; it
+uses only a local Supabase stack and is not shipped or activated in production.
 
 ## Features
 
@@ -452,8 +455,12 @@ The full, standalone privacy policy (Chrome Web Store submission copy,
 audited line-by-line against this codebase) lives in
 [`PRIVACY.md`](PRIVACY.md). Summary:
 
-Tab Two has no backend and requires no Tab Two account. Third-party accounts
-are used only when you choose a credentialed connector. All of your data — settings, quick
+The production build has no Tab Two backend and requires no Tab Two account.
+Third-party accounts are used only when you choose a credentialed connector.
+The repository's `account-local` development mode can exercise Google-shaped
+PKCE, an isolated Supabase session, and signed entitlement leases against the
+loopback development stack; production contains none of that account runtime,
+permission, host access, or session storage. All production user data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
 preferences, weather cache, location, notes, world clocks, countdowns,
 habits, manual Progress goals, widget layout, and connector configuration (e.g. your RSS feed
