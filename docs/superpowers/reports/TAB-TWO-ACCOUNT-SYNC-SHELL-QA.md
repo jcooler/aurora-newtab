@@ -28,6 +28,49 @@ provider integration, analytics, deployment, release, merge, or Store action.
 
 ## Current result
 
-Pending the exact post-review commit, production/preview builds, Chromium run,
-and original-resolution inspection. Final provenance and judgments are recorded
-in Task 8 without claiming that any real paid service exists.
+Verified at exact runtime source
+`448cbd5ffb2647a8bac8d204a97195406a380464`.
+
+The owner approved all five original-resolution mockups before production React
+or CSS changed. The bounded review then closed account-identity and
+future-issued lease validation, fresh Google verification plus explicit device
+targeting for revocation, and nested-dialog QA measurement. No Critical or
+Important finding remains open. Final branch verification also exposed a
+test-only timing assertion that yielded to the zero-delay toolbar unlock before
+checking the release boundary; the assertion now checks the synchronous
+release state first and then proves the scheduled unlock.
+
+Verification results:
+
+- focused PM-P1 coverage: 6 files / 374 tests passed;
+- stabilized full product gate: 227 files / 3,544 tests passed at final
+  test-only stabilization source `68a6ee17f57f7dd7747167a2a42cdaa82526aeb6`;
+- `npx tsc --noEmit`: passed;
+- `node --test scripts/qa-account-sync-shell.test.mjs`: 6/6 passed;
+- exact production build: 278 modules;
+- exact preview build: 279 modules;
+- production scan for `TAB_TWO_PREVIEW_ACCOUNT_FIXTURE` and `preview_fixture`:
+  no matches; and
+- `npm run qa:account-sync-shell -- --exact`: passed at runtime source
+  `448cbd5ffb2647a8bac8d204a97195406a380464`.
+
+Installed-extension Chromium covered production Local mode at 1600x900,
+preview signed-in, active, past-due, device-limit, syncing, offline, and
+needs-attention states, both freshly verified typed destructive confirmations,
+and active subscription at touch-enabled 768x812. All required keyboard,
+pointer, and direct touch interactions passed. Ledgers contain zero storage
+writes, external requests, console errors, page errors, and failed requests.
+Geometry records zero horizontal overflow, viewport escape, and control
+overlap, with exactly one contained Settings scroll owner.
+
+All 11 final PNGs were inspected at original resolution and retain explicit
+PASS judgments. Evidence is recorded under
+`artifacts/qa-account-sync-shell/448cbd5ffb2647a8bac8d204a97195406a380464/`
+in `evidence.json`, `judgments.json`, and the retained PNGs.
+
+README and PRIVACY remain accurate without edits because the production client
+stays Local, sends no request, writes no account state, and adds no permission
+or data flow. This verification does not claim a real account backend,
+authentication, owner grant, entitlement service, billing, sync transport,
+storage schema, analytics, provider integration, deployment, release, merge,
+or Store action.

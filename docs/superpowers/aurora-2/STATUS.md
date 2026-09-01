@@ -4,8 +4,10 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Tab Two V2 product and premium architecture<br>
-**Last verified packet:** `Tab Two free-baseline hardening` - bounded review/fix/rereview, focused and full Vitest, TypeScript, diff hygiene, exact production build, installed desktop/touch-device Chromium, persistence and authority ledgers, and original-resolution screenshot inspection<br>
-**Current packet:** Paid MVP program planning is approved. PM-P1 Account & Sync client shell is the next bounded implementation packet; no paid infrastructure or entitlement runtime has begun.
+**Last verified packet:** `PM-P1 Account & Sync client shell and capability contracts` - owner-approved visuals, bounded review/fix/rereview, focused and full Vitest, TypeScript, diff hygiene, exact production and preview builds, installed desktop/touch-device Chromium, storage/request/runtime ledgers, and original-resolution screenshot inspection<br>
+**Current packet:** PM-P1 is verified and pushed. PM-P2 Supabase auth and entitlements is not started; provisioning, production OAuth, secrets, permissions, and every later external gate remain closed.
+
+- **PM-P1 Account & Sync client shell (2026-09-01, VERIFIED):** Added pure account, entitlement-lease, capability, sync-summary, and device contracts; a deep-frozen zero-network Local production client; a separately imported deterministic preview client; one AccountProvider at the new-tab root; a permanent sixth Account & Sync Settings tab; truthful Local, signed-in, subscription, sync, device-limit, and destructive-confirmation states; and an inline PremiumPrompt primitive that is not consulted by current free paths. Owner approval covered five original-resolution Account & Sync PNG mockups before production React or CSS changed. The bounded review closed account-identity and future-issued lease validation, fresh Google verification and explicit device targeting for revocation, and nested-dialog QA measurement. The stabilized product gate passed 227 files / 3,544 tests plus TypeScript; the final QA contract passed 6/6. Exact production and preview builds transformed 278 and 279 modules, and production contained no preview fixture marker. Installed extension Chromium at 1600x900 and touch-enabled 768x812 passed all required interactions across 11 retained states with zero storage writes, external requests, console errors, page errors, failed requests, horizontal overflow, viewport escape, or control overlap, plus one contained Settings scroll owner. All 11 final screenshots were inspected at original resolution. Runtime evidence source: `448cbd5ffb2647a8bac8d204a97195406a380464`; evidence: `artifacts/qa-account-sync-shell/448cbd5ffb2647a8bac8d204a97195406a380464/`. README and PRIVACY remain accurate without edits because production remains Local, adds no backend or data flow, and requests no permission. No authentication, entitlement service, owner grant, billing, sync transport, storage schema, analytics, provider integration, paid infrastructure, production secret, merge, release, or Store action was added.
 
 - **Free-baseline hardening (2026-09-01, VERIFIED):** Removed the obsolete global `isPremium()` dependency and dead module from the five-tab Settings shell, Layout recovery/management, connector-widget Settings routing, keyboard editing, long-press editing, and the layout badge. No replacement entitlement abstraction was added. Behavior-first RED/GREEN coverage proved the free paths, and no `isPremium` or `lib/premium` reference remains under `src`. Original-resolution review found one Important touch-release defect: a toolbar rendered beneath a held pointer could activate its Layout selector on release. The focused fix keeps the toolbar inert through the release task; regression coverage and the exact touch witness prove no unintended activation. The final stabilized gate passed 222 files / 3,520 tests, TypeScript, the 6-test QA contract, and diff hygiene with only existing line-ending notices. The exact production build transformed 274 modules. Installed Chromium at 1600x900 desktop and 768x812 supported touch-device geometry passed all nine interactions, three intended `layouts` writes, exact protected-authority checks, zero requests or runtime failures, and five original-resolution captures with no overflow, escape, or object overlap. README and PRIVACY remain accurate without edits because permissions, collection, storage authorities, and network behavior did not change. Evidence: `artifacts/qa-free-baseline/<exact-commit>/`.
 
@@ -516,9 +518,9 @@
 
 ## Continuous remaining-work protocol
 
-- **Packet:** PM-P1 Account & Sync client shell and capability contracts
-- **Plan:** `docs/superpowers/plans/2026-09-01-tab-two-account-sync-client.md`, under the paid program plan `docs/superpowers/plans/2026-09-01-tab-two-paid-mvp-program.md`.
-- **State:** Free-baseline hardening is verified. The consolidated paid architecture, threat model, and PM-P1 execution plan are owner approved. PM-P1 has not started. Do not mutate Store state.
+- **Packet:** PM-P2 Supabase auth and entitlements
+- **Plan:** Create the PM-P2 plan just in time under `docs/superpowers/plans/2026-09-01-tab-two-paid-mvp-program.md`; PM-P1 evidence remains in `docs/superpowers/plans/2026-09-01-tab-two-account-sync-client.md` and `docs/superpowers/reports/TAB-TWO-ACCOUNT-SYNC-SHELL-QA.md`.
+- **State:** PM-P1 is verified. PM-P2 has not started. Paid provisioning, production OAuth registration, secrets, Chrome identity permission, deployment, merge, release, and Store state remain explicit approval gates.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one written packet envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
@@ -530,9 +532,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: PM-P1 Account & Sync client shell and capability contracts
-Verified runtime source checkpoint: e9d135a0adc2dff39005426ff21ed342a2f78651
-Expected next checkpoint subject: docs: checkpoint Tab Two PM-P1
-Execution: follow the approved paid program and PM-P1 plans; begin with owner-visible PNG mockups and stop for visual approval before production UI edits.
+Next packet: PM-P2 Supabase auth and entitlements
+Verified PM-P1 runtime source checkpoint: 448cbd5ffb2647a8bac8d204a97195406a380464
+Expected next plan: create the PM-P2 executable plan just in time under the approved paid program.
+Execution: stop before provisioning, production OAuth registration, secrets, Chrome identity permission, deployment, merge, release, or Store mutation until the applicable explicit approval is recorded.
 Hard stop: no Chrome Web Store upload, edit/save, submission, publication, distribution, or rollout without contemporaneous explicit approval.
 ```
