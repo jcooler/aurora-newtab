@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import type { BlockId } from '../../lib/layout/types'
-import { isPremium } from '../../lib/premium'
 
 const DEFAULT_HOLD_MS = 500
 const DEFAULT_TOLERANCE_PX = 8
@@ -25,10 +24,7 @@ const INTERACTIVE_SELECTOR = 'button, a, input, textarea, select, [role="button"
  *  hold-to-repeat or click semantics (links, native number-input spinners,
  *  and panel buttons). Direct launchers deliberately suppress their eventual
  *  click after the hold engages, while a short press behaves normally.
- *
- *  No-ops entirely when `isPremium()` is false — checked once, when this
- *  effect (re-)runs, not per event; arrange mode has exactly one entry
- *  point today, and this is it. */
+ */
 export function useLongPress(
   onEngage: (blockId: BlockId, e: PointerEvent) => void,
   opts?: { holdMs?: number; tolerancePx?: number },
@@ -40,8 +36,6 @@ export function useLongPress(
   const tolerancePx = opts?.tolerancePx ?? DEFAULT_TOLERANCE_PX
 
   useEffect(() => {
-    if (!isPremium()) return
-
     let timer: ReturnType<typeof setTimeout> | null = null
     let trackedPointerId: number | null = null
     let blockId: BlockId | null = null

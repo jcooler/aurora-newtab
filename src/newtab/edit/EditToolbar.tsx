@@ -16,6 +16,7 @@ export default function EditToolbar({
   session,
   hiddenWidgets = [],
   topOffset,
+  interactionLocked = false,
   onRestoreHidden,
   onSwitchLayout,
   onBulkTier,
@@ -28,6 +29,9 @@ export default function EditToolbar({
    *  stay reachable during a session (owner-reported 2026-08-18: the
    *  toolbar sat over the top-docked Bookmarks). */
   topOffset?: number
+  /** A held pointer may cause this toolbar to appear underneath itself.
+   *  Keep the new controls out of hit testing until that pointer releases. */
+  interactionLocked?: boolean
   session: EditSession
   /** Widgets hidden in the edited layout (review fix I2): each gets a Show
    *  control so Hide is never a dead end. */
@@ -45,6 +49,7 @@ export default function EditToolbar({
     <div
       role="toolbar"
       aria-label="Edit layout"
+      inert={interactionLocked}
       className="edit-toolbar"
       style={topOffset !== undefined ? { top: topOffset } : undefined}
     >

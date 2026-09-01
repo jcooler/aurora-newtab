@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { isPremium } from '../../lib/premium'
 import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import type { AuroraStorage } from '../../lib/storage/index'
 import { emptyLayoutV2 } from '../../lib/layout/v2'
@@ -18,12 +17,7 @@ import {
 import Section from '../Section'
 import { row, label, btnQuiet, btnDanger } from './shared'
 
-/** Legacy layout recovery actions. Gated on `isPremium()` and hidden
- *  ENTIRELY (not disabled/greyed) when it's false — the no-placeholder-UI
- *  rule means a free build shows no trace of a feature it can't use, rather
- *  than a dead button.
- *
- *  The Arrange artboard was deleted with the named-layouts rebuild (NL-P2,
+/** Legacy layout recovery actions. The Arrange artboard was deleted with the named-layouts rebuild (NL-P2,
  *  spec §3); live on-page editing and layout management arrive with NL-P3.
  *  This section keeps only the pre-existing legacy actions on the stored
  *  `layout` recovery input: the V1/V2 "Reset layout" confirmation and
@@ -105,8 +99,6 @@ export default function Layout({
       unsubscribe()
     }
   }, [storage])
-
-  if (!isPremium()) return null
 
   return (
     <Section title="Layout">

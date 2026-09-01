@@ -48,7 +48,6 @@ import { fallbackDockBandRect, nudgeDockPoint } from './edit/dockGeometry'
 import { enforceDockEligibility, NARROW_FLOOR_WIDTH } from '../lib/layout/renderLayout'
 import { restoreHiddenWidget } from '../lib/layout/editSession'
 import { useDialogEscape } from '../lib/dialogStack'
-import { isPremium } from '../lib/premium'
 import { useStorage } from '../lib/storage/context'
 import EditToolbar from './edit/EditToolbar'
 import { useEditMode } from './edit/useEditMode'
@@ -232,9 +231,7 @@ function AuroraApp() {
     }
     const entry = activeEntries.find((candidate) => candidate.id === id)
     const availability = entry?.availability
-    // A connector card only exists on the premium Connectors tab; without it
-    // the group anchor is the honest fallback (review fix M8).
-    const target = availability?.kind === 'connector' && isPremium()
+    const target = availability?.kind === 'connector'
       ? { tab: 'connectors' as const, anchor: availability.id }
       : availability?.kind === 'widget'
         ? { tab: 'widgets' as const, anchor: availability.key }
@@ -397,6 +394,16 @@ function AuroraApp() {
       })
     },
   })
+  const [toolbarReleaseLocked, setToolbarReleaseLocked] = useState(false)
+  useEffect(() => {
+    if (drag.dragging !== null) {
+      setToolbarReleaseLocked(true)
+      return
+    }
+    if (!toolbarReleaseLocked) return
+    const timeout = window.setTimeout(() => setToolbarReleaseLocked(false), 0)
+    return () => window.clearTimeout(timeout)
+  }, [drag.dragging, toolbarReleaseLocked])
 
   const startCanvasObjectDrag = (
     subject: CanvasDragSubject,
@@ -465,7 +472,6 @@ function AuroraApp() {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'e') return
-      if (!isPremium()) return
       // A live session ignores the chord entirely — re-entry would discard
       // the draft (review fix C1; begin is also identity-guarded).
       if (sessionLiveRef.current) return
@@ -667,7 +673,7 @@ function AuroraApp() {
           onGearClick={openSettingsForWidget}
           renderWidget={renderWidget}
         />
-        {!session && layoutsDocument && isPremium() ? (
+        {!session && layoutsDocument ? (
           <LayoutBadge
             document={layoutsDocument}
             clearsTray={trayTriggerVisible}
@@ -773,6 +779,7 @@ function AuroraApp() {
           <EditToolbar
             session={session}
             topOffset={toolbarTopOffset}
+            interactionLocked={drag.dragging !== null || toolbarReleaseLocked}
             hiddenWidgets={activeEntries.flatMap((entry) => (
               activeDraftLayout(session).widgets[entry.id]?.kind === 'hidden'
                 ? [{ id: entry.id, label: entry.label }]

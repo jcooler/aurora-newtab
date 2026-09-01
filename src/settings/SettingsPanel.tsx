@@ -13,27 +13,19 @@ import About from './sections/About'
 import Connectors from './sections/Connectors'
 import Progress from './sections/Progress'
 import Tabs from './Tabs'
-import { isPremium } from '../lib/premium'
 import PermissionCleanupAlert from './PermissionCleanupAlert'
 import { usePermissionCleanup } from './usePermissionCleanup'
 import { calendarPreferenceFor } from '../lib/layout/calendarConsolidation'
 
 type TabId = 'general' | 'progress' | 'widgets' | 'connectors' | 'data'
 
-// Tabs in reading order. Connectors sits between Widgets and Data — but only
-// when premium: it is gated on isPremium() and, per the no-placeholder rule,
-// the tab does not exist at all when that's false (not a disabled tab, an
-// absent one). Computed at render (isPremium is a function, and tests flip it)
-// rather than as a module constant.
-function tabsFor(premium: boolean): readonly { id: TabId; label: string }[] {
-  return [
-    { id: 'general', label: 'General' },
-    { id: 'progress', label: 'Progress' },
-    { id: 'widgets', label: 'Widgets' },
-    ...(premium ? ([{ id: 'connectors', label: 'Connectors' }] as const) : []),
-    { id: 'data', label: 'Data' },
-  ]
-}
+const TABS: readonly { id: TabId; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'progress', label: 'Progress' },
+  { id: 'widgets', label: 'Widgets' },
+  { id: 'connectors', label: 'Connectors' },
+  { id: 'data', label: 'Data' },
+]
 
 export default function SettingsPanel({
   // Whether the Drawer wrapping this panel is currently open — threaded down
@@ -70,8 +62,7 @@ export default function SettingsPanel({
   openRef.current = open
 
   const focusSettingsTarget = useCallback((targetTab: TabId, anchor: string) => {
-    const resolvedTab = targetTab === 'connectors' && !isPremium() ? 'widgets' : targetTab
-    setTab(resolvedTab)
+    setTab(targetTab)
     let cancelled = false
     const attempt = (remaining: number) => {
       if (cancelled || !openRef.current) return
@@ -140,8 +131,6 @@ export default function SettingsPanel({
 
   if (!settings) return null
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
-  const premium = isPremium()
-  const TABS = tabsFor(premium)
   // Only the ACTIVE tab's sections are rendered — inactive ones are
   // unmounted, not hidden, so their hooks and effects don't run off screen
   // (Data's pending-import state, Layout's confirm dialog, Background's
@@ -202,7 +191,7 @@ export default function SettingsPanel({
         />
       )}
 
-      {tab === 'connectors' && premium && (
+      {tab === 'connectors' && (
         <Connectors
           connectors={connectors}
           refreshPreferences={refreshPreferences}

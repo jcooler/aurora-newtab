@@ -10,6 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-31-tab-two-freemium-product-architecture-design.md`
 
+**Execution correction (2026-08-31):** The original source-text guard and
+script-marker contract were replaced with observable behavior tests and an
+executable QA CLI contract. Source scanning remains a review/build hygiene
+check, not a shipped unit test. This preserves the approved outcome while
+following the repository rule that tests exercise behavior rather than grep
+implementation text.
+
 ## Global Constraints
 
 - Work only in `D:\DEV\Chrome plugin-aurora-2` on `feat/aurora-2-observatory`.
@@ -26,68 +33,47 @@
 
 **Files:**
 
-- Create: `src/lib/freeBaseline.test.ts`
 - Modify: `src/settings/SettingsPanel.test.tsx`
 - Modify: `src/newtab/arrange/useLongPress.test.tsx`
 
 **Interfaces:**
 
 - Consumes: Existing Settings and edit-entry behavior.
-- Produces: An executable invariant that existing free surfaces never import or call a global premium gate.
+- Produces: Observable failures proving that the legacy gate still blocks
+  current free Settings, Layout, Connectors, and long-press entry.
 
-- [ ] **Step 1: Add the failing source-boundary test**
+- [x] **Step 1: Reverse the stale gated expectations**
 
-Create `src/lib/freeBaseline.test.ts` with the exact current free surfaces:
+Under the existing mocked false result, require the five Settings tabs,
+Layout recovery controls, Connectors region, and 500ms long-press engagement.
+Each expectation names the user-visible behavior the obsolete gate blocks.
 
-```ts
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
-
-const FREE_SURFACES = [
-  'src/settings/SettingsPanel.tsx',
-  'src/settings/sections/Layout.tsx',
-  'src/newtab/App.tsx',
-  'src/newtab/arrange/useLongPress.ts',
-  'src/newtab/edit/useEditMode.ts',
-] as const
-
-describe('approved free baseline', () => {
-  it.each(FREE_SURFACES)('%s has no global premium gate', (path) => {
-    const source = readFileSync(resolve(path), 'utf8')
-    expect(source).not.toMatch(/isPremium|lib\/premium/)
-  })
-})
-```
-
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
 ```powershell
-npx vitest run src/lib/freeBaseline.test.ts
+npx vitest run src/settings/SettingsPanel.test.tsx src/newtab/arrange/useLongPress.test.tsx
 ```
 
-Expected: five failures identifying the current `isPremium` imports or calls.
+Observed: four intended failures, with the remaining 293 focused tests passing.
 
-- [ ] **Step 3: Rewrite stale behavior expectations before implementation**
+- [x] **Step 3: Preserve the permanent behavior coverage**
 
-In `SettingsPanel.test.tsx`, replace the false-premium tests with assertions
-that the five tabs always remain `General`, `Progress`, `Widgets`, `Connectors`,
-and `Data`, the Layout region remains present, and the Connectors gallery remains
-reachable. In `useLongPress.test.tsx`, remove the mocked-entitlement setup and
-replace the false-premium case with an ordinary 500ms engagement assertion.
+The existing ordinary-path tests already assert the five tabs, Layout recovery,
+Connectors gallery, and 500ms long press. Remove the obsolete false-premium
+mocks after GREEN instead of retaining duplicate or source-coupled tests.
 
-- [ ] **Step 4: Confirm the focused tests remain RED only at the source boundary**
+- [x] **Step 4: Confirm isolated RED**
 
 Run:
 
 ```powershell
-npx vitest run src/lib/freeBaseline.test.ts src/settings/SettingsPanel.test.tsx src/newtab/arrange/useLongPress.test.tsx
+npx vitest run src/settings/SettingsPanel.test.tsx src/newtab/arrange/useLongPress.test.tsx
 ```
 
-Expected: behavior assertions pass; `freeBaseline.test.ts` still fails until
-the production gates are removed.
+Observed: exactly the four intended behavior assertions fail until the
+production gates are removed.
 
 ### Task 2: Remove the obsolete gate
 
@@ -105,37 +91,38 @@ the production gates are removed.
 - Consumes: Existing connector, layout, edit-mode, and Settings interfaces unchanged.
 - Produces: The same public behavior with no entitlement dependency.
 
-- [ ] **Step 1: Make Settings unconditional**
+- [x] **Step 1: Make Settings unconditional**
 
 Replace `tabsFor(premium)` with a constant five-tab list. Remove the connector
 fallback in `focusSettingsTarget`, render Connectors whenever its tab is active,
 and remove all `isPremium` imports and variables. Do not rename tab ids or move
 sections.
 
-- [ ] **Step 2: Make layout recovery and editing unconditional**
+- [x] **Step 2: Make layout recovery and editing unconditional**
 
 Remove the gate and stale premium commentary from `Layout.tsx`. In
 `useEditMode.ts`, retain only `if (!resolved) return`. In `useLongPress.ts`,
 remove the early return while preserving every pointer, tolerance, cancellation,
 and click-suppression path.
 
-- [ ] **Step 3: Make App routing and entry unconditional**
+- [x] **Step 3: Make App routing and entry unconditional**
 
 In `App.tsx`, always route connector-backed widgets to Connectors, allow the
 Ctrl/Cmd+Shift+E entry to reach the existing live-session guards, and render the
 Layout badge whenever `!session && layoutsDocument`. Do not alter edit-session,
 storage-write, stack, dock, or focus-restoration logic.
 
-- [ ] **Step 4: Delete the dead module and run GREEN**
+- [x] **Step 4: Delete the dead module and run GREEN**
 
 Delete `src/lib/premium.ts`, then run:
 
 ```powershell
-npx vitest run src/lib/freeBaseline.test.ts src/settings/SettingsPanel.test.tsx src/settings/Tabs.test.tsx src/newtab/arrange/useLongPress.test.tsx src/newtab/edit/useEditMode.test.tsx src/newtab/App.test.tsx
+npx vitest run src/settings/SettingsPanel.test.tsx src/settings/Tabs.test.tsx src/newtab/arrange/useLongPress.test.tsx src/newtab/edit/useEditMode.test.tsx src/newtab/App.test.tsx
 ```
 
-Expected: all selected files pass, and `rg -n "isPremium|lib/premium" src`
-returns no code reference.
+Observed: 5 files / 368 tests pass; `rg -n "isPremium|lib/premium" src`
+returns no code reference. The existing ProgressRail React `act()` warning
+remains unchanged test noise.
 
 ### Task 3: Reconcile test names and source truth
 
@@ -153,30 +140,31 @@ returns no code reference.
 - Consumes: Green production behavior from Task 2.
 - Produces: Tests and ledgers that no longer call existing connectors or layout editing premium.
 
-- [ ] **Step 1: Remove stale test vocabulary**
+- [x] **Step 1: Remove stale test vocabulary**
 
 Rename the generic `Tabs.test.tsx` varying-count test so it describes bounded
 three- and four-item tab rows without calling either set free or premium. Remove
 all obsolete premium mocks, resets, imports, and comments from affected tests.
 
-- [ ] **Step 2: Reconcile active ledgers**
+- [x] **Step 2: Reconcile active ledgers**
 
 Record that the free-baseline packet removed only obsolete gates and changed no
 runtime authority. Keep paid architecture in owner-approved design status and
 do not claim account, entitlement, or owner-grant implementation.
 
-- [ ] **Step 3: Run focused GREEN and TypeScript**
+- [x] **Step 3: Run focused GREEN and TypeScript**
 
 Run:
 
 ```powershell
-npx vitest run src/lib/freeBaseline.test.ts src/settings/SettingsPanel.test.tsx src/settings/Tabs.test.tsx src/newtab/arrange/useLongPress.test.tsx src/newtab/edit/useEditMode.test.tsx src/newtab/App.test.tsx
+npx vitest run src/settings/SettingsPanel.test.tsx src/settings/Tabs.test.tsx src/newtab/arrange/useLongPress.test.tsx src/newtab/edit/useEditMode.test.tsx src/newtab/App.test.tsx
 npx tsc --noEmit
 git diff --check
 ```
 
-Expected: every command exits 0, apart from existing line-ending notices from
-`git diff --check` if present.
+Observed: the focused baseline passed 5 files / 368 tests before the final touch
+regression was added; TypeScript and diff hygiene passed. The final stabilized
+gate below includes the added touch regression.
 
 ### Task 4: Add exact real-extension proof
 
@@ -192,14 +180,16 @@ Expected: every command exits 0, apart from existing line-ending notices from
 - Consumes: Exact production build at the reviewed commit.
 - Produces: Original-resolution desktop/touch evidence and storage/request/runtime ledgers.
 
-- [ ] **Step 1: Write the failing harness contract**
+- [x] **Step 1: Write the failing harness contract**
 
-Pin that `qa-free-baseline.mjs` requires `--exact`, records the commit and build
-provenance, uses the installed extension rather than a page mock, audits storage
-and requests, captures 1600x900 and touch-enabled 375x812 screenshots, and fails
-on any unjudged capture.
+Execute `qa-free-baseline.mjs` in contract mode against controlled arguments and
+temporary output. Prove that missing `--exact` is rejected before browser work,
+then prove exact mode records commit/build provenance, uses the installed
+extension rather than a page mock, audits storage and requests, captures
+1600x900 and touch-enabled 768x812 screenshots, and fails on any unjudged
+capture.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
@@ -209,7 +199,7 @@ node --test scripts/qa-free-baseline.test.mjs
 
 Expected: failure because the harness and required contract markers do not exist.
 
-- [ ] **Step 3: Implement the bounded witness**
+- [x] **Step 3: Implement the bounded witness**
 
 Add the exact package entry:
 
@@ -231,7 +221,7 @@ The witness must:
 7. Save original-resolution screenshots and require an explicit judgment for
    each capture.
 
-- [ ] **Step 4: Run harness contract GREEN**
+- [x] **Step 4: Run harness contract GREEN**
 
 Run:
 
@@ -250,12 +240,12 @@ Expected: all contract tests pass.
 - Consumes: Tasks 1 through 4.
 - Produces: One reviewed and pushed free-baseline packet.
 
-- [ ] **Step 1: Perform one bounded packet review**
+- [x] **Step 1: Perform one bounded packet review**
 
 Inspect the complete diff. Only Critical or Important findings block. Apply at
 most one focused fix and rereview cycle.
 
-- [ ] **Step 2: Run the single stabilized gate**
+- [x] **Step 2: Run the single stabilized gate**
 
 Run:
 
@@ -266,9 +256,11 @@ node --test scripts/qa-free-baseline.test.mjs
 git diff --check
 ```
 
-Expected: all tests and TypeScript pass; diff hygiene has no new error.
+Observed after the touch-release correction: 222 files / 3,520 tests, TypeScript,
+the 6-test QA contract, and diff hygiene passed. The existing ProgressRail React
+`act()` warning remains unchanged test noise.
 
-- [ ] **Step 3: Commit reviewed code and build exact provenance**
+- [x] **Step 3: Commit reviewed code and build exact provenance**
 
 Stage only intended packet files and commit. With tracked inputs clean, run:
 
@@ -280,13 +272,13 @@ npm run qa:free-baseline -- --exact
 Expected: the production artifact identifies the exact reviewed commit and the
 Chromium witness passes against that artifact.
 
-- [ ] **Step 4: Inspect every screenshot at original resolution**
+- [x] **Step 4: Inspect every screenshot at original resolution**
 
 Reject any capture with clipped controls, unexpected scrolling, overlapping
 content, ambiguous drag state, or touch geometry failure. Record the verdicts
 in `TAB-TWO-FREE-BASELINE-QA.md`.
 
-- [ ] **Step 5: Push and prove repository boundaries**
+- [x] **Step 5: Push and prove repository boundaries**
 
 Push `feat/aurora-2-observatory`, prove HEAD equals upstream and remote, confirm
 the protected original is clean, and confirm only the two protected untracked

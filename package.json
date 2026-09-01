@@ -19,6 +19,7 @@
     "qa:widget-redesign-catalog": "node scripts/qa-widget-redesign-catalog.mjs",
     "qa:widget-redesign-production": "node scripts/qa-widget-redesign-production.mjs --exact",
     "qa:attention-signals": "node scripts/qa-attention-signals.mjs --exact",
+    "qa:free-baseline": "node scripts/qa-free-baseline.mjs",
     "qa:tab-two-v2-connectors": "node scripts/qa-tab-two-v2-connectors.mjs --exact",
     "qa:tab-two-v2-progress": "node scripts/qa-tab-two-v2-progress.mjs --exact",
     "qa:canvas-polish": "node scripts/qa-canvas-polish.mjs",

@@ -1250,6 +1250,36 @@ describe('App Canvas composition', () => {
     expect(['clock', 'focus', 'weather'].map((id) => canvasItem(id).style.left + canvasItem(id).style.top)).toEqual(positionsBefore)
   })
 
+  it('keeps the edit toolbar inert until the initiating touch pointer is released', async () => {
+    await renderApp()
+
+    fireEvent.pointerDown(within(canvasItem('clock')).getByRole('button', { name: 'Move Clock' }), {
+      pointerId: 73,
+      pointerType: 'touch',
+      clientX: 40,
+      clientY: 30,
+    })
+    await act(async () => {})
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Edit layout' })
+    expect(toolbar.hasAttribute('inert')).toBe(true)
+
+    fireEvent.pointerUp(document, {
+      pointerId: 73,
+      pointerType: 'touch',
+      clientX: 40,
+      clientY: 30,
+    })
+    await act(async () => {})
+
+    expect(toolbar.hasAttribute('inert')).toBe(true)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(toolbar.hasAttribute('inert')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  })
+
   it('Save commits the whole draft once and the moved placement persists (spec 2.5)', async () => {
     const storage = await renderApp()
     expect(await storage.get('layouts')).toBeNull()

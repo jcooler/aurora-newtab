@@ -4,9 +4,6 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { fireEvent } from '@testing-library/dom'
 import { useLongPress } from './useLongPress'
 
-vi.mock('../../lib/premium', () => ({ isPremium: vi.fn(() => true) }))
-import { isPremium } from '../../lib/premium'
-
 // `surface` is a non-interactive descendant of the block — matches the real
 // widgets that have one (Clock's bare `<time>`, Greeting's `<p>`, …): the
 // thing a long-press is actually supposed to arm on. `Widget button` sits
@@ -29,7 +26,6 @@ function Harness({ onEngage }: { onEngage: (id: string, e: PointerEvent) => void
 describe('useLongPress', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.mocked(isPremium).mockReturnValue(true)
   })
 
   afterEach(() => {
@@ -156,17 +152,6 @@ describe('useLongPress', () => {
     vi.advanceTimersByTime(500)
     expect(onEngage).toHaveBeenCalledOnce()
     expect(onEngage.mock.calls[0]![0]).toBe('clock')
-  })
-
-  it('never engages when isPremium() is false', () => {
-    vi.mocked(isPremium).mockReturnValue(false)
-    const onEngage = vi.fn()
-    render(<Harness onEngage={onEngage} />)
-    const surface = screen.getByTestId('surface')
-
-    fireEvent.pointerDown(surface, { pointerId: 1, clientX: 100, clientY: 100 })
-    vi.advanceTimersByTime(500)
-    expect(onEngage).not.toHaveBeenCalled()
   })
 
   it('honors custom holdMs/tolerancePx options', () => {

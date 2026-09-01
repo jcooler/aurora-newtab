@@ -11,7 +11,6 @@ import type { LayoutsDocument } from '../../lib/layout/namedLayouts'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { BlockId } from '../../lib/layout/types'
 import { closeAllDialogs } from '../../lib/dialogStack'
-import { isPremium } from '../../lib/premium'
 
 export interface EditModeApi {
   session: EditSession | null
@@ -44,7 +43,7 @@ export function useEditMode(input: {
 
   const begin = useCallback((invoker: HTMLElement | null = null) => {
     const { document: resolved, enabledIds } = inputRef.current
-    if (!isPremium() || !resolved) return
+    if (!resolved) return
     // Re-entry while a session is live is identity: replacing the session
     // would silently discard the draft (review fix C1) — the exact failure
     // the explicit Cancel/Save contract exists to prevent.

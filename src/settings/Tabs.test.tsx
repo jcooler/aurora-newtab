@@ -107,7 +107,7 @@ describe('Tabs (ARIA tabs pattern)', () => {
     expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
   })
 
-  it('keeps both free three-tab and premium four-tab sets in one bounded horizontal row', () => {
+  it('keeps both three-tab and four-tab sets in one bounded horizontal row', () => {
     const { rerender } = render(<Host />)
     const assertNarrowRow = (expected: number) => {
       expect(tablist().className).not.toContain('max-[420px]:grid')
