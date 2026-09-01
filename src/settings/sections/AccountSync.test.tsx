@@ -112,9 +112,9 @@ describe('AccountSync', () => {
 
     expect(await screen.findByRole('heading', { name: 'Alex Morgan' })).toBeTruthy()
     expect(screen.getByText('Active subscription')).toBeTruthy()
-    expect(screen.getByText('$1.99 monthly')).toBeTruthy()
-    expect(screen.getByText('$19.99 annually')).toBeTruthy()
-    expect(screen.getByText('$9.99 for your first year, then renews at $19.99 annually')).toBeTruthy()
+    expect(screen.getByText('$1.99')).toBeTruthy()
+    expect(screen.getByText('$19.99')).toBeTruthy()
+    expect(screen.queryByText('$9.99')).toBeNull()
     expect(screen.getByRole('switch', { name: 'Enable sync' }).getAttribute('aria-checked')).toBe('false')
     expect(screen.getByText('Not synced yet')).toBeTruthy()
     expect(screen.getByText('0 KB of 2 MB')).toBeTruthy()
@@ -131,6 +131,39 @@ describe('AccountSync', () => {
     expect(signedActions.signOut).toHaveBeenCalledOnce()
   })
 
+  it('presents one highlighted introductory annual choice with a muted renewal disclosure', async () => {
+    const signedActions = renderAccount(signedSnapshot({
+      billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true },
+    }))
+
+    const plans = await screen.findByRole('region', { name: 'Plans' })
+    expect(within(plans).getByText('50% off first year')).toBeTruthy()
+    expect(within(plans).getByText('$9.99')).toBeTruthy()
+    expect(within(plans).getByText('first year')).toBeTruthy()
+    expect(within(plans).getByText('Renews at $19.99/year.')).toBeTruthy()
+    expect(within(plans).queryByText('$19.99')).toBeNull()
+    expect(within(plans).getAllByRole('button')).toHaveLength(2)
+
+    fireEvent.click(within(plans).getByRole('button', { name: 'Start annual plan' }))
+    await waitFor(() => expect(signedActions.openPlans).toHaveBeenCalledWith('intro_annual'))
+  })
+
+  it('replaces the introductory annual offer with the standard annual choice when ineligible', async () => {
+    const signedActions = renderAccount(signedSnapshot({
+      billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: false },
+    }))
+
+    const plans = await screen.findByRole('region', { name: 'Plans' })
+    expect(within(plans).getByText('$19.99')).toBeTruthy()
+    expect(within(plans).getByText('/year')).toBeTruthy()
+    expect(within(plans).queryByText('50% off first year')).toBeNull()
+    expect(within(plans).queryByText('Renews at $19.99/year.')).toBeNull()
+    expect(within(plans).getAllByRole('button')).toHaveLength(2)
+
+    fireEvent.click(within(plans).getByRole('button', { name: 'Choose annual' }))
+    await waitFor(() => expect(signedActions.openPlans).toHaveBeenCalledWith('annual'))
+  })
+
   it('disables billing actions while opening and reports a typed handoff failure', async () => {
     const signedActions = actions()
     let resolve!: (value: { status: 'unavailable' }) => void
@@ -139,7 +172,7 @@ describe('AccountSync', () => {
       billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true },
     }), signedActions)
 
-    const choose = await screen.findByRole('button', { name: 'Choose introductory annual' })
+    const choose = await screen.findByRole('button', { name: 'Start annual plan' })
     fireEvent.click(choose)
     expect(choose.hasAttribute('disabled')).toBe(true)
     await act(async () => { resolve({ status: 'unavailable' }) })
@@ -157,8 +190,8 @@ describe('AccountSync', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Refresh billing' }))
     await waitFor(() => expect(signedActions.refreshBilling).toHaveBeenCalledTimes(1))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Choose annual' }))
-    await waitFor(() => expect(signedActions.openPlans).toHaveBeenCalledWith('annual'))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose monthly' }))
+    await waitFor(() => expect(signedActions.openPlans).toHaveBeenCalledWith('monthly'))
     fireEvent.focus(window)
     await waitFor(() => expect(signedActions.refreshBilling).toHaveBeenCalledTimes(2))
     fireEvent.focus(window)
@@ -171,7 +204,7 @@ describe('AccountSync', () => {
 
     expect((await screen.findByRole('button', { name: 'Choose monthly' })).hasAttribute('disabled')).toBe(true)
     expect(screen.getByRole('button', { name: 'Choose annual' }).hasAttribute('disabled')).toBe(true)
-    expect(screen.getByRole('button', { name: 'Choose introductory annual' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getAllByRole('button', { name: /Choose monthly|Choose annual/ })).toHaveLength(2)
     expect(signedActions.openPlans).not.toHaveBeenCalled()
   })
 

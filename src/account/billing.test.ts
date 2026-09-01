@@ -49,10 +49,16 @@ describe('billing domain', () => {
 
   it('publishes the exact settled prices and first-year renewal disclosure', () => {
     expect(billingPlanCopy).toEqual({
-      monthly: '$1.99 monthly',
-      annual: '$19.99 annually',
-      intro_annual: '$9.99 for your first year, then renews at $19.99 annually',
+      monthly: { amount: '$1.99', cadence: '/month' },
+      annual: { amount: '$19.99', cadence: '/year' },
+      intro_annual: {
+        amount: '$9.99',
+        cadence: 'first year',
+        badge: '50% off first year',
+        renewal: 'Renews at $19.99/year.',
+      },
     })
+    expect(Object.values(billingPlanCopy).every(Object.isFrozen)).toBe(true)
   })
 
   it('uses deterministic preview handoffs and typed outcomes', async () => {

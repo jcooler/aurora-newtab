@@ -46,26 +46,46 @@ function BillingPlans({
   onChoose: (plan: BillingPlan) => void
 }) {
   const hasManagedSubscription = ['active', 'past_due', 'canceling'].includes(billing.state)
+  const annualPlan: BillingPlan = billing.introductoryEligible ? 'intro_annual' : 'annual'
+  const monthly = billingPlanCopy.monthly
+  const annual = billingPlanCopy[annualPlan]
   return (
     <Section title="Plans">
       <ul className="space-y-3" aria-label="Tab Two plans">
-        <li className="flex items-center justify-between gap-3 max-[420px]:flex-col max-[420px]:items-stretch">
-          <p className="text-sm text-fg">{billingPlanCopy.monthly}</p>
+        <li className="flex items-center justify-between gap-4 px-1 py-1 max-[420px]:flex-col max-[420px]:items-stretch max-[420px]:gap-3">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">Monthly</p>
+            <p className="mt-1 flex items-baseline gap-1 text-fg">
+              <span className="font-display text-xl font-medium tracking-[-0.02em]">{monthly.amount}</span>
+              <span className="text-xs text-fg-muted">{monthly.cadence}</span>
+            </p>
+          </div>
           <button type="button" disabled={pending || hasManagedSubscription} onClick={() => onChoose('monthly')} className={billingButton}>Choose monthly</button>
         </li>
-        <li className="flex items-center justify-between gap-3 max-[420px]:flex-col max-[420px]:items-stretch">
-          <p className="text-sm text-fg">{billingPlanCopy.annual}</p>
-          <button type="button" disabled={pending || hasManagedSubscription} onClick={() => onChoose('annual')} className={billingButton}>Choose annual</button>
-        </li>
-        <li className="flex items-center justify-between gap-3 max-[420px]:flex-col max-[420px]:items-stretch">
-          <p className="text-sm text-fg">{billingPlanCopy.intro_annual}</p>
+        <li className="relative flex items-center justify-between gap-4 overflow-hidden rounded-xl border border-accent/30 bg-accent/5 p-3 pl-4 max-[420px]:flex-col max-[420px]:items-stretch max-[420px]:gap-3">
+          <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-accent" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">Annual</p>
+              {annual.badge ? (
+                <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-accent">
+                  {annual.badge}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 flex items-baseline gap-1.5 text-fg">
+              <span className="font-display text-2xl font-semibold tracking-[-0.03em]">{annual.amount}</span>
+              <span className="text-xs text-fg-muted">{annual.cadence}</span>
+            </p>
+            {annual.renewal ? <p className="mt-0.5 text-xs text-fg-muted">{annual.renewal}</p> : null}
+          </div>
           <button
             type="button"
-            disabled={pending || hasManagedSubscription || !billing.introductoryEligible}
-            onClick={() => onChoose('intro_annual')}
-            className={billingButton}
+            disabled={pending || hasManagedSubscription}
+            onClick={() => onChoose(annualPlan)}
+            className={`${btnPrimary} shrink-0 disabled:cursor-not-allowed disabled:opacity-40`}
           >
-            Choose introductory annual
+            {billing.introductoryEligible ? 'Start annual plan' : 'Choose annual'}
           </button>
         </li>
       </ul>

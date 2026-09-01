@@ -25,10 +25,22 @@ export type BillingRefreshOutcome =
   | { readonly status: 'refreshed' }
   | { readonly status: 'authentication_required' | 'unavailable' }
 
-export const billingPlanCopy: Readonly<Record<BillingPlan, string>> = Object.freeze({
-  monthly: '$1.99 monthly',
-  annual: '$19.99 annually',
-  intro_annual: '$9.99 for your first year, then renews at $19.99 annually',
+interface BillingPlanPresentation {
+  readonly amount: string
+  readonly cadence: string
+  readonly badge?: string
+  readonly renewal?: string
+}
+
+export const billingPlanCopy: Readonly<Record<BillingPlan, BillingPlanPresentation>> = Object.freeze({
+  monthly: Object.freeze({ amount: '$1.99', cadence: '/month' }),
+  annual: Object.freeze({ amount: '$19.99', cadence: '/year' }),
+  intro_annual: Object.freeze({
+    amount: '$9.99',
+    cadence: 'first year',
+    badge: '50% off first year',
+    renewal: 'Renews at $19.99/year.',
+  }),
 })
 
 export function createBillingSummary(summary: BillingSummary): BillingSummary {
