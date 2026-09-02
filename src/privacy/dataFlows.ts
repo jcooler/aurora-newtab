@@ -321,7 +321,7 @@ export const ACCOUNT_SERVICE_DATA_FLOWS = {
     limits: ['2,097,152 encrypted bytes per account', 'five active installations'],
     retention: 'The encrypted cloud vault is retained for 90 days after encrypted-sync entitlement ends unless the customer deletes it first.',
     authority: 'Local data remains usable at all times. Only explicit enable plus a verified encrypted_sync lease can start sync traffic.',
-    currentState: 'PM-P4 is locally implemented; hosted sync migration, key, functions, devices, and product-data transfer remain closed until the separate production gate.',
+    currentState: 'PM-P4 hosted sync authority is active. Each installation remains off until explicit enablement, and sign-in alone sends no product data.',
   },
 } as const
 

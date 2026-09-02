@@ -3,7 +3,7 @@
 **Date:** 2026-09-02<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Runtime evidence source:** `bb2385a27b5556b4ec1c627b49ad9740b892be5b`<br>
-**Result:** PASS for the local implementation, default-deny database and Edge contracts, exact build boundaries, installed-extension interaction and visual QA, and the approved no-hosted-state ceiling. The separately itemized PM-P4 hosted gate remains closed.
+**Result:** PASS for the local implementation, default-deny database and Edge contracts, exact build boundaries, installed-extension interaction and visual QA, and the approved no-hosted-state ceiling at this historical checkpoint. The later approved hosted execution is recorded separately in `TAB-TWO-ENCRYPTED-SYNC-HOSTED-QA.md`.
 
 ## Delivered local boundary
 
@@ -19,7 +19,7 @@
 - Pull applies valid records under the storage lock. A stale remote winner cannot overwrite local data unless a conflict backup succeeds first. Applied remote digests do not echo into a new push.
 - Offline changes remain local and retry with bounded 5, 30, 120, and 300 second backoff. Device-limit rejection rolls the local switch back off and gives actionable removal guidance.
 - Vault deletion, account deletion, device revocation, and device naming are separate, freshly verified flows. Remote deletion never claims to erase installation-local product data.
-- Production keeps `encryptedSyncEnabled: false` until the separately approved hosted gate is complete.
+- At this local-only checkpoint, production kept `encryptedSyncEnabled: false` pending the separate hosted gate.
 
 ## Bounded Critical and Important review
 
@@ -95,4 +95,4 @@ Evidence directory: `artifacts/qa-account-sync-shell/bb2385a27b5556b4ec1c627b49a
 
 ## Explicit stop
 
-No hosted migration, sync function deployment, KEK secret, sandbox sync account/device, encrypted hosted record, owner product-data upload, Supabase Pro change, new permission, live Stripe change, merge, release, package, or Chrome Web Store action was performed. Task 12 requires a new exact itemized approval.
+At this report's local-only checkpoint, no hosted migration, sync function deployment, KEK secret, sandbox sync account/device, encrypted hosted record, owner product-data upload, Supabase Pro change, new permission, live Stripe change, merge, release, package, or Chrome Web Store action was performed. The later approved Task 12 execution is documented in `TAB-TWO-ENCRYPTED-SYNC-HOSTED-QA.md`.

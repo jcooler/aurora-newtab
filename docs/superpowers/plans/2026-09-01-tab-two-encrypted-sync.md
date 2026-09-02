@@ -380,7 +380,7 @@ Resolve account from JWT, check server grants, register/reactivate under the dat
 
 - [ ] **Step 3: Implement device mutations**
 
-Deactivate only the current device. Rename only an owned device with a 1-48 character name. Revoke only an exact owned non-current device after a JWT auth_time no older than five minutes. Unknown or foreign ids return the same stable failure.
+Deactivate only the current device. Rename only an owned device with a 1-48 character name. Revoke only an exact owned non-current device after the newest verified interactive JWT `amr` timestamp no older than five minutes. A token refresh alone is not fresh authentication. Unknown or foreign ids return the same stable failure.
 
 - [ ] **Step 4: Run GREEN and commit**
 

@@ -250,7 +250,7 @@ describe('encrypted sync Edge handlers', () => {
     expect(await json(renamed)).toEqual({ status: 'completed', summary })
   })
 
-  it('requires auth_time within five minutes before revoking another device', async () => {
+  it('requires verified interactive authentication within five minutes before revoking another device', async () => {
     deps.authenticate = vi.fn(async () => ({ ok: true as const, authUserId, authTime: now - 300_001 }))
     const response = await createSyncHandlers(deps).revokeDevice(request('sync-revoke-device', {
       currentDeviceId: deviceId,

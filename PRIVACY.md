@@ -22,9 +22,9 @@ Encrypted sync is optional and starts only after you turn it on with a verified
 `encrypted_sync` capability. When it is on, Tab Two sends only the reviewed
 encrypted records described below; connector credentials, capability URLs,
 provider responses, uploaded images, and device-local operational state remain
-on the device. The hosted production sync migration, key, functions, devices,
-and product-data transfer remain disabled until the separately approved PM-P4
-production gate.
+on the device. The hosted production sync authority is active, but no device,
+key release, or product-data transfer begins on an installation until you
+explicitly enable it.
 Tab Two does not collect data for its developer, sell or rent your data, or
 transfer it for advertising, profiling, lending, or any unrelated purpose.
 There is no analytics and no tracking of any kind. Dashboard product data
@@ -109,7 +109,9 @@ subject, authentication-user UUID, email address, display name when provided,
 and creation/update timestamps. It also stores server-side entitlement grants
 and append-only entitlement audit events. It does not receive dashboard
 settings, notes, connector credentials, location, layout, backup, or sync data
-from this account-only production packet.
+through the account-only functions. The separate sync functions receive only
+the encrypted records and bounded metadata described below after explicit
+enablement.
 
 The hosted sandbox PM-P3 billing schema stores only the provider-neutral Tab
 Two account UUID, sandbox Stripe customer/subscription/Checkout identifiers,

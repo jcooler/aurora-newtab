@@ -497,8 +497,8 @@ the encrypted-sync entitlement ends. Deleting the cloud vault or account never
 deletes local dashboard data. The account data key is wrapped by a server-held
 key-encryption key, so the service can technically release it to an authenticated
 entitled installation; this is encrypted sync, not end-to-end encrypted or zero
-knowledge. Hosted production sync remains disabled until the separately approved
-PM-P4 migration, key, function, device, and product-data gate is executed.
+knowledge. Hosted production sync authority is active, but it remains off for
+each signed-in installation until the customer explicitly enables it.
 
 
 The **fixed** outbound network calls Tab Two makes on its own are to
