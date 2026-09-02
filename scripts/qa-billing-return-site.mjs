@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -141,6 +141,75 @@ export async function probeBillingReturnVisuals({
   return Object.freeze(evidence)
 }
 
+export async function probeInstalledExtensionReturn({
+  extensionDirectory = resolve('dist'),
+  origin = BILLING_RETURN_ORIGIN,
+} = {}) {
+  const { chromium } = await import('playwright')
+  const manifest = JSON.parse(readFileSync(resolve(extensionDirectory, 'manifest.json'), 'utf8'))
+  assert.equal(manifest.key.length > 0, true, 'production extension key')
+  assert.deepEqual(manifest.externally_connectable?.matches, [`${origin}/*`])
+  const profile = mkdtempSync(join(tmpdir(), 'tab-two-billing-return-extension-'))
+  const evidence = []
+  let context
+  try {
+    context = await chromium.launchPersistentContext(profile, {
+      channel: 'chromium',
+      headless: true,
+      viewport: { width: 1440, height: 900 },
+      screen: { width: 1440, height: 900 },
+      reducedMotion: 'reduce',
+      args: [
+        `--disable-extensions-except=${extensionDirectory}`,
+        `--load-extension=${extensionDirectory}`,
+      ],
+    })
+    const extensionPage = context.pages()[0] ?? await context.newPage()
+    extensionPage.setDefaultTimeout(20_000)
+    await extensionPage.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
+    await extensionPage.locator('[data-canvas-surface]').waitFor()
+    assert.equal(new URL(extensionPage.url()).host, 'akjalbmacojpmebkgohhcaaiacicpgkh')
+
+    for (const route of Object.keys(BILLING_RETURN_ROUTES)) {
+      const returnPage = await context.newPage()
+      const failures = []
+      returnPage.on('console', (message) => { if (message.type() === 'error') failures.push(`console:${message.text()}`) })
+      returnPage.on('pageerror', (error) => failures.push(`page:${error.message}`))
+      await returnPage.goto(`${origin}${route}`, { waitUntil: 'networkidle' })
+      const diagnostic = await returnPage.evaluate(({ extensionId, result }) => new Promise((resolvePromise) => {
+        const runtime = globalThis.chrome?.runtime
+        if (!runtime?.sendMessage) {
+          resolvePromise({ response: null, error: 'runtime unavailable' })
+          return
+        }
+        runtime.sendMessage(extensionId, { type: 'tab-two.billing-return.v1', result }, (response) => {
+          resolvePromise({ response: response ?? null, error: runtime.lastError?.message ?? null })
+        })
+      }), {
+        extensionId: 'akjalbmacojpmebkgohhcaaiacicpgkh',
+        result: BILLING_RETURN_ROUTES[route].result,
+      })
+      assert.deepEqual(diagnostic, { response: { status: 'focused' }, error: null }, `${route} external response`)
+      await returnPage.getByRole('button', { name: 'Return to Tab Two' }).click()
+      await extensionPage.waitForFunction(() => document.hasFocus())
+      const closed = await Promise.race([
+        returnPage.waitForEvent('close').then(() => true),
+        new Promise((resolvePromise) => setTimeout(() => resolvePromise(false), 1_000)),
+      ])
+      if (!closed) {
+        assert.equal(await returnPage.locator('[data-return-fallback]').isHidden(), true, `${route} fallback`)
+        await returnPage.close()
+      }
+      assert.deepEqual(failures, [], `${route} return-page failures`)
+      evidence.push(Object.freeze({ route, focused: true, returnClosed: closed }))
+    }
+  } finally {
+    await context?.close()
+    rmSync(profile, { recursive: true, force: true })
+  }
+  return Object.freeze(evidence)
+}
+
 export async function main() {
   const evidence = await probeBillingReturnSite()
   for (const entry of evidence) {
@@ -153,5 +222,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   if (process.argv.includes('--visual')) {
     const evidence = await probeBillingReturnVisuals()
     for (const entry of evidence) process.stdout.write(`PASS ${entry.name} ${entry.viewport}\n`)
+  }
+  if (process.argv.includes('--extension')) {
+    const evidence = await probeInstalledExtensionReturn()
+    for (const entry of evidence) process.stdout.write(`PASS ${entry.route} extension-focused close=${entry.returnClosed}\n`)
   }
 }

@@ -1,7 +1,33 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createBillingReturnListener } from './index'
+import { createBillingReturnListener, createChromeBillingReturnBrowser } from './index'
 
 describe('billing return external listener', () => {
+  it('discovers only Tab Two extension contexts without reading protected tab URLs', async () => {
+    const api = {
+      extensionUrl: vi.fn(() => 'chrome-extension://tab-two/src/newtab/index.html'),
+      extensionContexts: vi.fn(async () => [
+        { tabId: 12, windowId: 5, documentUrl: 'chrome-extension://tab-two/src/newtab/index.html' },
+        { tabId: 18, windowId: 7, documentUrl: 'chrome-extension://tab-two/src/newtab/index.html' },
+      ]),
+      tabActivity: vi.fn(async (tabId: number) => ({
+        id: tabId, windowId: tabId === 12 ? 5 : 7, lastAccessed: tabId === 12 ? 100 : 300,
+      })),
+      focusWindow: vi.fn(async () => {}),
+      activateTab: vi.fn(async () => {}),
+    }
+
+    const browser = createChromeBillingReturnBrowser(api)
+
+    await expect(browser.findTabTwoTabs()).resolves.toEqual([
+      { id: 12, windowId: 5, lastAccessed: 100 },
+      { id: 18, windowId: 7, lastAccessed: 300 },
+    ])
+    expect(api.extensionContexts).toHaveBeenCalledWith(
+      'chrome-extension://tab-two/src/newtab/index.html',
+    )
+    expect(api.tabActivity).toHaveBeenCalledTimes(2)
+  })
+
   it('responds once after a valid hosted message focuses Tab Two', async () => {
     const sendResponse = vi.fn()
     const listener = createBillingReturnListener({
