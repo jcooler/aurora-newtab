@@ -34,6 +34,7 @@ export async function inspectBillingReturnResponse(route, response) {
   const csp = response.headers.get('content-security-policy') ?? ''
   for (const directive of requiredCsp) assert.ok(csp.includes(directive), `${route} missing CSP ${directive}`)
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
+  assert.equal(response.headers.get('cross-origin-opener-policy'), 'same-origin')
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
   assert.equal(response.headers.get('x-frame-options'), 'DENY')
   assert.equal(response.headers.get('permissions-policy'), 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')

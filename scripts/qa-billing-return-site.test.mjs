@@ -10,19 +10,21 @@ import {
 
 function responseFor(route, overrides = {}) {
   const details = BILLING_RETURN_ROUTES[route]
+  const { headers: headerOverrides = {}, ...responseOverrides } = overrides
   return new Response(`<!doctype html><html><head><title>${details.title}</title></head><body data-result="${details.result}"><main><h1>${details.heading}</h1></main></body></html>`, {
     status: 200,
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       'referrer-policy': 'no-referrer',
+      'cross-origin-opener-policy': 'same-origin',
       'x-content-type-options': 'nosniff',
       'x-frame-options': 'DENY',
       'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
       'cache-control': 'no-store, must-revalidate, no-cache',
-      ...overrides.headers,
+      ...headerOverrides,
     },
-    ...overrides,
+    ...responseOverrides,
   })
 }
 
@@ -41,6 +43,7 @@ for (const [name, override] of [
   ['redirect', { status: 302 }],
   ['cookie', { headers: { 'set-cookie': 'session=forbidden' } }],
   ['network permission', { headers: { 'content-security-policy': "default-src 'self'; connect-src https://analytics.example" } }],
+  ['missing opener isolation', { headers: { 'cross-origin-opener-policy': 'unsafe-none' } }],
   ['cacheable HTML', { headers: { 'cache-control': 'public, max-age=3600' } }],
 ]) {
   test(`rejects a hosted ${name} regression`, async () => {
