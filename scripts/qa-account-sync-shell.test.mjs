@@ -22,7 +22,7 @@ test('requires exact execution', () => {
 test('pins original-resolution desktop and touch installed-extension viewports', () => {
   assert.deepEqual(ACCOUNT_SYNC_VIEWPORTS, [
     { id: 'desktop', width: 1600, height: 900, touch: false },
-    { id: 'touch', width: 768, height: 812, touch: true },
+    { id: 'touch', width: 390, height: 844, touch: true },
   ])
 })
 
@@ -37,6 +37,7 @@ test('requires every account state and destructive confirmation', () => {
     'preview-syncing',
     'preview-offline',
     'preview-needs-attention',
+    'device-name-validation',
     'vault-deletion-confirmation',
     'account-deletion-confirmation',
   ])
@@ -51,6 +52,7 @@ test('requires every account state and destructive confirmation', () => {
     'preview-needs-attention-desktop',
     'preview-vault-delete-desktop',
     'preview-account-delete-desktop',
+    'preview-device-name-touch',
     'preview-active-touch',
   ])
 })
@@ -81,7 +83,7 @@ test('requires exact provenance, installed execution, zero writes and requests, 
       id,
       path: `artifacts/${id}.png`,
       viewport: id.endsWith('touch') ? ACCOUNT_SYNC_VIEWPORTS[1] : ACCOUNT_SYNC_VIEWPORTS[0],
-      pixelSize: id.endsWith('touch') ? { width: 768, height: 812 } : { width: 1600, height: 900 },
+      pixelSize: id.endsWith('touch') ? { width: 390, height: 844 } : { width: 1600, height: 900 },
       judgment: 'PASS: original inspected; text and controls are contained and legible',
       geometry: { horizontalOverflow: false, viewportEscapes: [], overlapPairs: [], scrollOwners: 1 },
     })),

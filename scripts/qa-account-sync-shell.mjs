@@ -21,7 +21,7 @@ const FIXTURE_MARKERS = Object.freeze(['TAB_TWO_PREVIEW_ACCOUNT_FIXTURE', 'previ
 
 export const ACCOUNT_SYNC_VIEWPORTS = Object.freeze([
   Object.freeze({ id: 'desktop', width: 1600, height: 900, touch: false }),
-  Object.freeze({ id: 'touch', width: 768, height: 812, touch: true }),
+  Object.freeze({ id: 'touch', width: 390, height: 844, touch: true }),
 ])
 
 export const ACCOUNT_SYNC_INTERACTIONS = Object.freeze([
@@ -34,6 +34,7 @@ export const ACCOUNT_SYNC_INTERACTIONS = Object.freeze([
   'preview-syncing',
   'preview-offline',
   'preview-needs-attention',
+  'device-name-validation',
   'vault-deletion-confirmation',
   'account-deletion-confirmation',
 ])
@@ -49,6 +50,7 @@ export const ACCOUNT_SYNC_SCREENSHOTS = Object.freeze([
   'preview-needs-attention-desktop',
   'preview-vault-delete-desktop',
   'preview-account-delete-desktop',
+  'preview-device-name-touch',
   'preview-active-touch',
 ])
 
@@ -387,6 +389,17 @@ async function exercisePreviewTouch(page, context, viewport, output, judgments, 
   })
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   assert(await page.evaluate(() => window.__accountTouchObserved === true), 'touchstart did not reach the Account sync control')
+  await syncSwitch.click()
+  const nameDialog = page.getByRole('dialog', { name: 'Name this installation' })
+  const nameInput = nameDialog.getByLabel('Device name')
+  await nameInput.fill('')
+  assert(await nameDialog.getByRole('button', { name: 'Enable encrypted sync' }).isDisabled(), 'blank device name was accepted')
+  await nameInput.fill('Travel laptop')
+  await capture(page, viewport, 'preview-device-name-touch', output, judgments, evidence, repoRoot)
+  await page.keyboard.press('Escape')
+  await nameDialog.waitFor({ state: 'detached' })
+  assert(await syncSwitch.evaluate((element) => document.activeElement === element), 'device-name dialog did not restore switch focus')
+  evidence.interactions['device-name-validation'] = true
   await capture(page, viewport, 'preview-active-touch', output, judgments, evidence, repoRoot)
 }
 
