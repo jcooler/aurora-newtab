@@ -1,6 +1,6 @@
 import type { StripeCatalog } from './stripeCatalog.ts'
 import type { StripeGateway } from './stripeGateway.ts'
-import type { StripeBillingSnapshot, StripePlan } from './stripeTypes.ts'
+import type { StripeBillingSnapshot, StripeCheckoutRecovery, StripePlan } from './stripeTypes.ts'
 import { jsonResponse } from './http.ts'
 
 const PRODUCTION_BILLING_RETURN_ORIGIN = 'https://tab-two-billing-return.pages.dev'
@@ -11,12 +11,21 @@ interface ProviderNeutralAccount {
   displayName: string | null
 }
 
+export interface ActiveCheckoutReservation {
+  checkoutSessionId: string
+  customerId: string
+  plan: StripePlan
+  reservedUntil: number
+}
+
 export interface BillingFunctionDependencies {
   authenticate(request: Request): Promise<{ ok: true; authUserId: string } | { ok: false }>
   repository: {
     findAccountForAuthUser(authUserId: string): Promise<ProviderNeutralAccount | null>
     findCustomerForAccount(accountId: string): Promise<string | null>
     acquireCustomer(accountId: string, proposedCustomerId: string): Promise<string>
+    findActiveCheckout(accountId: string, effectiveAt: number): Promise<ActiveCheckoutReservation | null>
+    expireCheckout(accountId: string, checkoutSessionId: string, effectiveAt: number): Promise<boolean>
     reserveCheckout(
       accountId: string,
       customerId: string,
@@ -146,6 +155,42 @@ function safeHostedUrl(value: string, expectedHost: 'checkout.stripe.com' | 'bil
   }
 }
 
+function validCheckoutRecovery(
+  session: StripeCheckoutRecovery,
+  reservation: ActiveCheckoutReservation,
+  accountId: string,
+  customerId: string,
+  priceId: string,
+  couponId: string | null,
+  effectiveAt: number,
+): session is StripeCheckoutRecovery & { url: string; expiresAt: number } {
+  const couponsMatch = couponId === null
+    ? session.couponIds.length === 0
+    : session.couponIds.length === 1 && session.couponIds[0] === couponId
+  return /^cs_test_[A-Za-z0-9_]+$/u.test(reservation.checkoutSessionId)
+    && reservation.customerId === customerId
+    && Number.isSafeInteger(reservation.reservedUntil)
+    && reservation.reservedUntil > effectiveAt
+    && session.id === reservation.checkoutSessionId
+    && session.customerId === customerId
+    && session.clientReferenceId === accountId
+    && session.accountId === accountId
+    && session.plan === reservation.plan
+    && session.livemode === false
+    && session.status === 'open'
+    && (session.paymentStatus === 'unpaid' || session.paymentStatus === 'no_payment_required')
+    && session.mode === 'subscription'
+    && session.priceIds.length === 1
+    && session.priceIds[0] === priceId
+    && couponsMatch
+    && session.expiresAt !== null
+    && Number.isSafeInteger(session.expiresAt)
+    && effectiveAt < session.expiresAt
+    && session.expiresAt <= reservation.reservedUntil
+    && session.url !== null
+    && safeHostedUrl(session.url, 'checkout.stripe.com')
+}
+
 async function authenticatedAccount(
   request: Request,
   dependencies: BillingFunctionDependencies,
@@ -202,6 +247,34 @@ export function createBillingHandlers(dependencies: BillingFunctionDependencies)
           }
           customerId = await dependencies.repository.acquireCustomer(account.accountId, customer.id)
         }
+        const activeCheckout = await dependencies.repository.findActiveCheckout(account.accountId, at)
+        if (activeCheckout) {
+          if (activeCheckout.plan !== plan) {
+            return jsonResponse({ error: 'checkout_already_open' }, 409)
+          }
+          let recovery: StripeCheckoutRecovery | null = null
+          try {
+            recovery = await dependencies.gateway.retrieveCheckoutSession(activeCheckout.checkoutSessionId)
+          } catch {
+            recovery = null
+          }
+          if (recovery && validCheckoutRecovery(
+            recovery,
+            activeCheckout,
+            account.accountId,
+            customerId,
+            catalog[plan].priceId,
+            catalog[plan].couponId,
+            at,
+          )) {
+            return jsonResponse({ url: recovery.url, resumed: true })
+          }
+          if (!await dependencies.repository.expireCheckout(
+            account.accountId, activeCheckout.checkoutSessionId, at,
+          )) {
+            return jsonResponse({ error: 'billing_checkout_unavailable' }, 409)
+          }
+        }
         const expiresAt = at + 31 * 60 * 1_000
         const session = await dependencies.gateway.createCheckoutSession({
           accountId: account.accountId,
@@ -222,7 +295,7 @@ export function createBillingHandlers(dependencies: BillingFunctionDependencies)
         if (!reserved) return jsonResponse({
           error: plan === 'intro_annual' ? 'introductory_offer_unavailable' : 'billing_checkout_unavailable',
         }, 409)
-        return jsonResponse({ url: session.url })
+        return jsonResponse({ url: session.url, resumed: false })
       } catch {
         return jsonResponse({ error: 'billing_unavailable' }, 503)
       }

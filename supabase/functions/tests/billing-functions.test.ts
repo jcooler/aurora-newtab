@@ -301,6 +301,8 @@ function billingDependencies(): BillingFunctionDependencies {
       findAccountForAuthUser: vi.fn(async () => account),
       findCustomerForAccount: vi.fn(async () => null),
       acquireCustomer: vi.fn(async (_accountId, customerId) => customerId),
+      findActiveCheckout: vi.fn(async () => null),
+      expireCheckout: vi.fn(async () => true),
       reserveCheckout: vi.fn(async () => true),
       claimWebhookEvent: vi.fn(async () => 'claimed' as const),
       completeWebhookEvent: vi.fn(async () => true),
@@ -316,6 +318,36 @@ function billingDependencies(): BillingFunctionDependencies {
     },
     now: () => Date.UTC(2026, 8, 1, 18, 0, 0),
     webhookSecret: 'whsec_test_local_fixture',
+  }
+}
+
+const checkoutAt = Date.UTC(2026, 8, 1, 18, 0, 0)
+
+function activeCheckout(plan: 'monthly' | 'annual' | 'intro_annual' = 'monthly') {
+  return {
+    checkoutSessionId: 'cs_test_open',
+    customerId: 'cus_test_a',
+    plan,
+    reservedUntil: checkoutAt + 31 * 60 * 1_000,
+  }
+}
+
+function recoverableCheckout(plan: 'monthly' | 'annual' | 'intro_annual' = 'monthly') {
+  const annual = plan !== 'monthly'
+  return {
+    id: 'cs_test_open',
+    url: 'https://checkout.stripe.com/c/pay/cs_test_open',
+    livemode: false,
+    status: 'open' as const,
+    paymentStatus: 'unpaid' as const,
+    mode: 'subscription' as const,
+    customerId: 'cus_test_a',
+    clientReferenceId: account.accountId,
+    accountId: account.accountId,
+    plan,
+    priceIds: [annual ? 'price_test_annual' : 'price_test_monthly'],
+    couponIds: plan === 'intro_annual' ? ['coupon_test_intro_once'] : [],
+    expiresAt: checkoutAt + 30 * 60 * 1_000,
   }
 }
 
@@ -362,7 +394,7 @@ describe('authenticated billing handlers', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ url: 'https://checkout.stripe.com/c/pay/cs_test_a' })
+    expect(await response.json()).toEqual({ url: 'https://checkout.stripe.com/c/pay/cs_test_a', resumed: false })
     expect(dependencies.repository.acquireCustomer).toHaveBeenCalledWith(account.accountId, 'cus_test_a')
     expect(dependencies.gateway.createCustomer).toHaveBeenCalledWith(account.accountId)
     expect(dependencies.gateway.createCheckoutSession).toHaveBeenCalledWith({
@@ -376,6 +408,132 @@ describe('authenticated billing handlers', () => {
       expiresAt: Date.UTC(2026, 8, 1, 18, 31, 0),
     })
     expect(JSON.stringify(vi.mocked(dependencies.gateway.createCheckoutSession).mock.calls)).not.toContain(account.email)
+  })
+
+  it.each([
+    ['monthly', [], 'price_test_monthly'],
+    ['annual', [], 'price_test_annual'],
+    ['intro_annual', ['coupon_test_intro_once'], 'price_test_annual'],
+  ] as const)('resumes the exact open %s Checkout without creating or reserving another session', async (plan, couponIds, priceId) => {
+    dependencies.repository.findCustomerForAccount = vi.fn(async () => 'cus_test_a')
+    Object.assign(dependencies.repository, {
+      findActiveCheckout: vi.fn(async () => activeCheckout(plan)),
+      expireCheckout: vi.fn(async () => true),
+    })
+    vi.mocked(dependencies.gateway.retrieveCheckoutSession).mockResolvedValue({
+      ...recoverableCheckout(plan), couponIds: [...couponIds], priceIds: [priceId],
+    })
+
+    const response = await createBillingHandlers(dependencies).checkout(
+      post('billing-checkout-session', { plan }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      url: 'https://checkout.stripe.com/c/pay/cs_test_open', resumed: true,
+    })
+    expect(dependencies.gateway.retrieveCheckoutSession).toHaveBeenCalledWith('cs_test_open')
+    expect(dependencies.gateway.createCheckoutSession).not.toHaveBeenCalled()
+    expect(dependencies.repository.reserveCheckout).not.toHaveBeenCalled()
+    expect((dependencies.repository as typeof dependencies.repository & { expireCheckout: ReturnType<typeof vi.fn> }).expireCheckout)
+      .not.toHaveBeenCalled()
+  })
+
+  it('rejects a different plan while another Checkout reservation is still open', async () => {
+    dependencies.repository.findCustomerForAccount = vi.fn(async () => 'cus_test_a')
+    Object.assign(dependencies.repository, {
+      findActiveCheckout: vi.fn(async () => activeCheckout('annual')),
+      expireCheckout: vi.fn(async () => true),
+    })
+
+    const response = await createBillingHandlers(dependencies).checkout(
+      post('billing-checkout-session', { plan: 'monthly' }),
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'checkout_already_open' })
+    expect(dependencies.gateway.retrieveCheckoutSession).not.toHaveBeenCalled()
+    expect(dependencies.gateway.createCheckoutSession).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['completed session', { status: 'complete' as const }],
+    ['wrong customer', { customerId: 'cus_attacker' }],
+    ['wrong price', { priceIds: ['price_attacker'] }],
+    ['unexpected standard coupon', { couponIds: ['coupon_attacker'] }],
+    ['expired provider session', { expiresAt: checkoutAt }],
+  ])('expires an invalid %s binding before creating a replacement', async (_name, override) => {
+    dependencies.repository.findCustomerForAccount = vi.fn(async () => 'cus_test_a')
+    const expireCheckout = vi.fn(async () => true)
+    Object.assign(dependencies.repository, {
+      findActiveCheckout: vi.fn(async () => activeCheckout('monthly')),
+      expireCheckout,
+    })
+    vi.mocked(dependencies.gateway.retrieveCheckoutSession).mockResolvedValue({
+      ...recoverableCheckout('monthly'), ...override,
+    })
+    vi.mocked(dependencies.gateway.createCheckoutSession).mockResolvedValue({
+      id: 'cs_test_replacement',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_replacement',
+      livemode: false,
+    })
+
+    const response = await createBillingHandlers(dependencies).checkout(
+      post('billing-checkout-session', { plan: 'monthly' }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      url: 'https://checkout.stripe.com/c/pay/cs_test_replacement', resumed: false,
+    })
+    expect(expireCheckout).toHaveBeenCalledWith(account.accountId, 'cs_test_open', checkoutAt)
+    expect(dependencies.gateway.createCheckoutSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed when an invalid binding cannot be expired exactly', async () => {
+    dependencies.repository.findCustomerForAccount = vi.fn(async () => 'cus_test_a')
+    Object.assign(dependencies.repository, {
+      findActiveCheckout: vi.fn(async () => activeCheckout('intro_annual')),
+      expireCheckout: vi.fn(async () => false),
+    })
+    vi.mocked(dependencies.gateway.retrieveCheckoutSession).mockResolvedValue({
+      ...recoverableCheckout('intro_annual'), couponIds: [],
+    })
+
+    const response = await createBillingHandlers(dependencies).checkout(
+      post('billing-checkout-session', { plan: 'intro_annual' }),
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'billing_checkout_unavailable' })
+    expect(dependencies.gateway.createCheckoutSession).not.toHaveBeenCalled()
+    expect(dependencies.repository.reserveCheckout).not.toHaveBeenCalled()
+  })
+
+  it('expires the exact reservation and replaces it when Stripe retrieval fails transiently', async () => {
+    dependencies.repository.findCustomerForAccount = vi.fn(async () => 'cus_test_a')
+    const expireCheckout = vi.fn(async () => true)
+    Object.assign(dependencies.repository, {
+      findActiveCheckout: vi.fn(async () => activeCheckout('annual')),
+      expireCheckout,
+    })
+    vi.mocked(dependencies.gateway.retrieveCheckoutSession).mockRejectedValue(new Error('provider unavailable'))
+    vi.mocked(dependencies.gateway.createCheckoutSession).mockResolvedValue({
+      id: 'cs_test_replacement',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_replacement',
+      livemode: false,
+    })
+
+    const response = await createBillingHandlers(dependencies).checkout(
+      post('billing-checkout-session', { plan: 'annual' }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      url: 'https://checkout.stripe.com/c/pay/cs_test_replacement', resumed: false,
+    })
+    expect(expireCheckout).toHaveBeenCalledWith(account.accountId, 'cs_test_open', checkoutAt)
+    expect(dependencies.repository.reserveCheckout).toHaveBeenCalledTimes(1)
   })
 
   it.each([

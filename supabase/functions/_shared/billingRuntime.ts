@@ -64,6 +64,36 @@ export function createRuntimeBillingHandlers(environment: RuntimeEnvironment) {
         proposed_customer_id: proposedCustomerId,
       }))
     },
+    async findActiveCheckout(accountId: string, effectiveAt: number) {
+      const row = first(await rpc('tab_two_active_billing_checkout', {
+        target_account_id: accountId,
+        effective_at: iso(effectiveAt),
+      }))
+      if (!row) return null
+      const checkoutSessionId = String(row.checkout_session_id)
+      const customerId = String(row.customer_id)
+      const plan = String(row.plan)
+      const reservedUntil = Date.parse(String(row.reserved_until))
+      if (!/^cs_test_[A-Za-z0-9_]+$/u.test(checkoutSessionId)
+        || !/^cus_[A-Za-z0-9_]+$/u.test(customerId)
+        || !['monthly', 'annual', 'intro_annual'].includes(plan)
+        || !Number.isSafeInteger(reservedUntil)) {
+        throw new Error('billing_repository_unavailable')
+      }
+      return {
+        checkoutSessionId,
+        customerId,
+        plan: plan as 'monthly' | 'annual' | 'intro_annual',
+        reservedUntil,
+      }
+    },
+    async expireCheckout(accountId: string, checkoutSessionId: string, effectiveAt: number) {
+      return scalar<boolean>(await rpc('tab_two_expire_billing_checkout', {
+        target_account_id: accountId,
+        target_checkout_session_id: checkoutSessionId,
+        effective_at: iso(effectiveAt),
+      }))
+    },
     async reserveCheckout(accountId: string, customerId: string, checkoutSessionId: string, plan: string, expiresAt: number, effectiveAt: number) {
       return scalar<boolean>(await rpc('tab_two_reserve_billing_checkout', {
         target_account_id: accountId,
