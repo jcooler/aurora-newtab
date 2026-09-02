@@ -105,7 +105,9 @@ describe('AccountSync', () => {
     expect(await screen.findByRole('heading', { name: 'Local mode' })).toBeTruthy()
     expect(screen.getByText('Your Tab Two data stays on this device.')).toBeTruthy()
     expect(screen.getByText('Signing in does not enable sync or upload local data.')).toBeTruthy()
-    expect(screen.getByText('Passwords, tokens, sessions, and feed URLs')).toBeTruthy()
+    expect(screen.getByText('Passwords, tokens, sessions, and feed/calendar URLs')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Encrypted when sync is on' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Always stays on this device' })).toBeTruthy()
 
     const signIn = screen.getByRole('button', { name: 'Sign in with Google' })
     fireEvent.click(signIn)
@@ -148,14 +150,45 @@ describe('AccountSync', () => {
     expect(screen.getByText('Studio PC')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('switch', { name: 'Enable sync' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
+    const naming = screen.getByRole('dialog', { name: 'Name this installation' })
+    const name = within(naming).getByLabelText('Device name')
+    fireEvent.change(name, { target: { value: '  ' } })
+    expect(within(naming).getByRole('button', { name: 'Enable encrypted sync' }).hasAttribute('disabled')).toBe(true)
+    fireEvent.change(name, { target: { value: 'Studio PC' } })
+    await act(async () => { fireEvent.click(within(naming).getByRole('button', { name: 'Enable encrypted sync' })) })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Manage billing' })) })
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
-    expect(signedActions.enableSync).toHaveBeenCalledOnce()
-    expect(signedActions.syncNow).toHaveBeenCalledOnce()
+    expect(signedActions.enableSync).toHaveBeenCalledWith('Studio PC')
     expect(signedActions.openBilling).toHaveBeenCalledOnce()
     expect(signedActions.signOut).toHaveBeenCalledOnce()
+  })
+
+  it('uses calm automatic status copy for offline local edits and recoverable attention', async () => {
+    const live = renderLiveAccount(signedSnapshot({
+      sync: {
+        enabled: true,
+        phase: 'offline',
+        lastSuccessAt: Date.UTC(2026, 8, 2, 12),
+        usedBytes: 524_288,
+        quotaBytes: 2_097_152,
+      },
+    }))
+    expect(await screen.findByText('You’re offline. Changes stay safe on this device and will sync automatically.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
+    await waitFor(() => expect(live.actions.syncNow).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('button', { name: /refresh/i })).toBeNull()
+
+    act(() => live.publish(signedSnapshot({
+      sync: {
+        enabled: true,
+        phase: 'needs_attention',
+        lastSuccessAt: Date.UTC(2026, 8, 2, 12),
+        usedBytes: 524_288,
+        quotaBytes: 2_097_152,
+      },
+    })))
+    expect(await screen.findByText('Sync needs attention. Your local data has not been removed.')).toBeTruthy()
   })
 
   it('presents one highlighted introductory annual choice with a muted renewal disclosure', async () => {
@@ -312,6 +345,18 @@ describe('AccountSync', () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Remove device' }))
     })
     expect(signedActions.revokeDevice).toHaveBeenCalledWith('device-2')
+  })
+
+  it('renames the current installation through the same validated device-name dialog', async () => {
+    const signedActions = renderAccount(signedSnapshot({
+      sync: { enabled: true, phase: 'up_to_date', lastSuccessAt: 1, usedBytes: 128, quotaBytes: 2_097_152 },
+    }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename' }))
+    const dialog = screen.getByRole('dialog', { name: 'Rename installation' })
+    fireEvent.change(within(dialog).getByLabelText('Device name'), { target: { value: 'Home office' } })
+    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save name' })) })
+    expect(signedActions.renameDevice).toHaveBeenCalledWith('device-1', 'Home office')
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('requires fresh Google verification and explicit text before deleting an account', async () => {

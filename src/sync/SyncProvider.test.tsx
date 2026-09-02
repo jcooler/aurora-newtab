@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccountProvider } from '../account/AccountContext'
 import type { AccountClient } from '../account/client'
@@ -12,6 +12,9 @@ import { generateDataKey } from './crypto'
 import type { SyncGateway } from './gateway'
 import { createSyncLocalStateStore } from './localState'
 import { SyncProvider, useSync } from './SyncProvider'
+import { appendConflictBackup } from './conflictBackups'
+import AccountSync from '../settings/sections/AccountSync'
+import { defaults } from '../lib/storage/schema'
 
 const accountId = '42000000-0000-4000-8000-000000000001'
 
@@ -162,5 +165,37 @@ describe('SyncProvider lifecycle ownership', () => {
     await pending
     await Promise.resolve()
     expect(api.pull).not.toHaveBeenCalled()
+  })
+
+  it('publishes only safe recovery metadata and lets the UI discard the local recovery copy', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const driver = memoryDriver(defaults() as unknown as Record<string, unknown>)
+    const local = createSyncLocalStateStore(driver, driver.authority)
+    await local.ensureDevice(accountId, 'Primary')
+    await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'active' }))
+    const backup = await appendConflictBackup({ driver, authority: driver.authority }, accountId, {
+      schemaVersion: 1,
+      entityType: 'notes',
+      entityId: 'singleton',
+      value: { text: 'private local recovery text', updatedAt: 1 },
+    }, 2)
+    const api = gateway()
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
+      callback({ name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
+    ))
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+    render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><AccountSync /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+    const recoveries = await screen.findByRole('region', { name: 'Recovery copies' })
+    expect(recoveries.textContent).not.toContain('private local recovery text')
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Recovery copies' })).toBeNull())
+    await expect(local.readConflictBackups(accountId)).resolves.toEqual([])
+    expect(backup.entity.value).toEqual({ text: 'private local recovery text', updatedAt: 1 })
   })
 })

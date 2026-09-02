@@ -4,17 +4,25 @@ import { createPortal } from 'react-dom'
 import { useAccount } from '../../account/AccountContext'
 import { billingPlanCopy } from '../../account/billing'
 import type { BillingActionOutcome, BillingPlan, BillingSummary } from '../../account/billing'
-import type { AccountActions } from '../../account/types'
+import type { AccountActions, SyncActionOutcome } from '../../account/types'
 import { AssertiveAlert, PoliteStatus } from '../../components/StateFeedback'
 import { useDialogEscape } from '../../lib/dialogStack'
 import { useFocusTrap } from '../../lib/hooks/useFocusTrap'
 import Section from '../Section'
 import Switch from '../Switch'
 import { btnDanger, btnPrimary, btnQuiet, control, label } from './shared'
+import { useSync } from '../../sync/SyncProvider'
 
 const SIGN_IN_STATUS_ID = 'account-sign-in-status'
 const DEVICE_LIMIT_ID = 'account-device-limit'
 const billingButton = `${btnQuiet} disabled:cursor-not-allowed disabled:opacity-40`
+const syncFailureCopy: Record<Exclude<SyncActionOutcome['status'], 'completed'>, string> = {
+  authentication_required: 'Sign in with Google to continue.',
+  entitlement_required: 'Encrypted sync is not included with the current account access.',
+  device_limit: 'Five installations are already syncing. Remove one before trying again.',
+  offline: 'You’re offline. Your local data is still available; try again when connected.',
+  needs_attention: 'Sync could not complete safely. Your local data has not been removed.',
+}
 
 type DestructiveTarget =
   | { kind: 'vault' }
@@ -115,15 +123,125 @@ function Fact({ label: factLabel, children }: { label: string; children: React.R
   )
 }
 
+function SyncDisclosure() {
+  return (
+    <div className="grid gap-4 min-[560px]:grid-cols-2">
+      <Section title="Encrypted when sync is on" className="account-sync-disclosure account-sync-disclosure--included">
+        <ul className="account-sync-inventory">
+          <li>Settings, layouts, and widget configuration</li>
+          <li>Tasks, notes, habits, goals, and custom links</li>
+          <li>Approved non-secret connector preferences</li>
+        </ul>
+      </Section>
+      <Section title="Always stays on this device" className="account-sync-disclosure">
+        <ul className="account-sync-inventory">
+          <li>Passwords, tokens, sessions, and feed/calendar URLs</li>
+          <li>Provider caches and responses</li>
+          <li>Uploaded images and device-local operational state</li>
+        </ul>
+      </Section>
+    </div>
+  )
+}
+
+function validDeviceName(value: string): boolean {
+  return value === value.trim()
+    && [...value].length >= 1
+    && [...value].length <= 48
+    && !/[\u0000-\u001f\u007f]/u.test(value)
+}
+
+function DeviceNameDialog({
+  mode,
+  initialName,
+  invokerRef,
+  onConfirm,
+  onClose,
+}: {
+  mode: 'enable' | 'rename'
+  initialName: string
+  invokerRef: RefObject<HTMLButtonElement | null>
+  onConfirm: (friendlyName: string) => Promise<SyncActionOutcome>
+  onClose: () => void
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [name, setName] = useState(initialName)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useFocusTrap(dialogRef, true)
+  useDialogEscape(() => { if (!pending) onClose() }, true)
+
+  useEffect(() => {
+    const invoker = invokerRef.current
+    return () => queueMicrotask(() => { if (invoker?.isConnected) invoker.focus() })
+  }, [invokerRef])
+
+  const enabling = mode === 'enable'
+  const title = enabling ? 'Name this installation' : 'Rename installation'
+  const titleId = `account-sync-${mode}-device-title`
+  async function confirm() {
+    if (!validDeviceName(name)) return
+    setPending(true)
+    setError(null)
+    const result = await onConfirm(name)
+    if (result.status === 'completed') {
+      onClose()
+      return
+    }
+    setPending(false)
+    setError(syncFailureCopy[result.status])
+  }
+  return createPortal(
+    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onClick={(event) => {
+      if (event.target === event.currentTarget && !pending) onClose()
+    }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-md rounded-2xl border border-hairline bg-panel-solid p-5 text-fg shadow-2xl">
+        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-accent">Encrypted sync</p>
+        <h2 id={titleId} className="mt-2 font-display text-xl font-medium tracking-[-0.02em]">{title}</h2>
+        <p className="mt-1 text-sm text-fg-muted">
+          {enabling
+            ? 'Use a name you’ll recognize when managing up to five installations.'
+            : 'This name appears only in your Tab Two device list.'}
+        </p>
+        <label htmlFor="account-sync-device-name" className={`${label} mt-5 block`}>Device name</label>
+        <input
+          id="account-sync-device-name"
+          value={name}
+          maxLength={48}
+          autoFocus
+          autoComplete="off"
+          onChange={(event) => setName(event.currentTarget.value)}
+          className={`${control} mt-1 w-full`}
+        />
+        <p className="mt-2 text-xs text-fg-muted">1–48 characters. You can change this later.</p>
+        <AssertiveAlert className="mt-3 block text-xs text-red-400">{error}</AssertiveAlert>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" disabled={pending} onClick={onClose} className={btnQuiet}>Cancel</button>
+          <button type="button" disabled={pending || !validDeviceName(name)} onClick={() => void confirm()} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
+            {enabling ? 'Enable encrypted sync' : 'Save name'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 function DestructiveAccountDialog({
   target,
   invokerRef,
   actions,
+  execute,
   onClose,
 }: {
   target: DestructiveTarget | null
   invokerRef: RefObject<HTMLButtonElement | null>
   actions: AccountActions
+  execute: {
+    deleteVault(): Promise<SyncActionOutcome>
+    deleteAccount(): Promise<SyncActionOutcome>
+    revokeDevice(deviceId: string): Promise<SyncActionOutcome>
+  }
   onClose: () => void
 }) {
   const open = target !== null
@@ -184,9 +302,16 @@ function DestructiveAccountDialog({
     setPending(true)
     setError(null)
     try {
-      if (deletingAccount) await actions.deleteAccount()
-      else if (deviceId) await actions.revokeDevice(deviceId)
-      else await actions.deleteVault()
+      const result = deletingAccount
+        ? await execute.deleteAccount()
+        : deviceId
+          ? await execute.revokeDevice(deviceId)
+          : await execute.deleteVault()
+      if (result.status !== 'completed') {
+        setPending(false)
+        setError(syncFailureCopy[result.status])
+        return
+      }
       onClose()
     } catch {
       setPending(false)
@@ -266,12 +391,16 @@ function DestructiveAccountDialog({
 }
 
 export default function AccountSync() {
-  const { snapshot, actions } = useAccount()
+  const { snapshot, actions, client } = useAccount()
+  const coordinatedSync = useSync()
   const [signInStatus, setSignInStatus] = useState<string | null>(null)
   const [billingPending, setBillingPending] = useState(false)
   const [billingError, setBillingError] = useState<string | null>(null)
   const [destructiveTarget, setDestructiveTarget] = useState<DestructiveTarget | null>(null)
+  const [deviceNameTarget, setDeviceNameTarget] = useState<null | { mode: 'enable' | 'rename'; deviceId?: string; initialName: string }>(null)
+  const [syncActionError, setSyncActionError] = useState<string | null>(null)
   const destructiveInvokerRef = useRef<HTMLButtonElement>(null)
+  const deviceNameInvokerRef = useRef<HTMLButtonElement>(null)
   const refreshAfterHandoff = useRef(false)
   const refreshInFlight = useRef<Promise<void> | null>(null)
 
@@ -398,20 +527,44 @@ export default function AccountSync() {
 
         <BillingPlans billing={snapshot.billing} pending={billingPending} error={billingError} onChoose={(plan) => void choosePlan(plan)} />
 
-        <Section title="What sync can include">
-          <ul className="account-sync-inventory">
-            <li>Settings, layouts, and widget configuration</li>
-            <li>Tasks, habits, goals, and custom links</li>
-            <li>Passwords, tokens, sessions, and feed URLs</li>
-          </ul>
-          <p className="mt-3 text-xs text-fg-muted">You choose whether to enable encrypted sync after signing in.</p>
-        </Section>
+        <SyncDisclosure />
+        <p className="py-4 text-xs text-fg-muted">You choose whether to enable encrypted sync after signing in.</p>
       </>
     )
   }
 
-  const activeDevices = snapshot.devices.filter((device) => !device.revoked)
-  const atDeviceLimit = !snapshot.sync.enabled && activeDevices.length >= 5
+  const hasCoordinator = client.syncGateway !== null
+  const syncState = hasCoordinator
+    ? coordinatedSync.state
+    : { ...snapshot.sync, devices: snapshot.devices, recoveries: [] }
+  const syncOperations = hasCoordinator
+    ? coordinatedSync.actions
+    : {
+        enable: (friendlyName: string) => actions.enableSync(friendlyName),
+        disable: () => actions.disableSync(),
+        syncNow: () => actions.syncNow(),
+        renameDevice: (deviceId: string, friendlyName: string) => actions.renameDevice(deviceId, friendlyName),
+        revokeDevice: (deviceId: string) => actions.revokeDevice(deviceId),
+        restoreRecovery: (backupId: string) => actions.restoreConflictBackup(backupId),
+        discardRecovery: (backupId: string) => actions.discardConflictBackup(backupId),
+        deleteVault: () => actions.deleteVault(),
+        deleteAccount: () => actions.deleteAccount(),
+      }
+  const activeDevices = syncState.devices.filter((device) => !device.revoked)
+  const atDeviceLimit = !syncState.enabled && activeDevices.length >= 5
+  const phaseCopy = {
+    disabled: 'Sync is off. Nothing is uploaded.',
+    syncing: 'Securing your latest changes…',
+    up_to_date: 'Protected and up to date.',
+    offline: 'You’re offline. Changes stay safe on this device and will sync automatically.',
+    needs_attention: 'Sync needs attention. Your local data has not been removed.',
+  }[syncState.phase]
+
+  async function runSyncAction(action: () => Promise<SyncActionOutcome>) {
+    setSyncActionError(null)
+    const result = await action()
+    if (result.status !== 'completed') setSyncActionError(syncFailureCopy[result.status])
+  }
 
   return (
     <>
@@ -440,10 +593,17 @@ export default function AccountSync() {
           </div>
           <Switch
             id="account-sync-enabled"
-            checked={snapshot.sync.enabled}
+            checked={syncState.enabled}
             disabled={atDeviceLimit}
             describedBy={atDeviceLimit ? DEVICE_LIMIT_ID : undefined}
-            onChange={(enabled) => void (enabled ? actions.enableSync() : actions.disableSync())}
+            onChange={(enabled) => {
+              if (enabled) {
+                deviceNameInvokerRef.current = document.getElementById('account-sync-enabled') as HTMLButtonElement
+                setDeviceNameTarget({ mode: 'enable', initialName: 'This device' })
+              } else {
+                void runSyncAction(syncOperations.disable)
+              }
+            }}
           />
         </div>
         {atDeviceLimit ? (
@@ -451,13 +611,39 @@ export default function AccountSync() {
             Five installations are already syncing. Remove one below before enabling sync here.
           </AssertiveAlert>
         ) : null}
+        <PoliteStatus className={`account-sync-phase account-sync-phase--${syncState.phase} mt-4 block text-sm`}>
+          {phaseCopy}
+        </PoliteStatus>
+        <AssertiveAlert className="mt-2 block text-xs text-red-400">{syncActionError}</AssertiveAlert>
         <dl className="account-sync-facts mt-5">
-          <Fact label="Last successful sync">{formatSyncTime(snapshot.sync.lastSuccessAt)}</Fact>
-          <Fact label="Storage used">{formatBytes(snapshot.sync.usedBytes)} of {formatBytes(snapshot.sync.quotaBytes)}</Fact>
-          <Fact label="Status">{snapshot.sync.phase.replaceAll('_', ' ')}</Fact>
+          <Fact label="Last successful sync">{formatSyncTime(syncState.lastSuccessAt)}</Fact>
+          <Fact label="Storage used">{formatBytes(syncState.usedBytes)} of {formatBytes(syncState.quotaBytes)}</Fact>
+          <Fact label="Status">{syncState.phase.replaceAll('_', ' ')}</Fact>
         </dl>
-        <button type="button" onClick={() => void actions.syncNow()} className={`${btnQuiet} mt-4`}>Sync now</button>
+        <button type="button" disabled={!syncState.enabled || syncState.phase === 'syncing'} onClick={() => void runSyncAction(syncOperations.syncNow)} className={`${btnQuiet} mt-4 disabled:cursor-not-allowed disabled:opacity-40`}>Sync now</button>
       </Section>
+
+      <SyncDisclosure />
+
+      {syncState.recoveries.length > 0 ? (
+        <Section title="Recovery copies">
+          <p className="mb-3 text-xs text-fg-muted">A local edit was preserved before Tab Two adopted a newer verified copy.</p>
+          <ul className="divide-y divide-hairline" aria-label="Recoverable local copies">
+            {syncState.recoveries.map((recovery) => (
+              <li key={recovery.id} className="flex min-h-14 items-center justify-between gap-3 py-2 max-[420px]:items-start">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-fg">{recovery.entityType.replaceAll('_', ' ')}</p>
+                  <p className="text-xs text-fg-muted">Saved {new Date(recovery.createdAt).toLocaleString()}</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button type="button" className={btnPrimary} onClick={() => void runSyncAction(() => syncOperations.restoreRecovery(recovery.id))}>Restore</button>
+                  <button type="button" className={btnQuiet} onClick={() => void runSyncAction(() => syncOperations.discardRecovery(recovery.id))}>Discard</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
 
       <Section title="Devices">
         <ul className="divide-y divide-hairline" aria-label="Signed-in installations">
@@ -469,7 +655,19 @@ export default function AccountSync() {
                   {device.current ? 'Current installation' : `Last sync: ${formatSyncTime(device.lastSyncAt)}`}
                 </p>
               </div>
-              {!device.current ? (
+              <div className="flex shrink-0 gap-2">
+                {device.current ? (
+                  <button
+                    type="button"
+                    className={btnQuiet}
+                    onClick={(event) => {
+                      deviceNameInvokerRef.current = event.currentTarget
+                      setDeviceNameTarget({ mode: 'rename', deviceId: device.id, initialName: device.name })
+                    }}
+                  >
+                    Rename
+                  </button>
+                ) : (
                 <button
                   type="button"
                   onClick={(event) => openDestructive(
@@ -481,7 +679,8 @@ export default function AccountSync() {
                 >
                   Remove
                 </button>
-              ) : null}
+                )}
+              </div>
             </li>
           ))}
         </ul>
@@ -509,8 +708,24 @@ export default function AccountSync() {
         target={destructiveTarget}
         invokerRef={destructiveInvokerRef}
         actions={actions}
+        execute={{
+          deleteVault: syncOperations.deleteVault,
+          deleteAccount: syncOperations.deleteAccount,
+          revokeDevice: syncOperations.revokeDevice,
+        }}
         onClose={() => setDestructiveTarget(null)}
       />
+      {deviceNameTarget ? (
+        <DeviceNameDialog
+          mode={deviceNameTarget.mode}
+          initialName={deviceNameTarget.initialName}
+          invokerRef={deviceNameInvokerRef}
+          onConfirm={(friendlyName) => deviceNameTarget.mode === 'enable'
+            ? syncOperations.enable(friendlyName)
+            : syncOperations.renameDevice(deviceNameTarget.deviceId!, friendlyName)}
+          onClose={() => setDeviceNameTarget(null)}
+        />
+      ) : null}
     </>
   )
 }

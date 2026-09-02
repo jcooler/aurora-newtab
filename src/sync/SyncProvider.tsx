@@ -13,6 +13,8 @@ import type { SyncActionOutcome, SyncPhase } from '../account/types'
 import { useSyncStorageRuntime } from '../lib/storage/context'
 import { createSyncLocalStateStore, type SyncDeviceStateV1 } from './localState'
 import { createCoordinatorStorage, createSyncCoordinator, type SyncCoordinator } from './coordinator'
+import { deleteConflictBackup, restoreConflictBackup } from './conflictBackups'
+import { emptyConflictBackups, emptySyncIndex, SYNC_CONFLICT_BACKUPS_STORAGE_KEY, SYNC_INDEX_STORAGE_KEY } from './localState'
 
 const LOCK_NAME = 'tab-two:encrypted-sync:v1'
 
@@ -29,12 +31,24 @@ export interface SyncViewState {
     current: boolean
     revoked: boolean
   }[]
+  recoveries: readonly {
+    id: string
+    entityType: string
+    entityId: string
+    createdAt: number
+  }[]
 }
 
 export interface SyncViewActions {
   enable(friendlyName: string): Promise<SyncActionOutcome>
   disable(): Promise<SyncActionOutcome>
   syncNow(): Promise<SyncActionOutcome>
+  renameDevice(deviceId: string, friendlyName: string): Promise<SyncActionOutcome>
+  revokeDevice(deviceId: string): Promise<SyncActionOutcome>
+  restoreRecovery(backupId: string): Promise<SyncActionOutcome>
+  discardRecovery(backupId: string): Promise<SyncActionOutcome>
+  deleteVault(): Promise<SyncActionOutcome>
+  deleteAccount(): Promise<SyncActionOutcome>
 }
 
 interface SyncContextValue {
@@ -49,16 +63,27 @@ const disabledState: SyncViewState = Object.freeze({
   usedBytes: 0,
   quotaBytes: 2_097_152,
   devices: Object.freeze([]),
+  recoveries: Object.freeze([]),
 })
 
 const unavailable = async (): Promise<SyncActionOutcome> => ({ status: 'needs_attention' })
 const SyncContext = createContext<SyncContextValue>({
   state: disabledState,
-  actions: { enable: unavailable, disable: unavailable, syncNow: unavailable },
+  actions: {
+    enable: unavailable,
+    disable: unavailable,
+    syncNow: unavailable,
+    renameDevice: unavailable,
+    revokeDevice: unavailable,
+    restoreRecovery: unavailable,
+    discardRecovery: unavailable,
+    deleteVault: unavailable,
+    deleteAccount: unavailable,
+  },
 })
 
 export function SyncProvider({ children }: { children: ReactNode }) {
-  const { snapshot, client } = useAccount()
+  const { snapshot, client, actions: accountActions } = useAccount()
   const runtime = useSyncStorageRuntime()
   const [state, setState] = useState<SyncViewState>(disabledState)
   const [device, setDevice] = useState<SyncDeviceStateV1 | null>(null)
@@ -154,6 +179,22 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         onState: (next) => {
           if (abort.signal.aborted || generation !== lifecycle.current) return
           setState((current) => ({ ...current, ...next, enabled: true }))
+          void localStore.readConflictBackups(accountId).then((backups) => {
+            if (abort.signal.aborted || generation !== lifecycle.current) return
+            setState((current) => ({
+              ...current,
+              recoveries: backups.map((backup) => ({
+                id: backup.id,
+                entityType: backup.entity.entityType,
+                entityId: backup.entity.entityId,
+                createdAt: backup.createdAt,
+              })),
+            }))
+          }).catch(() => {
+            if (!abort.signal.aborted && generation === lifecycle.current) {
+              setState((current) => ({ ...current, phase: 'needs_attention' }))
+            }
+          })
         },
       })
       coordinator.current = owner
@@ -164,6 +205,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         usedBytes: bootstrapped.value.summary.usedBytes,
         quotaBytes: 2_097_152,
         devices: bootstrapped.value.summary.devices,
+        recoveries: (await localStore.readConflictBackups(accountId)).map((backup) => ({
+          id: backup.id,
+          entityType: backup.entity.entityType,
+          entityId: backup.entity.entityId,
+          createdAt: backup.createdAt,
+        })),
       })
       owner.start()
       await new Promise<void>((resolve) => abort.signal.addEventListener('abort', () => resolve(), { once: true }))
@@ -240,7 +287,131 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       : { status: phase === 'offline' ? 'offline' : 'needs_attention' }
   }, [accountId, device?.enabled, entitled])
 
-  const actions = useMemo<SyncViewActions>(() => ({ enable, disable, syncNow }), [disable, enable, syncNow])
+  const renameDevice = useCallback(async (deviceId: string, friendlyName: string): Promise<SyncActionOutcome> => {
+    if (!accountId) return { status: 'authentication_required' }
+    if (!entitled) return { status: 'entitlement_required' }
+    const gateway = client.syncGateway
+    if (!gateway || !localStore) return { status: 'needs_attention' }
+    const result = await gateway.renameDevice({ accountId, deviceId, friendlyName })
+    if (!result.ok) return { status: result.kind }
+    setState((current) => ({ ...current, devices: result.value.devices }))
+    if (device?.deviceId === deviceId) {
+      const renamed = await localStore.updateDevice(accountId, (current) => ({ ...current, friendlyName }))
+      setDevice(renamed)
+    }
+    return { status: 'completed' }
+  }, [accountId, client.syncGateway, device?.deviceId, entitled, localStore])
+
+  const revokeDevice = useCallback(async (targetDeviceId: string): Promise<SyncActionOutcome> => {
+    if (!accountId) return { status: 'authentication_required' }
+    if (!entitled) return { status: 'entitlement_required' }
+    const gateway = client.syncGateway
+    if (!gateway || !device) return { status: 'needs_attention' }
+    const result = await gateway.revokeDevice({
+      accountId,
+      currentDeviceId: device.deviceId,
+      targetDeviceId,
+    })
+    if (!result.ok) return { status: result.kind }
+    setState((current) => ({ ...current, devices: result.value.devices }))
+    return { status: 'completed' }
+  }, [accountId, client.syncGateway, device, entitled])
+
+  const restoreRecovery = useCallback(async (backupId: string): Promise<SyncActionOutcome> => {
+    if (!accountId) return { status: 'authentication_required' }
+    if (!entitled) return { status: 'entitlement_required' }
+    if (!runtime || !localStore) return { status: 'needs_attention' }
+    try {
+      const backup = (await localStore.readConflictBackups(accountId)).find((item) => item.id === backupId)
+      if (!backup) return { status: 'needs_attention' }
+      await restoreConflictBackup(
+        { driver: runtime.driver, authority: runtime.authority },
+        accountId,
+        backupId,
+        backup.observedRemoteRevision,
+      )
+      setState((current) => ({
+        ...current,
+        recoveries: current.recoveries.filter((item) => item.id !== backupId),
+      }))
+      return { status: 'completed' }
+    } catch {
+      return { status: 'needs_attention' }
+    }
+  }, [accountId, entitled, localStore, runtime])
+
+  const discardRecovery = useCallback(async (backupId: string): Promise<SyncActionOutcome> => {
+    if (!accountId) return { status: 'authentication_required' }
+    if (!runtime) return { status: 'needs_attention' }
+    try {
+      await deleteConflictBackup({ driver: runtime.driver, authority: runtime.authority }, accountId, backupId)
+      setState((current) => ({
+        ...current,
+        recoveries: current.recoveries.filter((item) => item.id !== backupId),
+      }))
+      return { status: 'completed' }
+    } catch {
+      return { status: 'needs_attention' }
+    }
+  }, [accountId, runtime])
+
+  const clearSyncMetadata = useCallback(async () => {
+    if (!accountId || !runtime || !localStore) return
+    coordinator.current?.stop()
+    coordinator.current = null
+    await runtime.authority.runExclusive(async () => {
+      await runtime.driver.write({
+        [SYNC_INDEX_STORAGE_KEY]: emptySyncIndex(accountId),
+        [SYNC_CONFLICT_BACKUPS_STORAGE_KEY]: emptyConflictBackups(accountId),
+      })
+    })
+    const disabled = await localStore.updateDevice(accountId, (current) => ({
+      ...current, enabled: false, registration: 'unregistered',
+    }))
+    setDevice(disabled)
+    setState(disabledState)
+  }, [accountId, localStore, runtime])
+
+  const deleteVault = useCallback(async (): Promise<SyncActionOutcome> => {
+    if (!accountId) return { status: 'authentication_required' }
+    if (!device || !client.syncGateway) return { status: 'needs_attention' }
+    const result = await client.syncGateway.deleteVault({ accountId, deviceId: device.deviceId })
+    if (!result.ok) return { status: result.kind }
+    await clearSyncMetadata()
+    return { status: 'completed' }
+  }, [accountId, clearSyncMetadata, client.syncGateway, device])
+
+  const deleteAccount = useCallback(async (): Promise<SyncActionOutcome> => {
+    if (!accountId) return { status: 'authentication_required' }
+    if (!client.syncGateway) return { status: 'needs_attention' }
+    const result = await client.syncGateway.deleteAccount({ accountId })
+    if (!result.ok) return { status: result.kind }
+    await clearSyncMetadata()
+    await accountActions.signOut()
+    return { status: 'completed' }
+  }, [accountActions, accountId, clearSyncMetadata, client.syncGateway])
+
+  const actions = useMemo<SyncViewActions>(() => ({
+    enable,
+    disable,
+    syncNow,
+    renameDevice,
+    revokeDevice,
+    restoreRecovery,
+    discardRecovery,
+    deleteVault,
+    deleteAccount,
+  }), [
+    deleteAccount,
+    deleteVault,
+    disable,
+    discardRecovery,
+    enable,
+    renameDevice,
+    restoreRecovery,
+    revokeDevice,
+    syncNow,
+  ])
   const value = useMemo(() => ({ state, actions }), [actions, state])
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>
 }

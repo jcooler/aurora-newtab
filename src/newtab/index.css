@@ -46,6 +46,24 @@
   background: var(--accent);
   content: "";
 }
+.account-sync-disclosure {
+  min-width: 0;
+  border-top: 1px solid var(--hairline);
+}
+.account-sync-disclosure--included {
+  border-top-color: color-mix(in srgb, var(--accent) 38%, transparent);
+}
+.account-sync-phase {
+  border-left: 2px solid var(--hairline);
+  padding-left: 0.75rem;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+.account-sync-phase--syncing,
+.account-sync-phase--up_to_date {
+  border-left-color: var(--accent);
+  color: var(--fg);
+}
 @media (max-width: 560px) {
   .account-sync-facts {
     grid-template-columns: 1fr;

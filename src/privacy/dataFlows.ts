@@ -296,6 +296,33 @@ export const ACCOUNT_SERVICE_DATA_FLOWS = {
     authority: 'Only a verified signed lease grants capabilities; browser return state and URLs never grant access.',
     currentState: 'PM-P3 billing is hosted in sandbox/test mode only; no live billing or paid launch is active.',
   },
+  sync: {
+    destinations: ['https://ovlobmvxtryitupxwylg.supabase.co'],
+    trigger: [
+      'explicit Enable sync action',
+      'eligible local changes after debounce',
+      'visible startup, focus restoration, visible interval, or explicit Sync now',
+    ],
+    sends: [
+      'Supabase account session to authenticated Tab Two sync functions',
+      'AES-256-GCM encrypted record envelopes',
+      'provider-neutral account, device, revision, quota, and acknowledgement metadata',
+    ],
+    receives: [
+      'account data key released into non-extractable in-memory Web Crypto authority',
+      'encrypted record envelopes, server revisions, quota totals, and device summaries',
+    ],
+    excludes: [
+      'passwords, tokens, sessions, and feed/calendar URLs',
+      'provider caches and responses',
+      'uploaded images, conflict contents, and device-local operational state',
+    ],
+    keyModel: 'Tab Two stores the account data key wrapped by a server-held key-encryption key and can technically unwrap and release it to an authenticated entitled account.',
+    limits: ['2,097,152 encrypted bytes per account', 'five active installations'],
+    retention: 'The encrypted cloud vault is retained for 90 days after encrypted-sync entitlement ends unless the customer deletes it first.',
+    authority: 'Local data remains usable at all times. Only explicit enable plus a verified encrypted_sync lease can start sync traffic.',
+    currentState: 'PM-P4 is locally implemented; hosted sync migration, key, functions, devices, and product-data transfer remain closed until the separate production gate.',
+  },
 } as const
 
 export const MANIFEST_PRIVACY_DESCRIPTION =

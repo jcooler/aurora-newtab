@@ -6,7 +6,9 @@ A calm, local-first new-tab dashboard for Chrome. Local mode requires no Tab
 Two account and makes no Tab Two backend request. The production build also
 offers explicit, optional Google sign-in backed by Supabase for account identity
 and signed capability leases; signing in does not enable sync or upload local
-dashboard data. There is no analytics or tracking. Selected features make only
+dashboard data. Encrypted sync is a separate explicit control for entitled
+accounts and encrypts only reviewed product records in the extension before
+sending them to the exact Tab Two Supabase origin. There is no analytics or tracking. Selected features make only
 the direct provider requests disclosed below.
 
 PM-P3 billing is active only in Stripe sandbox/test mode. Its hosted Supabase
@@ -484,6 +486,19 @@ ignores browser return state as authority, and enables capabilities only after
 refreshing an account-bound signed lease. Stripe returns through the static
 `tab-two-billing-return.pages.dev` surface, which has no analytics, cookies,
 remote assets, account data, or billing authority. Live billing is not active.
+
+Encrypted sync includes settings and layouts; tasks, notes, habits, goals, and
+links; and approved non-secret connector preferences. Passwords, tokens,
+sessions, feed/calendar URLs, provider caches and responses, uploaded images,
+and device-local operational state always stay on the device. The service keeps
+only encrypted record envelopes and bounded account/device/revision metadata,
+with a 2 MB account quota, five active installations, and 90-day retention after
+the encrypted-sync entitlement ends. Deleting the cloud vault or account never
+deletes local dashboard data. The account data key is wrapped by a server-held
+key-encryption key, so the service can technically release it to an authenticated
+entitled installation; this is encrypted sync, not end-to-end encrypted or zero
+knowledge. Hosted production sync remains disabled until the separately approved
+PM-P4 migration, key, function, device, and product-data gate is executed.
 
 
 The **fixed** outbound network calls Tab Two makes on its own are to

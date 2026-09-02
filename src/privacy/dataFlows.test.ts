@@ -304,6 +304,21 @@ describe('code-backed privacy inventory', () => {
     expect(BROWSER_DATA_FLOWS.billing.description).toContain('never stored or treated as entitlement authority')
   })
 
+  it('discloses encrypted sync without overstating its recoverable key model', () => {
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.sync.destinations).toEqual([
+      'https://ovlobmvxtryitupxwylg.supabase.co',
+    ])
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.sync.trigger).toContain('explicit Enable sync action')
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.sync.sends).toContain('AES-256-GCM encrypted record envelopes')
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.sync.excludes).toContain('passwords, tokens, sessions, and feed/calendar URLs')
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.sync.keyModel).toContain('can technically unwrap and release')
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.sync.limits).toContain('2,097,152 encrypted bytes per account')
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.sync.limits).toContain('five active installations')
+    expect(privacyPolicy).toContain('Encrypted sync is optional and starts only after you turn it on')
+    expect(privacyPolicy).toContain('90 days after encrypted-sync entitlement ends')
+    expect(privacyPolicy).toContain('not end-to-end encrypted or zero knowledge')
+  })
+
   it('keeps the canonical privacy policy synchronized with the fixed environmental flow', () => {
     expect(privacyPolicy).toContain('exactly five **fixed** weather/location')
     expect(privacyPolicy).toContain('air-quality-api.open-meteo.com')

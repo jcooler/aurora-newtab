@@ -17,8 +17,14 @@ billing is hosted only against Stripe sandbox/test mode; no live Stripe catalog,
 live payment, or paid launch is active. A static Cloudflare Pages return surface
 has no analytics, cookies, storage, remote assets, account data, or billing
 authority.
-Signing in does not enable sync and does not upload settings, notes, connector
-credentials, locations, layouts, backups, or any other dashboard product data.
+Signing in does not enable sync and does not upload dashboard product data.
+Encrypted sync is optional and starts only after you turn it on with a verified
+`encrypted_sync` capability. When it is on, Tab Two sends only the reviewed
+encrypted records described below; connector credentials, capability URLs,
+provider responses, uploaded images, and device-local operational state remain
+on the device. The hosted production sync migration, key, functions, devices,
+and product-data transfer remain disabled until the separately approved PM-P4
+production gate.
 Tab Two does not collect data for its developer, sell or rent your data, or
 transfer it for advertising, profiling, lending, or any unrelated purpose.
 There is no analytics and no tracking of any kind. Dashboard product data
@@ -91,6 +97,11 @@ anywhere except as explicitly described under "Network calls" below:
 - If you explicitly sign in: one isolated Supabase access/refresh session under
   `tab-two:account-session:v1`. It is not part of `AuroraData`, JSON backup,
   diagnostics, screenshots, or the visible UI, and Sign out removes it.
+- If you explicitly enable encrypted sync: a random installation identifier,
+  friendly device name, enable/registration state, accepted server revisions,
+  canonical record digests, and up to five local conflict-recovery copies. This
+  operational state is excluded from JSON backup and diagnostics. Recovery-copy
+  contents remain local and are never uploaded as backups.
 
 The production account service stores a provider-neutral Tab Two account UUID
 and the Google identity needed to maintain that mapping: Google's provider
@@ -108,6 +119,25 @@ append-only billing transitions. It never stores raw webhook bodies, hosted
 Checkout or Portal URLs, card data, billing addresses, receipts, payment-method
 details, or customer email as billing authority.
 Its Stripe functions reject live-mode objects and are not a live billing launch.
+
+When encrypted sync is enabled, the Tab Two Supabase service stores AES-256-GCM
+encrypted record envelopes for approved settings, layouts, tasks, notes, habits,
+goals, links, and non-secret connector preferences. It also stores the
+provider-neutral account UUID, random device identifiers and friendly names,
+last-seen/acknowledgement metadata, record type/id/revision/tombstone/size data,
+bounded idempotency receipts, rate-limit counters, and append-only sync audit
+events. The encrypted vault is limited to 2,097,152 bytes per account and five
+active installations. It is retained for 90 days after encrypted-sync entitlement ends
+unless you delete it first. Deleting synced data removes the
+cloud vault but not local dashboard data; deleting the Tab Two account removes
+the account and cloud vault but still does not erase local dashboard data on an
+installation.
+
+Each account data key is wrapped at rest by a server-held AES-256 key-encryption
+key and released only to an authenticated, entitled, active installation. The
+released key is imported into non-extractable in-memory Web Crypto authority.
+Because the Tab Two service can technically unwrap and release the account data
+key, this is encrypted sync, not end-to-end encrypted or zero knowledge.
 
 **Uploaded background photos** are the one exception to `chrome.storage.local`:
 if you choose "My photo" and upload your own image(s), each image is stored
@@ -240,6 +270,16 @@ return surface only after a sandbox billing action (item 9 below):
    refreshed from Supabase is the only capability authority. Checkout success,
    cancel, Portal return state, URL parameters, and the return page never grant
    access. These Stripe paths reject live-mode objects and remain test-only.
+   If you explicitly enable encrypted sync and hold a verified capability, the
+   same exact Supabase origin receives authenticated bootstrap, device, pull,
+   push, and deletion requests. Eligible local changes are projected into the
+   reviewed categories and encrypted in the extension before transmission.
+   Requests contain encrypted envelopes plus account/device, revision,
+   idempotency, quota, and acknowledgement metadata. Visible installations may
+   pull on startup, focus restoration, an interval, or **Sync now**; offline
+   edits remain local and retry with bounded backoff. Passwords, tokens,
+   sessions, RSS/Calendar URLs, provider caches/responses, uploaded images, and
+   recovery-copy contents are never included.
 9. **Static billing return surface** -
    `tab-two-billing-return.pages.dev`, reached when Stripe redirects the browser
    after sandbox Checkout or Customer Portal. The page receives ordinary HTTPS
