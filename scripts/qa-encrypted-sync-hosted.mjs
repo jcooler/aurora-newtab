@@ -466,8 +466,9 @@ async function main() {
     evidence.interactions.tombstoneCompaction = true
     evidence.interactions.tombstoneNonResurrection = true
 
-    let summary = (await bootstrap(matrix, matrixDevices[0][1], matrixDevices[0][0])).summary
-    let remaining = MAX_VAULT_BYTES - summary.encodedSize
+    let encodedSize = dbQuery(`select encoded_size::int from private.sync_vaults
+      where account_id = ${sqlLiteral(matrix.accountId)}::uuid;`)[0].encoded_size
+    let remaining = MAX_VAULT_BYTES - encodedSize
     let quotaIndex = 0
     while (remaining > 0) {
       const target = Math.min(250_000, remaining)
@@ -488,9 +489,10 @@ async function main() {
       remaining -= target
       quotaIndex += 1
     }
-    summary = (await bootstrap(matrix, matrixDevices[0][1], matrixDevices[0][0])).summary
-    assert.equal(summary.encodedSize, MAX_VAULT_BYTES)
-    evidence.usage.peakTrackedVaultBytes = summary.encodedSize
+    encodedSize = dbQuery(`select encoded_size::int from private.sync_vaults
+      where account_id = ${sqlLiteral(matrix.accountId)}::uuid;`)[0].encoded_size
+    assert.equal(encodedSize, MAX_VAULT_BYTES)
+    evidence.usage.peakTrackedVaultBytes = encodedSize
     const overQuota = await encryptRecord(matrixKeys[0], matrix.accountId, 'notes', 'over-quota', 1, { text: 'one byte too many' })
     const quotaOutcome = await push(matrix, matrixDevices[0][1], {
       idempotencyId: crypto.randomUUID(), expectedRevision: 0, record: overQuota,
