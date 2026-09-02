@@ -178,6 +178,10 @@ function validEntityId(entityType: SyncEntityType, entityId: string): boolean {
   }
 }
 
+export function isValidSyncEntityIdentity(entityType: SyncEntityType, entityId: string): boolean {
+  return ENTITY_TYPE_SET.has(entityType) && validEntityId(entityType, entityId)
+}
+
 function validNamedLayoutValue(entityId: string, value: unknown): value is Omit<NamedLayout, 'id'> {
   if (!isPlainObject(value)) return false
   try {

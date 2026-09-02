@@ -102,6 +102,23 @@ describe('AccountSessionStore', () => {
     expect(memory.boundary.remove).toHaveBeenCalledWith(ACCOUNT_SESSION_STORAGE_KEY)
   })
 
+  it('never reads, writes, or clears encrypted-sync state keys', async () => {
+    const memory = memoryBoundary(validSession)
+    const store = createAccountSessionStore(memory.boundary, () => now)
+    await store.read()
+    await store.write(validSession)
+    await store.clear()
+
+    const touched = [
+      ...vi.mocked(memory.boundary.get).mock.calls,
+      ...vi.mocked(memory.boundary.set).mock.calls,
+      ...vi.mocked(memory.boundary.remove).mock.calls,
+    ].flat()
+    expect(touched).not.toContain('tab-two:sync-device:v1')
+    expect(touched).not.toContain('tab-two:sync-index:v1')
+    expect(touched).not.toContain('tab-two:sync-conflict-backups:v1')
+  })
+
   it('propagates valid external changes and invalidation without exposing malformed data', async () => {
     const memory = memoryBoundary()
     const listener = vi.fn()

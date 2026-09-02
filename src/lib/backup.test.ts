@@ -1664,4 +1664,18 @@ describe('paid account session backup isolation', () => {
     expect(serialized).not.toContain('access-token-must-not-export')
     expect(serialized).not.toContain('refresh-token-must-not-export')
   })
+
+  it('never serializes encrypted-sync device, revision, or conflict recovery state', () => {
+    const data = {
+      ...defaults(),
+      'tab-two:sync-device:v1': { deviceId: 'device-must-not-export' },
+      'tab-two:sync-index:v1': { ciphertext: 'remote-must-not-export' },
+      'tab-two:sync-conflict-backups:v1': { value: 'conflict-must-not-export' },
+    }
+
+    const serialized = serializeBackup(data as never)
+    expect(serialized).not.toContain('device-must-not-export')
+    expect(serialized).not.toContain('remote-must-not-export')
+    expect(serialized).not.toContain('conflict-must-not-export')
+  })
 })
