@@ -11,16 +11,24 @@ import {
 import { useAccount } from '../account/AccountContext'
 import type { SyncActionOutcome, SyncPhase } from '../account/types'
 import { useSyncStorageRuntime } from '../lib/storage/context'
-import { createSyncLocalStateStore, type SyncDeviceStateV1 } from './localState'
-import { createCoordinatorStorage, createSyncCoordinator, type SyncCoordinator } from './coordinator'
+import { createCoordinatorStorage, createSyncCoordinator, retryDelay, type SyncCoordinator } from './coordinator'
 import { deleteConflictBackup, restoreConflictBackup } from './conflictBackups'
-import { emptyConflictBackups, emptySyncIndex, SYNC_CONFLICT_BACKUPS_STORAGE_KEY, SYNC_INDEX_STORAGE_KEY } from './localState'
+import {
+  createSyncLocalStateStore,
+  emptyConflictBackups,
+  emptySyncIndex,
+  SYNC_CONFLICT_BACKUPS_STORAGE_KEY,
+  SYNC_INDEX_STORAGE_KEY,
+  type SyncDeviceStateV1,
+} from './localState'
+import type { SyncGatewayFailure } from './gateway'
 
 const LOCK_NAME = 'tab-two:encrypted-sync:v1'
 
 export interface SyncViewState {
   enabled: boolean
   phase: SyncPhase
+  attention: SyncGatewayFailure | null
   lastSuccessAt: number | null
   usedBytes: number
   quotaBytes: 2_097_152
@@ -59,6 +67,7 @@ interface SyncContextValue {
 const disabledState: SyncViewState = Object.freeze({
   enabled: false,
   phase: 'disabled',
+  attention: null,
   lastSuccessAt: null,
   usedBytes: 0,
   quotaBytes: 2_097_152,
@@ -90,6 +99,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [visible, setVisible] = useState(() => typeof document === 'undefined' || document.visibilityState === 'visible')
   const coordinator = useRef<SyncCoordinator | null>(null)
   const lifecycle = useRef(0)
+  const bootstrapFailures = useRef(0)
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
 
   const localStore = useMemo(() => runtime
     ? createSyncLocalStateStore(runtime.driver, runtime.authority)
@@ -101,6 +112,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     coordinator.current?.stop()
     coordinator.current = null
     if (!accountId || !localStore) {
+      bootstrapFailures.current = 0
       setDevice(null)
       setState(disabledState)
       return
@@ -140,6 +152,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
     const generation = ++lifecycle.current
     const abort = new AbortController()
+    let bootstrapRetryTimer: number | null = null
     void lockManager.request(LOCK_NAME, {
       mode: 'exclusive',
       ifAvailable: true,
@@ -158,12 +171,38 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       }, abort.signal)
       if (abort.signal.aborted || generation !== lifecycle.current) return
       if (!bootstrapped.ok) {
+        if (bootstrapped.kind === 'device_limit') {
+          try {
+            const disabled = await localStore.updateDevice(accountId, (current) => ({
+              ...current,
+              enabled: false,
+              registration: 'unregistered',
+            }))
+            if (abort.signal.aborted || generation !== lifecycle.current) return
+            setDevice(disabled)
+          } catch {
+            if (!abort.signal.aborted && generation === lifecycle.current) {
+              setState((current) => ({ ...current, phase: 'needs_attention', attention: 'needs_attention' }))
+            }
+            return
+          }
+        }
         setState((current) => ({
           ...current,
+          enabled: bootstrapped.kind === 'device_limit' ? false : current.enabled,
           phase: bootstrapped.kind === 'offline' ? 'offline' : 'needs_attention',
+          attention: bootstrapped.kind,
         }))
+        if (bootstrapped.kind === 'offline') {
+          bootstrapFailures.current += 1
+          bootstrapRetryTimer = window.setTimeout(
+            () => setBootstrapAttempt((attempt) => attempt + 1),
+            retryDelay(bootstrapFailures.current),
+          )
+        }
         return
       }
+      bootstrapFailures.current = 0
       await localStore.updateDevice(accountId, (current) => ({
         ...current,
         enabled: true,
@@ -178,7 +217,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         storage: createCoordinatorStorage({ ...runtime, accountId }),
         onState: (next) => {
           if (abort.signal.aborted || generation !== lifecycle.current) return
-          setState((current) => ({ ...current, ...next, enabled: true }))
+          setState((current) => ({ ...current, ...next, enabled: true, attention: null }))
           void localStore.readConflictBackups(accountId).then((backups) => {
             if (abort.signal.aborted || generation !== lifecycle.current) return
             setState((current) => ({
@@ -201,6 +240,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setState({
         enabled: true,
         phase: 'syncing',
+        attention: null,
         lastSuccessAt: null,
         usedBytes: bootstrapped.value.summary.usedBytes,
         quotaBytes: 2_097_152,
@@ -223,15 +263,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     })
     return () => {
       lifecycle.current += 1
+      if (bootstrapRetryTimer !== null) window.clearTimeout(bootstrapRetryTimer)
       abort.abort()
       coordinator.current?.stop()
       coordinator.current = null
     }
-  }, [accountId, client, device, entitled, localStore, runtime, visible])
+  }, [accountId, bootstrapAttempt, client, device, entitled, localStore, runtime, visible])
 
   useEffect(() => {
     if (device?.enabled && !entitled) {
-      setState((current) => ({ ...current, enabled: true, phase: 'needs_attention' }))
+      setState((current) => ({ ...current, enabled: true, phase: 'needs_attention', attention: 'entitlement_required' }))
     }
   }, [device?.enabled, entitled])
 
@@ -248,7 +289,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         registration: current.registration === 'revoked' ? 'unregistered' : current.registration,
       }))
       setDevice(enabled)
-      setState((current) => ({ ...current, enabled: true, phase: 'syncing' }))
+      setState((current) => ({ ...current, enabled: true, phase: 'syncing', attention: null }))
       return { status: 'completed' }
     } catch {
       return { status: 'needs_attention' }

@@ -536,7 +536,7 @@ export default function AccountSync() {
   const hasCoordinator = client.syncGateway !== null
   const syncState = hasCoordinator
     ? coordinatedSync.state
-    : { ...snapshot.sync, devices: snapshot.devices, recoveries: [] }
+    : { ...snapshot.sync, attention: null, devices: snapshot.devices, recoveries: [] }
   const syncOperations = hasCoordinator
     ? coordinatedSync.actions
     : {
@@ -552,6 +552,7 @@ export default function AccountSync() {
       }
   const activeDevices = syncState.devices.filter((device) => !device.revoked)
   const atDeviceLimit = !syncState.enabled && activeDevices.length >= 5
+  const rejectedByDeviceLimit = syncState.attention === 'device_limit'
   const phaseCopy = {
     disabled: 'Sync is off. Nothing is uploaded.',
     syncing: 'Securing your latest changes…',
@@ -606,9 +607,11 @@ export default function AccountSync() {
             }}
           />
         </div>
-        {atDeviceLimit ? (
+        {atDeviceLimit || rejectedByDeviceLimit ? (
           <AssertiveAlert id={DEVICE_LIMIT_ID} className="mt-3 block rounded-lg border border-amber-400/35 bg-amber-400/10 p-3 text-xs text-fg">
-            Five installations are already syncing. Remove one below before enabling sync here.
+            {atDeviceLimit
+              ? 'Five installations are already syncing. Remove one below before enabling sync here.'
+              : 'Five installations are already syncing. Open Tab Two on an existing synced installation and remove one there, then try again here.'}
           </AssertiveAlert>
         ) : null}
         <PoliteStatus className={`account-sync-phase account-sync-phase--${syncState.phase} mt-4 block text-sm`}>

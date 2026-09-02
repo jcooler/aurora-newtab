@@ -79,6 +79,23 @@ interface PendingPushBatch {
   mutations: SyncPushMutationV1[]
 }
 
+function encodedPushBytes(deviceId: string, mutations: readonly SyncPushMutationV1[]): number {
+  return new TextEncoder().encode(JSON.stringify({
+    deviceId,
+    mutations: mutations.map((item) => ({
+      idempotencyId: item.idempotencyId,
+      envelopeVersion: item.record.envelopeVersion,
+      entityType: item.record.entityType,
+      entityId: item.record.entityId,
+      expectedRevision: item.expectedRevision,
+      revision: item.record.revision,
+      tombstone: item.record.tombstone,
+      nonce: item.record.nonce,
+      ciphertext: item.record.ciphertext,
+    })),
+  })).byteLength
+}
+
 export interface SyncCoordinator {
   start(): void
   stop(): void
@@ -444,24 +461,14 @@ export function createSyncCoordinator(dependencies: SyncCoordinatorDependencies)
           }, mutation.entity, { crypto: cryptoImplementation }),
         }
         const candidate = [...current.mutations, encrypted]
-        const encodedBytes = new TextEncoder().encode(JSON.stringify({
-          deviceId: dependencies.deviceId,
-          mutations: candidate.map((item) => ({
-            idempotencyId: item.idempotencyId,
-            envelopeVersion: item.record.envelopeVersion,
-            entityType: item.record.entityType,
-            entityId: item.record.entityId,
-            expectedRevision: item.expectedRevision,
-            revision: item.record.revision,
-            tombstone: item.record.tombstone,
-            nonce: item.record.nonce,
-            ciphertext: item.record.ciphertext,
-          })),
-        })).byteLength
+        const encodedBytes = encodedPushBytes(dependencies.deviceId, candidate)
         if (current.mutations.length > 0
           && (current.mutations.length === 50 || encodedBytes > MAX_PUSH_BYTES)) {
           batches.push(current)
           current = { queued: [], mutations: [] }
+        }
+        if (encodedPushBytes(dependencies.deviceId, [...current.mutations, encrypted]) > MAX_PUSH_BYTES) {
+          throw new Error('sync_mutation_too_large')
         }
         current.queued.push(mutation)
         current.mutations.push(encrypted)

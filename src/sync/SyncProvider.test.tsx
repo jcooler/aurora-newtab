@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccountProvider } from '../account/AccountContext'
 import type { AccountClient } from '../account/client'
@@ -75,6 +75,7 @@ function Probe() {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
   Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
 })
@@ -105,7 +106,7 @@ describe('SyncProvider lifecycle ownership', () => {
     expect(request).toHaveBeenCalledWith('tab-two:encrypted-sync:v1', expect.objectContaining({
       mode: 'exclusive', ifAvailable: true, signal: expect.any(AbortSignal),
     }), expect.any(Function))
-    expect(screen.getByText('up_to_date')).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('up_to_date')).toBeTruthy())
     view.unmount()
     expect(heldSignal?.aborted).toBe(true)
   })
@@ -164,6 +165,64 @@ describe('SyncProvider lifecycle ownership', () => {
     finish()
     await pending
     await Promise.resolve()
+    expect(api.pull).not.toHaveBeenCalled()
+  })
+
+  it('retries an offline first bootstrap after the visible backoff', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const driver = memoryDriver()
+    const local = createSyncLocalStateStore(driver, driver.authority)
+    await local.ensureDevice(accountId, 'Primary')
+    await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'unregistered' }))
+    const api = gateway()
+    vi.mocked(api.bootstrap)
+      .mockResolvedValueOnce({ ok: false, kind: 'offline' })
+      .mockResolvedValueOnce({ ok: true, value: {
+        dataKey: await generateDataKey(),
+        summary: { vaultVersion: 0, usedBytes: 0, currentDeviceId: 'AAECAwQFBgcICQoLDA0ODw', devices: [] },
+      } })
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
+      callback({ name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
+    ))
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+    const view = render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><Probe /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(api.bootstrap).toHaveBeenCalledOnce()
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_999) })
+    expect(api.bootstrap).toHaveBeenCalledOnce()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(api.bootstrap).toHaveBeenCalledTimes(2)
+    view.unmount()
+  })
+
+  it('rolls back a rejected sixth installation and explains how to recover', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const driver = memoryDriver()
+    const local = createSyncLocalStateStore(driver, driver.authority)
+    await local.ensureDevice(accountId, 'Sixth browser')
+    await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'unregistered' }))
+    const api = gateway()
+    vi.mocked(api.bootstrap).mockResolvedValue({ ok: false, kind: 'device_limit' })
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
+      callback({ name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
+    ))
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+    render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><AccountSync /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+    expect(await screen.findByText(/Open Tab Two on an existing synced installation and remove one there/i)).toBeTruthy()
+    await waitFor(async () => expect((await local.readDevice(accountId))?.enabled).toBe(false))
     expect(api.pull).not.toHaveBeenCalled()
   })
 

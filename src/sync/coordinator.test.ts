@@ -293,6 +293,22 @@ describe('sync coordinator lifecycle', () => {
     coordinator.stop()
   })
 
+  it('never sends a single encoded mutation larger than 256 KiB', async () => {
+    const local = storage([note('x'.repeat(300_000))])
+    const api = gateway()
+    let attention!: () => void
+    const needsAttention = new Promise<void>((resolve) => { attention = resolve })
+    const coordinator = createSyncCoordinator({
+      accountId, deviceId, key: await generateDataKey(), gateway: api, storage: local,
+      onState: (next) => { if (next.phase === 'needs_attention') attention() },
+    })
+    coordinator.start()
+    await needsAttention
+    expect(api.push).not.toHaveBeenCalled()
+    expect(coordinator.getState().phase).toBe('needs_attention')
+    coordinator.stop()
+  })
+
   it('atomically backs up a displaced value before a conflicting remote tombstone', async () => {
     const driver = memoryDriver({ ...defaults(), notes: { text: 'local draft', updatedAt: 1 } })
     const adapter = createCoordinatorStorage({ driver, authority: driver.authority, accountId })
