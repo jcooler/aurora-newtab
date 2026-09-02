@@ -150,6 +150,38 @@ describe('Supabase AccountClient', () => {
     }))
   })
 
+  it('keeps paid billing visible when a verified lease also includes complimentary owner access', async () => {
+    value.deps.api.getAccountSnapshot = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        accountId: 'account-a',
+        email: 'alex@example.test',
+        displayName: 'Alex Morgan',
+        subscription: {
+          state: 'active' as const,
+          plan: 'annual' as const,
+          currentPeriodEnd: now + 365 * 24 * 60 * 60 * 1_000,
+          courtesyEnd: null,
+          cancelAtPeriodEnd: false,
+          introductoryEligible: false,
+        },
+      },
+    }))
+    const client = createSupabaseAccountClient(value.deps)
+
+    await expect(client.getSnapshot()).resolves.toEqual(expect.objectContaining({
+      billing: {
+        state: 'active',
+        plan: 'annual',
+        currentPeriodEnd: now + 365 * 24 * 60 * 60 * 1_000,
+        courtesyEnd: null,
+        cancelAtPeriodEnd: false,
+        introductoryEligible: false,
+      },
+      lease,
+    }))
+  })
+
   it('verifies a server-issued lease against the current time after the network response', async () => {
     let clock = now
     const serverIssuedAt = now + 5_000

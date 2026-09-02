@@ -135,7 +135,8 @@ export function createAccountHandlers(dependencies: AccountFunctionDependencies)
         const billing = normalizeBilling(
           await dependencies.repository.getBillingSummary(resolved.account.accountId),
         )
-        const subscription = entitlement.grantSources.includes('complimentary_owner')
+        const subscription = billing.state === 'none'
+          && entitlement.grantSources.includes('complimentary_owner')
           ? {
               state: 'complimentary' as const,
               plan: null,

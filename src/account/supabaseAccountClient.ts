@@ -113,17 +113,19 @@ function signedSnapshot(
   lease: VerifiedEntitlementLease | null,
   phase: AccountSnapshot['sync']['phase'] = 'disabled',
 ): AccountSnapshot {
+  const verifiedComplimentaryOwner = lease?.grantSources.includes('complimentary_owner') === true
+  const billingState = account.subscription.state === 'complimentary'
+    ? verifiedComplimentaryOwner ? 'complimentary' : 'none'
+    : account.subscription.state === 'none' && verifiedComplimentaryOwner
+      ? 'complimentary'
+      : account.subscription.state
   return Object.freeze({
     mode: 'signed_in' as const,
     accountId: account.accountId,
     email: account.email,
     displayName: account.displayName,
     billing: createBillingSummary({
-      state: lease?.grantSources.includes('complimentary_owner')
-        ? 'complimentary'
-        : account.subscription.state === 'complimentary'
-          ? 'none'
-          : account.subscription.state,
+      state: billingState,
       plan: account.subscription.plan ?? null,
       currentPeriodEnd: account.subscription.currentPeriodEnd ?? null,
       courtesyEnd: account.subscription.courtesyEnd ?? null,

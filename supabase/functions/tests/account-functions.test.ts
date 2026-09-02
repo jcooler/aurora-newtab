@@ -121,6 +121,36 @@ describe('account Edge Function handlers', () => {
     })
   })
 
+  it('preserves an active Stripe subscription when complimentary owner access also exists', async () => {
+    deps.repository.getEffectiveEntitlement = vi.fn(async () => ({
+      capabilities: ['strava', 'encrypted_sync', 'metrics_history'],
+      grantSources: ['stripe', 'complimentary_owner'],
+      earliestExpiry: null,
+    }))
+    deps.repository.getBillingSummary = vi.fn(async () => ({
+      state: 'active' as const,
+      plan: 'annual' as const,
+      currentPeriodEnd: now + 365 * 24 * 60 * 60 * 1_000,
+      courtesyEnd: null,
+      cancelAtPeriodEnd: false,
+      introductoryEligible: false,
+    }))
+
+    const response = await createAccountHandlers(deps).accountSnapshot(request('account-snapshot', 'GET'))
+
+    expect(response.status).toBe(200)
+    expect(await body(response)).toEqual(expect.objectContaining({
+      subscription: {
+        state: 'active',
+        plan: 'annual',
+        currentPeriodEnd: now + 365 * 24 * 60 * 60 * 1_000,
+        courtesyEnd: null,
+        cancelAtPeriodEnd: false,
+        introductoryEligible: false,
+      },
+    }))
+  })
+
   it('returns a 30-day account-bound lease with sorted capability and source unions', async () => {
     deps.repository.getEffectiveEntitlement = vi.fn(async () => ({
       capabilities: ['strava', 'encrypted_sync', 'google_calendar'],

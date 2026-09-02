@@ -1,9 +1,9 @@
 # Tab Two Resumable Checkout QA
 
-**Date:** 2026-09-01<br>
+**Date:** 2026-09-02<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Implementation range:** `004696a` through `9715cfb`<br>
-**Result:** PASS for repository, local database, Edge handler, Stripe normalization, hosted migration/function deployment, and contract QA. The real signed-account close-and-resume lifecycle remains a manual sandbox ceiling.
+**Result:** PASS for repository, local database, Edge handler, Stripe normalization, hosted migration/function deployment, contract QA, and the real signed-account sandbox lifecycle. A paid-status convergence defect found during the manual witness was repaired and deployed to `account-snapshot` version 9.
 
 ## Delivered boundary
 
@@ -43,19 +43,20 @@
 
 The repository-wide suite still emits the existing unrelated React `act(...)` warning and Vite's existing large-chunk advisory. Neither is a PM-P3 failure.
 
-## Manual sandbox witness still required
+## Signed-account sandbox witness and paid-status repair
 
-The current desktop Chrome profile was in Local mode when the unattended QA pass reached the signed-account boundary. The remaining customer-level witness is:
+The owner completed the signed-account hosted Checkout lifecycle in Stripe test mode. The hosted webhook produced one active Annual subscription, while `complimentary_owner` remained an independent entitlement source. A later plan click returned the generic unavailable message because duplicate Checkout creation was correctly rejected with HTTP 409.
 
-1. Load the exact latest production build and sign in.
-2. Start the Annual introductory sandbox Checkout.
-3. Close the Stripe Checkout tab without paying.
-4. Select the same Annual plan again.
-5. Confirm that Stripe Checkout reopens instead of showing `Billing is unavailable right now`.
-6. Complete at most one sandbox payment only if the owner wants to finish the lifecycle witness.
-7. Refresh billing and confirm that server-verified status, not the return page, controls the subscription display.
+Read-only hosted inspection then confirmed:
 
-This report does not claim that those signed-in steps or a sandbox payment were completed.
+- the current Checkout function was healthy and returned bounded 409 conflicts rather than 5xx failures;
+- one completed Checkout reservation was bound to the account and subscription;
+- one Annual billing subscription was active; and
+- the extension was presenting `complimentary` because both the Edge snapshot and client reducer incorrectly allowed the independent owner grant to overwrite non-`none` Stripe billing state.
+
+Two observed-RED regressions now require active paid billing to remain visible when the verified entitlement lease also includes `complimentary_owner`. The server uses the complimentary presentation only when billing state is `none`; the client independently enforces the same fail-closed policy and still refuses an unverified complimentary claim. The focused gate passed 3 files / 65 tests, and the repository gate passed 237 files / 3,779 tests plus TypeScript. Only `account-snapshot` was deployed, as version 9 with JWT verification enabled. No Stripe catalog, Checkout, webhook, subscription, entitlement grant, secret, permission, or return-site state changed during the repair.
+
+The remaining manual display check is to reload the exact corrected account-enabled build, open Account & Sync, and refresh billing. The expected state is `Active subscription`; the purchase actions are disabled by the existing single-subscription guard and `Manage billing` remains available.
 
 ## Rollback
 
