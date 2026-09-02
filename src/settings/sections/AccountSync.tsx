@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { useAccount } from '../../account/AccountContext'
 import { billingPlanCopy } from '../../account/billing'
 import type { BillingActionOutcome, BillingPlan, BillingSummary } from '../../account/billing'
-import type { AccountActions, SyncActionOutcome } from '../../account/types'
+import type { AccountActions, SyncActionOutcome, SyncPhase } from '../../account/types'
 import { AssertiveAlert, PoliteStatus } from '../../components/StateFeedback'
 import { useDialogEscape } from '../../lib/dialogStack'
 import { useFocusTrap } from '../../lib/hooks/useFocusTrap'
@@ -410,6 +410,7 @@ export default function AccountSync() {
   const [syncActionError, setSyncActionError] = useState<string | null>(null)
   const [syncActionNotice, setSyncActionNotice] = useState<string | null>(null)
   const [syncActionPending, setSyncActionPending] = useState<SyncActionKind | null>(null)
+  const syncActionOriginPhase = useRef<SyncPhase | null>(null)
   const destructiveInvokerRef = useRef<HTMLButtonElement>(null)
   const deviceNameInvokerRef = useRef<HTMLButtonElement>(null)
   const refreshAfterHandoff = useRef(false)
@@ -566,26 +567,30 @@ export default function AccountSync() {
   const rejectedByDeviceLimit = syncState.attention === 'device_limit'
   const currentDevice = activeDevices.find((candidate) => candidate.current) ?? null
   const currentDeviceName = currentDevice?.name ?? 'This device'
+  const presentationPhase = syncActionPending === 'sync' && syncActionOriginPhase.current === 'up_to_date'
+    ? 'up_to_date'
+    : syncState.phase
   const phaseTitle = {
     disabled: 'Sync is off',
     syncing: currentDevice ? `Protecting ${currentDeviceName}` : 'Protecting this device',
     up_to_date: currentDevice ? `${currentDeviceName} is protected` : 'This device is protected',
     offline: currentDevice ? `${currentDeviceName} is waiting` : 'This device is waiting',
     needs_attention: currentDevice ? `${currentDeviceName} needs attention` : 'Sync needs attention',
-  }[syncState.phase]
+  }[presentationPhase]
   const phaseDescription = {
     disabled: 'Nothing is uploaded. Your local data stays here.',
     syncing: 'Encrypting and sending your latest changes.',
     up_to_date: 'Encrypted changes are safely up to date.',
     offline: 'Your changes are safe here and will sync automatically when you’re back online.',
     needs_attention: 'Your local data is still safe on this device.',
-  }[syncState.phase]
+  }[presentationPhase]
   const syncing = syncActionPending === 'sync' || syncState.phase === 'syncing'
   const retrying = syncState.phase === 'offline' || syncState.phase === 'needs_attention'
   const syncActionLabel = syncing ? 'Syncing…' : retrying ? 'Try again' : 'Sync now'
 
   async function runSyncAction(action: () => Promise<SyncActionOutcome>, kind: SyncActionKind = 'other') {
     if (syncActionPending !== null) return
+    syncActionOriginPhase.current = syncState.phase
     setSyncActionPending(kind)
     setSyncActionError(null)
     setSyncActionNotice(null)
@@ -599,6 +604,7 @@ export default function AccountSync() {
     } catch {
       setSyncActionError('Sync could not complete safely. Try again.')
     } finally {
+      syncActionOriginPhase.current = null
       setSyncActionPending(null)
     }
   }
@@ -653,7 +659,7 @@ export default function AccountSync() {
         <div
           role="region"
           aria-label="Sync status"
-          className={`account-sync-status account-sync-status--${syncState.phase}`}
+          className={`account-sync-status account-sync-status--${presentationPhase}`}
         >
           <div className="account-sync-status__header">
             <div className="min-w-0">
@@ -668,6 +674,7 @@ export default function AccountSync() {
                 onClick={() => void runSyncAction(syncOperations.syncNow, 'sync')}
                 className={`${retrying ? btnPrimary : btnQuiet} account-sync-status__action disabled:cursor-not-allowed disabled:opacity-55`}
               >
+                {syncing ? <span aria-hidden="true" className="account-sync-status__spinner" /> : null}
                 {syncActionLabel}
               </button>
             ) : null}

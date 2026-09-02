@@ -237,9 +237,44 @@ describe('AccountSync', () => {
 
     const retry = await screen.findByRole('button', { name: 'Try again' })
     fireEvent.click(retry)
-    expect((await screen.findByRole('button', { name: 'Syncing…' })).getAttribute('aria-busy')).toBe('true')
-    fireEvent.click(screen.getByRole('button', { name: 'Syncing…' }))
+    const pending = await screen.findByRole('button', { name: 'Syncing…' })
+    expect(pending.getAttribute('aria-busy')).toBe('true')
+    expect(pending.querySelector('.account-sync-status__spinner')?.getAttribute('aria-hidden')).toBe('true')
+    fireEvent.click(pending)
     expect(signedActions.syncNow).toHaveBeenCalledOnce()
+    await act(async () => { finish({ status: 'completed' }) })
+  })
+
+  it('keeps a previously protected status visually stable during a routine sync', async () => {
+    const signedActions = actions()
+    let finish!: (value: { status: 'completed' }) => void
+    vi.mocked(signedActions.syncNow).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    const live = renderLiveAccount(signedSnapshot({
+      sync: {
+        enabled: true,
+        phase: 'up_to_date',
+        lastSuccessAt: Date.UTC(2026, 8, 2, 18, 22, 53),
+        usedBytes: 0,
+        quotaBytes: 2_097_152,
+      },
+      devices: [{ id: 'device-1', name: 'Desktop', lastSyncAt: Date.UTC(2026, 8, 2, 18, 22, 53), current: true, revoked: false }],
+    }), signedActions)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }))
+    act(() => live.publish(signedSnapshot({
+      sync: {
+        enabled: true,
+        phase: 'syncing',
+        lastSuccessAt: Date.UTC(2026, 8, 2, 18, 22, 53),
+        usedBytes: 0,
+        quotaBytes: 2_097_152,
+      },
+      devices: [{ id: 'device-1', name: 'Desktop', lastSyncAt: Date.UTC(2026, 8, 2, 18, 22, 53), current: true, revoked: false }],
+    })))
+
+    expect(screen.getByRole('heading', { name: 'Desktop is protected' })).toBeTruthy()
+    expect(screen.getByText('Encrypted changes are safely up to date.')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Protecting Desktop' })).toBeNull()
     await act(async () => { finish({ status: 'completed' }) })
   })
 

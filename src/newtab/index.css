@@ -116,6 +116,24 @@
 }
 .account-sync-status__action {
   flex: 0 0 auto;
+  min-width: 6.5rem;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.account-sync-status__spinner {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+  border: 1.5px solid color-mix(in srgb, currentcolor 34%, transparent);
+  border-top-color: currentcolor;
+  border-radius: 999px;
+  animation: account-sync-spin 700ms linear infinite;
+}
+@keyframes account-sync-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-sync-status__spinner { animation: none; }
 }
 .account-sync-status__error {
   display: block;
