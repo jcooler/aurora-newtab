@@ -93,9 +93,11 @@ describe('Switch (the control kit — Task 61)', () => {
   it('carries the signature affordances: cursor-pointer + focus-visible ring on the track, a sliding thumb with a reduced-motion opt-out', () => {
     render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" />)
     const el = screen.getByRole('switch')
+    const track = el.querySelector('[data-switch-track]')
     const thumb = el.querySelector('[data-switch-thumb]')
     expect(el.className).toContain('cursor-pointer')
-    expect(el.className).toContain('focus-visible')
+    expect(el.className).not.toContain('focus-visible:ring')
+    expect(track!.className).toContain('group-focus-visible:outline')
     expect(thumb).not.toBeNull()
     // The thumb owns the translate slide AND the prefers-reduced-motion opt-out.
     expect(thumb!.className).toContain('transition-transform')
