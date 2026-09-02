@@ -341,6 +341,14 @@ async function main() {
       (select count(*)::int from private.sync_records) as records;`)[0]
     evidence.database.baseline = baseline
     assert.equal(baseline.vaults, 0, 'hosted sync vault baseline must be empty before the dedicated matrix')
+    assert.equal(baseline.devices, 0, 'hosted sync device baseline must be empty before the dedicated matrix')
+    assert.equal(baseline.records, 0, 'hosted sync record baseline must be empty before the dedicated matrix')
+    const resetRateLimits = dbQuery(`
+      delete from private.sync_rate_limits;
+      select count(*)::int as remaining from private.sync_rate_limits;
+    `)[0]
+    assert.deepEqual(resetRateLimits, { remaining: 0 })
+    evidence.database.qaRateLimitsReset = true
 
     const matrix = await provision('sync-matrix')
     const vaultDelete = await provision('vault-delete')
@@ -561,7 +569,7 @@ async function main() {
       if (accounts.length > 0) {
         const accountIds = accounts.map((account) => `${sqlLiteral(account.accountId)}::uuid`).join(',')
         dbQuery(`
-          delete from private.sync_rate_limits where scope_type = 'ip' and scope_key = ${sqlLiteral('A'.repeat(43))} and action = 'delete_account';
+          delete from private.sync_rate_limits;
           delete from public.tab_two_accounts where id in (${accountIds});
           select
             (select count(*)::int from private.sync_vaults where account_id in (${accountIds})) as vaults,
