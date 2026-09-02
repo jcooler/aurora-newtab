@@ -22,6 +22,8 @@ select has_function('public', 'tab_two_sync_register_device',
   array['uuid', 'text', 'text', 'timestamp with time zone'], 'service device registration RPC exists');
 select has_function('public', 'tab_two_sync_account_key',
   array['uuid', 'text'], 'service wrapped-key acquisition RPC exists');
+select has_function('public', 'tab_two_sync_summary',
+  array['uuid', 'text'], 'service device and vault summary RPC exists');
 select has_function('public', 'tab_two_sync_apply_mutations',
   array['uuid', 'text', 'jsonb', 'timestamp with time zone'], 'service optimistic mutation RPC exists');
 select has_function('public', 'tab_two_sync_pull_records',
@@ -83,6 +85,9 @@ select results_eq(
       'AAAAAAAAAAAAAAAAAAAAAA', 'Primary browser', '2026-09-02 14:00:00+00')$$,
   $$values ('AAAAAAAAAAAAAAAAAAAAAA'::text, 'active'::text, 0::bigint)$$,
   'the first active device is registered under an account lock');
+select is(public.tab_two_sync_summary(
+  '43000000-0000-4000-8000-000000000001', 'AAAAAAAAAAAAAAAAAAAAAA') #>> '{devices,0,friendlyName}',
+  'Primary browser', 'the service summary returns a bounded account-owned device view');
 
 select lives_ok($$select * from public.tab_two_sync_register_device(
   '43000000-0000-4000-8000-000000000001', 'AQEBAQEBAQEBAQEBAQEBAQ', 'Second', now())$$,

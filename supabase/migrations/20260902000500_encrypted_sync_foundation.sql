@@ -273,6 +273,53 @@ begin
 end;
 $$;
 
+create or replace function private.sync_summary(
+  target_account_id uuid,
+  current_device_id text
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  summary jsonb;
+begin
+  if not exists (
+    select 1 from private.sync_devices device
+    where device.account_id = target_account_id
+      and device.device_id = current_device_id
+      and device.state <> 'revoked'
+  ) then
+    raise exception using errcode = 'P0001', message = 'sync_device_not_found';
+  end if;
+
+  select jsonb_build_object(
+    'vaultVersion', vault.vault_version,
+    'encodedSize', vault.encoded_size,
+    'currentDeviceId', current_device_id,
+    'devices', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'deviceId', device.device_id,
+        'friendlyName', device.friendly_name,
+        'state', device.state::text,
+        'acknowledgedVaultVersion', device.acknowledged_vault_version,
+        'lastSeenAt', (extract(epoch from device.last_seen_at) * 1000)::bigint
+      ) order by device.registered_at, device.device_id)
+      from private.sync_devices device
+      where device.account_id = target_account_id and device.state <> 'revoked'
+    ), '[]'::jsonb)
+  ) into summary
+  from private.sync_vaults vault where vault.account_id = target_account_id;
+
+  if summary is null then
+    raise exception using errcode = 'P0001', message = 'sync_vault_not_found';
+  end if;
+  return summary;
+end;
+$$;
+
 create or replace function private.sync_record_stored_size(
   target_entity_type text,
   target_entity_id text,
@@ -683,6 +730,11 @@ language sql stable security definer set search_path = '' as $$
   select * from private.sync_account_key(target_account_id, target_device_id);
 $$;
 
+create or replace function public.tab_two_sync_summary(target_account_id uuid, current_device_id text)
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select private.sync_summary(target_account_id, current_device_id);
+$$;
+
 create or replace function public.tab_two_sync_apply_mutations(
   target_account_id uuid, target_device_id text, mutations jsonb, effective_at timestamptz
 )
@@ -748,6 +800,7 @@ $$;
 revoke all on function public.tab_two_sync_register_device(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_store_account_key(uuid, smallint, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_account_key(uuid, text) from public, anon, authenticated;
+revoke all on function public.tab_two_sync_summary(uuid, text) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_apply_mutations(uuid, text, jsonb, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_pull_records(uuid, text, bigint, bigint, integer) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_acknowledge_pull(uuid, text, bigint, timestamptz) from public, anon, authenticated;
@@ -760,6 +813,7 @@ revoke all on function public.tab_two_sync_delete_vault(uuid, text, timestamptz)
 grant execute on function public.tab_two_sync_register_device(uuid, text, text, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_store_account_key(uuid, smallint, text, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_account_key(uuid, text) to service_role;
+grant execute on function public.tab_two_sync_summary(uuid, text) to service_role;
 grant execute on function public.tab_two_sync_apply_mutations(uuid, text, jsonb, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_pull_records(uuid, text, bigint, bigint, integer) to service_role;
 grant execute on function public.tab_two_sync_acknowledge_pull(uuid, text, bigint, timestamptz) to service_role;
@@ -773,6 +827,7 @@ revoke all on function private.require_active_sync_device(uuid, text) from publi
 revoke all on function private.register_sync_device(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function private.store_sync_account_key(uuid, smallint, text, timestamptz) from public, anon, authenticated;
 revoke all on function private.sync_account_key(uuid, text) from public, anon, authenticated;
+revoke all on function private.sync_summary(uuid, text) from public, anon, authenticated;
 revoke all on function private.sync_record_stored_size(text, text, text, text, text) from public, anon, authenticated;
 revoke all on function private.apply_sync_mutations(uuid, text, jsonb, timestamptz) from public, anon, authenticated;
 revoke all on function private.pull_sync_records(uuid, text, bigint, bigint, integer) from public, anon, authenticated;
@@ -787,6 +842,7 @@ grant execute on function private.require_active_sync_device(uuid, text) to serv
 grant execute on function private.register_sync_device(uuid, text, text, timestamptz) to service_role;
 grant execute on function private.store_sync_account_key(uuid, smallint, text, timestamptz) to service_role;
 grant execute on function private.sync_account_key(uuid, text) to service_role;
+grant execute on function private.sync_summary(uuid, text) to service_role;
 grant execute on function private.sync_record_stored_size(text, text, text, text, text) to service_role;
 grant execute on function private.apply_sync_mutations(uuid, text, jsonb, timestamptz) to service_role;
 grant execute on function private.pull_sync_records(uuid, text, bigint, bigint, integer) to service_role;

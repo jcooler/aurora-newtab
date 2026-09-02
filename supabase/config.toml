@@ -33,3 +33,15 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+[functions.sync-bootstrap]
+verify_jwt = true
+
+[functions.sync-deactivate-device]
+verify_jwt = true
+
+[functions.sync-rename-device]
+verify_jwt = true
+
+[functions.sync-revoke-device]
+verify_jwt = true
