@@ -66,7 +66,25 @@ The cleanup assertions are part of the PASS result rather than an operator-only 
 
 ## Production build boundary
 
-Production source `6317fedf35a0aadf2cf9ed5c9afe16f9d7b12616` built successfully with 339 modules. Its manifest retains the existing production identity permission and one exact Supabase host permission. The client bundle contains the reviewed typed sync gateway and no KEK, service-role key, secret key, private key, QA identity, example email, loopback origin, or localhost marker owned by PM-P4.
+Production source `6317fedf35a0aadf2cf9ed5c9afe16f9d7b12616` built successfully with 339 modules. The reconciled source at `6ba72a7b25786d8a6f21990d2a23a6a2fe190401` then passed the exact production, preview, account-local, and restored-production build sequence with 339, 289, 337, and 339 modules. Every artifact carries exact source provenance.
+
+The production manifest retains the existing production identity permission, exact Supabase host permission, and exact static return-site connection. Preview contains no account backend or sync marker and has no host permission or external connection. Account-local retains only its loopback host. Production contains the reviewed typed sync gateway. A value-shaped scan found no KEK, service-role value, secret key value, private key, QA identity, or example email. Literal `sb_secret_`, localhost, and loopback strings remain only inside fail-closed configuration validators or the pinned Supabase client library, not as configured production authority.
+
+## Stabilized verification
+
+| Gate | Result |
+|---|---|
+| Whole repository | 250 files, 3,944 tests passed |
+| Supabase Edge functions | 4 files, 156 tests passed |
+| Focused Node authority contracts | 16 tests passed |
+| TypeScript | `npx tsc --noEmit` passed |
+| Database adversary matrix | 4 pgTAP files, 219 tests passed |
+| Database lint | No schema errors at error level |
+| Dependency audit | 0 vulnerabilities at high threshold |
+| Exact builds | Production 339, preview 289, account-local 337, restored production 339 modules |
+| Diff hygiene | Passed; only the two protected untracked paths remain outside committed work |
+
+The repository-wide suite retains its pre-existing unrelated React `act(...)` warning, and Vite retains its large-chunk advisory. Neither is a PM-P4 failure.
 
 ## Owner manual ceiling
 
