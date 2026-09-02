@@ -263,6 +263,16 @@ async function main() {
       throw new Error(`hosted_auth_sign_in_failed:${alias}:${signedIn.error?.message ?? 'missing_session'}`)
     }
     const token = signedIn.data.session.access_token
+    const restoredProvider = await admin.auth.admin.updateUserById(authUserId, {
+      app_metadata: { provider: 'google', providers: ['google'], pm_p4_qa: true },
+    })
+    if (restoredProvider.error) throw new Error(`hosted_auth_provider_failed:${alias}`)
+    const verifiedUser = await admin.auth.getUser(token)
+    if (verifiedUser.error
+      || verifiedUser.data.user?.app_metadata?.provider !== 'google'
+      || !verifiedUser.data.user.app_metadata.providers?.includes?.('google')) {
+      throw new Error(`hosted_auth_provider_failed:${alias}`)
+    }
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
     const authenticationTimes = Array.isArray(payload.amr)
       ? payload.amr
