@@ -36,6 +36,7 @@ function serverSummary() {
 function dependencies(overrides: Partial<Parameters<typeof createSyncGateway>[0]> = {}) {
   return {
     origin,
+    allowedOrigins: [origin] as const,
     enabled: true,
     getAccessToken: vi.fn(async () => 'verified-access-token'),
     invalidateAuthentication: vi.fn(async () => undefined),
@@ -62,7 +63,8 @@ describe('authenticated sync gateway', () => {
   it('accepts only the exact approved local or production service origin', () => {
     expect(() => createSyncGateway(dependencies({ origin: 'https://example.test' }))).toThrow('sync_gateway_config_invalid')
     expect(() => createSyncGateway(dependencies({ origin: `${origin}/functions` }))).toThrow('sync_gateway_config_invalid')
-    expect(() => createSyncGateway(dependencies({ origin: 'http://127.0.0.1:54321' }))).not.toThrow()
+    const localOrigin = 'http://127.0.0.1:54321'
+    expect(() => createSyncGateway(dependencies({ origin: localOrigin, allowedOrigins: [localOrigin] }))).not.toThrow()
     expect(() => createSyncGateway(dependencies())).not.toThrow()
   })
 

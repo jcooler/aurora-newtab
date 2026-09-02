@@ -65,6 +65,7 @@ function dependencies(initialSession: StoredAccountSessionV1 | null = session) {
     },
     sync: {
       origin: 'http://127.0.0.1:54321',
+      allowedOrigins: ['http://127.0.0.1:54321'],
       enabled: true,
       fetch: vi.fn(async () => new Response(JSON.stringify({ status: 'completed' }), {
         headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },

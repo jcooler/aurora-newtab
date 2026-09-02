@@ -55,7 +55,7 @@ export interface SupabaseAccountClientDependencies {
     createCheckoutSession(accessToken: string, plan: BillingPlan): Promise<ServiceResult<{ url: string }>>
     createPortalSession(accessToken: string): Promise<ServiceResult<{ url: string }>>
   }
-  sync?: Pick<SyncGatewayDependencies, 'origin' | 'enabled' | 'fetch' | 'timeoutMs' | 'crypto'>
+  sync?: Pick<SyncGatewayDependencies, 'origin' | 'allowedOrigins' | 'enabled' | 'fetch' | 'timeoutMs' | 'crypto'>
   verifyLease(
     envelope: unknown,
     expectedAccountId: string,
@@ -510,6 +510,7 @@ export function createConfiguredSupabaseAccountClient(config: AccountServiceConf
     },
     sync: {
       origin: config.supabaseUrl,
+      allowedOrigins: [config.supabaseUrl],
       enabled: config.encryptedSyncEnabled,
       fetch: globalThis.fetch.bind(globalThis),
     },

@@ -1,8 +1,6 @@
 import { importDataKey, type EncryptedSyncRecordV1 } from './crypto'
 import { SYNC_ENTITY_TYPES, type SyncEntityType } from './types'
 
-const PRODUCTION_ORIGIN = 'https://ovlobmvxtryitupxwylg.supabase.co'
-const LOCAL_ORIGIN = 'http://127.0.0.1:54321'
 const MAX_RESPONSE_BYTES = 256 * 1_024
 const ACCOUNT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const DEVICE_ID = /^[A-Za-z0-9_-]{22}$/u
@@ -82,6 +80,7 @@ export interface SyncGateway {
 
 export interface SyncGatewayDependencies {
   origin: string
+  allowedOrigins: readonly [string]
   enabled: boolean
   getAccessToken(accountId: string, signal?: AbortSignal): Promise<string | null>
   invalidateAuthentication(): Promise<void>
@@ -303,7 +302,16 @@ function mapFailure(status: number, value: unknown): SyncGatewayFailure {
 }
 
 export function createSyncGateway(dependencies: SyncGatewayDependencies): SyncGateway {
-  if (![LOCAL_ORIGIN, PRODUCTION_ORIGIN].includes(dependencies.origin)
+  let parsedOrigin: URL | null = null
+  try {
+    parsedOrigin = new URL(dependencies.origin)
+  } catch {
+    // Rejected by the complete configuration guard below.
+  }
+  if (!parsedOrigin
+    || parsedOrigin.origin !== dependencies.origin
+    || dependencies.allowedOrigins.length !== 1
+    || dependencies.allowedOrigins[0] !== dependencies.origin
     || !Number.isSafeInteger(dependencies.timeoutMs ?? 10_000)
     || (dependencies.timeoutMs ?? 10_000) < 1
     || (dependencies.timeoutMs ?? 10_000) > 30_000) {

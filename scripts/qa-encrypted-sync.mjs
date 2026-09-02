@@ -44,7 +44,8 @@ export function assertEncryptedSyncSourceContracts(files) {
   assert.match(files.productionConfig, /encryptedSyncEnabled: false/u)
   assert.match(files.localConfig, /encryptedSyncEnabled: true/u)
 
-  assert.match(files.gateway, new RegExp(SYNC_ORIGIN.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
+  assert.match(files.productionConfig, new RegExp(SYNC_ORIGIN.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
+  assert.match(files.gateway, /allowedOrigins\[0\] !== dependencies\.origin/u)
   assert.match(files.gateway, /const MAX_RESPONSE_BYTES = 256 \* 1_024/u)
   assert.match(files.gateway, /importDataKey\(rawKey/u)
   assert.match(files.gateway, /invalidateAuthentication/u)
