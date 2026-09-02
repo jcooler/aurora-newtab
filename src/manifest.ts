@@ -124,6 +124,17 @@ export default defineManifest((env) => ({
     : env.mode === PRODUCTION
       ? { host_permissions: [PRODUCTION_SUPABASE_HOST_PERMISSION] }
       : {}),
+  ...(env.mode === PRODUCTION
+    ? {
+        background: {
+          service_worker: 'src/background/index.ts',
+          type: 'module' as const,
+        },
+        externally_connectable: {
+          matches: ['https://tab-two-billing-return.pages.dev/*'],
+        },
+      }
+    : {}),
   icons: {
     16: 'icons/icon16.png',
     32: 'icons/icon32.png',

@@ -16,6 +16,7 @@
     "test:widget-redesign-catalog": "node --test scripts/widget-redesign-catalog-contracts.test.mjs scripts/qa-widget-redesign-catalog.test.mjs",
     "test:watch": "vitest",
     "test:billing-return-site": "node --test scripts/billing-return-site-contract.test.mjs",
+    "test:billing-return-production-contract": "node --test scripts/billing-return-production-contract.test.mjs",
     "store-shots": "node scripts/store-shots.mjs",
     "qa:information-first": "node scripts/preview-information-first.mjs",
     "qa:widget-redesign-catalog": "node scripts/qa-widget-redesign-catalog.mjs",
