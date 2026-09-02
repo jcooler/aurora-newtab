@@ -298,11 +298,10 @@ async function exerciseProduction(page, viewport, output, judgments, evidence, r
 
   await page.getByRole('heading', { name: 'Local mode' }).waitFor()
   await clearAndArmStorageLog(page)
-  const signIn = page.getByRole('button', { name: 'Sign in with Google' })
-  await signIn.click()
-  await page.getByRole('status').filter({ hasText: 'not configured' }).waitFor()
+  await page.getByRole('region', { name: 'Encrypted when sync is on' }).waitFor()
+  await page.getByRole('region', { name: 'Always stays on this device' }).waitFor()
   await page.getByRole('button', { name: 'Choose monthly' }).click()
-  await page.getByRole('alert').filter({ hasText: 'Billing is not configured' }).waitFor()
+  await page.getByRole('alert').filter({ hasText: 'Sign in with Google to continue' }).waitFor()
   assert.notEqual(await drawer.getAttribute('aria-hidden'), 'true')
   evidence.interactions['production-local'] = true
   await harvestStorageWrites(page, evidence)
