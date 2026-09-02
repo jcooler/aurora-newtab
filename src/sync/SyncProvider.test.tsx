@@ -242,11 +242,14 @@ describe('SyncProvider lifecycle ownership', () => {
     await local.ensureDevice(accountId, 'Primary')
     await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'active' }))
     const api = gateway()
-    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
-      callback(request.mock.calls.length === 1
+    const request = vi.fn(async (_name: string, options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => {
+      if (options.steal && options.signal) {
+        throw new DOMException('The signal and steal options cannot be used together.', 'NotSupportedError')
+      }
+      return callback(request.mock.calls.length === 1
         ? null
         : { name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
-    ))
+    })
     Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
     render(
       <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
@@ -262,9 +265,10 @@ describe('SyncProvider lifecycle ownership', () => {
 
     await waitFor(() => expect(api.bootstrap).toHaveBeenCalledOnce())
     expect(request).toHaveBeenNthCalledWith(2, 'tab-two:encrypted-sync:v1', expect.objectContaining({
-      mode: 'exclusive', steal: true, signal: expect.any(AbortSignal),
+      mode: 'exclusive', steal: true,
     }), expect.any(Function))
     expect(request.mock.calls[1]?.[1]).not.toHaveProperty('ifAvailable')
+    expect(request.mock.calls[1]?.[1]).not.toHaveProperty('signal')
     expect(await screen.findByRole('heading', { name: 'Primary is protected' })).toBeTruthy()
   })
 

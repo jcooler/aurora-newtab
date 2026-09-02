@@ -181,7 +181,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const takeOwnership = takeoverRequested.current
     takeoverRequested.current = false
     const lockOptions: LockOptions = takeOwnership
-      ? { mode: 'exclusive', steal: true, signal: abort.signal }
+      ? { mode: 'exclusive', steal: true }
       : { mode: 'exclusive', ifAvailable: true, signal: abort.signal }
     void lockManager.request(LOCK_NAME, lockOptions, async (lock) => {
       if (!lock || abort.signal.aborted || generation !== lifecycle.current) {
