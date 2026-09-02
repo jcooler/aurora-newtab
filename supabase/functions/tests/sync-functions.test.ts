@@ -591,8 +591,13 @@ describe('sync RPC repository', () => {
 })
 
 describe('sync JWT freshness authentication', () => {
-  it('uses auth_time only after Supabase verifies the bearer token', async () => {
-    const payload = btoa(JSON.stringify({ auth_time: Math.floor((now - 60_000) / 1_000) }))
+  it('uses the newest interactive AMR timestamp only after Supabase verifies the bearer token', async () => {
+    const payload = btoa(JSON.stringify({
+      amr: [
+        { method: 'oauth', timestamp: Math.floor((now - 60_000) / 1_000) },
+        { method: 'token_refresh', timestamp: Math.floor((now - 10_000) / 1_000) },
+      ],
+    }))
       .replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')
     const token = `header.${payload}.signature`
     const auth = {
@@ -608,10 +613,30 @@ describe('sync JWT freshness authentication', () => {
     expect(auth.getUser).toHaveBeenCalledWith(token)
   })
 
-  it('never trusts auth_time when token verification fails', async () => {
-    const auth = { getUser: vi.fn(async () => ({ data: { user: null }, error: new Error('invalid') })) }
+  it('does not treat a token refresh as fresh interactive authentication', async () => {
+    const payload = btoa(JSON.stringify({
+      amr: [{ method: 'token_refresh', timestamp: Math.floor((now - 10_000) / 1_000) }],
+    })).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')
+    const token = `header.${payload}.signature`
+    const auth = {
+      getUser: vi.fn(async () => ({
+        data: { user: { id: authUserId, app_metadata: { provider: 'google', providers: ['google'] } } },
+        error: null,
+      })),
+    }
+
     await expect(authenticateSyncBearerRequest(new Request('https://example.test', {
-      headers: { authorization: 'Bearer header.eyJhdXRoX3RpbWUiOjE3ODgyNjAwMDB9.signature' },
+      headers: { authorization: `Bearer ${token}` },
+    }), auth)).resolves.toEqual({ ok: true, authUserId, authTime: null })
+  })
+
+  it('never trusts AMR timestamps when token verification fails', async () => {
+    const auth = { getUser: vi.fn(async () => ({ data: { user: null }, error: new Error('invalid') })) }
+    const payload = btoa(JSON.stringify({
+      amr: [{ method: 'oauth', timestamp: Math.floor((now - 60_000) / 1_000) }],
+    })).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')
+    await expect(authenticateSyncBearerRequest(new Request('https://example.test', {
+      headers: { authorization: `Bearer header.${payload}.signature` },
     }), auth)).resolves.toEqual({ ok: false })
   })
 })

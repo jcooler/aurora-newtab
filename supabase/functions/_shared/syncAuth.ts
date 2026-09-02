@@ -1,7 +1,19 @@
 import { authenticateBearerRequest, type SupabaseAuthBoundary } from './requestAuth.ts'
 import type { SyncRequestAuthentication } from './syncTypes.ts'
 
-function authTimeFromVerifiedJwt(request: Request): number | null {
+const INTERACTIVE_AUTHENTICATION_METHODS = new Set([
+  'oauth',
+  'oauth_provider/authorization_code',
+  'password',
+  'otp',
+  'totp',
+  'recovery',
+  'invite',
+  'sso/saml',
+  'magiclink',
+])
+
+function authenticationTimeFromVerifiedJwt(request: Request): number | null {
   const authorization = request.headers.get('authorization')
   const match = authorization?.match(/^Bearer ([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/u)
   if (!match) return null
@@ -22,10 +34,22 @@ function authTimeFromVerifiedJwt(request: Request): number | null {
     return null
   }
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
-  const seconds = Reflect.get(payload, 'auth_time')
-  if (!Number.isSafeInteger(seconds) || (seconds as number) < 0) return null
-  const milliseconds = (seconds as number) * 1_000
-  return Number.isSafeInteger(milliseconds) ? milliseconds : null
+  const methods = Reflect.get(payload, 'amr')
+  if (!Array.isArray(methods) || methods.length > 16) return null
+  let newestAuthenticationTime: number | null = null
+  for (const entry of methods) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
+    const method = Reflect.get(entry, 'method')
+    const seconds = Reflect.get(entry, 'timestamp')
+    if (typeof method !== 'string' || !Number.isSafeInteger(seconds) || (seconds as number) < 0) {
+      return null
+    }
+    if (!INTERACTIVE_AUTHENTICATION_METHODS.has(method)) continue
+    const milliseconds = (seconds as number) * 1_000
+    if (!Number.isSafeInteger(milliseconds)) return null
+    newestAuthenticationTime = Math.max(newestAuthenticationTime ?? 0, milliseconds)
+  }
+  return newestAuthenticationTime
 }
 
 export async function authenticateSyncBearerRequest(
@@ -37,6 +61,6 @@ export async function authenticateSyncBearerRequest(
   return {
     ok: true,
     authUserId: verified.authUserId,
-    authTime: authTimeFromVerifiedJwt(request),
+    authTime: authenticationTimeFromVerifiedJwt(request),
   }
 }

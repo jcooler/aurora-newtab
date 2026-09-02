@@ -215,7 +215,7 @@ async function main() {
     const created = await admin.auth.admin.createUser({
       email,
       email_confirm: true,
-      app_metadata: { pm_p4_qa: true },
+      app_metadata: { provider: 'google', providers: ['google'], pm_p4_qa: true },
       user_metadata: { qa_alias: alias },
     })
     if (created.error || !created.data.user) throw new Error(`hosted_auth_create_failed:${alias}`)
@@ -264,7 +264,13 @@ async function main() {
     }
     const token = signedIn.data.session.access_token
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
-    assert(Number.isSafeInteger(payload.auth_time), `fresh authentication claim missing for ${alias}`)
+    const authenticationTimes = Array.isArray(payload.amr)
+      ? payload.amr
+        .filter((entry) => entry?.method !== 'token_refresh' && Number.isSafeInteger(entry?.timestamp))
+        .map((entry) => entry.timestamp)
+      : []
+    assert(authenticationTimes.some((timestamp) => Date.now() - timestamp * 1_000 <= 5 * 60_000),
+      `fresh authentication claim missing for ${alias}`)
     evidence.accounts.push({ alias, account: await redactIdentifier(accountId), authUser: await redactIdentifier(authUserId) })
     return { alias, accountId, authUserId, token }
   }
