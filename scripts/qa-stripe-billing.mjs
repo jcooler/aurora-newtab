@@ -17,6 +17,9 @@ export function assertStripeBillingSourceContracts(files) {
   assert.match(files.gateway, /2026-08-26\.dahlia/u)
   assert.match(files.gateway, /discounts: \[\{ coupon: input\.couponId \}\]/u)
   assert.match(files.gateway, /expires_at/u)
+  assert.match(files.gateway, /retrieveCheckoutSession/u)
+  assert.match(files.checkoutRecovery, /line_items\.data\.price/u)
+  assert.match(files.checkoutRecovery, /discounts\.coupon/u)
   assert.match(files.catalog, /amountOff !== 1_000/u)
   assert.match(files.catalog, /duration !== 'once'/u)
   assert.match(files.catalog, /priceId: entries\.annual\.priceId/u)
@@ -24,6 +27,17 @@ export function assertStripeBillingSourceContracts(files) {
   assert.match(files.migration, /returns text[\s\S]*introductory_claim_rejected/u)
   assert.match(files.migration, /authoritative_event_priority/u)
   assert.match(files.migration, /if is_transition then[\s\S]*insert into private\.billing_audit_events/u)
+  assert.match(files.recoveryMigration, /create or replace function public\.tab_two_active_billing_checkout/u)
+  assert.match(files.recoveryMigration, /create or replace function public\.tab_two_expire_billing_checkout/u)
+  assert.match(files.recoveryMigration, /grant execute on function public\.tab_two_active_billing_checkout[\s\S]*to service_role/u)
+  assert.match(files.recoveryMigration, /grant execute on function public\.tab_two_expire_billing_checkout[\s\S]*to service_role/u)
+  assert.match(files.handlers, /validCheckoutRecovery/u)
+  assert.match(files.handlers, /dependencies\.repository\.expireCheckout/u)
+  assert.match(files.handlers, /checkout_already_open/u)
+  assert.match(files.handlers, /resumed: true/u)
+  assert.match(files.handlers, /resumed: false/u)
+  assert.match(files.runtime, /tab_two_active_billing_checkout/u)
+  assert.match(files.runtime, /tab_two_expire_billing_checkout/u)
   assert.match(files.config, /\[functions\.stripe-webhook\]\s+verify_jwt = false/u)
   assert.match(files.config, /\[functions\.billing-return\]\s+verify_jwt = false/u)
   assert.match(files.config, /\[functions\.billing-checkout-session\]\s+verify_jwt = true/u)
@@ -37,6 +51,10 @@ export function loadStripeBillingSources() {
     gateway: source('supabase/functions/_shared/stripeGateway.ts'),
     catalog: source('supabase/functions/_shared/stripeCatalog.ts'),
     migration: source('supabase/migrations/20260901000300_stripe_billing_foundation.sql'),
+    recoveryMigration: source('supabase/migrations/20260901000400_resumable_billing_checkout.sql'),
+    checkoutRecovery: source('supabase/functions/_shared/stripeCheckoutRecovery.ts'),
+    handlers: source('supabase/functions/_shared/billingHandlers.ts'),
+    runtime: source('supabase/functions/_shared/billingRuntime.ts'),
     config: source('supabase/config.toml'),
     manifest: source('src/manifest.ts'),
     clientTree: [

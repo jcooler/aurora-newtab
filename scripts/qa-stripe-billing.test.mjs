@@ -17,6 +17,24 @@ test('keeps billing authority behind the reviewed local source contracts', () =>
   assert.doesNotThrow(() => assertStripeBillingSourceContracts(loadStripeBillingSources()))
 })
 
+test('pins resumable Checkout to service-role recovery and exact Stripe retrieval', () => {
+  const files = loadStripeBillingSources()
+  assert.match(files.recoveryMigration, /tab_two_active_billing_checkout/u)
+  assert.match(files.recoveryMigration, /tab_two_expire_billing_checkout/u)
+  assert.match(files.checkoutRecovery, /line_items\.data\.price/u)
+  assert.match(files.checkoutRecovery, /discounts\.coupon/u)
+  assert.match(files.handlers, /resumed: true/u)
+  assert.match(files.handlers, /checkout_already_open/u)
+})
+
+test('rejects recovery that skips exact invalid-reservation expiry', () => {
+  const files = loadStripeBillingSources()
+  assert.throws(() => assertStripeBillingSourceContracts({
+    ...files,
+    handlers: files.handlers.replace('dependencies.repository.expireCheckout', 'unsafeIgnoreCheckout'),
+  }))
+})
+
 test('rejects a perpetual introductory recurring price implementation', () => {
   const files = loadStripeBillingSources()
   assert.throws(() => assertStripeBillingSourceContracts({
