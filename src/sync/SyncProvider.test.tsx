@@ -235,7 +235,7 @@ describe('SyncProvider lifecycle ownership', () => {
     expect(await screen.findByRole('heading', { name: 'Primary is protected' })).toBeTruthy()
   })
 
-  it('lets an explicit retry take ownership when another tab held the startup lock', async () => {
+  it('treats another tab coordinator as healthy standby and lets Sync now take ownership', async () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     const driver = memoryDriver()
     const local = createSyncLocalStateStore(driver, driver.authority)
@@ -259,9 +259,10 @@ describe('SyncProvider lifecycle ownership', () => {
       </StorageProvider>,
     )
 
-    expect(await screen.findByRole('heading', { name: 'Primary needs attention' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Primary is protected' })).toBeTruthy()
+    expect(screen.getByText('Sync is active in another Tab Two tab.')).toBeTruthy()
     expect(api.bootstrap).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
 
     await waitFor(() => expect(api.bootstrap).toHaveBeenCalledOnce())
     expect(request).toHaveBeenNthCalledWith(2, 'tab-two:encrypted-sync:v1', expect.objectContaining({

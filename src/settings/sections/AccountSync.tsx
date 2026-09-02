@@ -577,13 +577,15 @@ export default function AccountSync() {
     offline: currentDevice ? `${currentDeviceName} is waiting` : 'This device is waiting',
     needs_attention: currentDevice ? `${currentDeviceName} needs attention` : 'Sync needs attention',
   }[presentationPhase]
-  const phaseDescription = {
-    disabled: 'Nothing is uploaded. Your local data stays here.',
-    syncing: 'Encrypting and sending your latest changes.',
-    up_to_date: 'Encrypted changes are safely up to date.',
-    offline: 'Your changes are safe here and will sync automatically when you’re back online.',
-    needs_attention: 'Your local data is still safe on this device.',
-  }[presentationPhase]
+  const phaseDescription = syncState.attention === 'coordinator_elsewhere'
+    ? 'Sync is active in another Tab Two tab.'
+    : {
+        disabled: 'Nothing is uploaded. Your local data stays here.',
+        syncing: 'Encrypting and sending your latest changes.',
+        up_to_date: 'Encrypted changes are safely up to date.',
+        offline: 'Your changes are safe here and will sync automatically when you’re back online.',
+        needs_attention: 'Your local data is still safe on this device.',
+      }[presentationPhase]
   const syncing = syncActionPending === 'sync' || syncState.phase === 'syncing'
   const retrying = syncState.phase === 'offline' || syncState.phase === 'needs_attention'
   const syncActionLabel = syncing ? 'Syncing…' : retrying ? 'Try again' : 'Sync now'

@@ -25,10 +25,12 @@ import type { SyncGatewayFailure } from './gateway'
 
 const LOCK_NAME = 'tab-two:encrypted-sync:v1'
 
+export type SyncAttention = SyncGatewayFailure | 'coordinator_elsewhere'
+
 export interface SyncViewState {
   enabled: boolean
   phase: SyncPhase
-  attention: SyncGatewayFailure | null
+  attention: SyncAttention | null
   lastSuccessAt: number | null
   usedBytes: number
   quotaBytes: 2_097_152
@@ -186,7 +188,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     void lockManager.request(LOCK_NAME, lockOptions, async (lock) => {
       if (!lock || abort.signal.aborted || generation !== lifecycle.current) {
         if (!abort.signal.aborted && generation === lifecycle.current) {
-          setState((current) => ({ ...current, phase: 'needs_attention', attention: 'needs_attention' }))
+          setState((current) => ({ ...current, phase: 'up_to_date', attention: 'coordinator_elsewhere' }))
         }
         return
       }
