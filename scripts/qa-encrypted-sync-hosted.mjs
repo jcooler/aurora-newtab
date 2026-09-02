@@ -212,10 +212,8 @@ async function main() {
 
   async function provision(alias) {
     const email = `pm-p4-${runId}-${alias}@example.invalid`
-    const password = encodeBase64Url(crypto.getRandomValues(new Uint8Array(36)))
     const created = await admin.auth.admin.createUser({
       email,
-      password,
       email_confirm: true,
       app_metadata: { pm_p4_qa: true },
       user_metadata: { qa_alias: alias },
@@ -253,8 +251,17 @@ async function main() {
     const client = createClient(ORIGIN, anonKey, {
       auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
     })
-    const signedIn = await client.auth.signInWithPassword({ email, password })
-    if (signedIn.error || !signedIn.data.session?.access_token) throw new Error(`hosted_auth_sign_in_failed:${alias}`)
+    const generated = await admin.auth.admin.generateLink({ type: 'magiclink', email })
+    if (generated.error || !generated.data.properties?.hashed_token) {
+      throw new Error(`hosted_auth_link_failed:${alias}:${generated.error?.message ?? 'missing_token'}`)
+    }
+    const signedIn = await client.auth.verifyOtp({
+      token_hash: generated.data.properties.hashed_token,
+      type: 'magiclink',
+    })
+    if (signedIn.error || !signedIn.data.session?.access_token) {
+      throw new Error(`hosted_auth_sign_in_failed:${alias}:${signedIn.error?.message ?? 'missing_session'}`)
+    }
     const token = signedIn.data.session.access_token
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
     assert(Number.isSafeInteger(payload.auth_time), `fresh authentication claim missing for ${alias}`)
