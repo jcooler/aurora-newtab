@@ -63,6 +63,13 @@ function dependencies(initialSession: StoredAccountSessionV1 | null = session) {
         value: { url: 'https://billing.stripe.com/p/session/bps_test_a' },
       })),
     },
+    sync: {
+      origin: 'http://127.0.0.1:54321',
+      enabled: true,
+      fetch: vi.fn(async () => new Response(JSON.stringify({ status: 'completed' }), {
+        headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },
+      })) as typeof fetch,
+    },
     verifyLease: vi.fn(async (_envelope, accountId) => accountId === 'account-a' ? lease : null),
     refreshLock: {
       request: vi.fn(async (_name, callback) => callback()),
@@ -90,6 +97,7 @@ describe('readAccountServiceConfig', () => {
       trustedLeaseKeys: {
         'local-test-key': 'MCowBQYDK2VwAyEAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       },
+      encryptedSyncEnabled: true,
     })
   })
 
@@ -235,6 +243,62 @@ describe('Supabase AccountClient', () => {
       mode: 'signed_in',
       sync: expect.objectContaining({ enabled: false }),
     }))
+    expect(value.deps.sync?.fetch).not.toHaveBeenCalled()
+  })
+
+  it('exposes the authenticated gateway without calling it while sync remains off', async () => {
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+
+    expect(client.syncGateway).not.toBeNull()
+    expect(value.deps.sync?.fetch).not.toHaveBeenCalled()
+    await expect(client.actions.enableSync()).resolves.toEqual({ status: 'needs_attention' })
+    expect(value.deps.sync?.fetch).not.toHaveBeenCalled()
+  })
+
+  it('never lends the stored session to a gateway request for another account', async () => {
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+    const result = await client.syncGateway?.bootstrap({
+      accountId: '42000000-0000-4000-8000-000000000002',
+      deviceId: 'AAECAwQFBgcICQoLDA0ODw',
+      friendlyName: 'Primary browser',
+    })
+    expect(result).toEqual({ ok: false, kind: 'authentication_required' })
+    expect(value.deps.sync?.fetch).not.toHaveBeenCalled()
+  })
+
+  it('returns typed entitlement outcomes without network for every sync action when the lease is absent', async () => {
+    value.deps.api.getEntitlementLease = vi.fn(async () => ({
+      ok: false as const,
+      kind: 'not_entitled' as const,
+    }))
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+
+    const outcomes = await Promise.all([
+      client.actions.enableSync('Primary browser'),
+      client.actions.disableSync(),
+      client.actions.syncNow(),
+      client.actions.renameDevice('device-a', 'Work browser'),
+      client.actions.revokeDevice('device-a'),
+      client.actions.restoreConflictBackup('backup-a'),
+      client.actions.discardConflictBackup('backup-a'),
+      client.actions.deleteVault(),
+      client.actions.deleteAccount(),
+    ])
+    expect(outcomes).toEqual([
+      { status: 'entitlement_required' },
+      { status: 'needs_attention' },
+      { status: 'entitlement_required' },
+      { status: 'entitlement_required' },
+      { status: 'entitlement_required' },
+      { status: 'entitlement_required' },
+      { status: 'entitlement_required' },
+      { status: 'needs_attention' },
+      { status: 'needs_attention' },
+    ])
+    expect(value.deps.sync?.fetch).not.toHaveBeenCalled()
   })
 
   it('uses fresh reauthentication when beginSignIn is called from signed-in state', async () => {

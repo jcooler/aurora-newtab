@@ -48,15 +48,18 @@ function fakeClient(initial: Promise<AccountSnapshot>) {
   const actions: AccountActions = {
     beginSignIn: vi.fn(async () => ({ ok: true as const })),
     signOut: vi.fn(async () => {}),
-    enableSync: vi.fn(async () => {}),
-    disableSync: vi.fn(async () => {}),
-    syncNow: vi.fn(async () => {}),
-    revokeDevice: vi.fn(async () => {}),
+    enableSync: vi.fn(async () => ({ status: 'completed' as const })),
+    disableSync: vi.fn(async () => ({ status: 'completed' as const })),
+    syncNow: vi.fn(async () => ({ status: 'completed' as const })),
+    renameDevice: vi.fn(async () => ({ status: 'completed' as const })),
+    revokeDevice: vi.fn(async () => ({ status: 'completed' as const })),
+    restoreConflictBackup: vi.fn(async () => ({ status: 'completed' as const })),
+    discardConflictBackup: vi.fn(async () => ({ status: 'completed' as const })),
     openPlans: vi.fn(async () => ({ status: 'opened' as const })),
     openBilling: vi.fn(async () => ({ status: 'opened' as const })),
     refreshBilling: vi.fn(async () => ({ status: 'refreshed' as const })),
-    deleteVault: vi.fn(async () => {}),
-    deleteAccount: vi.fn(async () => {}),
+    deleteVault: vi.fn(async () => ({ status: 'completed' as const })),
+    deleteAccount: vi.fn(async () => ({ status: 'completed' as const })),
   }
   const client: AccountClient = {
     getSnapshot: vi.fn(() => initial),
@@ -65,6 +68,7 @@ function fakeClient(initial: Promise<AccountSnapshot>) {
       return unsubscribe
     }),
     actions,
+    syncGateway: null,
   }
   return {
     client,

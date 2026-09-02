@@ -15,6 +15,7 @@ import {
 } from './sessionStorage'
 import type { AccountSessionStore, StoredAccountSessionV1 } from './sessionStorage'
 import type { AccountActions, AccountSnapshot, VerifiedEntitlementLease } from './types'
+import { createSyncGateway, type SyncGatewayDependencies } from '../sync/gateway'
 
 export interface AccountServiceSnapshot {
   accountId: string
@@ -54,6 +55,7 @@ export interface SupabaseAccountClientDependencies {
     createCheckoutSession(accessToken: string, plan: BillingPlan): Promise<ServiceResult<{ url: string }>>
     createPortalSession(accessToken: string): Promise<ServiceResult<{ url: string }>>
   }
+  sync?: Pick<SyncGatewayDependencies, 'origin' | 'enabled' | 'fetch' | 'timeoutMs' | 'crypto'>
   verifyLease(
     envelope: unknown,
     expectedAccountId: string,
@@ -286,6 +288,17 @@ export function createSupabaseAccountClient(
     return stored ? usableSession(stored) : null
   }
 
+  const syncGateway = dependencies.sync
+    ? createSyncGateway({
+        ...dependencies.sync,
+        getAccessToken: async (accountId) => {
+          if (current.mode !== 'signed_in' || current.accountId !== accountId) return null
+          return (await billingSession())?.accessToken ?? null
+        },
+        invalidateAuthentication: async () => { await clearAuthority() },
+      })
+    : null
+
   async function openPlans(plan: BillingPlan) {
     try {
       const prepared = await billingSession()
@@ -330,14 +343,23 @@ export function createSupabaseAccountClient(
     }
   }
 
-  async function unavailable(): Promise<void> {}
+  async function unavailableSync(requireEntitlement = true) {
+    if (current.mode !== 'signed_in') return { status: 'authentication_required' as const }
+    if (requireEntitlement && !current.lease?.capabilities.includes('encrypted_sync')) {
+      return { status: 'entitlement_required' as const }
+    }
+    return { status: 'needs_attention' as const }
+  }
   const actions: AccountActions = Object.freeze({
     beginSignIn,
     signOut,
-    enableSync: unavailable,
-    disableSync: unavailable,
-    syncNow: unavailable,
-    revokeDevice: async (_deviceId: string) => {},
+    enableSync: () => unavailableSync(),
+    disableSync: () => unavailableSync(false),
+    syncNow: () => unavailableSync(),
+    renameDevice: () => unavailableSync(),
+    revokeDevice: () => unavailableSync(),
+    restoreConflictBackup: () => unavailableSync(),
+    discardConflictBackup: () => unavailableSync(),
     openPlans,
     openBilling,
     async refreshBilling() {
@@ -345,8 +367,8 @@ export function createSupabaseAccountClient(
       if (snapshot.mode !== 'signed_in') return { status: 'authentication_required' as const }
       return lastHydrationFresh ? { status: 'refreshed' as const } : { status: 'unavailable' as const }
     },
-    deleteVault: unavailable,
-    deleteAccount: unavailable,
+    deleteVault: () => unavailableSync(false),
+    deleteAccount: () => unavailableSync(false),
   })
 
   return Object.freeze({
@@ -356,6 +378,7 @@ export function createSupabaseAccountClient(
       return () => listeners.delete(listener)
     },
     actions,
+    syncGateway,
   })
 }
 
@@ -484,6 +507,11 @@ export function createConfiguredSupabaseAccountClient(config: AccountServiceConf
         token,
         {},
       ),
+    },
+    sync: {
+      origin: config.supabaseUrl,
+      enabled: config.encryptedSyncEnabled,
+      fetch: globalThis.fetch.bind(globalThis),
     },
     verifyLease: (envelope, expectedAccountId, at) => verifyEntitlementLeaseV1(
       envelope as never,

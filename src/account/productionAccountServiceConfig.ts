@@ -4,6 +4,7 @@ export interface ProductionAccountServiceDescriptor {
   supabaseUrl: string
   publishableKey: string
   trustedLeaseKeys: Readonly<Record<string, string>>
+  encryptedSyncEnabled: boolean
 }
 
 interface ProductionEnvironment {
@@ -24,6 +25,7 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
   trustedLeaseKeys: Object.freeze({
     'production-2026-09-01': 'MCowBQYDK2VwAyEA_HQX_9dTJSkjpDV-ZBiEC3bqu0bR6s81reGCbIJKlyg',
   }),
+  encryptedSyncEnabled: false,
 })
 
 export function readProductionAccountServiceConfig(
@@ -39,6 +41,7 @@ export function readProductionAccountServiceConfig(
     descriptor.supabaseUrl !== PRODUCTION_SUPABASE_ORIGIN
     || !publishableKeyPattern.test(descriptor.publishableKey)
     || descriptor.publishableKey.startsWith('sb_secret_')
+    || typeof descriptor.encryptedSyncEnabled !== 'boolean'
     || trustedEntries.length < 1
     || trustedEntries.length > 4
     || trustedEntries.some(([keyId, spki]) => !keyIdPattern.test(keyId)
@@ -51,5 +54,6 @@ export function readProductionAccountServiceConfig(
     supabaseUrl: descriptor.supabaseUrl,
     publishableKey: descriptor.publishableKey,
     trustedLeaseKeys: Object.freeze(Object.fromEntries(trustedEntries)),
+    encryptedSyncEnabled: descriptor.encryptedSyncEnabled,
   })
 }

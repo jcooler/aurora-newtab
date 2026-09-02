@@ -75,18 +75,32 @@ export interface AccountSnapshot {
   }[]
 }
 
+export type SyncActionOutcome =
+  | { status: 'completed' }
+  | {
+      status:
+        | 'authentication_required'
+        | 'entitlement_required'
+        | 'device_limit'
+        | 'offline'
+        | 'needs_attention'
+    }
+
 export interface AccountActions {
   beginSignIn(): Promise<
     { ok: true } | { ok: false; code: 'not_configured' | 'cancelled' | 'failed' }
   >
   signOut(): Promise<void>
-  enableSync(): Promise<void>
-  disableSync(): Promise<void>
-  syncNow(): Promise<void>
-  revokeDevice(deviceId: string): Promise<void>
+  enableSync(friendlyName?: string): Promise<SyncActionOutcome>
+  disableSync(): Promise<SyncActionOutcome>
+  syncNow(): Promise<SyncActionOutcome>
+  renameDevice(deviceId: string, friendlyName: string): Promise<SyncActionOutcome>
+  revokeDevice(deviceId: string): Promise<SyncActionOutcome>
+  restoreConflictBackup(backupId: string): Promise<SyncActionOutcome>
+  discardConflictBackup(backupId: string): Promise<SyncActionOutcome>
   openPlans(plan: BillingPlan): Promise<BillingActionOutcome>
   openBilling(): Promise<BillingActionOutcome>
   refreshBilling(): Promise<BillingRefreshOutcome>
-  deleteVault(): Promise<void>
-  deleteAccount(): Promise<void>
+  deleteVault(): Promise<SyncActionOutcome>
+  deleteAccount(): Promise<SyncActionOutcome>
 }

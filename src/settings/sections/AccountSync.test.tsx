@@ -16,15 +16,18 @@ function actions(): AccountActions {
   return {
     beginSignIn: vi.fn(async () => ({ ok: true as const })),
     signOut: vi.fn(async () => {}),
-    enableSync: vi.fn(async () => {}),
-    disableSync: vi.fn(async () => {}),
-    syncNow: vi.fn(async () => {}),
-    revokeDevice: vi.fn(async () => {}),
+    enableSync: vi.fn(async () => ({ status: 'completed' as const })),
+    disableSync: vi.fn(async () => ({ status: 'completed' as const })),
+    syncNow: vi.fn(async () => ({ status: 'completed' as const })),
+    renameDevice: vi.fn(async () => ({ status: 'completed' as const })),
+    revokeDevice: vi.fn(async () => ({ status: 'completed' as const })),
+    restoreConflictBackup: vi.fn(async () => ({ status: 'completed' as const })),
+    discardConflictBackup: vi.fn(async () => ({ status: 'completed' as const })),
     openPlans: vi.fn(async () => ({ status: 'opened' as const })),
     openBilling: vi.fn(async () => ({ status: 'opened' as const })),
     refreshBilling: vi.fn(async () => ({ status: 'refreshed' as const })),
-    deleteVault: vi.fn(async () => {}),
-    deleteAccount: vi.fn(async () => {}),
+    deleteVault: vi.fn(async () => ({ status: 'completed' as const })),
+    deleteAccount: vi.fn(async () => ({ status: 'completed' as const })),
   }
 }
 
@@ -60,6 +63,7 @@ function renderAccount(snapshot: AccountSnapshot, suppliedActions = actions()) {
     getSnapshot: async () => snapshot,
     subscribe: () => () => {},
     actions: suppliedActions,
+    syncGateway: null,
   }
   render(<AccountProvider client={client}><AccountSync /></AccountProvider>)
   return suppliedActions
@@ -75,6 +79,7 @@ function renderLiveAccount(snapshot: AccountSnapshot, suppliedActions = actions(
       return () => listeners.delete(listener)
     },
     actions: suppliedActions,
+    syncGateway: null,
   }
   render(<AccountProvider client={client}><AccountSync /></AccountProvider>)
   return {

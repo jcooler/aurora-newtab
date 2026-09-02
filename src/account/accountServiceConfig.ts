@@ -2,6 +2,7 @@ export interface AccountServiceConfig {
   supabaseUrl: string
   publishableKey: string
   trustedLeaseKeys: Readonly<Record<string, string>>
+  encryptedSyncEnabled: boolean
 }
 
 interface AccountServiceEnvironment {
@@ -56,5 +57,6 @@ export function readAccountServiceConfig(
     supabaseUrl: 'http://127.0.0.1:54321' as const,
     publishableKey,
     trustedLeaseKeys,
+    encryptedSyncEnabled: true,
   })
 }

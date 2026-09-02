@@ -126,14 +126,18 @@ function requestedState(): PreviewAccountState {
 }
 
 async function noOp(): Promise<void> {}
+async function completedSync() { return { status: 'completed' as const } }
 
 const previewActions: AccountActions = Object.freeze({
   async beginSignIn() { return { ok: true as const } },
   signOut: noOp,
-  enableSync: noOp,
-  disableSync: noOp,
-  syncNow: noOp,
-  async revokeDevice(_deviceId: string) {},
+  enableSync: completedSync,
+  disableSync: completedSync,
+  syncNow: completedSync,
+  renameDevice: completedSync,
+  revokeDevice: completedSync,
+  restoreConflictBackup: completedSync,
+  discardConflictBackup: completedSync,
   async openPlans(plan: BillingPlan) {
     globalThis.open(
       `https://checkout.stripe.com/c/pay/tab-two-preview-${plan.replace('_', '-')}`,
@@ -147,8 +151,8 @@ const previewActions: AccountActions = Object.freeze({
     return { status: 'opened' as const }
   },
   async refreshBilling() { return { status: 'refreshed' as const } },
-  deleteVault: noOp,
-  deleteAccount: noOp,
+  deleteVault: completedSync,
+  deleteAccount: completedSync,
 })
 
 export function createPreviewAccountClient(): AccountClient {
@@ -157,5 +161,6 @@ export function createPreviewAccountClient(): AccountClient {
     async getSnapshot() { return snapshot },
     subscribe() { return () => {} },
     actions: previewActions,
+    syncGateway: null,
   })
 }

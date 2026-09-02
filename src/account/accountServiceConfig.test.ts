@@ -8,6 +8,7 @@ const productionDescriptor = Object.freeze({
   supabaseUrl: 'https://ovlobmvxtryitupxwylg.supabase.co',
   publishableKey: 'sb_publishable_production-test-value',
   trustedLeaseKeys: Object.freeze({ 'production-2026-09-01': publicKey }),
+  encryptedSyncEnabled: false,
 })
 
 describe('readAccountServiceConfig', () => {
@@ -39,6 +40,7 @@ describe('readAccountServiceConfig', () => {
       supabaseUrl: 'http://127.0.0.1:54321',
       publishableKey: 'sb_publishable_local-test-value',
       trustedLeaseKeys: { 'local-test-key': publicKey },
+      encryptedSyncEnabled: true,
     })
   })
 

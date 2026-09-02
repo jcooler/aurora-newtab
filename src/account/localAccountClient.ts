@@ -21,21 +21,25 @@ export const localAccountSnapshot: AccountSnapshot = Object.freeze({
 })
 
 async function noOp(): Promise<void> {}
+async function unavailableSync() { return { status: 'authentication_required' as const } }
 
 const localActions: AccountActions = Object.freeze({
   async beginSignIn() {
     return { ok: false as const, code: 'not_configured' as const }
   },
   signOut: noOp,
-  enableSync: noOp,
-  disableSync: noOp,
-  syncNow: noOp,
-  async revokeDevice(_deviceId: string) {},
+  enableSync: unavailableSync,
+  disableSync: unavailableSync,
+  syncNow: unavailableSync,
+  renameDevice: unavailableSync,
+  revokeDevice: unavailableSync,
+  restoreConflictBackup: unavailableSync,
+  discardConflictBackup: unavailableSync,
   async openPlans(_plan: BillingPlan) { return { status: 'not_configured' as const } },
   async openBilling() { return { status: 'not_configured' as const } },
   async refreshBilling() { return { status: 'authentication_required' as const } },
-  deleteVault: noOp,
-  deleteAccount: noOp,
+  deleteVault: unavailableSync,
+  deleteAccount: unavailableSync,
 })
 
 export const localAccountClient: AccountClient = Object.freeze({
@@ -46,4 +50,5 @@ export const localAccountClient: AccountClient = Object.freeze({
     return () => {}
   },
   actions: localActions,
+  syncGateway: null,
 })
