@@ -9,7 +9,9 @@ const chromeExtensionOrigin = /^chrome-extension:\/\/[a-p]{32}$/u
 const corsRequestHeaders = new Set([
   'authorization',
   'apikey',
+  'cache-control',
   'content-type',
+  'pragma',
   'x-client-info',
   'x-supabase-api-version',
 ])

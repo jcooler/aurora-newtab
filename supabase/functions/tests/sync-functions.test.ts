@@ -297,14 +297,14 @@ describe('encrypted sync Edge handlers', () => {
     expect(text).not.toContain('raw-private-key')
   })
 
-  it('allows only an exact extension origin and POST preflight headers', async () => {
+  it('allows only an exact extension origin and the headers Chrome sends for no-store POSTs', async () => {
     const handlers = createSyncHandlers(deps)
     const allowed = new Request('http://127.0.0.1/functions/v1/sync-bootstrap', {
       method: 'OPTIONS',
       headers: {
         origin: 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         'access-control-request-method': 'POST',
-        'access-control-request-headers': 'authorization, content-type',
+        'access-control-request-headers': 'authorization, cache-control, content-type, pragma',
       },
     })
     const rejected = new Request('http://127.0.0.1/functions/v1/sync-bootstrap', {
@@ -315,7 +315,11 @@ describe('encrypted sync Edge handlers', () => {
       },
     })
 
-    expect((await withExtensionCors(allowed, 'POST', handlers.bootstrap)).status).toBe(204)
+    const response = await withExtensionCors(allowed, 'POST', handlers.bootstrap)
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-headers')).toBe(
+      'authorization, apikey, cache-control, content-type, pragma, x-client-info, x-supabase-api-version',
+    )
     expect((await withExtensionCors(rejected, 'POST', handlers.bootstrap)).status).toBe(403)
   })
 

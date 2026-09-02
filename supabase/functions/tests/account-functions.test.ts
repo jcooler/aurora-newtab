@@ -288,7 +288,7 @@ describe('extension CORS boundary', () => {
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-origin')).toBe(extensionOrigin)
     expect(response.headers.get('access-control-allow-methods')).toBe('GET, OPTIONS')
-    expect(response.headers.get('access-control-allow-headers')).toBe('authorization, apikey, content-type, x-client-info, x-supabase-api-version')
+    expect(response.headers.get('access-control-allow-headers')).toBe('authorization, apikey, cache-control, content-type, pragma, x-client-info, x-supabase-api-version')
     expect(response.headers.get('vary')).toBe('Origin')
     expect(handler).not.toHaveBeenCalled()
   })
