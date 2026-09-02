@@ -1,8 +1,8 @@
 # Tab Two Resumable Checkout QA
 
-**Date:** 2026-09-01  
-**Branch:** `feat/aurora-2-observatory`  
-**Implementation range:** `004696a` through `9715cfb`  
+**Date:** 2026-09-01<br>
+**Branch:** `feat/aurora-2-observatory`<br>
+**Implementation range:** `004696a` through `9715cfb`<br>
 **Result:** PASS for repository, local database, Edge handler, Stripe normalization, hosted migration/function deployment, and contract QA. The real signed-account close-and-resume lifecycle remains a manual sandbox ceiling.
 
 ## Delivered boundary

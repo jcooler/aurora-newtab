@@ -1,8 +1,8 @@
 # Tab Two Branded Billing Return QA
 
-**Date:** 2026-09-01  
-**Branch:** `feat/aurora-2-observatory`  
-**Implementation range:** `bfde9b3` through `a21561b`  
+**Date:** 2026-09-01<br>
+**Branch:** `feat/aurora-2-observatory`<br>
+**Implementation range:** `bfde9b3` through `a21561b`<br>
 **Result:** PASS for the static hosted return surface, production-only extension handoff, security and privacy contract, responsive browser QA, and installed production-extension integration. A signed-in customer lifecycle remains a manual ceiling.
 
 ## Delivered boundary
