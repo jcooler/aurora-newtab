@@ -451,7 +451,7 @@ async function main() {
     assert.equal((await push(matrix, matrixDevices[0][1], {
       idempotencyId: crypto.randomUUID(), expectedRevision: 1, record: noteTombstone,
     })).status, 'accepted')
-    for (const index of [1, 2, 4]) await pullAllAndAcknowledge(matrix, matrixDevices[index][1])
+    for (const index of [0, 1, 2, 4]) await pullAllAndAcknowledge(matrix, matrixDevices[index][1])
     const compacted = dbQuery(`select public.tab_two_sync_compact_tombstones(
       ${sqlLiteral(matrix.accountId)}::uuid, now()
     )::int as compacted;`)[0].compacted
