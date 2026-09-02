@@ -333,6 +333,19 @@ describe('encrypted sync Edge handlers', () => {
     expect(await json(response)).toEqual({ records: [], nextCursor: null, vaultVersion: 4 })
   })
 
+  it('returns a stable non-enumerating failure when a revoked device tries to pull', async () => {
+    deps.repository.pullRecords = vi.fn(async () => { throw new Error('sync_device_not_found') })
+    const response = await createSyncHandlers(deps).pull(request('sync-pull', {
+      deviceId,
+      afterVaultVersion: 0,
+      cursor: 0,
+      limit: 100,
+      acknowledgeVaultVersion: null,
+    }))
+    expect(response.status).toBe(404)
+    expect(await json(response)).toEqual({ error: 'device_not_found' })
+  })
+
   it('rejects malformed or oversized pull output before any ciphertext leaves the service', async () => {
     deps.repository.pullRecords = vi.fn(async () => ({
       records: [{
@@ -587,6 +600,22 @@ describe('sync RPC repository', () => {
     } catch (error) {
       expect(String(error)).not.toContain('wrapped-private-key')
     }
+  })
+
+  it.each(['sync_device_not_active', 'sync_device_revoked', 'sync_device_not_found'])(
+    'maps the exact %s RPC failure to a non-enumerating sentinel', async (message) => {
+    const rpc = vi.fn(async () => ({
+      data: null,
+      error: { message },
+    }))
+    const repo = createSyncRepository({ rpc })
+    await expect(repo.pullRecords({
+      accountId,
+      deviceId,
+      afterVaultVersion: 0,
+      cursor: 0,
+      limit: 100,
+    })).rejects.toThrow('sync_device_not_found')
   })
 })
 

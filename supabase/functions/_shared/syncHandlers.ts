@@ -358,9 +358,13 @@ async function withinRateLimit(
 }
 
 function mappedFailure(error: unknown): Response {
-  return error instanceof Error && error.message === 'sync_device_limit'
-    ? errorResponse('device_limit', 409)
-    : errorResponse('service_unavailable', 503)
+  if (error instanceof Error && error.message === 'sync_device_limit') {
+    return errorResponse('device_limit', 409)
+  }
+  if (error instanceof Error && error.message === 'sync_device_not_found') {
+    return errorResponse('device_not_found', 404)
+  }
+  return errorResponse('service_unavailable', 503)
 }
 
 export function createSyncHandlers(dependencies: SyncFunctionDependencies): {

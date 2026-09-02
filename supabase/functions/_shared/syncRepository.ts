@@ -21,6 +21,11 @@ function oneRow(value: unknown): Record<string, unknown> | null {
 function repositoryError(error: unknown): never {
   const message = error && typeof error === 'object' ? Reflect.get(error, 'message') : null
   if (message === 'sync_device_limit') throw new Error('sync_device_limit')
+  if (message === 'sync_device_not_active'
+    || message === 'sync_device_revoked'
+    || message === 'sync_device_not_found') {
+    throw new Error('sync_device_not_found')
+  }
   throw new Error('sync_repository_unavailable')
 }
 
