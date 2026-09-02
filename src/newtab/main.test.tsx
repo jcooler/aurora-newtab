@@ -54,6 +54,17 @@ vi.mock('../account/AccountContext', async () => {
   }
 })
 
+vi.mock('../sync/SyncProvider', async () => {
+  const React = await import('react')
+  return {
+    SyncProvider: ({ children }: { children: React.ReactNode }) => React.createElement(
+      React.Fragment,
+      null,
+      children,
+    ),
+  }
+})
+
 vi.mock('../services/permissionMirror', () => ({
   initializePermissionMirror: vi.fn().mockResolvedValue(undefined),
 }))

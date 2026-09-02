@@ -15,11 +15,13 @@ import type { AccountActions, AccountSnapshot } from './types'
 interface AccountContextValue {
   snapshot: AccountSnapshot
   actions: AccountActions
+  client: AccountClient
 }
 
 const AccountContext = createContext<AccountContextValue>({
   snapshot: localAccountSnapshot,
   actions: localAccountClient.actions,
+  client: localAccountClient,
 })
 
 export function AccountProvider({
@@ -36,6 +38,7 @@ export function AccountProvider({
 
   const [snapshot, setSnapshot] = useState<AccountSnapshot>(localAccountSnapshot)
   const [actions, setActions] = useState<AccountActions>(client?.actions ?? localAccountClient.actions)
+  const [resolvedClient, setResolvedClient] = useState<AccountClient>(client ?? localAccountClient)
 
   useEffect(() => {
     let cancelled = false
@@ -43,6 +46,7 @@ export function AccountProvider({
 
     void clientPromise.current!.then(async (resolvedClient) => {
       if (cancelled) return
+      setResolvedClient(resolvedClient)
       setActions(resolvedClient.actions)
       const hydrated = await resolvedClient.getSnapshot()
       if (cancelled) return
@@ -58,7 +62,7 @@ export function AccountProvider({
     }
   }, [])
 
-  const value = useMemo(() => ({ snapshot, actions }), [snapshot, actions])
+  const value = useMemo(() => ({ snapshot, actions, client: resolvedClient }), [snapshot, actions, resolvedClient])
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>
 }
 

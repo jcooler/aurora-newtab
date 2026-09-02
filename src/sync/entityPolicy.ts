@@ -433,3 +433,63 @@ export function applySyncEntity(data: AuroraData, incoming: SyncEntityV1): Auror
   }
   return next
 }
+
+export function removeSyncEntity(
+  data: AuroraData,
+  entityType: SyncEntityType,
+  entityId: string,
+): AuroraData {
+  if (!isValidSyncEntityIdentity(entityType, entityId)) throw new Error('sync_entity_invalid')
+  const next = structuredClone(data)
+  const fallback = defaults()
+  switch (entityType) {
+    case 'settings': next.settings = fallback.settings; break
+    case 'focus': if (next.focus?.date === entityId) next.focus = null; break
+    case 'todo_list': next.todoLists = next.todoLists.filter((item) => item.id !== entityId); break
+    case 'quick_link': next.links = next.links.filter((item) => item.id !== entityId); break
+    case 'timer_config': next.timerConfig = fallback.timerConfig; break
+    case 'location': next.location = null; break
+    case 'notes': next.notes = fallback.notes; break
+    case 'world_clock': next.worldClocks = next.worldClocks.filter((item) => item.zone !== entityId); break
+    case 'countdown': next.countdowns = next.countdowns.filter((item) => item.id !== entityId); break
+    case 'legacy_layout': next.layout = fallback.layout; break
+    case 'layout_manifest': next.layouts = null; break
+    case 'named_layout':
+      if (next.layouts) {
+        const layouts = next.layouts.layouts.filter((item) => item.id !== entityId)
+        next.layouts = layouts.length === 0
+          ? null
+          : {
+              ...next.layouts,
+              activeLayoutId: next.layouts.activeLayoutId === entityId
+                ? layouts[0]!.id
+                : next.layouts.activeLayoutId,
+              layouts,
+            }
+      }
+      break
+    case 'calendar_preference': {
+      const { [entityId]: _removed, ...remaining } = next.calendarPreferences
+      next.calendarPreferences = remaining
+      break
+    }
+    case 'calendar_week_start': next.calendarWeekStart = fallback.calendarWeekStart; break
+    case 'connector_preference': {
+      const id = entityId as ConnectorId
+      next.connectors = { ...next.connectors, [id]: fallback.connectors[id] }
+      break
+    }
+    case 'habit': next.habits = next.habits.filter((item) => item.id !== entityId); break
+    case 'habit_completion': {
+      const separator = entityId.lastIndexOf(':')
+      const habitId = entityId.slice(0, separator)
+      const date = entityId.slice(separator + 1)
+      next.habits = next.habits.map((habit) => habit.id === habitId
+        ? { ...habit, log: habit.log.filter((item) => item !== date) }
+        : habit)
+      break
+    }
+    case 'progress_goal': next.progressGoals = next.progressGoals.filter((item) => item.id !== entityId); break
+  }
+  return next
+}

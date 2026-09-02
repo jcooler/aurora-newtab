@@ -8,6 +8,7 @@ import { StorageProvider } from '../lib/storage/context'
 import { createWebLockStorageAuthority } from '../lib/storage/authority'
 import { initializePermissionMirror } from '../services/permissionMirror'
 import { AccountProvider } from '../account/AccountContext'
+import { SyncProvider } from '../sync/SyncProvider'
 import './index.css'
 
 type NotesHarnessController = Readonly<{
@@ -94,7 +95,8 @@ if (import.meta.env.MODE === 'preview') {
   })
 }
 
-const storage = createStorage(driver, createWebLockStorageAuthority(navigator.locks))
+const storageAuthority = createWebLockStorageAuthority(navigator.locks)
+const storage = createStorage(driver, storageAuthority)
 await storage.init()
 await initializePermissionMirror()
 
@@ -116,9 +118,11 @@ createRoot(document.getElementById('root')!, {
   onRecoverableError: () => console.error('[aurora] recoverable root render failure'),
 }).render(
   <StrictMode>
-    <StorageProvider storage={storage}>
+    <StorageProvider storage={storage} syncRuntime={{ driver, authority: storageAuthority }}>
       <AccountProvider>
-        <App />
+        <SyncProvider>
+          <App />
+        </SyncProvider>
       </AccountProvider>
     </StorageProvider>
   </StrictMode>,
