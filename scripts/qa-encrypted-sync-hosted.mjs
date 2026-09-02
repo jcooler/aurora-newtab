@@ -141,11 +141,14 @@ function sqlLiteral(value) {
 }
 
 function dbQuery(sql) {
-  const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx'
-  const result = spawnSync(executable, [
-    'supabase', 'db', 'query', '--linked', '--output-format', 'json', sql,
+  const cli = resolve(repoRoot, 'node_modules', 'supabase', 'dist', 'supabase.js')
+  const result = spawnSync(process.execPath, [
+    cli, 'db', 'query', '--linked', '--output-format', 'json', sql,
   ], { cwd: repoRoot, encoding: 'utf8', windowsHide: true, maxBuffer: 10 * 1024 * 1024 })
-  if (result.status !== 0) throw new Error(`hosted_db_query_failed:${(result.stderr || '').trim().slice(-500)}`)
+  if (result.status !== 0) {
+    const diagnostic = `${result.error?.message ?? ''} ${(result.stderr || result.stdout || '').trim()}`.trim()
+    throw new Error(`hosted_db_query_failed:${diagnostic.slice(-500)}`)
+  }
   const parsed = JSON.parse(result.stdout)
   assert(Array.isArray(parsed.rows))
   return parsed.rows
