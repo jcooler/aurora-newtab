@@ -697,8 +697,9 @@ export default function AccountSync() {
         {activeDevices.length === 0 ? (
           <p className="text-sm text-fg-muted">Your devices will appear here after sync is enabled.</p>
         ) : null}
-        <ul className="account-sync-device-list" aria-label="Signed-in installations">
-          {activeDevices.map((device) => (
+        {activeDevices.length > 0 ? (
+          <ul className="account-sync-device-list" aria-label="Signed-in installations">
+            {activeDevices.map((device) => (
             <li key={device.id} className="account-sync-device-row">
               <div className="min-w-0">
                 <div className="account-sync-device-row__title">
@@ -734,8 +735,9 @@ export default function AccountSync() {
                 )}
               </div>
             </li>
-          ))}
-        </ul>
+            ))}
+          </ul>
+        ) : null}
       </Section>
 
       <Section title="Account actions">

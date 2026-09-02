@@ -298,8 +298,8 @@ async function exerciseProduction(page, viewport, output, judgments, evidence, r
 
   await page.getByRole('heading', { name: 'Local mode' }).waitFor()
   await clearAndArmStorageLog(page)
-  await page.getByRole('region', { name: 'Encrypted when sync is on' }).waitFor()
-  await page.getByRole('region', { name: 'Always stays on this device' }).waitFor()
+  await page.getByRole('region', { name: 'Encrypted & synced' }).waitFor()
+  await page.getByRole('region', { name: 'Always stays local' }).waitFor()
   await page.getByRole('button', { name: 'Choose monthly' }).click()
   await page.getByRole('alert').filter({ hasText: 'Sign in with Google to continue' }).waitFor()
   assert.notEqual(await drawer.getAttribute('aria-hidden'), 'true')
@@ -314,9 +314,9 @@ async function exercisePreviewDesktop(page, viewport, output, judgments, evidenc
     ['active', 'Active subscription'],
     ['past-due', 'Payment needs attention'],
     ['device-limit', 'Five installations are already syncing'],
-    ['syncing', 'syncing'],
-    ['offline', 'offline'],
-    ['needs-attention', 'needs attention'],
+    ['syncing', 'Protecting Studio PC'],
+    ['offline', 'Studio PC is waiting'],
+    ['needs-attention', 'Studio PC needs attention'],
   ]
 
   for (const [state, expected] of states) {
