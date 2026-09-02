@@ -43,6 +43,22 @@ export interface StripeHostedSession {
   livemode: boolean
 }
 
+export interface StripeCheckoutRecovery {
+  id: string
+  url: string | null
+  livemode: boolean
+  status: 'open' | 'complete' | 'expired' | null
+  paymentStatus: 'paid' | 'unpaid' | 'no_payment_required' | null
+  mode: 'subscription' | 'payment' | 'setup' | null
+  customerId: string | null
+  clientReferenceId: string | null
+  accountId: string | null
+  plan: StripePlan | null
+  priceIds: readonly string[]
+  couponIds: readonly string[]
+  expiresAt: number | null
+}
+
 export type StripeAuthoritativeObjectKind =
   | 'checkout_session'
   | 'subscription'

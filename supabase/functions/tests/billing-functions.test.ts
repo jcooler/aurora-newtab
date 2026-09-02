@@ -3,6 +3,7 @@ import { createStripeCatalog } from '../_shared/stripeCatalog'
 import { retrieveStripeBillingSnapshot, stripeObjectId } from '../_shared/stripeNormalization'
 import { createBillingHandlers, fixedBillingReturnUrls } from '../_shared/billingHandlers'
 import type { BillingFunctionDependencies } from '../_shared/billingHandlers'
+import { normalizeCheckoutRecovery, retrieveStripeCheckoutRecovery } from '../_shared/stripeCheckoutRecovery'
 import type { StripeGateway, StripePrice } from '../_shared/stripeGateway'
 
 const environment = {
@@ -58,6 +59,70 @@ function validPrice(id: string): StripePrice {
   }
 }
 
+describe('Stripe Checkout recovery boundary', () => {
+  const rawSession = Object.freeze({
+    id: 'cs_test_recovery',
+    object: 'checkout.session',
+    url: 'https://checkout.stripe.com/c/pay/cs_test_recovery',
+    livemode: false,
+    status: 'open',
+    payment_status: 'unpaid',
+    mode: 'subscription',
+    customer: { id: 'cus_recovery', object: 'customer' },
+    client_reference_id: '42000000-0000-4000-8000-000000000001',
+    metadata: {
+      tab_two_account_id: '42000000-0000-4000-8000-000000000001',
+      tab_two_plan: 'intro_annual',
+    },
+    expires_at: 1_788_294_660,
+    line_items: { data: [{ quantity: 1, price: { id: 'price_test_annual', object: 'price' } }] },
+    discounts: [{ coupon: { id: 'coupon_test_intro_once', object: 'coupon' } }],
+  })
+
+  it('normalizes only the primitive Checkout fields needed for exact recovery binding', () => {
+    expect(normalizeCheckoutRecovery(rawSession)).toEqual({
+      id: 'cs_test_recovery',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_recovery',
+      livemode: false,
+      status: 'open',
+      paymentStatus: 'unpaid',
+      mode: 'subscription',
+      customerId: 'cus_recovery',
+      clientReferenceId: '42000000-0000-4000-8000-000000000001',
+      accountId: '42000000-0000-4000-8000-000000000001',
+      plan: 'intro_annual',
+      priceIds: ['price_test_annual'],
+      couponIds: ['coupon_test_intro_once'],
+      expiresAt: 1_788_294_660_000,
+    })
+  })
+
+  it('retrieves one Session with the exact expansions before normalization', async () => {
+    const client = { checkout: { sessions: { retrieve: vi.fn(async () => rawSession) } } }
+    await expect(retrieveStripeCheckoutRecovery(client, 'cs_test_recovery')).resolves.toMatchObject({
+      id: 'cs_test_recovery', customerId: 'cus_recovery', plan: 'intro_annual',
+    })
+    expect(client.checkout.sessions.retrieve).toHaveBeenCalledWith('cs_test_recovery', {
+      expand: ['line_items.data.price', 'discounts.coupon'],
+    })
+  })
+
+  it.each([
+    ['live object', { livemode: true }, { livemode: true }],
+    ['completed object', { status: 'complete' }, { status: 'complete' }],
+    ['paid object', { payment_status: 'paid' }, { paymentStatus: 'paid' }],
+    ['wrong mode', { mode: 'payment' }, { mode: 'payment' }],
+    ['missing URL', { url: null }, { url: null }],
+    ['ambiguous prices', { line_items: { data: [
+      { quantity: 1, price: { id: 'price_a' } }, { quantity: 1, price: { id: 'price_b' } },
+    ] } }, { priceIds: ['price_a', 'price_b'] }],
+    ['ambiguous coupons', { discounts: [{ coupon: 'coupon_a' }, { coupon: 'coupon_b' }] }, { couponIds: ['coupon_a', 'coupon_b'] }],
+    ['missing metadata', { metadata: {} }, { accountId: null, plan: null }],
+  ])('preserves the invalid %s signal so the handler can fail closed', (_name, override, expected) => {
+    expect(normalizeCheckoutRecovery({ ...rawSession, ...override })).toMatchObject(expected)
+  })
+})
+
 function fakeGateway(): StripeGateway {
   return {
     retrievePrice: vi.fn(async (id) => validPrice(id)),
@@ -66,6 +131,7 @@ function fakeGateway(): StripeGateway {
     })),
     createCustomer: vi.fn(),
     createCheckoutSession: vi.fn(),
+    retrieveCheckoutSession: vi.fn(),
     createPortalSession: vi.fn(),
     verifyWebhook: vi.fn(),
     retrieveAuthoritativeObject: vi.fn(),

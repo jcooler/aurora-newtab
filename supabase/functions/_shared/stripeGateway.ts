@@ -1,9 +1,10 @@
 import Stripe from 'npm:stripe@22.6.0'
 import { retrieveStripeBillingSnapshot, retrieveStripeObject, stripeObjectId } from './stripeNormalization.ts'
 import type { SnapshotStripeClient } from './stripeNormalization.ts'
+import { retrieveStripeCheckoutRecovery } from './stripeCheckoutRecovery.ts'
 import type {
   StripeAuthoritativeObject, StripeAuthoritativeObjectKind, StripeCheckoutSessionInput,
-  StripeBillingSnapshot, StripeCouponSummary, StripeHostedSession, StripePriceSummary, VerifiedStripeEvent,
+  StripeBillingSnapshot, StripeCheckoutRecovery, StripeCouponSummary, StripeHostedSession, StripePriceSummary, VerifiedStripeEvent,
 } from './stripeTypes.ts'
 
 export type StripePrice = StripePriceSummary
@@ -13,6 +14,7 @@ export interface StripeGateway {
   retrieveCoupon(couponId: string): Promise<StripeCouponSummary>
   createCustomer(accountId: string): Promise<{ id: string; livemode: boolean }>
   createCheckoutSession(input: StripeCheckoutSessionInput): Promise<StripeHostedSession>
+  retrieveCheckoutSession(checkoutSessionId: string): Promise<StripeCheckoutRecovery>
   createPortalSession(input: { customerId: string; returnUrl: string }): Promise<StripeHostedSession>
   verifyWebhook(rawBody: Uint8Array, signature: string, secret: string, toleranceSeconds: number): Promise<VerifiedStripeEvent>
   retrieveAuthoritativeObject(kind: StripeAuthoritativeObjectKind, id: string): Promise<StripeAuthoritativeObject>
@@ -79,6 +81,9 @@ export function createStripeGateway(secretKey: string): StripeGateway {
       if (!session.url) throw new Error('stripe_checkout_url_unavailable')
       return { id: session.id, url: session.url, livemode: session.livemode }
     },
+    async retrieveCheckoutSession(checkoutSessionId) {
+      return retrieveStripeCheckoutRecovery(stripe, checkoutSessionId)
+    },
     async createPortalSession(input) {
       const session = await stripe.billingPortal.sessions.create({ customer: input.customerId, return_url: input.returnUrl })
       return { id: session.id, url: session.url, livemode: session.livemode }
@@ -99,5 +104,5 @@ export function createStripeGateway(secretKey: string): StripeGateway {
 
 export type {
   StripeAuthoritativeObject, StripeAuthoritativeObjectKind, StripeCheckoutSessionInput,
-  StripeBillingSnapshot, StripeHostedSession, StripePriceSummary, VerifiedStripeEvent,
+  StripeBillingSnapshot, StripeCheckoutRecovery, StripeHostedSession, StripePriceSummary, VerifiedStripeEvent,
 } from './stripeTypes.ts'
