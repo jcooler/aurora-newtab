@@ -7,6 +7,7 @@ import type { SyncFunctionDependencies, SyncRepository, SyncSummary } from '../_
 
 const now = Date.UTC(2026, 8, 2, 14, 0, 0)
 const accountId = '42000000-0000-4000-8000-000000000001'
+const authUserId = '34000000-0000-4000-8000-000000000002'
 const deviceId = 'AAECAwQFBgcICQoLDA0ODw'
 const otherDeviceId = 'AQEBAQEBAQEBAQEBAQEBAQ'
 const rawKey = new Uint8Array(32).fill(7)
@@ -60,12 +61,33 @@ function repository(): SyncRepository {
     deactivateDevice: vi.fn(async () => true),
     renameDevice: vi.fn(async () => true),
     revokeDevice: vi.fn(async () => true),
+    consumeRateLimit: vi.fn(async () => true),
+    pullRecords: vi.fn(async () => ({
+      records: [], nextCursor: null, vaultVersion: 4,
+    })),
+    acknowledgePull: vi.fn(async () => true),
+    applyMutations: vi.fn(async () => ([{ status: 'accepted', entityType: 'notes', entityId: 'singleton', revision: 1, vaultVersion: 5 }])),
+    deleteVault: vi.fn(async () => true),
+    findDeletionForAuthUser: vi.fn(async () => null),
+    beginAccountDeletion: vi.fn(async () => ({
+      operationId: '62000000-0000-4000-8000-000000000001', accountId, authUserId,
+      state: 'pending_stripe', subscriptionId: 'sub_test_owned',
+    })),
+    markDeletionStripeCanceled: vi.fn(async (_operationId) => ({
+      operationId: '62000000-0000-4000-8000-000000000001', accountId, authUserId,
+      state: 'stripe_canceled', subscriptionId: 'sub_test_owned',
+    })),
+    deleteAccountData: vi.fn(async (_operationId) => ({
+      operationId: '62000000-0000-4000-8000-000000000001', accountId, authUserId,
+      state: 'data_deleted', subscriptionId: 'sub_test_owned',
+    })),
+    completeAccountDeletion: vi.fn(async () => true),
   }
 }
 
 function dependencies(): SyncFunctionDependencies {
   return {
-    authenticate: vi.fn(async () => ({ ok: true as const, authUserId: 'auth-user-a', authTime: now - 60_000 })),
+    authenticate: vi.fn(async () => ({ ok: true as const, authUserId, authTime: now - 60_000 })),
     repository: repository(),
     keyring: {
       keyVersion: 1,
@@ -74,6 +96,9 @@ function dependencies(): SyncFunctionDependencies {
     },
     now: () => now,
     randomBytes: vi.fn((length) => new Uint8Array(length).fill(9)),
+    requestFingerprint: vi.fn(async () => 'A'.repeat(43)),
+    cancelSandboxSubscription: vi.fn(async () => ({ id: 'sub_test_owned', livemode: false, status: 'canceled' as const })),
+    deleteAuthUser: vi.fn(async () => undefined),
   }
 }
 
@@ -89,6 +114,10 @@ describe('encrypted sync Edge handlers', () => {
     ['deactivateDevice', 'sync-deactivate-device', 'deactivate', {}],
     ['renameDevice', 'sync-rename-device', 'rename', {}],
     ['revokeDevice', 'sync-revoke-device', 'revoke', {}],
+    ['pull', 'sync-pull', 'pull', {}],
+    ['push', 'sync-push', 'push', {}],
+    ['deleteVault', 'sync-delete-vault', 'delete vault', {}],
+    ['deleteAccount', 'account-delete', 'delete account', {}],
   ] as const)('rejects a non-POST %s before authentication', async (handler, path, _label, body) => {
     const response = await createSyncHandlers(deps)[handler](request(path, body, 'GET'))
     expect(response.status).toBe(405)
@@ -222,7 +251,7 @@ describe('encrypted sync Edge handlers', () => {
   })
 
   it('requires auth_time within five minutes before revoking another device', async () => {
-    deps.authenticate = vi.fn(async () => ({ ok: true as const, authUserId: 'auth-user-a', authTime: now - 300_001 }))
+    deps.authenticate = vi.fn(async () => ({ ok: true as const, authUserId, authTime: now - 300_001 }))
     const response = await createSyncHandlers(deps).revokeDevice(request('sync-revoke-device', {
       currentDeviceId: deviceId,
       targetDeviceId: otherDeviceId,
@@ -289,6 +318,212 @@ describe('encrypted sync Edge handlers', () => {
     expect((await withExtensionCors(allowed, 'POST', handlers.bootstrap)).status).toBe(204)
     expect((await withExtensionCors(rejected, 'POST', handlers.bootstrap)).status).toBe(403)
   })
+
+  it('returns a bounded encrypted pull and acknowledges only a client-confirmed prior version', async () => {
+    const response = await createSyncHandlers(deps).pull(request('sync-pull', {
+      deviceId,
+      afterVaultVersion: 3,
+      cursor: 3,
+      limit: 100,
+      acknowledgeVaultVersion: 3,
+    }))
+    expect(response.status).toBe(200)
+    expect(deps.repository.acknowledgePull).toHaveBeenCalledWith({ accountId, deviceId, vaultVersion: 3, effectiveAt: now })
+    expect(deps.repository.pullRecords).toHaveBeenCalledWith({ accountId, deviceId, afterVaultVersion: 3, cursor: 3, limit: 100 })
+    expect(await json(response)).toEqual({ records: [], nextCursor: null, vaultVersion: 4 })
+  })
+
+  it('rejects malformed or oversized pull output before any ciphertext leaves the service', async () => {
+    deps.repository.pullRecords = vi.fn(async () => ({
+      records: [{
+        entityType: 'notes', entityId: 'singleton', revision: 1, vaultVersion: 4,
+        tombstone: false, nonce: 'A'.repeat(16), ciphertext: 'A'.repeat(262_120),
+        storedSize: 262_200, extra: 'not-reviewed',
+      }] as never,
+      nextCursor: null,
+      vaultVersion: 4,
+    }))
+    const response = await createSyncHandlers(deps).pull(request('sync-pull', {
+      deviceId,
+      afterVaultVersion: 3,
+      cursor: 3,
+      limit: 100,
+      acknowledgeVaultVersion: null,
+    }))
+    expect(response.status).toBe(503)
+    expect(await json(response)).toEqual({ error: 'service_unavailable' })
+  })
+
+  it('returns one stable retryable response when either account or IP sync rate limit is exhausted', async () => {
+    deps.repository.consumeRateLimit = vi.fn(async () => false)
+    const response = await createSyncHandlers(deps).pull(request('sync-pull', {
+      deviceId,
+      afterVaultVersion: 3,
+      cursor: 3,
+      limit: 100,
+      acknowledgeVaultVersion: null,
+    }))
+    expect(response.status).toBe(429)
+    expect(await json(response)).toEqual({ error: 'rate_limited' })
+    expect(deps.repository.consumeRateLimit).toHaveBeenCalledWith({
+      accountId,
+      action: 'pull',
+      ipFingerprint: 'A'.repeat(43),
+      effectiveAt: now,
+    })
+    expect(deps.repository.pullRecords).not.toHaveBeenCalled()
+  })
+
+  it('accepts only exact bounded ciphertext envelopes for push', async () => {
+    const mutation = {
+      idempotencyId: '53000000-0000-4000-8000-000000000001',
+      envelopeVersion: 1,
+      entityType: 'notes',
+      entityId: 'singleton',
+      expectedRevision: 0,
+      revision: 1,
+      tombstone: false,
+      nonce: 'A'.repeat(16),
+      ciphertext: 'A'.repeat(64),
+    }
+    const response = await createSyncHandlers(deps).push(request('sync-push', { deviceId, mutations: [mutation] }))
+    expect(response.status).toBe(200)
+    expect(deps.repository.applyMutations).toHaveBeenCalledWith({
+      accountId,
+      deviceId,
+      mutations: [{ ...mutation, requestDigest: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/u) }],
+      effectiveAt: now,
+    })
+    expect(await json(response)).toEqual({ outcomes: [expect.objectContaining({ status: 'accepted' })] })
+
+    const rejected = await createSyncHandlers(deps).push(request('sync-push', {
+      deviceId,
+      mutations: [{ ...mutation, plaintext: 'must not pass' }],
+    }))
+    expect(rejected.status).toBe(400)
+  })
+
+  it('rejects malformed push outcomes before repository data can be reflected', async () => {
+    deps.repository.applyMutations = vi.fn(async () => ([{
+      status: 'accepted', entityType: 'notes', entityId: 'singleton', revision: 1,
+      vaultVersion: 5, internalSecret: 'must not leave',
+    }]))
+    const response = await createSyncHandlers(deps).push(request('sync-push', {
+      deviceId,
+      mutations: [{
+        idempotencyId: '53000000-0000-4000-8000-000000000001',
+        envelopeVersion: 1,
+        entityType: 'notes',
+        entityId: 'singleton',
+        expectedRevision: 0,
+        revision: 1,
+        tombstone: false,
+        nonce: 'A'.repeat(16),
+        ciphertext: 'A'.repeat(64),
+      }],
+    }))
+    expect(response.status).toBe(503)
+    expect(await json(response)).toEqual({ error: 'service_unavailable' })
+  })
+
+  it('requires fresh authentication and typed confirmation before deleting only the encrypted vault', async () => {
+    const response = await createSyncHandlers(deps).deleteVault(request('sync-delete-vault', {
+      accountId,
+      deviceId,
+      confirmation: 'DELETE',
+    }))
+    expect(response.status).toBe(200)
+    expect(deps.repository.deleteVault).toHaveBeenCalledWith({ accountId, deviceId, effectiveAt: now })
+    expect(await json(response)).toEqual({ status: 'completed' })
+  })
+
+  it('executes account deletion in resumable sandbox-only order without accepting a client subscription id', async () => {
+    const response = await createSyncHandlers(deps).deleteAccount(request('account-delete', {
+      accountId,
+      confirmation: 'DELETE',
+    }))
+    expect(response.status).toBe(200)
+    expect(deps.repository.beginAccountDeletion).toHaveBeenCalledWith({ accountId, authUserId, effectiveAt: now })
+    expect(deps.cancelSandboxSubscription).toHaveBeenCalledWith('sub_test_owned')
+    expect(deps.repository.markDeletionStripeCanceled).toHaveBeenCalled()
+    expect(deps.repository.deleteAccountData).toHaveBeenCalled()
+    expect(deps.repository.completeAccountDeletion).toHaveBeenCalled()
+    expect(deps.repository.completeAccountDeletion).toHaveBeenCalledBefore(vi.mocked(deps.deleteAuthUser))
+    expect(deps.deleteAuthUser).toHaveBeenCalledWith(authUserId)
+    expect(await json(response)).toEqual({ status: 'completed' })
+  })
+
+  it('keeps account deletion retryable without deleting data when Stripe cancellation fails', async () => {
+    deps.cancelSandboxSubscription = vi.fn(async () => { throw new Error('stripe unavailable') })
+    const response = await createSyncHandlers(deps).deleteAccount(request('account-delete', {
+      accountId,
+      confirmation: 'DELETE',
+    }))
+    expect(response.status).toBe(503)
+    expect(await json(response)).toEqual({ error: 'retryable' })
+    expect(deps.repository.deleteAccountData).not.toHaveBeenCalled()
+    expect(deps.deleteAuthUser).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['stripe_canceled', false, true, true, true],
+    ['data_deleted', false, false, true, true],
+    ['completed', false, false, true, true],
+  ] as const)('resumes account deletion safely from %s', async (
+    state,
+    cancelExpected,
+    dataDeleteExpected,
+    completionExpected,
+    authDeleteExpected,
+  ) => {
+    deps.repository.findDeletionForAuthUser = vi.fn(async () => ({
+      operationId: '62000000-0000-4000-8000-000000000001',
+      accountId,
+      authUserId,
+      state,
+      subscriptionId: 'sub_test_owned',
+    }))
+    const response = await createSyncHandlers(deps).deleteAccount(request('account-delete', {
+      accountId,
+      confirmation: 'DELETE',
+    }))
+    expect(response.status).toBe(200)
+    expect(deps.cancelSandboxSubscription).toHaveBeenCalledTimes(cancelExpected ? 1 : 0)
+    expect(deps.repository.deleteAccountData).toHaveBeenCalledTimes(dataDeleteExpected ? 1 : 0)
+    expect(deps.repository.completeAccountDeletion).toHaveBeenCalledTimes(completionExpected ? 1 : 0)
+    expect(deps.deleteAuthUser).toHaveBeenCalledTimes(authDeleteExpected ? 1 : 0)
+  })
+
+  it('persists the completion tombstone before Auth deletion so a failed final external step is retryable', async () => {
+    deps.repository.findDeletionForAuthUser = vi.fn(async () => ({
+      operationId: '62000000-0000-4000-8000-000000000001',
+      accountId,
+      authUserId,
+      state: 'data_deleted',
+      subscriptionId: 'sub_test_owned',
+    }))
+    deps.deleteAuthUser = vi.fn(async () => { throw new Error('auth unavailable') })
+    const response = await createSyncHandlers(deps).deleteAccount(request('account-delete', {
+      accountId,
+      confirmation: 'DELETE',
+    }))
+    expect(response.status).toBe(503)
+    expect(await json(response)).toEqual({ error: 'retryable' })
+    expect(deps.repository.completeAccountDeletion).toHaveBeenCalledBefore(vi.mocked(deps.deleteAuthUser))
+  })
+
+  it('rejects a live-mode cancellation result without deleting account data', async () => {
+    deps.cancelSandboxSubscription = vi.fn(async () => ({
+      id: 'sub_test_owned', livemode: true, status: 'canceled',
+    } as never))
+    const response = await createSyncHandlers(deps).deleteAccount(request('account-delete', {
+      accountId,
+      confirmation: 'DELETE',
+    }))
+    expect(response.status).toBe(503)
+    expect(await json(response)).toEqual({ error: 'retryable' })
+    expect(deps.repository.deleteAccountData).not.toHaveBeenCalled()
+  })
 })
 
 describe('sync RPC repository', () => {
@@ -324,7 +559,7 @@ describe('sync RPC repository', () => {
     })
     const repo = createSyncRepository({ rpc })
 
-    await expect(repo.findAccountForAuthUser('auth-user-a')).resolves.toEqual({ accountId })
+    await expect(repo.findAccountForAuthUser(authUserId)).resolves.toEqual({ accountId })
     await expect(repo.getEffectiveCapabilities(accountId, now)).resolves.toEqual(['encrypted_sync'])
     await expect(repo.getAccountKey(accountId, deviceId)).resolves.toEqual({
       keyVersion: 1,
@@ -362,14 +597,14 @@ describe('sync JWT freshness authentication', () => {
     const token = `header.${payload}.signature`
     const auth = {
       getUser: vi.fn(async () => ({
-        data: { user: { id: 'auth-user-a', app_metadata: { provider: 'google', providers: ['google'] } } },
+        data: { user: { id: authUserId, app_metadata: { provider: 'google', providers: ['google'] } } },
         error: null,
       })),
     }
 
     await expect(authenticateSyncBearerRequest(new Request('https://example.test', {
       headers: { authorization: `Bearer ${token}` },
-    }), auth)).resolves.toEqual({ ok: true, authUserId: 'auth-user-a', authTime: now - 60_000 })
+    }), auth)).resolves.toEqual({ ok: true, authUserId, authTime: now - 60_000 })
     expect(auth.getUser).toHaveBeenCalledWith(token)
   })
 

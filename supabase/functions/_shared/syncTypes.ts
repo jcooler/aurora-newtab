@@ -26,6 +26,41 @@ export interface StoredWrappedDataKey {
   wrappedDataKey: string
 }
 
+export interface SyncPullRecord {
+  entityType: string
+  entityId: string
+  revision: number
+  vaultVersion: number
+  tombstone: boolean
+  nonce: string
+  ciphertext: string
+  storedSize: number
+}
+
+export interface SyncPullPage {
+  records: SyncPullRecord[]
+  nextCursor: number | null
+  vaultVersion: number
+}
+
+export interface AccountDeletionState {
+  operationId: string
+  accountId: string
+  authUserId: string
+  state: 'pending_stripe' | 'stripe_canceled' | 'data_deleted' | 'completed'
+  subscriptionId: string | null
+}
+
+export type SyncRateLimitAction =
+  | 'bootstrap'
+  | 'pull'
+  | 'push'
+  | 'rename'
+  | 'deactivate'
+  | 'revoke'
+  | 'delete_vault'
+  | 'delete_account'
+
 export interface SyncRepository {
   findAccountForAuthUser(authUserId: string): Promise<SyncAccount | null>
   getEffectiveCapabilities(accountId: string, effectiveAt: number): Promise<readonly string[]>
@@ -56,6 +91,29 @@ export interface SyncRepository {
     targetDeviceId: string
     effectiveAt: number
   }): Promise<boolean>
+  consumeRateLimit(input: {
+    accountId: string
+    action: SyncRateLimitAction
+    ipFingerprint: string
+    effectiveAt: number
+  }): Promise<boolean>
+  pullRecords(input: {
+    accountId: string; deviceId: string; afterVaultVersion: number; cursor: number; limit: number
+  }): Promise<SyncPullPage>
+  acknowledgePull(input: {
+    accountId: string; deviceId: string; vaultVersion: number; effectiveAt: number
+  }): Promise<boolean>
+  applyMutations(input: {
+    accountId: string; deviceId: string; mutations: readonly Record<string, unknown>[]; effectiveAt: number
+  }): Promise<readonly Record<string, unknown>[]>
+  deleteVault(input: { accountId: string; deviceId: string; effectiveAt: number }): Promise<boolean>
+  findDeletionForAuthUser(authUserId: string): Promise<AccountDeletionState | null>
+  beginAccountDeletion(input: {
+    accountId: string; authUserId: string; effectiveAt: number
+  }): Promise<AccountDeletionState>
+  markDeletionStripeCanceled(operationId: string, effectiveAt: number): Promise<AccountDeletionState>
+  deleteAccountData(operationId: string, effectiveAt: number): Promise<AccountDeletionState>
+  completeAccountDeletion(operationId: string, effectiveAt: number): Promise<boolean>
 }
 
 export type SyncRequestAuthentication =
@@ -68,4 +126,11 @@ export interface SyncFunctionDependencies {
   keyring: SyncKeyring
   now(): number
   randomBytes(length: number): Uint8Array
+  requestFingerprint(request: Request): Promise<string>
+  cancelSandboxSubscription(subscriptionId: string): Promise<{
+    id: string
+    livemode: boolean
+    status: 'canceled'
+  }>
+  deleteAuthUser(authUserId: string): Promise<void>
 }

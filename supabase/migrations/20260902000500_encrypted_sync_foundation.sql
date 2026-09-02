@@ -89,14 +89,39 @@ create table private.sync_mutation_receipts (
   request_digest text not null,
   outcome jsonb not null,
   created_at timestamptz not null,
+  expires_at timestamptz not null,
   primary key (account_id, device_id, idempotency_id),
   foreign key (account_id, device_id)
     references private.sync_devices(account_id, device_id) on delete cascade,
   constraint sync_receipt_digest_shape
     check (length(request_digest) = 43 and request_digest ~ '^[A-Za-z0-9_-]+$'),
   constraint sync_receipt_outcome_object check (jsonb_typeof(outcome) = 'object'),
-  constraint sync_receipt_outcome_bounded check (octet_length(outcome::text) <= 524288)
+  constraint sync_receipt_outcome_bounded check (octet_length(outcome::text) <= 524288),
+  constraint sync_receipt_expiry_order check (expires_at > created_at)
 );
+
+create index sync_mutation_receipts_expiry
+  on private.sync_mutation_receipts (expires_at);
+
+create table private.sync_rate_limits (
+  scope_type text not null,
+  scope_key text not null,
+  action text not null,
+  window_started_at timestamptz not null,
+  request_count integer not null,
+  expires_at timestamptz not null,
+  primary key (scope_type, scope_key, action),
+  constraint sync_rate_scope_type_known check (scope_type in ('account', 'ip')),
+  constraint sync_rate_scope_key_bounded check (length(scope_key) between 1 and 64),
+  constraint sync_rate_action_known check (action in (
+    'bootstrap', 'pull', 'push', 'rename', 'deactivate', 'revoke',
+    'delete_vault', 'delete_account'
+  )),
+  constraint sync_rate_count_positive check (request_count > 0),
+  constraint sync_rate_expiry_order check (expires_at > window_started_at)
+);
+
+create index sync_rate_limits_expiry on private.sync_rate_limits (expires_at);
 
 create table private.sync_audit_events (
   id uuid primary key default gen_random_uuid(),
@@ -114,25 +139,47 @@ create unique index sync_audit_one_vault_deletion
   on private.sync_audit_events (account_id, event_type)
   where event_type = 'vault_deleted';
 
+create table private.account_deletion_operations (
+  operation_id uuid primary key default gen_random_uuid(),
+  account_id uuid not null unique references public.tab_two_accounts(id) on delete cascade,
+  auth_user_id uuid not null unique,
+  state text not null,
+  subscription_id text,
+  created_at timestamptz not null,
+  updated_at timestamptz not null,
+  constraint account_deletion_state_known check (
+    state in ('pending_stripe', 'stripe_canceled', 'data_deleted', 'completed')
+  ),
+  constraint account_deletion_subscription_shape check (
+    subscription_id is null or subscription_id ~ '^sub_[A-Za-z0-9_]+$'
+  )
+);
+
 alter table private.sync_vaults enable row level security;
 alter table private.sync_account_keys enable row level security;
 alter table private.sync_devices enable row level security;
 alter table private.sync_records enable row level security;
 alter table private.sync_mutation_receipts enable row level security;
+alter table private.sync_rate_limits enable row level security;
 alter table private.sync_audit_events enable row level security;
+alter table private.account_deletion_operations enable row level security;
 
 revoke all on table private.sync_vaults from public, anon, authenticated;
 revoke all on table private.sync_account_keys from public, anon, authenticated;
 revoke all on table private.sync_devices from public, anon, authenticated;
 revoke all on table private.sync_records from public, anon, authenticated;
 revoke all on table private.sync_mutation_receipts from public, anon, authenticated;
+revoke all on table private.sync_rate_limits from public, anon, authenticated;
 revoke all on table private.sync_audit_events from public, anon, authenticated;
+revoke all on table private.account_deletion_operations from public, anon, authenticated;
 grant select, insert, update, delete on table private.sync_vaults to service_role;
 grant select, insert, update, delete on table private.sync_account_keys to service_role;
 grant select, insert, update, delete on table private.sync_devices to service_role;
 grant select, insert, update, delete on table private.sync_records to service_role;
 grant select, insert, update, delete on table private.sync_mutation_receipts to service_role;
+grant select, insert, update, delete on table private.sync_rate_limits to service_role;
 grant select, insert, update, delete on table private.sync_audit_events to service_role;
+grant select, insert, update, delete on table private.account_deletion_operations to service_role;
 
 create or replace function private.require_active_sync_device(
   target_account_id uuid,
@@ -153,6 +200,114 @@ begin
   ) then
     raise exception using errcode = 'P0001', message = 'sync_device_not_active';
   end if;
+end;
+$$;
+
+create or replace function private.consume_sync_rate_scope(
+  target_scope_type text,
+  target_scope_key text,
+  target_action text,
+  effective_at timestamptz,
+  window_seconds integer,
+  maximum_requests integer
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  resulting_count integer;
+begin
+  if target_scope_type not in ('account', 'ip')
+    or target_scope_key is null or length(target_scope_key) not between 1 and 64
+    or target_action not in (
+      'bootstrap', 'pull', 'push', 'rename', 'deactivate', 'revoke',
+      'delete_vault', 'delete_account'
+    )
+    or effective_at is null
+    or window_seconds not between 1 and 86400
+    or maximum_requests not between 1 and 120 then
+    raise exception using errcode = '22023', message = 'sync_rate_limit_invalid';
+  end if;
+
+  insert into private.sync_rate_limits as rate_limit (
+    scope_type, scope_key, action, window_started_at, request_count, expires_at
+  ) values (
+    target_scope_type, target_scope_key, target_action, effective_at, 1,
+    effective_at + make_interval(secs => window_seconds)
+  )
+  on conflict (scope_type, scope_key, action) do update
+  set window_started_at = case
+        when rate_limit.expires_at <= effective_at then effective_at
+        else rate_limit.window_started_at
+      end,
+      request_count = case
+        when rate_limit.expires_at <= effective_at then 1
+        else least(rate_limit.request_count + 1, maximum_requests + 1)
+      end,
+      expires_at = case
+        when rate_limit.expires_at <= effective_at
+          then effective_at + make_interval(secs => window_seconds)
+        else rate_limit.expires_at
+      end
+  returning request_count into resulting_count;
+
+  return resulting_count <= maximum_requests;
+end;
+$$;
+
+create or replace function private.consume_sync_rate_limit(
+  target_account_id uuid,
+  target_action text,
+  target_ip_fingerprint text,
+  effective_at timestamptz
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  window_seconds integer;
+  maximum_requests integer;
+  account_allowed boolean;
+  ip_allowed boolean;
+begin
+  if target_account_id is null
+    or target_ip_fingerprint is null
+    or length(target_ip_fingerprint) <> 43
+    or target_ip_fingerprint !~ '^[A-Za-z0-9_-]+$'
+    or effective_at is null then
+    raise exception using errcode = '22023', message = 'sync_rate_limit_invalid';
+  end if;
+
+  perform 1 from public.tab_two_accounts account where account.id = target_account_id;
+  if not found then
+    raise exception using errcode = '23503', message = 'account_not_found';
+  end if;
+
+  case target_action
+    when 'bootstrap' then window_seconds := 600; maximum_requests := 10;
+    when 'pull' then window_seconds := 600; maximum_requests := 120;
+    when 'push' then window_seconds := 600; maximum_requests := 120;
+    when 'rename' then window_seconds := 600; maximum_requests := 20;
+    when 'deactivate' then window_seconds := 600; maximum_requests := 20;
+    when 'revoke' then window_seconds := 600; maximum_requests := 20;
+    when 'delete_vault' then window_seconds := 86400; maximum_requests := 5;
+    when 'delete_account' then window_seconds := 86400; maximum_requests := 5;
+    else raise exception using errcode = '22023', message = 'sync_rate_limit_invalid';
+  end case;
+
+  account_allowed := private.consume_sync_rate_scope(
+    'account', target_account_id::text, target_action, effective_at,
+    window_seconds, maximum_requests
+  );
+  ip_allowed := private.consume_sync_rate_scope(
+    'ip', target_ip_fingerprint, target_action, effective_at,
+    window_seconds, maximum_requests
+  );
+  return account_allowed and ip_allowed;
 end;
 $$;
 
@@ -384,6 +539,8 @@ begin
   perform private.require_active_sync_device(target_account_id, target_device_id);
   select * into strict vault from private.sync_vaults
   where account_id = target_account_id for update;
+  delete from private.sync_mutation_receipts receipt
+  where receipt.account_id = target_account_id and receipt.expires_at <= effective_at;
 
   for mutation in select value from jsonb_array_elements(mutations)
   loop
@@ -449,6 +606,7 @@ begin
     where receipt.account_id = target_account_id
       and receipt.device_id = target_device_id
       and receipt.idempotency_id = idempotency_id
+      and receipt.expires_at > effective_at
     for update;
     if found then
       if receipt_digest is distinct from request_digest then
@@ -524,9 +682,10 @@ begin
     end if;
 
     insert into private.sync_mutation_receipts (
-      account_id, device_id, idempotency_id, request_digest, outcome, created_at
+      account_id, device_id, idempotency_id, request_digest, outcome, created_at, expires_at
     ) values (
-      target_account_id, target_device_id, idempotency_id, request_digest, outcome, effective_at
+      target_account_id, target_device_id, idempotency_id, request_digest, outcome,
+      effective_at, effective_at + interval '30 days'
     );
     outcomes := outcomes || jsonb_build_array(outcome);
   end loop;
@@ -690,10 +849,17 @@ end;
 $$;
 
 create or replace function private.delete_sync_vault(
-  target_account_id uuid, confirmation text, effective_at timestamptz
+  target_account_id uuid, target_device_id text, confirmation text, effective_at timestamptz
 )
 returns boolean language plpgsql security definer set search_path = '' as $$
 begin
+  if exists (
+    select 1 from private.sync_audit_events audit
+    where audit.account_id = target_account_id and audit.event_type = 'vault_deleted'
+  ) then
+    return true;
+  end if;
+  perform private.require_active_sync_device(target_account_id, target_device_id);
   if confirmation is distinct from 'operator-confirmed' then
     raise exception using errcode = '22023', message = 'sync_vault_delete_confirmation_invalid';
   end if;
@@ -706,6 +872,161 @@ begin
   values (target_account_id, 'vault_deleted', effective_at, jsonb_build_object('completed', true))
   on conflict (account_id, event_type) where event_type = 'vault_deleted' do nothing;
   return true;
+end;
+$$;
+
+create or replace function private.account_deletion_json(
+  operation private.account_deletion_operations
+)
+returns jsonb language sql immutable strict set search_path = '' as $$
+  select jsonb_build_object(
+    'operationId', operation.operation_id,
+    'accountId', operation.account_id,
+    'authUserId', operation.auth_user_id,
+    'state', operation.state,
+    'subscriptionId', operation.subscription_id
+  );
+$$;
+
+create or replace function private.account_deletion_for_auth(target_auth_user_id uuid)
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select private.account_deletion_json(operation)
+  from private.account_deletion_operations operation
+  where operation.auth_user_id = target_auth_user_id;
+$$;
+
+create or replace function private.begin_account_deletion(
+  target_account_id uuid, target_auth_user_id uuid, effective_at timestamptz
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  operation private.account_deletion_operations%rowtype;
+  owned_subscription_id text;
+begin
+  select * into operation from private.account_deletion_operations existing
+  where existing.auth_user_id = target_auth_user_id for update;
+  if found then
+    if operation.account_id <> target_account_id then
+      raise exception using errcode = 'P0001', message = 'account_deletion_not_found';
+    end if;
+    return private.account_deletion_json(operation);
+  end if;
+
+  perform 1 from public.tab_two_accounts account
+  join public.tab_two_identities identity_link on identity_link.account_id = account.id
+  where account.id = target_account_id
+    and identity_link.auth_user_id = target_auth_user_id
+    and account.deleted_at is null
+  for update of account;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'account_deletion_not_found';
+  end if;
+
+  select subscription.subscription_id into owned_subscription_id
+  from private.billing_subscriptions subscription
+  where subscription.account_id = target_account_id and subscription.state <> 'expired';
+
+  insert into private.account_deletion_operations (
+    account_id, auth_user_id, state, subscription_id, created_at, updated_at
+  ) values (
+    target_account_id, target_auth_user_id, 'pending_stripe', owned_subscription_id,
+    effective_at, effective_at
+  ) returning * into operation;
+  update public.tab_two_accounts set deleted_at = effective_at where id = target_account_id;
+  return private.account_deletion_json(operation);
+end;
+$$;
+
+create or replace function private.mark_deletion_stripe_canceled(
+  target_operation_id uuid, effective_at timestamptz
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare operation private.account_deletion_operations%rowtype;
+begin
+  update private.account_deletion_operations
+  set state = case when state = 'pending_stripe' then 'stripe_canceled' else state end,
+      updated_at = effective_at
+  where operation_id = target_operation_id
+    and state in ('pending_stripe', 'stripe_canceled')
+  returning * into operation;
+  if not found then raise exception using errcode = 'P0001', message = 'account_deletion_not_found'; end if;
+  return private.account_deletion_json(operation);
+end;
+$$;
+
+create or replace function private.delete_account_data(
+  target_operation_id uuid, effective_at timestamptz
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare operation private.account_deletion_operations%rowtype;
+begin
+  select * into operation from private.account_deletion_operations existing
+  where existing.operation_id = target_operation_id for update;
+  if not found then raise exception using errcode = 'P0001', message = 'account_deletion_not_found'; end if;
+  if operation.state in ('data_deleted', 'completed') then
+    return private.account_deletion_json(operation);
+  end if;
+  if operation.state <> 'stripe_canceled' then
+    raise exception using errcode = 'P0001', message = 'stripe_cancellation_required';
+  end if;
+
+  delete from private.sync_vaults where account_id = operation.account_id;
+  delete from private.stripe_customers where account_id = operation.account_id;
+  delete from private.billing_audit_events where account_id = operation.account_id;
+  delete from private.billing_rate_limits where account_id = operation.account_id;
+  delete from private.sync_rate_limits rate_limit
+  where rate_limit.scope_type = 'account' and rate_limit.scope_key = operation.account_id::text;
+  delete from private.account_grants where account_id = operation.account_id;
+  delete from private.entitlement_audit_events where account_id = operation.account_id;
+  delete from public.tab_two_identities where account_id = operation.account_id;
+  delete from private.sync_audit_events where account_id = operation.account_id;
+
+  update private.account_deletion_operations set state = 'data_deleted', updated_at = effective_at
+  where operation_id = target_operation_id returning * into operation;
+  return private.account_deletion_json(operation);
+end;
+$$;
+
+create or replace function private.complete_account_deletion(
+  target_operation_id uuid, effective_at timestamptz
+)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  delete from private.sync_rate_limits rate_limit
+  using private.account_deletion_operations operation
+  where operation.operation_id = target_operation_id
+    and rate_limit.scope_type = 'account'
+    and rate_limit.scope_key = operation.account_id::text;
+  update private.account_deletion_operations
+  set state = 'completed', updated_at = effective_at
+  where operation_id = target_operation_id and state in ('data_deleted', 'completed');
+  return found;
+end;
+$$;
+
+create or replace function public.tab_two_apply_stripe_billing_snapshot(
+  target_account_id uuid, target_customer_id text, target_subscription_id text, target_checkout_session_id text,
+  target_plan text, target_state text, target_current_period_start timestamptz,
+  target_current_period_end timestamptz, target_cancel_at_period_end boolean,
+  target_authoritative_event_created bigint, target_authoritative_event_priority integer,
+  target_authoritative_event_id text, target_outcome_code text,
+  effective_at timestamptz, target_courtesy_end timestamptz
+)
+returns text language plpgsql security definer set search_path = '' as $$
+begin
+  if exists (
+    select 1 from public.tab_two_accounts account
+    where account.id = target_account_id and account.deleted_at is not null
+  ) then
+    return 'account_deleted';
+  end if;
+  return private.apply_stripe_billing_snapshot(
+    target_account_id, target_customer_id, target_subscription_id, target_checkout_session_id,
+    target_plan::private.billing_plan, target_state::private.billing_state,
+    target_current_period_start, target_current_period_end, target_cancel_at_period_end,
+    target_authoritative_event_created, target_authoritative_event_priority,
+    target_authoritative_event_id, target_outcome_code, effective_at, target_courtesy_end
+  );
 end;
 $$;
 
@@ -733,6 +1054,14 @@ $$;
 create or replace function public.tab_two_sync_summary(target_account_id uuid, current_device_id text)
 returns jsonb language sql stable security definer set search_path = '' as $$
   select private.sync_summary(target_account_id, current_device_id);
+$$;
+
+create or replace function public.tab_two_consume_sync_rate_limit(
+  target_account_id uuid, target_action text, target_ip_fingerprint text, effective_at timestamptz
+)
+returns boolean language sql security definer set search_path = '' as $$
+  select private.consume_sync_rate_limit(
+    target_account_id, target_action, target_ip_fingerprint, effective_at);
 $$;
 
 create or replace function public.tab_two_sync_apply_mutations(
@@ -791,16 +1120,46 @@ returns bigint language sql security definer set search_path = '' as $$
 $$;
 
 create or replace function public.tab_two_sync_delete_vault(
-  target_account_id uuid, confirmation text, effective_at timestamptz
+  target_account_id uuid, target_device_id text, confirmation text, effective_at timestamptz
 )
 returns boolean language sql security definer set search_path = '' as $$
-  select private.delete_sync_vault(target_account_id, confirmation, effective_at);
+  select private.delete_sync_vault(target_account_id, target_device_id, confirmation, effective_at);
+$$;
+
+create or replace function public.tab_two_account_deletion_for_auth(target_auth_user_id uuid)
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select private.account_deletion_for_auth(target_auth_user_id);
+$$;
+create or replace function public.tab_two_begin_account_deletion(
+  target_account_id uuid, target_auth_user_id uuid, effective_at timestamptz
+)
+returns jsonb language sql security definer set search_path = '' as $$
+  select private.begin_account_deletion(target_account_id, target_auth_user_id, effective_at);
+$$;
+create or replace function public.tab_two_mark_deletion_stripe_canceled(
+  target_operation_id uuid, effective_at timestamptz
+)
+returns jsonb language sql security definer set search_path = '' as $$
+  select private.mark_deletion_stripe_canceled(target_operation_id, effective_at);
+$$;
+create or replace function public.tab_two_delete_account_data(
+  target_operation_id uuid, effective_at timestamptz
+)
+returns jsonb language sql security definer set search_path = '' as $$
+  select private.delete_account_data(target_operation_id, effective_at);
+$$;
+create or replace function public.tab_two_complete_account_deletion(
+  target_operation_id uuid, effective_at timestamptz
+)
+returns boolean language sql security definer set search_path = '' as $$
+  select private.complete_account_deletion(target_operation_id, effective_at);
 $$;
 
 revoke all on function public.tab_two_sync_register_device(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_store_account_key(uuid, smallint, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_account_key(uuid, text) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_summary(uuid, text) from public, anon, authenticated;
+revoke all on function public.tab_two_consume_sync_rate_limit(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_apply_mutations(uuid, text, jsonb, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_pull_records(uuid, text, bigint, bigint, integer) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_acknowledge_pull(uuid, text, bigint, timestamptz) from public, anon, authenticated;
@@ -808,12 +1167,18 @@ revoke all on function public.tab_two_sync_deactivate_device(uuid, text, timesta
 revoke all on function public.tab_two_sync_rename_device(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_revoke_device(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.tab_two_sync_compact_tombstones(uuid, timestamptz) from public, anon, authenticated;
-revoke all on function public.tab_two_sync_delete_vault(uuid, text, timestamptz) from public, anon, authenticated;
+revoke all on function public.tab_two_sync_delete_vault(uuid, text, text, timestamptz) from public, anon, authenticated;
+revoke all on function public.tab_two_account_deletion_for_auth(uuid) from public, anon, authenticated;
+revoke all on function public.tab_two_begin_account_deletion(uuid, uuid, timestamptz) from public, anon, authenticated;
+revoke all on function public.tab_two_mark_deletion_stripe_canceled(uuid, timestamptz) from public, anon, authenticated;
+revoke all on function public.tab_two_delete_account_data(uuid, timestamptz) from public, anon, authenticated;
+revoke all on function public.tab_two_complete_account_deletion(uuid, timestamptz) from public, anon, authenticated;
 
 grant execute on function public.tab_two_sync_register_device(uuid, text, text, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_store_account_key(uuid, smallint, text, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_account_key(uuid, text) to service_role;
 grant execute on function public.tab_two_sync_summary(uuid, text) to service_role;
+grant execute on function public.tab_two_consume_sync_rate_limit(uuid, text, text, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_apply_mutations(uuid, text, jsonb, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_pull_records(uuid, text, bigint, bigint, integer) to service_role;
 grant execute on function public.tab_two_sync_acknowledge_pull(uuid, text, bigint, timestamptz) to service_role;
@@ -821,13 +1186,20 @@ grant execute on function public.tab_two_sync_deactivate_device(uuid, text, time
 grant execute on function public.tab_two_sync_rename_device(uuid, text, text, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_revoke_device(uuid, text, text, timestamptz) to service_role;
 grant execute on function public.tab_two_sync_compact_tombstones(uuid, timestamptz) to service_role;
-grant execute on function public.tab_two_sync_delete_vault(uuid, text, timestamptz) to service_role;
+grant execute on function public.tab_two_sync_delete_vault(uuid, text, text, timestamptz) to service_role;
+grant execute on function public.tab_two_account_deletion_for_auth(uuid) to service_role;
+grant execute on function public.tab_two_begin_account_deletion(uuid, uuid, timestamptz) to service_role;
+grant execute on function public.tab_two_mark_deletion_stripe_canceled(uuid, timestamptz) to service_role;
+grant execute on function public.tab_two_delete_account_data(uuid, timestamptz) to service_role;
+grant execute on function public.tab_two_complete_account_deletion(uuid, timestamptz) to service_role;
 
 revoke all on function private.require_active_sync_device(uuid, text) from public, anon, authenticated;
 revoke all on function private.register_sync_device(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function private.store_sync_account_key(uuid, smallint, text, timestamptz) from public, anon, authenticated;
 revoke all on function private.sync_account_key(uuid, text) from public, anon, authenticated;
 revoke all on function private.sync_summary(uuid, text) from public, anon, authenticated;
+revoke all on function private.consume_sync_rate_scope(text, text, text, timestamptz, integer, integer) from public, anon, authenticated;
+revoke all on function private.consume_sync_rate_limit(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function private.sync_record_stored_size(text, text, text, text, text) from public, anon, authenticated;
 revoke all on function private.apply_sync_mutations(uuid, text, jsonb, timestamptz) from public, anon, authenticated;
 revoke all on function private.pull_sync_records(uuid, text, bigint, bigint, integer) from public, anon, authenticated;
@@ -836,13 +1208,21 @@ revoke all on function private.deactivate_sync_device(uuid, text, timestamptz) f
 revoke all on function private.rename_sync_device(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function private.revoke_sync_device(uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function private.compact_sync_tombstones(uuid, timestamptz) from public, anon, authenticated;
-revoke all on function private.delete_sync_vault(uuid, text, timestamptz) from public, anon, authenticated;
+revoke all on function private.delete_sync_vault(uuid, text, text, timestamptz) from public, anon, authenticated;
+revoke all on function private.account_deletion_json(private.account_deletion_operations) from public, anon, authenticated;
+revoke all on function private.account_deletion_for_auth(uuid) from public, anon, authenticated;
+revoke all on function private.begin_account_deletion(uuid, uuid, timestamptz) from public, anon, authenticated;
+revoke all on function private.mark_deletion_stripe_canceled(uuid, timestamptz) from public, anon, authenticated;
+revoke all on function private.delete_account_data(uuid, timestamptz) from public, anon, authenticated;
+revoke all on function private.complete_account_deletion(uuid, timestamptz) from public, anon, authenticated;
 
 grant execute on function private.require_active_sync_device(uuid, text) to service_role;
 grant execute on function private.register_sync_device(uuid, text, text, timestamptz) to service_role;
 grant execute on function private.store_sync_account_key(uuid, smallint, text, timestamptz) to service_role;
 grant execute on function private.sync_account_key(uuid, text) to service_role;
 grant execute on function private.sync_summary(uuid, text) to service_role;
+grant execute on function private.consume_sync_rate_scope(text, text, text, timestamptz, integer, integer) to service_role;
+grant execute on function private.consume_sync_rate_limit(uuid, text, text, timestamptz) to service_role;
 grant execute on function private.sync_record_stored_size(text, text, text, text, text) to service_role;
 grant execute on function private.apply_sync_mutations(uuid, text, jsonb, timestamptz) to service_role;
 grant execute on function private.pull_sync_records(uuid, text, bigint, bigint, integer) to service_role;
@@ -851,7 +1231,13 @@ grant execute on function private.deactivate_sync_device(uuid, text, timestamptz
 grant execute on function private.rename_sync_device(uuid, text, text, timestamptz) to service_role;
 grant execute on function private.revoke_sync_device(uuid, text, text, timestamptz) to service_role;
 grant execute on function private.compact_sync_tombstones(uuid, timestamptz) to service_role;
-grant execute on function private.delete_sync_vault(uuid, text, timestamptz) to service_role;
+grant execute on function private.delete_sync_vault(uuid, text, text, timestamptz) to service_role;
+grant execute on function private.account_deletion_json(private.account_deletion_operations) to service_role;
+grant execute on function private.account_deletion_for_auth(uuid) to service_role;
+grant execute on function private.begin_account_deletion(uuid, uuid, timestamptz) to service_role;
+grant execute on function private.mark_deletion_stripe_canceled(uuid, timestamptz) to service_role;
+grant execute on function private.delete_account_data(uuid, timestamptz) to service_role;
+grant execute on function private.complete_account_deletion(uuid, timestamptz) to service_role;
 
 comment on table private.sync_account_keys is
   'AES-256-KW wrapped account DEKs only; raw key material is never persisted.';

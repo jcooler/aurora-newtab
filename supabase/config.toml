@@ -45,3 +45,15 @@ verify_jwt = true
 
 [functions.sync-revoke-device]
 verify_jwt = true
+
+[functions.sync-pull]
+verify_jwt = true
+
+[functions.sync-push]
+verify_jwt = true
+
+[functions.sync-delete-vault]
+verify_jwt = true
+
+[functions.account-delete]
+verify_jwt = true

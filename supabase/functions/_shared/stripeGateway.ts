@@ -19,6 +19,11 @@ export interface StripeGateway {
   verifyWebhook(rawBody: Uint8Array, signature: string, secret: string, toleranceSeconds: number): Promise<VerifiedStripeEvent>
   retrieveAuthoritativeObject(kind: StripeAuthoritativeObjectKind, id: string): Promise<StripeAuthoritativeObject>
   retrieveBillingSnapshot(event: VerifiedStripeEvent): Promise<StripeBillingSnapshot>
+  cancelSandboxSubscription(subscriptionId: string): Promise<{
+    id: string
+    livemode: boolean
+    status: 'canceled'
+  }>
 }
 
 function eventKind(object: unknown): VerifiedStripeEvent['objectKind'] {
@@ -98,6 +103,16 @@ export function createStripeGateway(secretKey: string): StripeGateway {
     },
     async retrieveBillingSnapshot(event) {
       return retrieveStripeBillingSnapshot(snapshotClient, event)
+    },
+    async cancelSandboxSubscription(subscriptionId) {
+      if (!/^sub_[A-Za-z0-9_]+$/u.test(subscriptionId)) {
+        throw new Error('stripe_subscription_invalid')
+      }
+      const subscription = await stripe.subscriptions.cancel(subscriptionId)
+      if (subscription.id !== subscriptionId || subscription.livemode || subscription.status !== 'canceled') {
+        throw new Error('stripe_sandbox_cancellation_invalid')
+      }
+      return { id: subscription.id, livemode: false, status: 'canceled' }
     },
   }
 }

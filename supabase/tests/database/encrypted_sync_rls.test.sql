@@ -9,7 +9,9 @@ select has_table('private', 'sync_account_keys', 'wrapped account keys are priva
 select has_table('private', 'sync_devices', 'sync device registry is private');
 select has_table('private', 'sync_records', 'encrypted records are private');
 select has_table('private', 'sync_mutation_receipts', 'idempotency receipts are private');
+select has_table('private', 'sync_rate_limits', 'sync abuse limits are private');
 select has_table('private', 'sync_audit_events', 'sync audit events are private');
+select has_table('private', 'account_deletion_operations', 'resumable account deletion state is private');
 
 select hasnt_column('private', 'sync_records', 'value', 'record storage has no plaintext value');
 select hasnt_column('private', 'sync_records', 'plaintext', 'record storage has no plaintext field');
@@ -17,6 +19,7 @@ select hasnt_column('private', 'sync_account_keys', 'raw_dek', 'key storage has 
 select hasnt_column('private', 'sync_devices', 'email', 'device storage has no user email');
 select hasnt_column('private', 'sync_devices', 'session', 'device storage has no auth session');
 select hasnt_column('private', 'sync_mutation_receipts', 'raw_request', 'receipts have no raw requests');
+select has_column('private', 'sync_mutation_receipts', 'expires_at', 'idempotency receipts have bounded expiry');
 
 select has_function('public', 'tab_two_sync_register_device',
   array['uuid', 'text', 'text', 'timestamp with time zone'], 'service device registration RPC exists');
@@ -24,6 +27,8 @@ select has_function('public', 'tab_two_sync_account_key',
   array['uuid', 'text'], 'service wrapped-key acquisition RPC exists');
 select has_function('public', 'tab_two_sync_summary',
   array['uuid', 'text'], 'service device and vault summary RPC exists');
+select has_function('public', 'tab_two_consume_sync_rate_limit',
+  array['uuid', 'text', 'text', 'timestamp with time zone'], 'dual-scope sync rate-limit RPC exists');
 select has_function('public', 'tab_two_sync_apply_mutations',
   array['uuid', 'text', 'jsonb', 'timestamp with time zone'], 'service optimistic mutation RPC exists');
 select has_function('public', 'tab_two_sync_pull_records',
@@ -33,7 +38,7 @@ select has_function('public', 'tab_two_sync_acknowledge_pull',
 select has_function('public', 'tab_two_sync_compact_tombstones',
   array['uuid', 'timestamp with time zone'], 'service tombstone compaction RPC exists');
 select has_function('public', 'tab_two_sync_delete_vault',
-  array['uuid', 'text', 'timestamp with time zone'], 'service vault deletion RPC exists');
+  array['uuid', 'text', 'text', 'timestamp with time zone'], 'service vault deletion RPC exists');
 
 insert into public.tab_two_accounts (id) values
   ('43000000-0000-4000-8000-000000000001'),
@@ -59,6 +64,10 @@ select throws_ok(
   $$select * from public.tab_two_sync_register_device(
     '43000000-0000-4000-8000-000000000001', 'AAAAAAAAAAAAAAAAAAAAAA', 'Browser', now())$$,
   '42501', null, 'anonymous clients cannot execute sync RPCs');
+select throws_ok(
+  $$select public.tab_two_consume_sync_rate_limit(
+    '43000000-0000-4000-8000-000000000001', 'pull', repeat('A', 43), now())$$,
+  '42501', null, 'anonymous clients cannot consume sync rate limits');
 
 reset role;
 set local role authenticated;
@@ -77,6 +86,31 @@ select throws_ok(
 
 reset role;
 set local role service_role;
+
+select ok((select bool_and(public.tab_two_consume_sync_rate_limit(
+  '43000000-0000-4000-8000-000000000001', 'delete_vault',
+  lpad(iteration::text, 43, 'A'), '2026-09-02 14:00:00+00'))
+  from generate_series(1, 5) iteration),
+  'five destructive requests enter the account window');
+select isnt(public.tab_two_consume_sync_rate_limit(
+  '43000000-0000-4000-8000-000000000001', 'delete_vault', repeat('Z', 43),
+  '2026-09-02 14:00:01+00'), true,
+  'the sixth destructive request is rejected by the account limit');
+select ok((select bool_and(public.tab_two_consume_sync_rate_limit(
+  case when iteration % 2 = 0
+    then '43000000-0000-4000-8000-000000000001'::uuid
+    else '43000000-0000-4000-8000-000000000002'::uuid end,
+  'delete_account', repeat('Q', 43), '2026-09-02 14:01:00+00'))
+  from generate_series(1, 5) iteration),
+  'five destructive requests enter one shared IP window across accounts');
+select isnt(public.tab_two_consume_sync_rate_limit(
+  '43000000-0000-4000-8000-000000000001', 'delete_account', repeat('Q', 43),
+  '2026-09-02 14:01:01+00'), true,
+  'the sixth cross-account request is rejected by the IP limit');
+select ok(public.tab_two_consume_sync_rate_limit(
+  '43000000-0000-4000-8000-000000000001', 'delete_vault', repeat('Z', 43),
+  '2026-09-03 14:00:01+00'),
+  'a completed one-day window resets both scopes');
 
 select results_eq(
   $$select device_id, state, acknowledged_vault_version
@@ -152,6 +186,9 @@ select is((select outcome #>> '{0,revision}' from first_mutation_result), '1',
   'the server assigns the first record revision');
 select is((select outcome #>> '{0,vaultVersion}' from first_mutation_result), '1',
   'the server assigns the first vault version');
+select is((select expires_at - created_at from private.sync_mutation_receipts
+  where idempotency_id = '53000000-0000-4000-8000-000000000001'), interval '30 days',
+  'the idempotency receipt expires after the bounded retention window');
 
 select is(
   public.tab_two_sync_apply_mutations(
@@ -305,7 +342,7 @@ select is((select count(*) from private.sync_records
   'entitlement expiry retains encrypted records');
 
 select is(public.tab_two_sync_delete_vault(
-  '43000000-0000-4000-8000-000000000001', 'operator-confirmed', now()), true,
+  '43000000-0000-4000-8000-000000000001', 'AAAAAAAAAAAAAAAAAAAAAA', 'operator-confirmed', now()), true,
   'vault deletion removes sync state idempotently');
 select is((select count(*) from private.sync_records
   where account_id = '43000000-0000-4000-8000-000000000001'), 0::bigint,
@@ -314,8 +351,78 @@ select is((select count(*) from private.account_grants
   where account_id = '43000000-0000-4000-8000-000000000001'), 1::bigint,
   'vault deletion preserves account grants');
 select ok(public.tab_two_sync_delete_vault(
-  '43000000-0000-4000-8000-000000000001', 'operator-confirmed', now()),
+  '43000000-0000-4000-8000-000000000001', 'AAAAAAAAAAAAAAAAAAAAAA', 'operator-confirmed', now()),
   'vault deletion retry has one stable completed outcome');
+
+reset role;
+insert into auth.users (
+  instance_id, id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values (
+  '00000000-0000-0000-0000-000000000000',
+  '34000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated',
+  'delete-fixture@example.test', '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb, now(), now()
+);
+insert into public.tab_two_accounts (id) values ('44000000-0000-4000-8000-000000000001');
+insert into public.tab_two_identities (
+  account_id, auth_user_id, provider, provider_subject, email
+) values (
+  '44000000-0000-4000-8000-000000000001', '34000000-0000-4000-8000-000000000001',
+  'google', 'delete-fixture-subject', 'delete-fixture@example.test'
+);
+insert into private.account_grants (account_id, source, capabilities, starts_at) values (
+  '44000000-0000-4000-8000-000000000001', 'complimentary_owner',
+  array['encrypted_sync']::private.premium_capability[], now()
+);
+set local role service_role;
+select lives_ok($$select * from public.tab_two_sync_register_device(
+  '44000000-0000-4000-8000-000000000001', 'AAAAAAAAAAAAAAAAAAAAAA', 'Delete fixture', now())$$,
+  'the destructive saga uses a dedicated disposable account');
+select ok(public.tab_two_consume_sync_rate_limit(
+  '44000000-0000-4000-8000-000000000001', 'delete_account', repeat('D', 43), now()),
+  'the destructive saga records its account and IP abuse limits');
+
+create temporary table deletion_operation as
+select public.tab_two_begin_account_deletion(
+  '44000000-0000-4000-8000-000000000001',
+  '34000000-0000-4000-8000-000000000001', now()
+) as value;
+select is((select value ->> 'state' from deletion_operation), 'pending_stripe',
+  'account deletion first persists its retryable pending marker');
+select isnt((select deleted_at from public.tab_two_accounts
+  where id = '44000000-0000-4000-8000-000000000001'), null::timestamptz,
+  'the pending marker blocks new account and sync work');
+select is(public.tab_two_mark_deletion_stripe_canceled(
+  ((select value ->> 'operationId' from deletion_operation))::uuid, now()) ->> 'state',
+  'stripe_canceled', 'the saga records completed external billing work before data deletion');
+select is(public.tab_two_delete_account_data(
+  ((select value ->> 'operationId' from deletion_operation))::uuid, now()) ->> 'state',
+  'data_deleted', 'account-scoped data deletion is one resumable database step');
+select is((select count(*) from public.tab_two_identities
+  where account_id = '44000000-0000-4000-8000-000000000001'), 0::bigint,
+  'the data step removes the provider identity');
+select is((select count(*) from private.account_grants
+  where account_id = '44000000-0000-4000-8000-000000000001'), 0::bigint,
+  'the data step revokes and removes grants');
+select is((select count(*) from private.sync_vaults
+  where account_id = '44000000-0000-4000-8000-000000000001'), 0::bigint,
+  'the data step removes the encrypted vault');
+select ok(public.tab_two_complete_account_deletion(
+  ((select value ->> 'operationId' from deletion_operation))::uuid, now()),
+  'the auth deletion completion marker is idempotent');
+select is((select count(*) from private.sync_rate_limits
+  where scope_type = 'account' and scope_key = '44000000-0000-4000-8000-000000000001'),
+  0::bigint, 'the final completion marker removes account-scoped abuse metadata');
+select is(public.tab_two_account_deletion_for_auth(
+  '34000000-0000-4000-8000-000000000001') ->> 'state', 'completed',
+  'the minimum completion tombstone remains available for retry reconciliation');
+select is(public.tab_two_apply_stripe_billing_snapshot(
+  '44000000-0000-4000-8000-000000000001', 'cus_deleted_fixture',
+  'sub_deleted_fixture', 'cs_test_deleted_fixture', 'annual', 'expired',
+  null, null, false, 1788360000, 90, 'evt_deleted_fixture',
+  'customer_subscription_deleted', now(), null),
+  'account_deleted',
+  'a verified late Stripe cancellation webhook resolves against the deletion tombstone');
 
 select * from finish();
 rollback;
