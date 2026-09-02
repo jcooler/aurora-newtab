@@ -19,11 +19,11 @@ test('keeps encrypted sync behind the complete local source contract', () => {
   assert.doesNotThrow(() => assertEncryptedSyncSourceContracts(loadEncryptedSyncSources()))
 })
 
-test('rejects enabling production sync before the hosted PM-P4 gate', () => {
+test('rejects disabling production sync after the hosted PM-P4 gate', () => {
   const files = loadEncryptedSyncSources()
   assert.throws(() => assertEncryptedSyncSourceContracts({
     ...files,
-    productionConfig: files.productionConfig.replace('encryptedSyncEnabled: false', 'encryptedSyncEnabled: true'),
+    productionConfig: files.productionConfig.replace('encryptedSyncEnabled: true', 'encryptedSyncEnabled: false'),
   }))
 })
 

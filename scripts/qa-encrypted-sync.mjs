@@ -41,7 +41,7 @@ export function assertEncryptedSyncSourceContracts(files) {
   assert.match(files.provider, /bootstrapFailures/u)
   assert.match(files.provider, /bootstrapped\.kind === 'device_limit'/u)
   assert.match(files.provider, /enabled: false,[\s\S]*registration: 'unregistered'/u)
-  assert.match(files.productionConfig, /encryptedSyncEnabled: false/u)
+  assert.match(files.productionConfig, /encryptedSyncEnabled: true/u)
   assert.match(files.localConfig, /encryptedSyncEnabled: true/u)
 
   assert.match(files.productionConfig, new RegExp(SYNC_ORIGIN.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))

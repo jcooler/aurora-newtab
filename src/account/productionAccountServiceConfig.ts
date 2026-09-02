@@ -25,7 +25,7 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
   trustedLeaseKeys: Object.freeze({
     'production-2026-09-01': 'MCowBQYDK2VwAyEA_HQX_9dTJSkjpDV-ZBiEC3bqu0bR6s81reGCbIJKlyg',
   }),
-  encryptedSyncEnabled: false,
+  encryptedSyncEnabled: true,
 })
 
 export function readProductionAccountServiceConfig(
