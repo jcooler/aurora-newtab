@@ -171,11 +171,22 @@ export async function probeInstalledExtensionReturn({
     assert.equal(new URL(extensionPage.url()).host, 'akjalbmacojpmebkgohhcaaiacicpgkh')
 
     for (const route of Object.keys(BILLING_RETURN_ROUTES)) {
-      const returnPage = await context.newPage()
+      const returnUrl = `${origin}${route}`
+      await extensionPage.evaluate((url) => {
+        document.querySelector('[data-qa-open-return]')?.remove()
+        const button = document.createElement('button')
+        button.dataset.qaOpenReturn = ''
+        button.textContent = 'Open return QA'
+        button.addEventListener('click', () => globalThis.open(url, '_blank', 'noopener'))
+        document.body.append(button)
+      }, returnUrl)
+      const returnPagePromise = context.waitForEvent('page')
+      await extensionPage.locator('[data-qa-open-return]').click()
+      const returnPage = await returnPagePromise
       const failures = []
       returnPage.on('console', (message) => { if (message.type() === 'error') failures.push(`console:${message.text()}`) })
       returnPage.on('pageerror', (error) => failures.push(`page:${error.message}`))
-      await returnPage.goto(`${origin}${route}`, { waitUntil: 'networkidle' })
+      await returnPage.waitForLoadState('networkidle')
       const diagnostic = await returnPage.evaluate(({ extensionId, result }) => new Promise((resolvePromise) => {
         const runtime = globalThis.chrome?.runtime
         if (!runtime?.sendMessage) {
@@ -190,16 +201,22 @@ export async function probeInstalledExtensionReturn({
         result: BILLING_RETURN_ROUTES[route].result,
       })
       assert.deepEqual(diagnostic, { response: { status: 'focused' }, error: null }, `${route} external response`)
-      await returnPage.getByRole('button', { name: 'Return to Tab Two' }).click()
+      const closePromise = returnPage.waitForEvent('close').then(() => true)
+      try {
+        await returnPage.getByRole('button', { name: 'Return to Tab Two' }).click()
+      } catch (error) {
+        if (!returnPage.isClosed()) throw error
+      }
       await extensionPage.waitForFunction(() => document.hasFocus())
       const closed = await Promise.race([
-        returnPage.waitForEvent('close').then(() => true),
+        closePromise,
         new Promise((resolvePromise) => setTimeout(() => resolvePromise(false), 1_000)),
       ])
       if (!closed) {
         assert.equal(await returnPage.locator('[data-return-fallback]').isHidden(), true, `${route} fallback`)
         await returnPage.close()
       }
+      assert.equal(closed, true, `${route} return tab should close after focus`)
       assert.deepEqual(failures, [], `${route} return-page failures`)
       evidence.push(Object.freeze({ route, focused: true, returnClosed: closed }))
     }
