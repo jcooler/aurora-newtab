@@ -473,3 +473,7 @@ export function defaults(): AuroraData {
     apodCache: null,
   }
 }
+
+/** Runtime inventory used by deny-by-default consumers. A new top-level
+ * storage authority still requires an explicit synced or excluded decision. */
+export const AURORA_DATA_KEYS = Object.freeze(Object.keys(defaults()) as DataKey[])
