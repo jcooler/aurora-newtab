@@ -301,9 +301,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!localStore || !device) return { status: 'needs_attention' }
     coordinator.current?.stop()
     coordinator.current = null
-    const result = client.syncGateway
-      ? await client.syncGateway.deactivateDevice({ accountId, deviceId: device.deviceId })
-      : { ok: false as const, kind: 'needs_attention' as const }
+    const result = device.registration === 'unregistered'
+      ? { ok: true as const }
+      : client.syncGateway
+        ? await client.syncGateway.deactivateDevice({ accountId, deviceId: device.deviceId })
+        : { ok: false as const, kind: 'needs_attention' as const }
     if (!result.ok) return { status: result.kind }
     try {
       const disabled = await localStore.updateDevice(accountId, (current) => ({
@@ -320,7 +322,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const syncNow = useCallback(async (): Promise<SyncActionOutcome> => {
     if (!accountId) return { status: 'authentication_required' }
     if (!entitled) return { status: 'entitlement_required' }
-    if (!device?.enabled || !coordinator.current) return { status: 'needs_attention' }
+    if (!device?.enabled) return { status: 'needs_attention' }
+    if (!coordinator.current) {
+      setState((current) => ({ ...current, phase: 'syncing', attention: null }))
+      setBootstrapAttempt((attempt) => attempt + 1)
+      return { status: 'completed' }
+    }
     await coordinator.current.syncNow()
     const phase = coordinator.current?.getState().phase
     return phase === 'up_to_date'

@@ -202,6 +202,68 @@ describe('SyncProvider lifecycle ownership', () => {
     view.unmount()
   })
 
+  it('lets Sync now retry a failed first bootstrap before a coordinator exists', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const driver = memoryDriver()
+    const local = createSyncLocalStateStore(driver, driver.authority)
+    await local.ensureDevice(accountId, 'Primary')
+    await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'unregistered' }))
+    const api = gateway()
+    vi.mocked(api.bootstrap)
+      .mockResolvedValueOnce({ ok: false, kind: 'needs_attention' })
+      .mockResolvedValueOnce({ ok: true, value: {
+        dataKey: await generateDataKey(),
+        summary: { vaultVersion: 0, usedBytes: 0, currentDeviceId: 'AAECAwQFBgcICQoLDA0ODw', devices: [] },
+      } })
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
+      callback({ name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
+    ))
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+    render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><AccountSync /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+
+    expect(await screen.findByText('Sync needs attention. Your local data has not been removed.')).toBeTruthy()
+    expect(api.bootstrap).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
+
+    await waitFor(() => expect(api.bootstrap).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('Protected and up to date.')).toBeTruthy()
+  })
+
+  it('turns off a locally enabled device that never completed server registration', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const driver = memoryDriver()
+    const local = createSyncLocalStateStore(driver, driver.authority)
+    await local.ensureDevice(accountId, 'Primary')
+    await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'unregistered' }))
+    const api = gateway()
+    vi.mocked(api.bootstrap).mockResolvedValue({ ok: false, kind: 'needs_attention' })
+    vi.mocked(api.deactivateDevice).mockResolvedValue({ ok: false, kind: 'needs_attention' })
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
+      callback({ name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
+    ))
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+    render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><AccountSync /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+
+    expect(await screen.findByText('Sync needs attention. Your local data has not been removed.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable sync' }))
+
+    await waitFor(async () => expect((await local.readDevice(accountId))?.enabled).toBe(false))
+    expect(api.deactivateDevice).not.toHaveBeenCalled()
+    expect(screen.getByText('Sync is off. Nothing is uploaded.')).toBeTruthy()
+  })
+
   it('rolls back a rejected sixth installation and explains how to recover', async () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     const driver = memoryDriver()
