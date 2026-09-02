@@ -235,6 +235,39 @@ describe('SyncProvider lifecycle ownership', () => {
     expect(await screen.findByRole('heading', { name: 'Primary is protected' })).toBeTruthy()
   })
 
+  it('lets an explicit retry take ownership when another tab held the startup lock', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const driver = memoryDriver()
+    const local = createSyncLocalStateStore(driver, driver.authority)
+    await local.ensureDevice(accountId, 'Primary')
+    await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'active' }))
+    const api = gateway()
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
+      callback(request.mock.calls.length === 1
+        ? null
+        : { name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
+    ))
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+    render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><AccountSync /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Primary needs attention' })).toBeTruthy()
+    expect(api.bootstrap).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await waitFor(() => expect(api.bootstrap).toHaveBeenCalledOnce())
+    expect(request).toHaveBeenNthCalledWith(2, 'tab-two:encrypted-sync:v1', expect.objectContaining({
+      mode: 'exclusive', steal: true, signal: expect.any(AbortSignal),
+    }), expect.any(Function))
+    expect(request.mock.calls[1]?.[1]).not.toHaveProperty('ifAvailable')
+    expect(await screen.findByRole('heading', { name: 'Primary is protected' })).toBeTruthy()
+  })
+
   it('publishes the chosen local device name while first bootstrap needs attention', async () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     const driver = memoryDriver()
@@ -289,6 +322,37 @@ describe('SyncProvider lifecycle ownership', () => {
     await waitFor(async () => expect((await local.readDevice(accountId))?.enabled).toBe(false))
     expect(api.deactivateDevice).not.toHaveBeenCalled()
     expect(screen.getByRole('heading', { name: 'Sync is off' })).toBeTruthy()
+  })
+
+  it('turns off locally when a stale active registration cannot be deactivated remotely', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const driver = memoryDriver()
+    const local = createSyncLocalStateStore(driver, driver.authority)
+    await local.ensureDevice(accountId, 'Primary')
+    await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'active' }))
+    const api = gateway()
+    vi.mocked(api.bootstrap).mockResolvedValue({ ok: false, kind: 'needs_attention' })
+    vi.mocked(api.deactivateDevice).mockResolvedValue({ ok: false, kind: 'needs_attention' })
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
+      callback({ name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
+    ))
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+    render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><AccountSync /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Primary needs attention' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable sync' }))
+
+    await waitFor(async () => expect((await local.readDevice(accountId))?.enabled).toBe(false))
+    expect(api.deactivateDevice).toHaveBeenCalledOnce()
+    expect(screen.getByRole('switch', { name: 'Enable sync' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('heading', { name: 'Sync is off' })).toBeTruthy()
+    expect(screen.getByText('Sync is off on this device. Tab Two could not confirm the device-list update; no local data was removed.')).toBeTruthy()
   })
 
   it('rolls back a rejected sixth installation and explains how to recover', async () => {

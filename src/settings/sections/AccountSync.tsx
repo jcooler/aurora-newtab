@@ -21,8 +21,11 @@ const syncFailureCopy: Record<Exclude<SyncActionOutcome['status'], 'completed'>,
   entitlement_required: 'Encrypted sync is not included with the current account access.',
   device_limit: 'Five installations are already syncing. Remove one before trying again.',
   offline: 'You’re offline. Your local data is still available; try again when connected.',
+  deactivation_unconfirmed: 'Sync is off on this device. Tab Two could not confirm the device-list update; no local data was removed.',
   needs_attention: 'Sync could not complete safely. Your local data has not been removed.',
 }
+
+type SyncActionKind = 'sync' | 'disable' | 'other'
 
 type DestructiveTarget =
   | { kind: 'vault' }
@@ -405,7 +408,8 @@ export default function AccountSync() {
   const [destructiveTarget, setDestructiveTarget] = useState<DestructiveTarget | null>(null)
   const [deviceNameTarget, setDeviceNameTarget] = useState<null | { mode: 'enable' | 'rename'; deviceId?: string; initialName: string }>(null)
   const [syncActionError, setSyncActionError] = useState<string | null>(null)
-  const [syncActionPending, setSyncActionPending] = useState(false)
+  const [syncActionNotice, setSyncActionNotice] = useState<string | null>(null)
+  const [syncActionPending, setSyncActionPending] = useState<SyncActionKind | null>(null)
   const destructiveInvokerRef = useRef<HTMLButtonElement>(null)
   const deviceNameInvokerRef = useRef<HTMLButtonElement>(null)
   const refreshAfterHandoff = useRef(false)
@@ -576,21 +580,26 @@ export default function AccountSync() {
     offline: 'Your changes are safe here and will sync automatically when you’re back online.',
     needs_attention: 'Your local data is still safe on this device.',
   }[syncState.phase]
-  const syncing = syncActionPending || syncState.phase === 'syncing'
+  const syncing = syncActionPending === 'sync' || syncState.phase === 'syncing'
   const retrying = syncState.phase === 'offline' || syncState.phase === 'needs_attention'
   const syncActionLabel = syncing ? 'Syncing…' : retrying ? 'Try again' : 'Sync now'
 
-  async function runSyncAction(action: () => Promise<SyncActionOutcome>) {
-    if (syncActionPending) return
-    setSyncActionPending(true)
+  async function runSyncAction(action: () => Promise<SyncActionOutcome>, kind: SyncActionKind = 'other') {
+    if (syncActionPending !== null) return
+    setSyncActionPending(kind)
     setSyncActionError(null)
+    setSyncActionNotice(null)
     try {
       const result = await action()
-      if (result.status !== 'completed') setSyncActionError(syncFailureCopy[result.status])
+      if (result.status === 'deactivation_unconfirmed') {
+        setSyncActionNotice(syncFailureCopy[result.status])
+      } else if (result.status !== 'completed') {
+        setSyncActionError(syncFailureCopy[result.status])
+      }
     } catch {
       setSyncActionError('Sync could not complete safely. Try again.')
     } finally {
-      setSyncActionPending(false)
+      setSyncActionPending(null)
     }
   }
 
@@ -622,14 +631,14 @@ export default function AccountSync() {
           <Switch
             id="account-sync-enabled"
             checked={syncState.enabled}
-            disabled={atDeviceLimit}
+            disabled={atDeviceLimit || syncActionPending !== null}
             describedBy={atDeviceLimit ? DEVICE_LIMIT_ID : undefined}
             onChange={(enabled) => {
               if (enabled) {
                 deviceNameInvokerRef.current = document.getElementById('account-sync-enabled') as HTMLButtonElement
                 setDeviceNameTarget({ mode: 'enable', initialName: 'This device' })
               } else {
-                void runSyncAction(syncOperations.disable)
+                void runSyncAction(syncOperations.disable, 'disable')
               }
             }}
           />
@@ -654,15 +663,18 @@ export default function AccountSync() {
             {syncState.enabled ? (
               <button
                 type="button"
-                disabled={syncing}
+                disabled={syncActionPending !== null || syncState.phase === 'syncing'}
                 aria-busy={syncing ? 'true' : undefined}
-                onClick={() => void runSyncAction(syncOperations.syncNow)}
+                onClick={() => void runSyncAction(syncOperations.syncNow, 'sync')}
                 className={`${retrying ? btnPrimary : btnQuiet} account-sync-status__action disabled:cursor-not-allowed disabled:opacity-55`}
               >
                 {syncActionLabel}
               </button>
             ) : null}
           </div>
+          {syncActionNotice ? (
+            <PoliteStatus className="account-sync-status__notice">{syncActionNotice}</PoliteStatus>
+          ) : null}
           <AssertiveAlert className="account-sync-status__error">{syncActionError}</AssertiveAlert>
           <dl className="account-sync-facts">
             <Fact label="Last successful sync">{formatSyncTime(syncState.lastSuccessAt)}</Fact>

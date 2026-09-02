@@ -83,6 +83,7 @@ export type SyncActionOutcome =
         | 'entitlement_required'
         | 'device_limit'
         | 'offline'
+        | 'deactivation_unconfirmed'
         | 'needs_attention'
     }
 

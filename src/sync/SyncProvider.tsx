@@ -122,6 +122,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const coordinator = useRef<SyncCoordinator | null>(null)
   const lifecycle = useRef(0)
   const bootstrapFailures = useRef(0)
+  const takeoverRequested = useRef(false)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
 
   const localStore = useMemo(() => runtime
@@ -177,14 +178,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const generation = ++lifecycle.current
     const abort = new AbortController()
     let bootstrapRetryTimer: number | null = null
-    void lockManager.request(LOCK_NAME, {
-      mode: 'exclusive',
-      ifAvailable: true,
-      signal: abort.signal,
-    }, async (lock) => {
+    const takeOwnership = takeoverRequested.current
+    takeoverRequested.current = false
+    const lockOptions: LockOptions = takeOwnership
+      ? { mode: 'exclusive', steal: true, signal: abort.signal }
+      : { mode: 'exclusive', ifAvailable: true, signal: abort.signal }
+    void lockManager.request(LOCK_NAME, lockOptions, async (lock) => {
       if (!lock || abort.signal.aborted || generation !== lifecycle.current) {
         if (!abort.signal.aborted && generation === lifecycle.current) {
-          setState((current) => ({ ...current, phase: 'up_to_date' }))
+          setState((current) => ({ ...current, phase: 'needs_attention', attention: 'needs_attention' }))
         }
         return
       }
@@ -329,23 +331,39 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const disable = useCallback(async (): Promise<SyncActionOutcome> => {
     if (!accountId) return { status: 'authentication_required' }
     if (!localStore || !device) return { status: 'needs_attention' }
+    lifecycle.current += 1
     coordinator.current?.stop()
     coordinator.current = null
-    const result = device.registration === 'unregistered'
-      ? { ok: true as const }
-      : client.syncGateway
-        ? await client.syncGateway.deactivateDevice({ accountId, deviceId: device.deviceId })
-        : { ok: false as const, kind: 'needs_attention' as const }
-    if (!result.ok) return { status: result.kind }
+    let disabled: SyncDeviceStateV1
     try {
-      const disabled = await localStore.updateDevice(accountId, (current) => ({
-        ...current, enabled: false, registration: 'inactive',
+      disabled = await localStore.updateDevice(accountId, (current) => ({
+        ...current, enabled: false,
       }))
       setDevice(disabled)
       setState(disabledState)
-      return { status: 'completed' }
     } catch {
       return { status: 'needs_attention' }
+    }
+
+    if (disabled.registration !== 'active') return { status: 'completed' }
+    if (!client.syncGateway) return { status: 'deactivation_unconfirmed' }
+    try {
+      const result = await client.syncGateway.deactivateDevice({
+        accountId,
+        deviceId: disabled.deviceId,
+      })
+      if (!result.ok) return { status: 'deactivation_unconfirmed' }
+      try {
+        const inactive = await localStore.updateDevice(accountId, (current) => ({
+          ...current, enabled: false, registration: 'inactive',
+        }))
+        setDevice(inactive)
+      } catch {
+        // The server already confirmed deactivation and local sync remains off.
+      }
+      return { status: 'completed' }
+    } catch {
+      return { status: 'deactivation_unconfirmed' }
     }
   }, [accountId, client.syncGateway, device, localStore])
 
@@ -354,6 +372,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!entitled) return { status: 'entitlement_required' }
     if (!device?.enabled) return { status: 'needs_attention' }
     if (!coordinator.current) {
+      takeoverRequested.current = true
       setState((current) => ({ ...current, phase: 'syncing', attention: null }))
       setBootstrapAttempt((attempt) => attempt + 1)
       return { status: 'completed' }

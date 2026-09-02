@@ -243,6 +243,42 @@ describe('AccountSync', () => {
     await act(async () => { finish({ status: 'completed' }) })
   })
 
+  it('keeps disable progress distinct from syncing and reports partial server cleanup calmly', async () => {
+    const signedActions = actions()
+    let finish!: (value: { status: 'deactivation_unconfirmed' }) => void
+    vi.mocked(signedActions.disableSync).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    const live = renderLiveAccount(signedSnapshot({
+      sync: {
+        enabled: true,
+        phase: 'needs_attention',
+        lastSuccessAt: null,
+        usedBytes: 0,
+        quotaBytes: 2_097_152,
+      },
+      devices: [{ id: 'device-1', name: 'Desktop', lastSyncAt: null, current: true, revoked: false }],
+    }), signedActions)
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Enable sync' }))
+    expect(screen.getByRole('button', { name: 'Try again' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Syncing…' })).toBeNull()
+    expect(screen.getByRole('switch', { name: 'Enable sync' }).hasAttribute('disabled')).toBe(true)
+
+    act(() => live.publish(signedSnapshot({ devices: [], sync: {
+      enabled: false,
+      phase: 'disabled',
+      lastSuccessAt: null,
+      usedBytes: 0,
+      quotaBytes: 2_097_152,
+    } })))
+    await act(async () => { finish({ status: 'deactivation_unconfirmed' }) })
+
+    expect(screen.getByRole('heading', { name: 'Sync is off' })).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Sync status' })).getAllByRole('status')[1]?.textContent).toBe(
+      'Sync is off on this device. Tab Two could not confirm the device-list update; no local data was removed.',
+    )
+    expect(screen.queryByText('Sync could not complete safely. Your local data has not been removed.')).toBeNull()
+  })
+
   it('presents one highlighted introductory annual choice with a muted renewal disclosure', async () => {
     const signedActions = renderAccount(signedSnapshot({
       billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true },

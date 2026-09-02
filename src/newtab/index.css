@@ -124,6 +124,13 @@
   font-size: 12px;
   line-height: 1.45;
 }
+.account-sync-status__notice {
+  display: block;
+  margin-top: 0.75rem;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .account-sync-device-list {
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);
