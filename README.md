@@ -9,9 +9,10 @@ and signed capability leases; signing in does not enable sync or upload local
 dashboard data. There is no analytics or tracking. Selected features make only
 the direct provider requests disclosed below.
 
-PM-P3 billing code is currently local/test-mode only. It has server-owned
-sandbox catalog, Checkout, Portal, and webhook boundaries, but no Stripe
-account, object, secret, deployment, Checkout, or payment has been created.
+PM-P3 billing is active only in Stripe sandbox/test mode. Its hosted Supabase
+boundary owns the reviewed catalog, Checkout, Portal, webhook, and resumable
+same-plan Checkout logic. No live Stripe catalog, live payment, or paid launch
+is active.
 
 ## Features
 
@@ -473,14 +474,16 @@ list) — is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).
 
-The local/test-mode billing path sends only an authenticated account request and
-semantic plan to the Tab Two Supabase service. The server selects the sandbox
-price and may return an exact Stripe-hosted Checkout or Customer Portal URL for
-a normal browser tab. Stripe/Link, not Tab Two, handle card and billing details.
-Tab Two stores no hosted URL or payment-method data, ignores browser return state
-as authority, and enables capabilities only after refreshing an account-bound
-signed lease. The billing service is not deployed or provisioned in production
-at this checkpoint.
+The sandbox billing path sends only an authenticated account request and
+semantic plan to the Tab Two Supabase service. The server selects the reviewed
+test price and may return an exact Stripe-hosted Checkout or Customer Portal URL
+for a normal browser tab. An open same-plan Checkout can return the same safe
+URL instead of creating a competing Session. Stripe/Link, not Tab Two, handle
+card and billing details. Tab Two stores no hosted URL or payment-method data,
+ignores browser return state as authority, and enables capabilities only after
+refreshing an account-bound signed lease. Stripe returns through the static
+`tab-two-billing-return.pages.dev` surface, which has no analytics, cookies,
+remote assets, account data, or billing authority. Live billing is not active.
 
 
 The **fixed** outbound network calls Tab Two makes on its own are to

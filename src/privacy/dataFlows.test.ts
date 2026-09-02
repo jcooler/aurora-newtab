@@ -6,6 +6,7 @@ import { defaults } from '../lib/storage/schema'
 import { CONNECTORS } from '../services/connectors/registry'
 import { CONNECTOR_IDS } from '../services/connectors/types'
 import {
+  ACCOUNT_SERVICE_DATA_FLOWS,
   BROWSER_DATA_FLOWS,
   CONNECTOR_DATA_FLOWS,
   FIXED_DATA_FLOWS,
@@ -286,6 +287,19 @@ describe('code-backed privacy inventory', () => {
       warning: 'View and manage your tab groups.',
       stored: 'preferences-only',
     })
+  })
+
+  it('discloses the hosted sandbox billing and static return boundary', () => {
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.billing.destinations).toEqual([
+      'the exact production Supabase account origin',
+      'checkout.stripe.com',
+      'billing.stripe.com',
+      'tab-two-billing-return.pages.dev',
+    ])
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.billing.currentState).toContain('sandbox/test mode')
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.billing.currentState).toContain('no live billing')
+    expect(BROWSER_DATA_FLOWS.billing.description).toContain('static return surface')
+    expect(BROWSER_DATA_FLOWS.billing.description).toContain('never stored or treated as entitlement authority')
   })
 
   it('keeps the canonical privacy policy synchronized with the fixed environmental flow', () => {

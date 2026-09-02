@@ -257,7 +257,7 @@ export const BROWSER_DATA_FLOWS = {
   navigation: { transmission: 'browser-mediated' as const, description: 'Opening a Quick Link hands its safe HTTP(S) URL to Chrome.' },
   billing: {
     transmission: 'browser-mediated' as const,
-    description: 'After an explicit Account & Sync action, Tab Two accepts only a server-selected exact checkout.stripe.com or billing.stripe.com HTTPS URL and opens it in a normal tab. The URL is never stored or treated as entitlement authority.',
+    description: 'After an explicit Account & Sync action, Tab Two accepts only a server-selected exact checkout.stripe.com or billing.stripe.com HTTPS URL and opens it in a normal tab. Stripe returns through a static return surface with no account data or billing authority. The hosted URL is never stored or treated as entitlement authority.',
   },
   geolocation: { transmission: 'none' as const, description: 'Chrome provides coordinates; Tab Two sends them only in the separately listed weather flows.' },
   readingList: {
@@ -288,13 +288,13 @@ export const BROWSER_DATA_FLOWS = {
 
 export const ACCOUNT_SERVICE_DATA_FLOWS = {
   billing: {
-    destinations: ['the exact production Supabase account origin', 'checkout.stripe.com', 'billing.stripe.com'],
+    destinations: ['the exact production Supabase account origin', 'checkout.stripe.com', 'billing.stripe.com', 'tab-two-billing-return.pages.dev'],
     trigger: ['explicit plan selection, Manage billing, or Refresh billing'],
     sends: ['Supabase account session to Tab Two account functions', 'provider-neutral account UUID and semantic plan from server to Stripe sandbox'],
     receives: ['server-normalized billing summary', 'short-lived hosted Checkout or Customer Portal URL', 'signed capability lease after refresh'],
     storesLocally: ['no Checkout or Portal URL', 'no card, billing address, receipt, or payment-method data'],
     authority: 'Only a verified signed lease grants capabilities; browser return state and URLs never grant access.',
-    currentState: 'PM-P3 Stripe integration is local/test-mode only and is not deployed or provisioned.',
+    currentState: 'PM-P3 billing is hosted in sandbox/test mode only; no live billing or paid launch is active.',
   },
 } as const
 
