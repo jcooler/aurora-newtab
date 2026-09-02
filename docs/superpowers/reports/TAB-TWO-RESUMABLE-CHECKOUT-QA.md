@@ -3,7 +3,7 @@
 **Date:** 2026-09-02<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Implementation range:** `004696a` through `9715cfb`<br>
-**Result:** PASS for repository, local database, Edge handler, Stripe normalization, hosted migration/function deployment, contract QA, and the real signed-account sandbox lifecycle. A paid-status convergence defect found during the manual witness was repaired and deployed to `account-snapshot` version 9.
+**Result:** PASS for repository, local database, Edge handler, Stripe normalization, hosted migration/function deployment, contract QA, and the real signed-account sandbox lifecycle through cancellation and restoration to active. Paid-status presentation is deployed in `account-snapshot` version 9 and flexible-billing cancellation normalization is deployed in `stripe-webhook` version 8. The extension follow-up removes manual billing refresh and adds bounded automatic convergence; its rebuilt installed-extension witness remains.
 
 ## Delivered boundary
 
@@ -23,7 +23,7 @@
 - Hosted migration `20260901000400_resumable_billing_checkout.sql` matches the local migration list after migrations 00100 through 00300.
 - `billing-checkout-session` version 8 contains the recovery behavior.
 - The catalog, webhook secret, Stripe secret, signing key, Google OAuth configuration, and complimentary owner grant were not changed by this follow-up.
-- The webhook remained at version 7 because recovery changes only authenticated Checkout creation.
+- The webhook was later advanced to version 8 to normalize Stripe flexible-billing cancellation scheduled exactly at the current-period boundary.
 
 ## Verification evidence
 
@@ -56,7 +56,15 @@ Read-only hosted inspection then confirmed:
 
 Two observed-RED regressions now require active paid billing to remain visible when the verified entitlement lease also includes `complimentary_owner`. The server uses the complimentary presentation only when billing state is `none`; the client independently enforces the same fail-closed policy and still refuses an unverified complimentary claim. The focused gate passed 3 files / 65 tests, and the repository gate passed 237 files / 3,779 tests plus TypeScript. Only `account-snapshot` was deployed, as version 9 with JWT verification enabled. No Stripe catalog, Checkout, webhook, subscription, entitlement grant, secret, permission, or return-site state changed during the repair.
 
-The remaining manual display check is to reload the exact corrected account-enabled build, open Account & Sync, and refresh billing. The expected state is `Active subscription`; the purchase actions are disabled by the existing single-subscription guard and `Manage billing` remains available.
+The owner reloaded the exact corrected account-enabled build, signed back in, and confirmed `Active subscription` in Account & Sync. A direct read-only installed-extension inspection independently confirmed the same server-derived state, both purchase actions exposed as disabled controls, and `Manage billing` available. Chrome retained the fixed extension id `akjalbmacojpmebkgohhcaaiacicpgkh`; the browser restart cleared its transient `DISABLE_RELOAD` state without reinstalling the extension or changing its stored product data. This closes the corrected installed-build display ceiling. It does not by itself prove the remaining Portal, cancellation, retry, refund, dispute, deletion, or test-clock lifecycle matrix.
+
+The same installed-build session then opened `Manage billing` into Stripe's hosted Customer Portal in test mode. The portal showed the bound active annual subscription and offered its configured self-service controls. No billing detail, customer identifier, hosted URL, payment method, address, or portal screenshot was retained in repository evidence. The safe portal return reached the branded `/billing/` surface, its `Return to Tab Two` action focused the existing fixed-id extension tab, and Account & Sync still displayed `Active subscription`. No subscription, payment method, billing information, grant, or local product data was changed during this witness.
+
+A reversible cancellation-at-period-end witness then exposed one Stripe API normalization mismatch. Stripe delivered both Customer Portal subscription updates to the configured webhook with HTTP 200, but the pinned `2026-08-26.dahlia` flexible-billing object represented the scheduled period-end cancellation as `cancel_at` equal to `current_period_end` while `cancel_at_period_end` remained `false`. The previous normalizer inspected only the Boolean field, so the hosted billing row remained `active` with event priority 30 and the extension truthfully rendered that stale server state. No transport, signature, account binding, or client refresh failure was involved.
+
+An observed-RED real-object regression now requires that exact flexible-billing representation to normalize to `canceling` with the paid-through boundary preserved. The minimal fix accepts `cancel_at_period_end = true` or the equivalent exact `cancel_at = current_period_end`; it does not treat an arbitrary cancellation timestamp as period-end cancellation. Only the already-approved sandbox `stripe-webhook` function was deployed, as version 8. A fresh Portal cancellation then produced a server-normalized `canceling` state with `cancel_at_period_end = true`; the owner confirmed `Subscription canceling` and the paid-through date in Account & Sync. The cancellation was reversed in the Customer Portal, and a fresh hosted read confirmed the final subscription state is `active` with cancellation disabled. No migration, secret, permission, paid tier, live Stripe mode, release, or Store state changed.
+
+The owner rejected a customer-facing `Refresh billing` control because subscription lifecycle state should converge like ordinary production application state. Account & Sync now silently revalidates signed-in billing when the section mounts and when the document regains focus or becomes visible. After Checkout or Portal opens, two delayed retries cover ordinary webhook lag. Concurrent triggers coalesce; timers stop on unmount; a transient failure retains the last verified state and waits for the next activation. There is no continuous polling, Supabase Realtime exposure, new permission, local entitlement inference, or return-URL authority. Focused account/privacy coverage passes 4 files / 53 tests. The stabilized repository run passes 237 files / 3,782 tests; 27 account/auth/billing contracts, TypeScript, Stripe source QA, and `npm audit --audit-level=high` also pass.
 
 ## Rollback
 

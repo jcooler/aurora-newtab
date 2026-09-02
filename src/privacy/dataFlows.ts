@@ -289,7 +289,7 @@ export const BROWSER_DATA_FLOWS = {
 export const ACCOUNT_SERVICE_DATA_FLOWS = {
   billing: {
     destinations: ['the exact production Supabase account origin', 'checkout.stripe.com', 'billing.stripe.com', 'tab-two-billing-return.pages.dev'],
-    trigger: ['explicit plan selection, Manage billing, or Refresh billing'],
+    trigger: ['explicit plan selection or Manage billing', 'automatic signed-in status revalidation'],
     sends: ['Supabase account session to Tab Two account functions', 'provider-neutral account UUID and semantic plan from server to Stripe sandbox'],
     receives: ['server-normalized billing summary', 'short-lived hosted Checkout or Customer Portal URL', 'signed capability lease after refresh'],
     storesLocally: ['no Checkout or Portal URL', 'no card, billing address, receipt, or payment-method data'],

@@ -298,6 +298,8 @@ describe('code-backed privacy inventory', () => {
     ])
     expect(ACCOUNT_SERVICE_DATA_FLOWS.billing.currentState).toContain('sandbox/test mode')
     expect(ACCOUNT_SERVICE_DATA_FLOWS.billing.currentState).toContain('no live billing')
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.billing.trigger).toContain('automatic signed-in status revalidation')
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.billing.trigger).not.toContain('Refresh billing')
     expect(BROWSER_DATA_FLOWS.billing.description).toContain('static return surface')
     expect(BROWSER_DATA_FLOWS.billing.description).toContain('never stored or treated as entitlement authority')
   })

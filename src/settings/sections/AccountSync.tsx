@@ -273,24 +273,61 @@ export default function AccountSync() {
   const [destructiveTarget, setDestructiveTarget] = useState<DestructiveTarget | null>(null)
   const destructiveInvokerRef = useRef<HTMLButtonElement>(null)
   const refreshAfterHandoff = useRef(false)
+  const refreshInFlight = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
-    const refreshOnFocus = async () => {
-      if (!refreshAfterHandoff.current) return
-      const result = await actions.refreshBilling()
-      if (result.status === 'refreshed') {
-        refreshAfterHandoff.current = false
-        setBillingError(null)
-      } else {
-        setBillingError(result.status === 'authentication_required'
-          ? billingErrorCopy.authentication_required
-          : billingErrorCopy.unavailable)
+    if (snapshot.mode !== 'signed_in') return
+
+    let active = true
+    const retryTimers = new Set<number>()
+
+    const refresh = () => {
+      if (!active || refreshInFlight.current) return
+
+      const pending = (async () => {
+        try {
+          await actions.refreshBilling()
+        } catch {
+          // Keep the last server-verified state and retry on the next activation.
+        }
+      })()
+      refreshInFlight.current = pending
+      void pending.finally(() => {
+        if (refreshInFlight.current === pending) refreshInFlight.current = null
+      })
+    }
+
+    const refreshOnActivation = () => {
+      if (document.visibilityState !== 'visible') return
+
+      const needsConvergenceRetries = refreshAfterHandoff.current
+      refreshAfterHandoff.current = false
+      refresh()
+
+      if (!needsConvergenceRetries) return
+      for (const delay of [1_000, 3_000]) {
+        const timer = window.setTimeout(() => {
+          retryTimers.delete(timer)
+          refresh()
+        }, delay)
+        retryTimers.add(timer)
       }
     }
-    const listener = () => { void refreshOnFocus() }
-    window.addEventListener('focus', listener)
-    return () => window.removeEventListener('focus', listener)
-  }, [actions])
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshOnActivation()
+    }
+
+    refresh()
+    window.addEventListener('focus', refreshOnActivation)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      active = false
+      window.removeEventListener('focus', refreshOnActivation)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      for (const timer of retryTimers) window.clearTimeout(timer)
+    }
+  }, [actions, snapshot.mode])
 
   async function signIn() {
     setSignInStatus(null)
@@ -332,18 +369,6 @@ export default function AccountSync() {
       return
     }
     setBillingError(billingErrorCopy[result.status])
-  }
-
-  async function refreshBilling() {
-    setBillingPending(true)
-    setBillingError(null)
-    const result = await actions.refreshBilling()
-    setBillingPending(false)
-    if (result.status !== 'refreshed') {
-      setBillingError(result.status === 'authentication_required'
-        ? billingErrorCopy.authentication_required
-        : billingErrorCopy.unavailable)
-    }
   }
 
   if (snapshot.mode === 'local') {
@@ -465,7 +490,6 @@ export default function AccountSync() {
       <Section title="Account actions">
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled={billingPending} onClick={() => void manageBilling()} className={billingButton}>Manage billing</button>
-          <button type="button" disabled={billingPending} onClick={() => void refreshBilling()} className={billingButton}>Refresh billing</button>
           <button type="button" onClick={() => void actions.signOut()} className={btnQuiet}>Sign out</button>
         </div>
         <div className="mt-5 border-t border-hairline pt-5">

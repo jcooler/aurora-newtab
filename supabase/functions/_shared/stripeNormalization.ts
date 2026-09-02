@@ -100,7 +100,9 @@ export async function retrieveStripeBillingSnapshot(client: SnapshotStripeClient
   if (plan !== 'monthly' && plan !== 'annual' && plan !== 'intro_annual') throw new Error('stripe_plan_metadata_invalid')
 
   const status = String(subscription.status ?? '')
+  const cancelAtSeconds = Number(subscription.cancel_at)
   const cancelAtPeriodEnd = subscription.cancel_at_period_end === true
+    || (Number.isSafeInteger(cancelAtSeconds) && cancelAtSeconds === endSeconds)
   const invoiceStatus = invoice ? String(invoice.status ?? '') : ''
   const revoked = eventForcesRevocation(event.objectKind, source, charge)
     || event.type === 'checkout.session.async_payment_failed' || event.type === 'customer.subscription.deleted'

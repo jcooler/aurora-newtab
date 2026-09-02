@@ -8,6 +8,7 @@ import AccountSync from './AccountSync'
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -62,6 +63,27 @@ function renderAccount(snapshot: AccountSnapshot, suppliedActions = actions()) {
   }
   render(<AccountProvider client={client}><AccountSync /></AccountProvider>)
   return suppliedActions
+}
+
+function renderLiveAccount(snapshot: AccountSnapshot, suppliedActions = actions()) {
+  let current = snapshot
+  const listeners = new Set<(next: AccountSnapshot) => void>()
+  const client: AccountClient = {
+    getSnapshot: async () => current,
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    actions: suppliedActions,
+  }
+  render(<AccountProvider client={client}><AccountSync /></AccountProvider>)
+  return {
+    actions: suppliedActions,
+    publish(next: AccountSnapshot) {
+      current = next
+      for (const listener of listeners) listener(next)
+    },
+  }
 }
 
 describe('AccountSync', () => {
@@ -182,22 +204,70 @@ describe('AccountSync', () => {
     expect(choose.hasAttribute('disabled')).toBe(false)
   })
 
-  it('refreshes signed billing authority explicitly and once after a hosted handoff regains focus', async () => {
+  it('refreshes signed billing automatically on mount and focus without exposing a manual control', async () => {
     const signedActions = actions()
     renderAccount(signedSnapshot({
       billing: { state: 'none', plan: null, currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false, introductoryEligible: true },
     }), signedActions)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Refresh billing' }))
     await waitFor(() => expect(signedActions.refreshBilling).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('button', { name: 'Refresh billing' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Choose monthly' }))
-    await waitFor(() => expect(signedActions.openPlans).toHaveBeenCalledWith('monthly'))
     fireEvent.focus(window)
     await waitFor(() => expect(signedActions.refreshBilling).toHaveBeenCalledTimes(2))
-    fireEvent.focus(window)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+
+  it('retries a hosted billing handoff until the server-verified status converges', async () => {
+    vi.useFakeTimers()
+    const signedActions = actions()
+    let publish = (_next: AccountSnapshot) => {}
+    vi.mocked(signedActions.refreshBilling).mockImplementation(async () => {
+      if (vi.mocked(signedActions.refreshBilling).mock.calls.length === 3) {
+        publish(signedSnapshot({
+          billing: {
+            state: 'canceling',
+            plan: 'monthly',
+            currentPeriodEnd: Date.UTC(2026, 9, 1),
+            courtesyEnd: null,
+            cancelAtPeriodEnd: true,
+            introductoryEligible: false,
+          },
+        }))
+      }
+      return { status: 'refreshed' }
+    })
+    const live = renderLiveAccount(signedSnapshot(), signedActions)
+    publish = live.publish
+
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(signedActions.refreshBilling).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Manage billing' }))
+      await Promise.resolve()
+    })
+    expect(signedActions.openBilling).toHaveBeenCalledOnce()
+    await act(async () => {
+      fireEvent.focus(window)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     expect(signedActions.refreshBilling).toHaveBeenCalledTimes(2)
+
+    await act(async () => { await vi.runAllTimersAsync() })
+    expect(signedActions.refreshBilling).toHaveBeenCalledTimes(4)
+    expect(screen.getByText('Subscription canceling')).toBeTruthy()
+    expect(screen.getByText(/Access continues through/)).toBeTruthy()
+  })
+
+  it('preserves the last verified billing state when automatic revalidation is unavailable', async () => {
+    const signedActions = actions()
+    vi.mocked(signedActions.refreshBilling).mockResolvedValue({ status: 'unavailable' })
+    renderAccount(signedSnapshot(), signedActions)
+
+    await waitFor(() => expect(signedActions.refreshBilling).toHaveBeenCalledOnce())
+    expect(screen.getByText('Active subscription')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('prevents a second Checkout while an existing subscription is active', async () => {

@@ -243,6 +243,29 @@ describe('real Stripe object normalization boundary', () => {
     expect(client.checkout.sessions.list).toHaveBeenCalledWith({ subscription: 'sub_test_a', limit: 2 })
   })
 
+  it('recognizes a flexible-billing cancellation scheduled at the current period end', async () => {
+    const currentPeriodEnd = 1_790_877_600
+    const client = snapshotClient({
+      subscriptions: {
+        retrieve: vi.fn(async () => subscriptionObject({
+          cancel_at: currentPeriodEnd,
+          cancel_at_period_end: false,
+        })),
+      },
+    })
+
+    const snapshot = await retrieveStripeBillingSnapshot(client, {
+      id: 'evt_test_canceling', type: 'customer.subscription.updated', created: 1_788_285_600,
+      livemode: false, objectId: 'sub_test_a', objectKind: 'subscription',
+    })
+
+    expect(snapshot).toMatchObject({
+      state: 'canceling',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: currentPeriodEnd * 1_000,
+    })
+  })
+
   it.each([
     ['refund', 'refund.created', { status: 'succeeded', charge: 'ch_test_a' }, 'expired'],
     ['dispute', 'charge.dispute.closed', { status: 'won', charge: 'ch_test_a' }, 'active'],

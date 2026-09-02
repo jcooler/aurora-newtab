@@ -224,8 +224,12 @@ return surface only after a sandbox billing action (item 9 below):
    HTTPS request metadata. No dashboard product data or connector credential is
    sent. Sign out removes the local account session. Supabase and Google process
    authentication data under their own privacy terms.
-   Explicit plan, Manage billing, and Refresh billing actions use that same
-   Supabase session. The sandbox implementation can ask the server to select a
+   Explicit plan and Manage billing actions use that same Supabase session.
+   While signed in with Account & Sync open, Tab Two also revalidates billing
+   automatically when the section opens and when its tab regains focus or
+   becomes visible. Short, bounded retries after a hosted billing handoff allow
+   webhook processing to converge; Tab Two does not continuously poll. The
+   sandbox implementation can ask the server to select a
    semantic test price and return a short-lived Stripe-hosted URL. If an exact
    same-plan Checkout reservation is still open and valid, the server can return
    that same URL instead of creating another Session.
