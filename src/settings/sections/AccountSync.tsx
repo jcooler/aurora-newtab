@@ -39,10 +39,12 @@ const billingErrorCopy: Record<Exclude<BillingActionOutcome['status'], 'opened'>
 function BillingPlans({
   billing,
   pending,
+  error,
   onChoose,
 }: {
   billing: BillingSummary
   pending: boolean
+  error: string | null
   onChoose: (plan: BillingPlan) => void
 }) {
   const hasManagedSubscription = ['active', 'past_due', 'canceling'].includes(billing.state)
@@ -89,6 +91,7 @@ function BillingPlans({
           </button>
         </li>
       </ul>
+      <AssertiveAlert className="mt-2 block px-1 text-xs text-red-400">{error}</AssertiveAlert>
     </Section>
   )
 }
@@ -368,9 +371,7 @@ export default function AccountSync() {
           <p className="mt-3 text-xs text-fg-muted">Signing in does not enable sync or upload local data.</p>
         </Section>
 
-        <BillingPlans billing={snapshot.billing} pending={billingPending} onChoose={(plan) => void choosePlan(plan)} />
-
-        <AssertiveAlert className="block text-xs text-red-400">{billingError}</AssertiveAlert>
+        <BillingPlans billing={snapshot.billing} pending={billingPending} error={billingError} onChoose={(plan) => void choosePlan(plan)} />
 
         <Section title="What sync can include">
           <ul className="account-sync-inventory">
@@ -404,9 +405,7 @@ export default function AccountSync() {
         ) : null}
       </Section>
 
-      <BillingPlans billing={snapshot.billing} pending={billingPending} onChoose={(plan) => void choosePlan(plan)} />
-
-      <AssertiveAlert className="block text-xs text-red-400">{billingError}</AssertiveAlert>
+      <BillingPlans billing={snapshot.billing} pending={billingPending} error={billingError} onChoose={(plan) => void choosePlan(plan)} />
 
       <Section title="Encrypted sync">
         <div className="flex min-h-9 items-center justify-between gap-4">

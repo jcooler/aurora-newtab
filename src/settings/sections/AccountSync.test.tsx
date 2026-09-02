@@ -177,7 +177,8 @@ describe('AccountSync', () => {
     expect(choose.hasAttribute('disabled')).toBe(true)
     await act(async () => { resolve({ status: 'unavailable' }) })
 
-    expect((await screen.findByRole('alert')).textContent).toBe('Billing is unavailable right now. Try again.')
+    const plans = screen.getByRole('region', { name: 'Plans' })
+    expect((await within(plans).findByRole('alert')).textContent).toBe('Billing is unavailable right now. Try again.')
     expect(choose.hasAttribute('disabled')).toBe(false)
   })
 
