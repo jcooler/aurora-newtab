@@ -76,6 +76,28 @@ const disabledState: SyncViewState = Object.freeze({
 })
 
 const unavailable = async (): Promise<SyncActionOutcome> => ({ status: 'needs_attention' })
+
+function localDeviceSummary(device: SyncDeviceStateV1): SyncViewState['devices'][number] {
+  return {
+    id: device.deviceId,
+    name: device.friendlyName,
+    lastSyncAt: null,
+    current: true,
+    revoked: false,
+  }
+}
+
+function withLocalDevice(
+  devices: SyncViewState['devices'],
+  device: SyncDeviceStateV1,
+): SyncViewState['devices'] {
+  const existing = devices.find((candidate) => candidate.id === device.deviceId)
+  const current = existing
+    ? { ...existing, name: device.friendlyName, current: true, revoked: false }
+    : localDeviceSummary(device)
+  return [current, ...devices.filter((candidate) => candidate.id !== device.deviceId)]
+}
+
 const SyncContext = createContext<SyncContextValue>({
   state: disabledState,
   actions: {
@@ -120,7 +142,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     void localStore.readDevice(accountId).then((found) => {
       if (generation !== lifecycle.current) return
       setDevice(found)
-      setState(found?.enabled ? { ...disabledState, enabled: true, phase: 'syncing' } : disabledState)
+      setState(found?.enabled
+        ? { ...disabledState, enabled: true, phase: 'syncing', devices: [localDeviceSummary(found)] }
+        : disabledState)
     }).catch(() => {
       if (generation === lifecycle.current) setState({ ...disabledState, phase: 'needs_attention' })
     })
@@ -244,7 +268,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         lastSuccessAt: null,
         usedBytes: bootstrapped.value.summary.usedBytes,
         quotaBytes: 2_097_152,
-        devices: bootstrapped.value.summary.devices,
+        devices: withLocalDevice(bootstrapped.value.summary.devices, device),
         recoveries: (await localStore.readConflictBackups(accountId)).map((backup) => ({
           id: backup.id,
           entityType: backup.entity.entityType,
@@ -289,7 +313,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         registration: current.registration === 'revoked' ? 'unregistered' : current.registration,
       }))
       setDevice(enabled)
-      setState((current) => ({ ...current, enabled: true, phase: 'syncing', attention: null }))
+      setState((current) => ({
+        ...current,
+        enabled: true,
+        phase: 'syncing',
+        attention: null,
+        devices: withLocalDevice(current.devices, enabled),
+      }))
       return { status: 'completed' }
     } catch {
       return { status: 'needs_attention' }

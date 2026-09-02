@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccountProvider } from '../account/AccountContext'
 import type { AccountClient } from '../account/client'
@@ -227,12 +227,39 @@ describe('SyncProvider lifecycle ownership', () => {
       </StorageProvider>,
     )
 
-    expect(await screen.findByText('Sync needs attention. Your local data has not been removed.')).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Primary needs attention' })).toBeTruthy()
     expect(api.bootstrap).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
 
     await waitFor(() => expect(api.bootstrap).toHaveBeenCalledTimes(2))
-    expect(await screen.findByText('Protected and up to date.')).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Primary is protected' })).toBeTruthy()
+  })
+
+  it('publishes the chosen local device name while first bootstrap needs attention', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const driver = memoryDriver()
+    const api = gateway()
+    vi.mocked(api.bootstrap).mockResolvedValue({ ok: false, kind: 'needs_attention' })
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => (
+      callback({ name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
+    ))
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+    render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><AccountSync /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Enable sync' }))
+    const dialog = screen.getByRole('dialog', { name: 'Name this installation' })
+    fireEvent.change(within(dialog).getByLabelText('Device name'), { target: { value: 'Desktop' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enable encrypted sync' }))
+
+    expect(await screen.findByText('Desktop')).toBeTruthy()
+    expect(screen.getByText('This device')).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeTruthy()
   })
 
   it('turns off a locally enabled device that never completed server registration', async () => {
@@ -256,12 +283,12 @@ describe('SyncProvider lifecycle ownership', () => {
       </StorageProvider>,
     )
 
-    expect(await screen.findByText('Sync needs attention. Your local data has not been removed.')).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Primary needs attention' })).toBeTruthy()
     fireEvent.click(screen.getByRole('switch', { name: 'Enable sync' }))
 
     await waitFor(async () => expect((await local.readDevice(accountId))?.enabled).toBe(false))
     expect(api.deactivateDevice).not.toHaveBeenCalled()
-    expect(screen.getByText('Sync is off. Nothing is uploaded.')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Sync is off' })).toBeTruthy()
   })
 
   it('rolls back a rejected sixth installation and explains how to recover', async () => {

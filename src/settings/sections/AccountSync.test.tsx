@@ -105,9 +105,9 @@ describe('AccountSync', () => {
     expect(await screen.findByRole('heading', { name: 'Local mode' })).toBeTruthy()
     expect(screen.getByText('Your Tab Two data stays on this device.')).toBeTruthy()
     expect(screen.getByText('Signing in does not enable sync or upload local data.')).toBeTruthy()
-    expect(screen.getByText('Passwords, tokens, sessions, and feed/calendar URLs')).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Encrypted when sync is on' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Always stays on this device' })).toBeTruthy()
+    expect(screen.getByText('Passwords and sign-in sessions')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Encrypted & synced' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Always stays local' })).toBeTruthy()
 
     const signIn = screen.getByRole('button', { name: 'Sign in with Google' })
     fireEvent.click(signIn)
@@ -174,8 +174,8 @@ describe('AccountSync', () => {
         quotaBytes: 2_097_152,
       },
     }))
-    expect(await screen.findByText('You’re offline. Changes stay safe on this device and will sync automatically.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
+    expect(await screen.findByText('Your changes are safe here and will sync automatically when you’re back online.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(live.actions.syncNow).toHaveBeenCalledOnce())
     expect(screen.queryByRole('button', { name: /refresh/i })).toBeNull()
 
@@ -188,7 +188,59 @@ describe('AccountSync', () => {
         quotaBytes: 2_097_152,
       },
     })))
-    expect(await screen.findByText('Sync needs attention. Your local data has not been removed.')).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Studio PC needs attention' })).toBeTruthy()
+    expect(screen.getByText('Your local data is still safe on this device.')).toBeTruthy()
+  })
+
+  it('shows one actionable sync status, names this device, and balances the protection disclosure', async () => {
+    renderAccount(signedSnapshot({
+      sync: {
+        enabled: true,
+        phase: 'needs_attention',
+        lastSuccessAt: null,
+        usedBytes: 0,
+        quotaBytes: 2_097_152,
+      },
+      devices: [{ id: 'device-1', name: 'Desktop', lastSyncAt: null, current: true, revoked: false }],
+    }))
+
+    const status = await screen.findByRole('region', { name: 'Sync status' })
+    expect(within(status).getByRole('heading', { name: 'Desktop needs attention' })).toBeTruthy()
+    expect(within(status).getByText('Your local data is still safe on this device.')).toBeTruthy()
+    expect(within(status).getByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(within(status).queryByText('Status')).toBeNull()
+
+    const devices = screen.getByRole('region', { name: 'Devices' })
+    expect(within(devices).getByText('Desktop')).toBeTruthy()
+    expect(within(devices).getByText('This device')).toBeTruthy()
+
+    const encrypted = screen.getByRole('region', { name: 'Encrypted & synced' })
+    const local = screen.getByRole('region', { name: 'Always stays local' })
+    expect(within(encrypted).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(local).getAllByRole('listitem')).toHaveLength(3)
+  })
+
+  it('makes retry progress visible and prevents duplicate sync requests', async () => {
+    const signedActions = actions()
+    let finish!: (value: { status: 'completed' }) => void
+    vi.mocked(signedActions.syncNow).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    renderAccount(signedSnapshot({
+      sync: {
+        enabled: true,
+        phase: 'needs_attention',
+        lastSuccessAt: null,
+        usedBytes: 0,
+        quotaBytes: 2_097_152,
+      },
+      devices: [{ id: 'device-1', name: 'Desktop', lastSyncAt: null, current: true, revoked: false }],
+    }), signedActions)
+
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    fireEvent.click(retry)
+    expect((await screen.findByRole('button', { name: 'Syncing…' })).getAttribute('aria-busy')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Syncing…' }))
+    expect(signedActions.syncNow).toHaveBeenCalledOnce()
+    await act(async () => { finish({ status: 'completed' }) })
   })
 
   it('presents one highlighted introductory annual choice with a muted renewal disclosure', async () => {

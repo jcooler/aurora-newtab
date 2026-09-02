@@ -125,22 +125,28 @@ function Fact({ label: factLabel, children }: { label: string; children: React.R
 
 function SyncDisclosure() {
   return (
-    <div className="grid gap-4 min-[560px]:grid-cols-2">
-      <Section title="Encrypted when sync is on" className="account-sync-disclosure account-sync-disclosure--included">
-        <ul className="account-sync-inventory">
-          <li>Settings, layouts, and widget configuration</li>
-          <li>Tasks, notes, habits, goals, and custom links</li>
-          <li>Approved non-secret connector preferences</li>
-        </ul>
-      </Section>
-      <Section title="Always stays on this device" className="account-sync-disclosure">
-        <ul className="account-sync-inventory">
-          <li>Passwords, tokens, sessions, and feed/calendar URLs</li>
-          <li>Provider caches and responses</li>
-          <li>Uploaded images and device-local operational state</li>
-        </ul>
-      </Section>
-    </div>
+    <Section title="What syncs">
+      <div className="account-sync-disclosure-grid">
+        <section aria-label="Encrypted & synced" className="account-sync-disclosure account-sync-disclosure--included">
+          <h4>Encrypted &amp; synced</h4>
+          <p>Available on your signed-in devices.</p>
+          <ul className="account-sync-inventory">
+            <li>Layouts and widget settings</li>
+            <li>Tasks, notes, habits, and goals</li>
+            <li>Safe connector preferences</li>
+          </ul>
+        </section>
+        <section aria-label="Always stays local" className="account-sync-disclosure">
+          <h4>Always stays local</h4>
+          <p>Never leaves the device where it was added.</p>
+          <ul className="account-sync-inventory">
+            <li>Passwords and sign-in sessions</li>
+            <li>Private URLs and provider data</li>
+            <li>Uploaded images and device state</li>
+          </ul>
+        </section>
+      </div>
+    </Section>
   )
 }
 
@@ -399,6 +405,7 @@ export default function AccountSync() {
   const [destructiveTarget, setDestructiveTarget] = useState<DestructiveTarget | null>(null)
   const [deviceNameTarget, setDeviceNameTarget] = useState<null | { mode: 'enable' | 'rename'; deviceId?: string; initialName: string }>(null)
   const [syncActionError, setSyncActionError] = useState<string | null>(null)
+  const [syncActionPending, setSyncActionPending] = useState(false)
   const destructiveInvokerRef = useRef<HTMLButtonElement>(null)
   const deviceNameInvokerRef = useRef<HTMLButtonElement>(null)
   const refreshAfterHandoff = useRef(false)
@@ -553,18 +560,38 @@ export default function AccountSync() {
   const activeDevices = syncState.devices.filter((device) => !device.revoked)
   const atDeviceLimit = !syncState.enabled && activeDevices.length >= 5
   const rejectedByDeviceLimit = syncState.attention === 'device_limit'
-  const phaseCopy = {
-    disabled: 'Sync is off. Nothing is uploaded.',
-    syncing: 'Securing your latest changes…',
-    up_to_date: 'Protected and up to date.',
-    offline: 'You’re offline. Changes stay safe on this device and will sync automatically.',
-    needs_attention: 'Sync needs attention. Your local data has not been removed.',
+  const currentDevice = activeDevices.find((candidate) => candidate.current) ?? null
+  const currentDeviceName = currentDevice?.name ?? 'This device'
+  const phaseTitle = {
+    disabled: 'Sync is off',
+    syncing: currentDevice ? `Protecting ${currentDeviceName}` : 'Protecting this device',
+    up_to_date: currentDevice ? `${currentDeviceName} is protected` : 'This device is protected',
+    offline: currentDevice ? `${currentDeviceName} is waiting` : 'This device is waiting',
+    needs_attention: currentDevice ? `${currentDeviceName} needs attention` : 'Sync needs attention',
   }[syncState.phase]
+  const phaseDescription = {
+    disabled: 'Nothing is uploaded. Your local data stays here.',
+    syncing: 'Encrypting and sending your latest changes.',
+    up_to_date: 'Encrypted changes are safely up to date.',
+    offline: 'Your changes are safe here and will sync automatically when you’re back online.',
+    needs_attention: 'Your local data is still safe on this device.',
+  }[syncState.phase]
+  const syncing = syncActionPending || syncState.phase === 'syncing'
+  const retrying = syncState.phase === 'offline' || syncState.phase === 'needs_attention'
+  const syncActionLabel = syncing ? 'Syncing…' : retrying ? 'Try again' : 'Sync now'
 
   async function runSyncAction(action: () => Promise<SyncActionOutcome>) {
+    if (syncActionPending) return
+    setSyncActionPending(true)
     setSyncActionError(null)
-    const result = await action()
-    if (result.status !== 'completed') setSyncActionError(syncFailureCopy[result.status])
+    try {
+      const result = await action()
+      if (result.status !== 'completed') setSyncActionError(syncFailureCopy[result.status])
+    } catch {
+      setSyncActionError('Sync could not complete safely. Try again.')
+    } finally {
+      setSyncActionPending(false)
+    }
   }
 
   return (
@@ -614,16 +641,34 @@ export default function AccountSync() {
               : 'Five installations are already syncing. Open Tab Two on an existing synced installation and remove one there, then try again here.'}
           </AssertiveAlert>
         ) : null}
-        <PoliteStatus className={`account-sync-phase account-sync-phase--${syncState.phase} mt-4 block text-sm`}>
-          {phaseCopy}
-        </PoliteStatus>
-        <AssertiveAlert className="mt-2 block text-xs text-red-400">{syncActionError}</AssertiveAlert>
-        <dl className="account-sync-facts mt-5">
-          <Fact label="Last successful sync">{formatSyncTime(syncState.lastSuccessAt)}</Fact>
-          <Fact label="Storage used">{formatBytes(syncState.usedBytes)} of {formatBytes(syncState.quotaBytes)}</Fact>
-          <Fact label="Status">{syncState.phase.replaceAll('_', ' ')}</Fact>
-        </dl>
-        <button type="button" disabled={!syncState.enabled || syncState.phase === 'syncing'} onClick={() => void runSyncAction(syncOperations.syncNow)} className={`${btnQuiet} mt-4 disabled:cursor-not-allowed disabled:opacity-40`}>Sync now</button>
+        <div
+          role="region"
+          aria-label="Sync status"
+          className={`account-sync-status account-sync-status--${syncState.phase}`}
+        >
+          <div className="account-sync-status__header">
+            <div className="min-w-0">
+              <h4 className="account-sync-status__title">{phaseTitle}</h4>
+              <PoliteStatus className="account-sync-status__description">{phaseDescription}</PoliteStatus>
+            </div>
+            {syncState.enabled ? (
+              <button
+                type="button"
+                disabled={syncing}
+                aria-busy={syncing ? 'true' : undefined}
+                onClick={() => void runSyncAction(syncOperations.syncNow)}
+                className={`${retrying ? btnPrimary : btnQuiet} account-sync-status__action disabled:cursor-not-allowed disabled:opacity-55`}
+              >
+                {syncActionLabel}
+              </button>
+            ) : null}
+          </div>
+          <AssertiveAlert className="account-sync-status__error">{syncActionError}</AssertiveAlert>
+          <dl className="account-sync-facts">
+            <Fact label="Last successful sync">{formatSyncTime(syncState.lastSuccessAt)}</Fact>
+            <Fact label="Storage used">{formatBytes(syncState.usedBytes)} of {formatBytes(syncState.quotaBytes)}</Fact>
+          </dl>
+        </div>
       </Section>
 
       <SyncDisclosure />
@@ -649,14 +694,18 @@ export default function AccountSync() {
       ) : null}
 
       <Section title="Devices">
-        <ul className="divide-y divide-hairline" aria-label="Signed-in installations">
+        {activeDevices.length === 0 ? (
+          <p className="text-sm text-fg-muted">Your devices will appear here after sync is enabled.</p>
+        ) : null}
+        <ul className="account-sync-device-list" aria-label="Signed-in installations">
           {activeDevices.map((device) => (
-            <li key={device.id} className="flex min-h-14 items-center justify-between gap-3 py-2">
+            <li key={device.id} className="account-sync-device-row">
               <div className="min-w-0">
-                <p className="truncate text-sm text-fg">{device.name}</p>
-                <p className="text-xs text-fg-muted">
-                  {device.current ? 'Current installation' : `Last sync: ${formatSyncTime(device.lastSyncAt)}`}
-                </p>
+                <div className="account-sync-device-row__title">
+                  <p className="truncate text-sm text-fg">{device.name}</p>
+                  {device.current ? <span className="account-sync-device-badge">This device</span> : null}
+                </div>
+                <p className="mt-1 text-xs text-fg-muted">{device.current ? 'Encrypted sync enabled' : `Last sync: ${formatSyncTime(device.lastSyncAt)}`}</p>
               </div>
               <div className="flex shrink-0 gap-2">
                 {device.current ? (
