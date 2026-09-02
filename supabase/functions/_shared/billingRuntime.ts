@@ -137,7 +137,7 @@ export function createRuntimeBillingHandlers(environment: RuntimeEnvironment) {
         effective_at: iso(effectiveAt),
       }))
     },
-    returnUrls: fixedBillingReturnUrls(environment.get('TAB_TWO_PUBLIC_SUPABASE_URL')?.trim() || supabaseUrl),
+    returnUrls: fixedBillingReturnUrls(required(environment, 'TAB_TWO_BILLING_RETURN_ORIGIN')),
     now: Date.now,
     webhookSecret: required(environment, 'STRIPE_WEBHOOK_SECRET'),
   })

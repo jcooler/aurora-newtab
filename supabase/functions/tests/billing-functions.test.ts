@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStripeCatalog } from '../_shared/stripeCatalog'
 import { retrieveStripeBillingSnapshot, stripeObjectId } from '../_shared/stripeNormalization'
-import { createBillingHandlers } from '../_shared/billingHandlers'
+import { createBillingHandlers, fixedBillingReturnUrls } from '../_shared/billingHandlers'
 import type { BillingFunctionDependencies } from '../_shared/billingHandlers'
 import type { StripeGateway, StripePrice } from '../_shared/stripeGateway'
 
@@ -10,6 +10,35 @@ const environment = {
   TAB_TWO_STRIPE_ANNUAL_PRICE_ID: 'price_test_annual',
   TAB_TWO_STRIPE_INTRO_COUPON_ID: 'coupon_test_intro_once',
 }
+
+describe('fixedBillingReturnUrls', () => {
+  it('pins every Stripe return to one branded HTTPS origin and path', () => {
+    expect(fixedBillingReturnUrls('https://tab-two-billing-return.pages.dev')).toEqual({
+      successUrl: 'https://tab-two-billing-return.pages.dev/success/',
+      cancelUrl: 'https://tab-two-billing-return.pages.dev/cancel/',
+      portalReturnUrl: 'https://tab-two-billing-return.pages.dev/billing/',
+    })
+  })
+
+  it.each([
+    'https://attacker.example',
+    'https://tab-two-billing-return.pages.dev.attacker.example',
+    'https://user@tab-two-billing-return.pages.dev',
+    'https://tab-two-billing-return.pages.dev:444',
+    'https://tab-two-billing-return.pages.dev/success/',
+    'https://tab-two-billing-return.pages.dev?result=success',
+  ])('rejects a non-exact hosted return origin: %s', (origin) => {
+    expect(() => fixedBillingReturnUrls(origin)).toThrow('billing_return_origin_invalid')
+  })
+
+  it('allows only bare loopback HTTP for local function tests', () => {
+    expect(fixedBillingReturnUrls('http://127.0.0.1:54321')).toEqual({
+      successUrl: 'http://127.0.0.1:54321/success/',
+      cancelUrl: 'http://127.0.0.1:54321/cancel/',
+      portalReturnUrl: 'http://127.0.0.1:54321/billing/',
+    })
+  })
+})
 
 function validPrice(id: string): StripePrice {
   const annual = id !== environment.TAB_TWO_STRIPE_MONTHLY_PRICE_ID
@@ -379,7 +408,7 @@ describe('authenticated billing handlers', () => {
     const text = await response.text()
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-type')).toContain('text/html')
+    expect(response.headers.get('content-type')).toContain('text/plain')
     expect(text).toContain('Return to Tab Two')
     expect(text).not.toContain('cs_test_attacker')
     expect(text).not.toContain('payment succeeded')

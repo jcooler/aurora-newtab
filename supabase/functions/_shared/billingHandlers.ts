@@ -3,7 +3,7 @@ import type { StripeGateway } from './stripeGateway.ts'
 import type { StripeBillingSnapshot, StripePlan } from './stripeTypes.ts'
 import { jsonResponse } from './http.ts'
 
-export const BILLING_RETURN_PATH = '/functions/v1/billing-return'
+const PRODUCTION_BILLING_RETURN_ORIGIN = 'https://tab-two-billing-return.pages.dev'
 
 interface ProviderNeutralAccount {
   accountId: string
@@ -156,18 +156,19 @@ async function authenticatedAccount(
   return account ?? jsonResponse({ error: 'account_not_found' }, 403)
 }
 
-const returnPage = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>Return to Tab Two</title></head>
-<body><main><h1>Return to Tab Two</h1><p>Open Account &amp; Sync and refresh billing to see the current server-verified status.</p>
-<p>This page does not confirm or change subscription access.</p></main></body></html>`
+const returnPage = `Return to Tab Two
+
+Open Account & Sync and refresh billing to see the current server-verified status.
+
+This fallback page does not confirm or change subscription access.
+`
 
 export async function billingReturn(request: Request): Promise<Response> {
   if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed' }, 405)
   return new Response(returnPage, {
     status: 200,
     headers: {
-      'content-type': 'text/html; charset=utf-8',
+      'content-type': 'text/plain; charset=utf-8',
       'cache-control': 'no-store',
       'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       'x-content-type-options': 'nosniff',
@@ -355,17 +356,28 @@ export function createBillingHandlers(dependencies: BillingFunctionDependencies)
   })
 }
 
-export function fixedBillingReturnUrls(supabaseUrl: string) {
-  const origin = new URL(supabaseUrl)
-  if (origin.protocol !== 'https:' && origin.hostname !== '127.0.0.1') {
+export function fixedBillingReturnUrls(returnOrigin: string) {
+  let origin: URL
+  try {
+    origin = new URL(returnOrigin)
+  } catch {
     throw new Error('billing_return_origin_invalid')
   }
-  origin.pathname = BILLING_RETURN_PATH
-  origin.search = ''
-  origin.hash = ''
+  const bareOrigin = !origin.username
+    && !origin.password
+    && origin.pathname === '/'
+    && !origin.search
+    && !origin.hash
+  const production = origin.origin === PRODUCTION_BILLING_RETURN_ORIGIN
+    && origin.protocol === 'https:'
+    && !origin.port
+  const local = origin.protocol === 'http:'
+    && origin.hostname === '127.0.0.1'
+    && Boolean(origin.port)
+  if (!bareOrigin || (!production && !local)) throw new Error('billing_return_origin_invalid')
   return Object.freeze({
-    successUrl: `${origin.toString()}?result=success`,
-    cancelUrl: `${origin.toString()}?result=cancel`,
-    portalReturnUrl: `${origin.toString()}?result=portal`,
+    successUrl: new URL('/success/', origin).toString(),
+    cancelUrl: new URL('/cancel/', origin).toString(),
+    portalReturnUrl: new URL('/billing/', origin).toString(),
   })
 }
