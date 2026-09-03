@@ -14,6 +14,7 @@ const EXPECTED_CONNECTOR_IDS = [
   'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
   'linear', 'sentry', 'todoist',
   'onThisDay', 'publicHolidays', 'auroraKp',
+  'googleCalendar',
 ] as const satisfies readonly ConnectorId[]
 
 const EXPECTED_REENTRY_IDS: readonly ConnectorId[] = [
@@ -37,6 +38,7 @@ const EXPECTED_ORIGINS: Readonly<Record<ConnectorId, readonly string[]>> = {
   onThisDay: [],
   publicHolidays: [],
   auroraKp: [],
+  googleCalendar: ['https://www.googleapis.com/*'],
 }
 
 const HELD_WHEN_INCOMPLETE = new Set<ConnectorId>([
@@ -60,19 +62,20 @@ const INCOMPLETE: Record<ConnectorId, ConnectorConfig> = {
   onThisDay: { enabled: undefined } as unknown as ConnectorConfig,
   publicHolidays: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.publicHolidays, countryCode: '' },
   auroraKp: { enabled: undefined } as unknown as ConnectorConfig,
+  googleCalendar: { enabled: true, accounts: [] } as ConnectorConfig,
 }
 
 const photoPrefs = defaults().photoPrefs
 const sorted = (values: readonly string[]) => [...values].sort()
 
 describe('expansion connector authorities', () => {
-  it('keeps all twelve identities in exact type, descriptor, widget, Settings, and fixture parity', () => {
+  it('keeps connector identities in exact type, descriptor, Settings, and fixture parity', () => {
     expect(CONNECTOR_IDS).toEqual(EXPECTED_CONNECTOR_IDS)
     expect(CONNECTORS.map(({ id }) => id)).toEqual(EXPECTED_CONNECTOR_IDS)
-    expect(CONNECTOR_BODY_IDS).toEqual(EXPECTED_CONNECTOR_IDS)
+    expect(CONNECTOR_BODY_IDS).toEqual(EXPECTED_CONNECTOR_IDS.filter((id) => id !== 'googleCalendar'))
     expect(Object.keys(COMPLETE_CONNECTOR_CONTRACT_FIXTURES)).toEqual(EXPECTED_CONNECTOR_IDS)
     expect(sorted(WIDGET_REGISTRY.flatMap((entry) => entry.availability.kind === 'connector' ? [entry.availability.id] : [])))
-      .toEqual(sorted(EXPECTED_CONNECTOR_IDS))
+      .toEqual(sorted(EXPECTED_CONNECTOR_IDS.filter((id) => id !== 'googleCalendar')))
   })
 
   it('requires complete descriptor policy and fixture secret fields', () => {

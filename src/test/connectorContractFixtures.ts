@@ -81,4 +81,17 @@ export const COMPLETE_CONNECTOR_CONTRACT_FIXTURES = {
   auroraKp: {
     enabled: true,
   },
+  googleCalendar: {
+    enabled: true,
+    accounts: [{
+      connectionId: '52000000-0000-4000-8000-000000000001',
+      displayEmail: 'contract-user@example.invalid',
+      calendars: [{
+        calendarId: 'primary',
+        name: 'Contract Google calendar',
+        color: '#4285f4',
+        primary: true,
+      }],
+    }],
+  },
 } as const satisfies Record<ConnectorId, ConnectorConfig>

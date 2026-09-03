@@ -84,7 +84,9 @@ export function stripSecrets(
   for (const id of Object.keys(connectors) as ConnectorId[]) {
     const config = connectors[id]
     if (!config) continue
-    const secretFields = descriptors.find((d) => d.id === id)?.secretFields
+    const descriptor = descriptors.find((d) => d.id === id)
+    if (descriptor?.excludeFromBackup) continue
+    const secretFields = descriptor?.secretFields
     if (!secretFields || secretFields.length === 0) {
       result[id] = config
       continue
@@ -118,7 +120,9 @@ export function redactBackupData(data: AuroraData): { data: BackupEnvelope['data
   for (const id of Object.keys(data.connectors) as ConnectorId[]) {
     const config = data.connectors[id]
     if (!config) continue
-    connectors[id] = redactConnectorConfig(config, descriptorFor(id))
+    const descriptor = descriptorFor(id)
+    if (descriptor?.excludeFromBackup) continue
+    connectors[id] = redactConnectorConfig(config, descriptor)
   }
   const {
     connectorSnapshots: _connectorSnapshots,
@@ -574,7 +578,9 @@ function cleanConnectors(v: unknown): AuroraData['connectors'] {
   const connectors = v as Record<string, ConnectorConfig>
   const cleaned: AuroraData['connectors'] = {}
   for (const id of Object.keys(connectors) as ConnectorId[]) {
-    if (CONNECTOR_ID_SET.has(id)) cleaned[id] = connectors[id]
+    if (CONNECTOR_ID_SET.has(id) && descriptorFor(id)?.excludeFromBackup !== true) {
+      cleaned[id] = connectors[id]
+    }
   }
   return cleaned
 }

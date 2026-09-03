@@ -8,7 +8,7 @@ import {
   projectConnectorPreference,
 } from './connectorProjection'
 
-const EXPECTED_PROJECTIONS: Record<ConnectorId, Record<string, unknown>> = {
+const EXPECTED_PROJECTIONS: Record<ConnectorId, Record<string, unknown> | null> = {
   rss: { enabled: true, shownCount: 5 },
   github: { enabled: true },
   gitlab: { enabled: true },
@@ -40,6 +40,7 @@ const EXPECTED_PROJECTIONS: Record<ConnectorId, Record<string, unknown>> = {
   onThisDay: { enabled: true },
   publicHolidays: { enabled: true, countryCode: 'US' },
   auroraKp: { enabled: true },
+  googleCalendar: null,
 }
 
 function secretBearingFixture(id: ConnectorId): ConnectorConfig {
@@ -73,6 +74,20 @@ describe('connector sync projection', () => {
     ]) {
       expect(serialized).not.toContain(forbidden)
     }
+  })
+
+  it('excludes the complete Google Calendar connection and selection config from encrypted sync', () => {
+    const local = {
+      enabled: true,
+      accounts: [{
+        connectionId: '52000000-0000-4000-8000-000000000001',
+        displayEmail: 'private@example.com',
+        calendars: [{ calendarId: 'private-calendar', name: 'Private', color: '#4285f4', primary: true }],
+      }],
+    } as ConnectorConfig
+    expect(projectConnectorPreference('googleCalendar', local)).toBeNull()
+    expect(() => applyConnectorPreference('googleCalendar', local, { enabled: true }))
+      .toThrow('sync_connector_preference_invalid')
   })
 
   it('overlays a reviewed preference without replacing local connection authority', () => {

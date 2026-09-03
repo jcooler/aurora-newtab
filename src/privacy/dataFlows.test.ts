@@ -177,7 +177,7 @@ describe('code-backed privacy inventory', () => {
       expect(flow.sends.length).toBeGreaterThan(0)
       expect(flow.receives.length).toBeGreaterThan(0)
       expect(flow.cache).toBe('connectorSnapshots-excluded-from-backup')
-      expect(flow.backend).toBe('none')
+      expect(['none', 'authentication-metadata-only']).toContain(flow.backend)
       if (descriptor.auth === 'token') {
         expect(flow.account).toBe('third-party')
         expect(flow.authenticationFields).toEqual(descriptor.secretFields)
@@ -215,6 +215,23 @@ describe('code-backed privacy inventory', () => {
       permission: 'none',
       destinations: ['services.swpc.noaa.gov'],
       sends: ['no user data'],
+    })
+    expect(CONNECTOR_DATA_FLOWS.googleCalendar).toEqual({
+      account: 'third-party',
+      authenticationFields: [],
+      capabilityFields: ['accounts', 'calendar selections'],
+      backup: 'excluded',
+      permission: 'optional-per-origin',
+      transmission: 'provider-direct',
+      destinationKind: 'fixed-provider',
+      destinations: ['www.googleapis.com'],
+      trigger: ['explicit calendar discovery or visible-document refresh while enabled and entitled'],
+      methods: ['GET'],
+      sends: ['short-lived bearer token, selected calendar identifiers, bounded window, and pagination or sync cursor'],
+      receives: ['selected calendar names, colors, and minimized event fields'],
+      cache: 'connectorSnapshots-excluded-from-backup',
+      backend: 'authentication-metadata-only',
+      operations: ['GET CalendarList and Events resources directly from Google Calendar API'],
     })
   })
 

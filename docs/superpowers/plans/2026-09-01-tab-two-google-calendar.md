@@ -170,23 +170,25 @@ The public extension shape contains only connection UUID, provider, display emai
 - Produces: append-only `googleCalendar` connector identity, `GoogleCalendarConfig`, selected-account/calendar refs, `GoogleCalendarSnapshot`, per-calendar cursor/cache ownership, strict request/response normalization, and deny-by-default backup/sync/privacy classification.
 - Consumes: provider connection UUIDs, local selected calendar metadata, source colors, current refresh policy, and short-lived access tokens supplied by Task 6.
 
-- [ ] **Step 1: Write failing registry/storage/privacy tests**
+- [x] **Step 1: Write failing registry/storage/privacy tests**
 
 Assert `googleCalendar` is appended after all 15 existing IDs; prior connectors, layouts, layers, and schemas are byte-equivalent; the new connector defaults absent/off; full Google config and cache are excluded from backup/sync; local free mode has no Google/account request; and secret/token/cursor/raw-payload hostile fixtures cannot serialize.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
-- [ ] **Step 3: Implement strict discovery, event normalization, and cursors**
+- [x] **Step 3: Implement strict discovery, event normalization, and cursors**
 
 Use injected fetch and clock dependencies. Validate HTTPS Google endpoints, content type, response byte limits, pagination loops, duplicate pages, exact colors, dates/times, cancellation tombstones, stable event identity, safe `https://calendar.google.com/*` links, safe `https://meet.google.com/*` join links, four-request concurrency, and atomic snapshot replacement. Keep direct API JSON inside function scope and discard unused fields immediately.
 
-- [ ] **Step 4: Implement the append-only local schema migration**
+- [x] **Step 4: Implement the append-only local schema migration**
 
 Increment the storage version once. Backfill no enabled connection and no layout placement. Preserve every prior top-level key and nested connector config. Derived provider cache/cursors remain in `connectorSnapshots.googleCalendar`, never a new sync entity.
 
-- [ ] **Step 5: Run focused tests and observe GREEN**
+Implementation note: `src/lib/storage/index.ts` was reviewed and intentionally remains unchanged. Its generic metadata-only migration path already advances the identity-only v22 to v23 transition without a data rewrite; the existing storage regression suite proves that behavior.
 
-- [ ] **Step 6: Commit the local authority checkpoint**
+- [x] **Step 5: Run focused tests and observe GREEN**
+
+- [x] **Step 6: Commit the local authority checkpoint**
 
 ---
 

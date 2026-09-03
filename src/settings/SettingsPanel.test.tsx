@@ -3240,6 +3240,7 @@ describe('Connectors tab — search and categories', () => {
     expect(within(within(available).getByRole('region', { name: 'Calendar & tasks' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual([
       'Calendar',
       'Todoist',
+      'Google Calendar',
     ])
     expect(within(within(available).getByRole('region', { name: 'Home' })).getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
     expect(within(within(available).getByRole('region', { name: 'News & markets' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual(['RSS', 'Crypto'])

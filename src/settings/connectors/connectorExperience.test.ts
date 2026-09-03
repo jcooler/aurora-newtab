@@ -4,7 +4,7 @@ import { CATEGORY_LABELS, CONNECTOR_IDS } from '../../services/connectors/types'
 import { connectorExperience } from './connectorExperience'
 
 describe('connectorExperience', () => {
-  it('gives every registered connector complete customer-facing presentation without paywalling it', () => {
+  it('gives every registered connector complete customer-facing presentation with one explicit premium connector', () => {
     expect(CONNECTORS.map((descriptor) => descriptor.id)).toEqual(CONNECTOR_IDS)
 
     for (const descriptor of CONNECTORS) {
@@ -15,7 +15,7 @@ describe('connectorExperience', () => {
       expect(experience.benefits.every((benefit) => benefit.trim().length > 8)).toBe(true)
       expect(experience.privacySummary.trim().length).toBeGreaterThan(20)
       expect(experience.categoryLabel).toBe(CATEGORY_LABELS[descriptor.category])
-      expect(experience.entitlement).toBe('included')
+      expect(experience.entitlement).toBe(descriptor.id === 'googleCalendar' ? 'premium' : 'included')
     }
   })
 

@@ -222,6 +222,7 @@ function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | und
     case 'onThisDay': return [selected('Historical events', 'compact')]
     case 'publicHolidays': return [selected('National holidays', 'compact')]
     case 'auroraKp': return [selected('Geomagnetic forecast', 'compact')]
+    case 'googleCalendar': return [selected('Selected Google calendars', 'compact')]
   }
 }
 

@@ -99,6 +99,8 @@ function hasAuthority(id: ConnectorId, config: Record<string, unknown>): boolean
     case 'publicHolidays':
     case 'auroraKp':
       return true
+    case 'googleCalendar':
+      return false
   }
 }
 
@@ -202,6 +204,8 @@ export function projectConnectorPreference<I extends ConnectorId>(
       return (/^[A-Z]{2}$/u.test(source.countryCode as string)
         ? { enabled: source.enabled, countryCode: source.countryCode }
         : null) as ConnectorPreferenceById[I] | null
+    case 'googleCalendar':
+      return null
   }
 }
 
@@ -255,6 +259,8 @@ function validPreference(id: ConnectorId, value: unknown): value is ConnectorPre
         && optional(candidate.accountLabel, safeLabel) && optional(candidate.projectIds, stableSelections) && optional(candidate.itemLimit, itemLimit)
     case 'publicHolidays':
       return exactKeys(candidate, ['enabled', 'countryCode'], ['enabled', 'countryCode']) && /^[A-Z]{2}$/u.test(candidate.countryCode as string)
+    case 'googleCalendar':
+      return false
   }
 }
 

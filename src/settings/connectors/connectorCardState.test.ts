@@ -21,6 +21,14 @@ const configured: Record<ConnectorId, ConnectorConfig> = {
   onThisDay: { enabled: true },
   publicHolidays: { enabled: true, countryCode: 'US' },
   auroraKp: { enabled: true },
+  googleCalendar: {
+    enabled: true,
+    accounts: [{
+      connectionId: '52000000-0000-4000-8000-000000000001',
+      displayEmail: 'sam@example.test',
+      calendars: [{ calendarId: 'primary', name: 'Sam', color: '#4285f4', primary: true }],
+    }],
+  },
 }
 
 const reconnect: Record<ConnectorId, ConnectorConfig> = {
@@ -39,6 +47,7 @@ const reconnect: Record<ConnectorId, ConnectorConfig> = {
   onThisDay: { enabled: undefined } as unknown as ConnectorConfig,
   publicHolidays: { enabled: true, countryCode: '' },
   auroraKp: { enabled: undefined } as unknown as ConnectorConfig,
+  googleCalendar: { enabled: true, accounts: [] } as ConnectorConfig,
 }
 
 const setupExpected: Expected = {

@@ -174,7 +174,7 @@ describe('source-owned widget registry', () => {
 
   it('maps every delivered connector widget by enabled alone, including incomplete setup/data', () => {
     const settings = settingsWith(ALL_WIDGETS_OFF)
-    const delivered = CONNECTOR_IDS.filter((id) => id !== 'auroraKp')
+    const delivered = CONNECTOR_IDS.filter((id) => id !== 'auroraKp' && id !== 'googleCalendar')
     for (const connectorId of delivered) {
       const enabled = { [connectorId]: connector(true) } as Partial<Record<ConnectorId, ConnectorConfig>>
       const disabled = { [connectorId]: connector(false) } as Partial<Record<ConnectorId, ConnectorConfig>>

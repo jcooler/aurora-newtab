@@ -7,7 +7,7 @@ export interface ConnectorExperience {
   benefits: readonly [string, string, string]
   privacySummary: string
   categoryLabel: string
-  entitlement: 'included'
+  entitlement: 'included' | 'premium'
 }
 
 type ConnectorExperienceBase = Omit<ConnectorExperience, 'categoryLabel' | 'entitlement'>
@@ -103,12 +103,18 @@ const EXPERIENCES: Record<ConnectorId, ConnectorExperienceBase> = {
     benefits: ['Read the current Kp level', 'See the forecast trend', 'Use public NOAA space-weather data'],
     privacySummary: 'Geomagnetic conditions use public NOAA data and require no account, token, or personal information.',
   },
+  googleCalendar: {
+    mark: '31',
+    outcome: 'Bring selected Google calendars into one calm, read-only schedule.',
+    benefits: ['Combine more than one Google account', 'Keep Google calendar colors', 'See events without changing them'],
+    privacySummary: 'Event details go directly from Google to this browser; local selections and cache stay out of Tab Two backup and encrypted sync.',
+  },
 }
 
 export function connectorExperience(descriptor: ConnectorDescriptor): ConnectorExperience {
   return {
     ...EXPERIENCES[descriptor.id],
     categoryLabel: CATEGORY_LABELS[descriptor.category],
-    entitlement: 'included',
+    entitlement: descriptor.id === 'googleCalendar' ? 'premium' : 'included',
   }
 }

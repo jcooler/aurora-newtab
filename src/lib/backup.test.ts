@@ -733,7 +733,7 @@ describe('apodCache export / import exclusion (Task 95)', () => {
 
 describe('weatherAlertCache export / import exclusion', () => {
   it('keeps the current schema version pinned and defaults the additive cache to null', () => {
-    expect(CURRENT_VERSION).toBe(22)
+    expect(CURRENT_VERSION).toBe(23)
     expect(defaults().weatherAlertCache).toBeNull()
     expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
   })
@@ -1635,7 +1635,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
       const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
       expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
       expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
-      expect(CURRENT_VERSION).toBe(22)
+      expect(CURRENT_VERSION).toBe(23)
     }
   })
 
@@ -1721,6 +1721,56 @@ describe('layouts document backup boundary (NL-P1)', () => {
       ok: false,
       reason: 'That backup\'s "layouts" data is invalid.',
     })
+  })
+})
+
+describe('Google Calendar backup isolation', () => {
+  const googleCalendar = {
+    enabled: true,
+    accounts: [{
+      connectionId: '52000000-0000-4000-8000-000000000001',
+      displayEmail: 'private-account@example.com',
+      calendars: [{
+        calendarId: 'private-calendar-id',
+        name: 'Private calendar name',
+        color: '#4285f4',
+        primary: true,
+      }],
+    }],
+    accessToken: 'hostile-access-token',
+    syncToken: 'hostile-sync-token',
+    providerResponse: { attendees: ['private-attendee@example.com'] },
+  }
+
+  it('omits the complete local config and rebuildable cache from JSON export', () => {
+    const serialized = serializeBackup({
+      ...defaults(),
+      connectors: { googleCalendar } as never,
+      connectorSnapshots: {
+        googleCalendar: {
+          fetchedAt: 1,
+          data: { syncToken: 'cache-sync-token', title: 'Private event title' },
+        },
+      } as never,
+    })
+    const exported = JSON.parse(serialized).data
+
+    expect(exported.connectors).not.toHaveProperty('googleCalendar')
+    expect(exported).not.toHaveProperty('connectorSnapshots')
+    for (const secret of [
+      'private-account@example.com', 'private-calendar-id', 'Private calendar name',
+      'hostile-access-token', 'hostile-sync-token', 'private-attendee@example.com',
+      'cache-sync-token', 'Private event title',
+    ]) expect(serialized).not.toContain(secret)
+  })
+
+  it('drops forged Google Calendar config rather than restoring local provider metadata', () => {
+    const envelope = JSON.parse(serializeBackup(defaults())) as { data: { connectors: Record<string, unknown> } }
+    envelope.data.connectors.googleCalendar = googleCalendar
+
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.connectors).not.toHaveProperty('googleCalendar')
   })
 })
 

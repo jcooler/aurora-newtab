@@ -157,14 +157,19 @@ describe('migrate', () => {
         calls.push(20)
         return data
       },
-      // registry[21] upgrades v21 -> v22 (CURRENT_VERSION)
+      // registry[21] upgrades v21 -> v22
       21: (data) => {
         calls.push(21)
         return data
       },
+      // registry[22] upgrades v22 -> v23 (CURRENT_VERSION)
+      22: (data) => {
+        calls.push(22)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -680,7 +685,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(22)
+    expect(CURRENT_VERSION).toBe(23)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -773,7 +778,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(22)
+    expect(CURRENT_VERSION).toBe(23)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill and v16->v17 Flow preference are the only
     // Settings deltas on the way up.
@@ -953,6 +958,24 @@ describe('v21 -> v22', () => {
   it('rejects malformed nested widgets rather than silently replacing user settings', () => {
     expect(() => migrations[21]({ settings: { ...defaults().settings, widgets: 'bad' } }))
       .toThrow('Invalid settings.widgets in schema v21')
+  })
+})
+
+describe('v22 -> v23', () => {
+  it('only advances metadata and does not enable, configure, or place Google Calendar', () => {
+    const snapshot = {
+      ...defaults(),
+      connectors: { ics: { enabled: true, calendars: [] } },
+      connectorSnapshots: { ics: { fetchedAt: 7, data: { events: [] } } },
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    expect(migrations[22](snapshot)).toEqual(before)
+    expect(migrate(snapshot, 22)).toEqual(before)
+    expect(migrate(snapshot, 22).connectors).not.toHaveProperty('googleCalendar')
+    expect(migrate(snapshot, 22).settings.widgets).not.toHaveProperty('googleCalendar')
+    expect(CURRENT_VERSION).toBe(23)
   })
 })
 

@@ -85,7 +85,7 @@ interface ConnectorDataFlow {
   account: 'none' | 'third-party'
   authenticationFields: readonly string[]
   capabilityFields: readonly string[]
-  backup: 'included' | 'redacted'
+  backup: 'included' | 'redacted' | 'excluded'
   permission: 'optional-per-origin' | 'none'
   transmission: 'provider-direct'
   destinationKind: 'fixed-provider' | 'configured-provider'
@@ -95,7 +95,7 @@ interface ConnectorDataFlow {
   sends: readonly string[]
   receives: readonly string[]
   cache: 'connectorSnapshots-excluded-from-backup'
-  backend: 'none'
+  backend: 'none' | 'authentication-metadata-only'
   operations: readonly string[]
 }
 
@@ -229,6 +229,23 @@ export const CONNECTOR_DATA_FLOWS: Record<ConnectorId, ConnectorDataFlow> = {
     receives: ['public observed, estimated, and predicted planetary K-index rows'],
     operations: ['GET /products/noaa-planetary-k-index-forecast.json'],
   }),
+  googleCalendar: {
+    account: 'third-party',
+    authenticationFields: [],
+    capabilityFields: ['accounts', 'calendar selections'],
+    backup: 'excluded',
+    permission: 'optional-per-origin',
+    transmission: 'provider-direct',
+    destinationKind: 'fixed-provider',
+    destinations: ['www.googleapis.com'],
+    trigger: ['explicit calendar discovery or visible-document refresh while enabled and entitled'],
+    methods: ['GET'],
+    sends: ['short-lived bearer token, selected calendar identifiers, bounded window, and pagination or sync cursor'],
+    receives: ['selected calendar names, colors, and minimized event fields'],
+    cache: 'connectorSnapshots-excluded-from-backup',
+    backend: 'authentication-metadata-only',
+    operations: ['GET CalendarList and Events resources directly from Google Calendar API'],
+  },
 }
 
 interface FixedDataFlow {

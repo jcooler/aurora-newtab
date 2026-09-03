@@ -18,8 +18,11 @@ import {
 // CONNECTOR_IDS, or a registered id that getConnector can't resolve all fail
 // immediately, for the current registry and every future descriptor alike.
 describe('connector registry invariants', () => {
-  it('reserves the approved At a glance identities and category without reordering existing groups', () => {
-    expect(CONNECTOR_IDS.slice(-3)).toEqual(['onThisDay', 'publicHolidays', 'auroraKp'])
+  it('appends Google Calendar after all fifteen existing connector identities', () => {
+    expect(CONNECTOR_IDS).toEqual([
+      'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
+      'linear', 'sentry', 'todoist', 'onThisDay', 'publicHolidays', 'auroraKp', 'googleCalendar',
+    ])
     expect(CATEGORY_ORDER).toEqual([
       'development',
       'calendar-tasks',
@@ -71,6 +74,23 @@ describe('connector registry invariants', () => {
       expect(descriptor?.ownsOrigins(configs[id])).toBe(true)
     }
     expect(getConnector('publicHolidays')?.ownsOrigins({ enabled: true, countryCode: 'usa' })).toBe(false)
+  })
+
+  it('registers Google Calendar as a separately authorized OAuth connector', () => {
+    const descriptor = getConnector('googleCalendar')
+    const configured = {
+      enabled: true,
+      accounts: [{
+        connectionId: '52000000-0000-4000-8000-000000000001',
+        displayEmail: 'person@example.com',
+        calendars: [{ calendarId: 'primary', name: 'Person', color: '#4285f4', primary: true }],
+      }],
+    } as ConnectorConfig
+    expect(descriptor).toMatchObject({
+      id: 'googleCalendar', category: 'calendar-tasks', auth: 'oauth', excludeFromBackup: true,
+    })
+    expect(descriptor?.origins(configured)).toEqual(['https://www.googleapis.com/*'])
+    expect(descriptor?.ownsOrigins(configured)).toBe(true)
   })
 
   // Completeness direction, written conditionally so it becomes meaningful
@@ -151,6 +171,7 @@ describe('descriptor categories', () => {
       onThisDay: 'at-a-glance',
       publicHolidays: 'at-a-glance',
       auroraKp: 'at-a-glance',
+      googleCalendar: 'calendar-tasks',
     }
     for (const d of CONNECTORS) {
       expect(d.category).toBe(expected[d.id])

@@ -19,6 +19,7 @@ export const CONNECTOR_IDS = [
   'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
   'linear', 'sentry', 'todoist',
   'onThisDay', 'publicHolidays', 'auroraKp',
+  'googleCalendar',
 ] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 
@@ -227,6 +228,56 @@ export interface AuroraKpConfig extends ConnectorCacheIdentity {
   enabled: boolean
 }
 
+export interface GoogleCalendarSelection {
+  calendarId: string
+  name: string
+  color: string
+  primary: boolean
+}
+
+export interface GoogleCalendarAccountSelection {
+  connectionId: string
+  displayEmail: string
+  calendars: GoogleCalendarSelection[]
+}
+
+export interface GoogleCalendarConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  accounts: GoogleCalendarAccountSelection[]
+}
+
+export type GoogleCalendarEventStatus = 'confirmed' | 'tentative'
+
+export interface GoogleCalendarEvent {
+  eventId: string
+  title: string
+  status: GoogleCalendarEventStatus
+  start: number
+  end: number
+  allDay: boolean
+  startDate: string | null
+  endDate: string | null
+  updatedAt: number
+  calendarUrl?: string
+  meetUrl?: string
+}
+
+export interface GoogleCalendarSourceSnapshot {
+  connectionId: string
+  calendarId: string
+  color: string
+  windowStart: number
+  windowEnd: number
+  syncToken: string
+  events: GoogleCalendarEvent[]
+}
+
+export interface GoogleCalendarSnapshot {
+  version: 1
+  fetchedAt: number
+  calendars: GoogleCalendarSourceSnapshot[]
+}
+
 export type ConnectorConfig =
   | RssConfig
   | GithubConfig
@@ -243,6 +294,7 @@ export type ConnectorConfig =
   | OnThisDayConfig
   | PublicHolidaysConfig
   | AuroraKpConfig
+  | GoogleCalendarConfig
 
 export interface ConnectorSnapshot {
   /** Missing only on legacy v1 caches; the hook treats those as absent. */
@@ -278,6 +330,8 @@ export interface ConnectorDescriptor<C extends ConnectorConfig = ConnectorConfig
   auth: 'none' | 'token' | 'oauth'
   ttlMs: number
   secretFields: (keyof C & string)[]
+  /** Entire config remains device-local and is omitted from JSON backup. */
+  excludeFromBackup?: boolean
   /** Optional pure second-stage backup redaction for nested or conservative
    *  config values after generic descriptor-declared secret fields are gone. */
   redactForBackup?(config: C): Partial<C>

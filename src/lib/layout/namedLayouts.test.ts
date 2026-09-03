@@ -45,7 +45,7 @@ describe('cleanLayoutsDocument', () => {
     expect(cleaned.layouts[0].widgets.bookmarks).toEqual({ kind: 'docked', dock: 'top', order: 0 })
     expect(dockedYPercent(cleaned.layouts[0].widgets.weather as never)).toBe(82.25)
     expect(dockedYPercent(cleaned.layouts[0].widgets.bookmarks as never)).toBeUndefined()
-    expect(CURRENT_VERSION).toBe(22)
+    expect(CURRENT_VERSION).toBe(23)
     expect(LAYOUTS_DOCUMENT_VERSION).toBe(1)
   })
 

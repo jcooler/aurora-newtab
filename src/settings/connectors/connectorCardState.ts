@@ -40,6 +40,13 @@ export function connectorAuthState(
   config: ConnectorConfig | undefined,
 ): ConnectorAuthState {
   if (descriptor.auth === 'none') return 'none'
+  if (descriptor.auth === 'oauth') {
+    try {
+      return config && descriptor.ownsOrigins(config) ? 'connected' : 'unconfigured'
+    } catch {
+      return 'unconfigured'
+    }
+  }
   const identity = descriptor.identityField ? text(config?.[descriptor.identityField]) : null
   if (!identity) return 'unconfigured'
   const missingSecret = descriptor.secretFields.some((field) => !text(config?.[field]))

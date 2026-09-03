@@ -326,6 +326,10 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v22 -> v23: Google Calendar adds only an append-only connector identity.
+  // Keep the registry step identity so no connection is enabled, configured,
+  // or placed and every prior authority remains byte-equivalent.
+  22: (data) => data,
 }
 
 export function migrate(

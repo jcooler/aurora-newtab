@@ -26,6 +26,7 @@ const POLICIES = Object.freeze({
   onThisDay: { defaultMinutes: 1_440, options: [], configurable: false },
   publicHolidays: { defaultMinutes: 1_440, options: [], configurable: false },
   auroraKp: { defaultMinutes: 15, options: [5, 15, 30], configurable: true },
+  googleCalendar: { defaultMinutes: 15, options: [5, 15, 30], configurable: true },
   weather: { defaultMinutes: 30, options: [15, 30, 60], configurable: true },
 } satisfies Record<RefreshSourceId, RefreshPolicy>)
 
