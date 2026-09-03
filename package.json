@@ -27,6 +27,7 @@
     "qa:account-auth-local": "node scripts/qa-account-auth-local.mjs",
     "qa:account-auth-production": "node scripts/qa-account-auth-production.mjs",
     "qa:stripe-billing": "node scripts/qa-stripe-billing.mjs",
+    "qa:metrics-sync-hosted": "node scripts/qa-metrics-sync-hosted.mjs --exact",
     "qa:billing-return-site": "node scripts/qa-billing-return-site.mjs",
     "qa:tab-two-v2-connectors": "node scripts/qa-tab-two-v2-connectors.mjs --exact",
     "qa:tab-two-v2-progress": "node scripts/qa-tab-two-v2-progress.mjs --exact",
