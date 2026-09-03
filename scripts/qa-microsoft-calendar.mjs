@@ -562,7 +562,7 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot) {
   }, { personalConnection: PERSONAL_CONNECTION, workConnection: WORK_CONNECTION })
   await remove.click()
   const confirmed = page.getByRole('alertdialog', { name: 'Remove alex@contoso.test?' })
-  await confirmed.getByRole('checkbox', { name: /Also delete this account’s Metrics history/iu }).check()
+  await confirmed.getByRole('checkbox', { name: /Also delete this account's calendar-load history/iu }).check()
   await capture(page, viewport, 'disconnect-history', output, evidence, repoRoot, { state: 'disconnect-history' })
   await confirmed.getByRole('button', { name: 'Disconnect account' }).click()
   await page.waitForFunction(async (remainingConnection) => {
