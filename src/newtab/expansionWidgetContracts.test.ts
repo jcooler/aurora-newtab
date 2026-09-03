@@ -10,7 +10,7 @@ import { CATALOG_BATCHES, CATALOG_CONTRACTS, captureTiersFor } from '../../scrip
 
 const EXPECTED_WIDGET_IDS = [
   'auroraKp', 'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
-  'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'linear', 'links', 'monthCal',
+  'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'linear', 'links', 'metrics', 'monthCal',
   'moon', 'notes', 'onThisDay', 'progress', 'publicHolidays', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
   'sentry', 'status', 'sun', 'tabGroups', 'tasks', 'timer', 'todoist',
   'vercel', 'weather', 'worldClocks',
