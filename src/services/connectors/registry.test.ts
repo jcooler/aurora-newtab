@@ -80,6 +80,7 @@ describe('connector registry invariants', () => {
     const descriptor = getConnector('googleCalendar')
     const configured = {
       enabled: true,
+      accountId: '43000000-0000-4000-8000-000000000001',
       accounts: [{
         connectionId: '52000000-0000-4000-8000-000000000001',
         displayEmail: 'person@example.com',
