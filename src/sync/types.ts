@@ -6,6 +6,7 @@ import type {
   NamedLayout,
 } from '../lib/layout/namedLayouts'
 import type { GithubViews, GitlabViews, JiraViews, VercelViews } from '../services/connectors/types'
+import type { MetricBucketV1 } from '../metrics/types'
 
 export const SYNC_ENTITY_TYPES = [
   'settings',
@@ -26,6 +27,7 @@ export const SYNC_ENTITY_TYPES = [
   'habit',
   'habit_completion',
   'progress_goal',
+  'metric_bucket',
 ] as const
 
 export type SyncEntityType = (typeof SYNC_ENTITY_TYPES)[number]
@@ -74,6 +76,7 @@ export interface SyncEntityValueByType {
   habit: { name: string; createdAt: number }
   habit_completion: { done: boolean }
   progress_goal: Omit<ProgressGoal, 'id'>
+  metric_bucket: Omit<MetricBucketV1, 'id'>
 }
 
 export interface SyncEntityV1<T = unknown> {

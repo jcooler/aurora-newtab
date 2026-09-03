@@ -420,6 +420,45 @@ describe('encrypted sync Edge handlers', () => {
     expect(rejected.status).toBe(400)
   })
 
+  it('accepts an opaque encrypted metric bucket without widening the envelope', async () => {
+    const metricId = '00000000-0000-4000-8000-000000000002'
+    deps.repository.applyMutations = vi.fn(async () => ([{
+      status: 'accepted', entityType: 'metric_bucket', entityId: metricId,
+      revision: 1, vaultVersion: 5,
+    }]))
+    const mutation = {
+      idempotencyId: '53000000-0000-4000-8000-000000000021',
+      envelopeVersion: 1,
+      entityType: 'metric_bucket',
+      entityId: metricId,
+      expectedRevision: 0,
+      revision: 1,
+      tombstone: false,
+      nonce: 'A'.repeat(16),
+      ciphertext: 'A'.repeat(64),
+    }
+
+    const response = await createSyncHandlers(deps).push(request('sync-push', {
+      deviceId,
+      mutations: [mutation],
+    }))
+
+    expect(response.status).toBe(200)
+    expect(deps.repository.applyMutations).toHaveBeenCalledWith({
+      accountId,
+      deviceId,
+      mutations: [{ ...mutation, requestDigest: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/u) }],
+      effectiveAt: now,
+    })
+    expect(JSON.stringify(await json(response))).not.toMatch(/2026-09-02|task|event|repository|route|provider/iu)
+
+    const rejected = await createSyncHandlers(deps).push(request('sync-push', {
+      deviceId,
+      mutations: [{ ...mutation, entityId: 'tasks:2026-09-02' }],
+    }))
+    expect(rejected.status).toBe(400)
+  })
+
   it('rejects malformed push outcomes before repository data can be reflected', async () => {
     deps.repository.applyMutations = vi.fn(async () => ([{
       status: 'accepted', entityType: 'notes', entityId: 'singleton', revision: 1,

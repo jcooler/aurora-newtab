@@ -6,6 +6,7 @@ import {
   classifyAuroraKey,
   EXCLUDED_AURORA_KEYS,
   projectSyncEntities,
+  removeSyncEntity,
   SYNCED_AURORA_KEYS,
 } from './entityPolicy'
 import { SYNC_ENTITY_TYPES, type SyncEntityV1 } from './types'
@@ -44,6 +45,20 @@ function fixture(): AuroraData {
       createdAt: 200,
       today: { date: '2026-09-02', value: 5 },
     }],
+    metricsHistory: {
+      version: 1,
+      installationId: '00000000-0000-4000-8000-000000000001',
+      buckets: [{
+        schemaVersion: 1,
+        id: '00000000-0000-4000-8000-000000000002',
+        date: '2026-09-02',
+        source: 'tasks',
+        sourceInstanceId: 'local-tasks',
+        installationId: '00000000-0000-4000-8000-000000000001',
+        sequence: 1,
+        values: { kind: 'tasks', completed: 3, carriedForward: 2 },
+      }],
+    },
   }
 }
 
@@ -76,6 +91,7 @@ describe('deny-by-default sync entity policy', () => {
       'habit',
       'habit_completion',
       'progress_goal',
+      'metric_bucket',
     ])
   })
 
@@ -102,6 +118,7 @@ describe('deny-by-default sync entity policy', () => {
       'habit_completion:walk:2026-09-01',
       'habit_completion:walk:2026-09-02',
       'progress_goal:water',
+      'metric_bucket:00000000-0000-4000-8000-000000000002',
     ])
     expect(entities.find((entity) => entity.entityType === 'habit')?.value).toEqual({ name: 'Walk', createdAt: 100 })
     expect(entities.filter((entity) => entity.entityType === 'habit_completion').map((entity) => entity.value)).toEqual([
@@ -111,6 +128,20 @@ describe('deny-by-default sync entity policy', () => {
     expect(entities.find((entity) => entity.entityType === 'layout_manifest')?.value).toEqual({
       version: 1,
       activeLayoutId: 'work',
+    })
+    expect(entities.find((entity) => entity.entityType === 'metric_bucket')).toEqual({
+      schemaVersion: 1,
+      entityType: 'metric_bucket',
+      entityId: '00000000-0000-4000-8000-000000000002',
+      value: {
+        schemaVersion: 1,
+        date: '2026-09-02',
+        source: 'tasks',
+        sourceInstanceId: 'local-tasks',
+        installationId: '00000000-0000-4000-8000-000000000001',
+        sequence: 1,
+        values: { kind: 'tasks', completed: 3, carriedForward: 2 },
+      },
     })
   })
 
@@ -189,5 +220,63 @@ describe('deny-by-default sync entity policy', () => {
       entityId: 'today',
       value: { name: 'Today', items: [{ id: 'item', text: 'Private', done: false, createdOn }] },
     })).toThrow('sync_entity_invalid')
+  })
+
+  it('applies and removes one opaque metric bucket while preserving unrelated history and the local installation', () => {
+    const local = fixture()
+    const incoming = {
+      schemaVersion: 1 as const,
+      entityType: 'metric_bucket' as const,
+      entityId: '00000000-0000-4000-8000-000000000003',
+      value: {
+        schemaVersion: 1 as const,
+        date: '2026-09-01',
+        source: 'focus' as const,
+        sourceInstanceId: '00000000-0000-4000-8000-000000000009',
+        installationId: '00000000-0000-4000-8000-000000000009',
+        sequence: 4,
+        values: { kind: 'focus' as const, sessions: 2, minutes: 50 },
+      },
+    }
+
+    const applied = applySyncEntity(local, incoming)
+    expect(applied.metricsHistory?.installationId).toBe('00000000-0000-4000-8000-000000000001')
+    expect(applied.metricsHistory?.buckets.map((bucket) => bucket.id)).toEqual([
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000003',
+    ])
+    const removed = removeSyncEntity(applied, 'metric_bucket', incoming.entityId)
+    expect(removed.metricsHistory?.buckets.map((bucket) => bucket.id)).toEqual([
+      '00000000-0000-4000-8000-000000000002',
+    ])
+  })
+
+  it('rejects non-opaque metric ids and any non-aggregate metric field', () => {
+    const value = {
+      schemaVersion: 1,
+      date: '2026-09-02',
+      source: 'tasks',
+      sourceInstanceId: 'local-tasks',
+      installationId: '00000000-0000-4000-8000-000000000001',
+      sequence: 1,
+      values: { kind: 'tasks', completed: 3, carriedForward: 2 },
+    }
+    expect(() => applySyncEntity(defaults(), {
+      schemaVersion: 1, entityType: 'metric_bucket', entityId: 'tasks:2026-09-02', value,
+    } as SyncEntityV1)).toThrow('sync_entity_invalid')
+    expect(() => applySyncEntity(defaults(), {
+      schemaVersion: 1,
+      entityType: 'metric_bucket',
+      entityId: '00000000-0000-4000-8000-000000000004',
+      value: { ...value, taskText: 'Private task' },
+    } as SyncEntityV1)).toThrow('sync_entity_invalid')
+    for (const forbidden of ['eventTitle', 'repository', 'route', 'url', 'sessions', 'providerPayload']) {
+      expect(() => applySyncEntity(defaults(), {
+        schemaVersion: 1,
+        entityType: 'metric_bucket',
+        entityId: '00000000-0000-4000-8000-000000000004',
+        value: { ...value, [forbidden]: 'private' },
+      } as SyncEntityV1)).toThrow('sync_entity_invalid')
+    }
   })
 })

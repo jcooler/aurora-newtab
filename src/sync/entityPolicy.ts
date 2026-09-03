@@ -20,6 +20,13 @@ import {
   type TodoItem,
 } from '../lib/storage/schema'
 import { CONNECTOR_IDS, type ConnectorId } from '../services/connectors/types'
+import { localDateKey } from '../lib/habits'
+import {
+  assertMetricBucket,
+  emptyMetricsHistory,
+  mergeMetricHistories,
+} from '../metrics/history'
+import type { MetricBucketV1 } from '../metrics/types'
 import { applyConnectorPreference, projectConnectorPreference } from './connectorProjection'
 import { SYNC_ENTITY_TYPES, type SyncEntityType, type SyncEntityV1 } from './types'
 
@@ -40,6 +47,7 @@ export const SYNCED_AURORA_KEYS = [
   'connectors',
   'habits',
   'progressGoals',
+  'metricsHistory',
 ] as const satisfies readonly DataKey[]
 
 export const EXCLUDED_AURORA_KEYS = [
@@ -50,7 +58,6 @@ export const EXCLUDED_AURORA_KEYS = [
   'connectorSnapshots',
   'refreshPreferences',
   'attentionLedger',
-  'metricsHistory',
   'apodCache',
 ] as const satisfies readonly DataKey[]
 
@@ -179,6 +186,8 @@ function validEntityId(entityType: SyncEntityType, entityId: string): boolean {
       const match = /^(.*):(\d{4}-\d{2}-\d{2})$/u.exec(entityId)
       return Boolean(match && stableId(match[1]) && dateKey(match[2]))
     }
+    case 'metric_bucket':
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(entityId)
     default:
       return stableId(entityId)
   }
@@ -271,6 +280,16 @@ function validValue(entityType: SyncEntityType, entityId: string, value: unknown
       return isPlainObject(value) && exactKeys(value, ['done']) && typeof value.done === 'boolean'
     case 'progress_goal':
       return validProgressGoalValue(entityId, value)
+    case 'metric_bucket':
+      if (!isPlainObject(value) || !exactKeys(value, [
+        'schemaVersion', 'date', 'source', 'sourceInstanceId', 'installationId', 'sequence', 'values',
+      ])) return false
+      try {
+        assertMetricBucket({ id: entityId, ...value })
+        return true
+      } catch {
+        return false
+      }
   }
 }
 
@@ -336,6 +355,10 @@ export function projectSyncEntities(data: AuroraData): SyncEntityV1[] {
   for (const goal of data.progressGoals) {
     const { id, ...value } = goal
     entities.push(entity('progress_goal', id, value))
+  }
+  for (const bucket of data.metricsHistory?.buckets ?? []) {
+    const { id, ...value } = bucket
+    entities.push(entity('metric_bucket', id, value))
   }
   return entities
 }
@@ -436,6 +459,17 @@ export function applySyncEntity(data: AuroraData, incoming: SyncEntityV1): Auror
     case 'progress_goal':
       next.progressGoals = upsertById(next.progressGoals, { id: incoming.entityId, ...value } as unknown as ProgressGoal)
       break
+    case 'metric_bucket': {
+      const bucket = { id: incoming.entityId, ...value } as unknown as MetricBucketV1
+      assertMetricBucket(bucket)
+      const history = next.metricsHistory ?? emptyMetricsHistory(crypto.randomUUID())
+      next.metricsHistory = mergeMetricHistories(history, {
+        version: 1,
+        installationId: bucket.installationId,
+        buckets: [bucket],
+      }, localDateKey(new Date()))
+      break
+    }
   }
   return next
 }
@@ -496,6 +530,14 @@ export function removeSyncEntity(
       break
     }
     case 'progress_goal': next.progressGoals = next.progressGoals.filter((item) => item.id !== entityId); break
+    case 'metric_bucket':
+      if (next.metricsHistory) {
+        next.metricsHistory = {
+          ...next.metricsHistory,
+          buckets: next.metricsHistory.buckets.filter((bucket) => bucket.id !== entityId),
+        }
+      }
+      break
   }
   return next
 }

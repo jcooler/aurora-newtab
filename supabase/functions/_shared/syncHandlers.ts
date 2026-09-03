@@ -20,6 +20,7 @@ const ENTITY_TYPES = new Set([
   'notes', 'world_clock', 'countdown', 'legacy_layout', 'layout_manifest',
   'named_layout', 'calendar_preference', 'calendar_week_start',
   'connector_preference', 'habit', 'habit_completion', 'progress_goal',
+  'metric_bucket',
 ])
 
 type SyncError =
@@ -197,8 +198,10 @@ function validEntityType(value: unknown): value is string {
   return typeof value === 'string' && ENTITY_TYPES.has(value)
 }
 
-function validEntityId(value: unknown): value is string {
-  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,255}$/u.test(value)
+function validEntityId(entityType: string, value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  if (entityType === 'metric_bucket') return ACCOUNT_UUID.test(value)
+  return /^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,255}$/u.test(value)
 }
 
 function validMutation(value: unknown): value is Record<string, unknown> {
@@ -215,7 +218,7 @@ function validMutation(value: unknown): value is Record<string, unknown> {
     && ACCOUNT_UUID.test(record.idempotencyId)
     && record.envelopeVersion === 1
     && validEntityType(record.entityType)
-    && validEntityId(record.entityId)
+    && validEntityId(record.entityType, record.entityId)
     && integer(record.expectedRevision)
     && integer(record.revision, 1)
     && record.revision === (record.expectedRevision as number) + 1
@@ -259,7 +262,7 @@ function validPullRecord(value: unknown): value is SyncPullRecord {
   return actual.length === keys.length
     && actual.every((key) => keys.includes(key))
     && validEntityType(record.entityType)
-    && validEntityId(record.entityId)
+    && validEntityId(record.entityType, record.entityId)
     && integer(record.revision, 1)
     && integer(record.vaultVersion, 1)
     && typeof record.tombstone === 'boolean'

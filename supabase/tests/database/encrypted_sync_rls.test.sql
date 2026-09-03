@@ -42,13 +42,16 @@ select has_function('public', 'tab_two_sync_delete_vault',
 
 insert into public.tab_two_accounts (id) values
   ('43000000-0000-4000-8000-000000000001'),
-  ('43000000-0000-4000-8000-000000000002');
+  ('43000000-0000-4000-8000-000000000002'),
+  ('43000000-0000-4000-8000-000000000003');
 
 insert into private.account_grants (account_id, source, capabilities, starts_at)
 values
   ('43000000-0000-4000-8000-000000000001', 'complimentary_owner',
    array['encrypted_sync']::private.premium_capability[], '2026-09-02 12:00:00+00'),
   ('43000000-0000-4000-8000-000000000002', 'complimentary_owner',
+   array['encrypted_sync']::private.premium_capability[], '2026-09-02 12:00:00+00'),
+  ('43000000-0000-4000-8000-000000000003', 'complimentary_owner',
    array['encrypted_sync']::private.premium_capability[], '2026-09-02 12:00:00+00');
 
 set local role anon;
@@ -152,6 +155,46 @@ select is(public.tab_two_sync_revoke_device(
   '43000000-0000-4000-8000-000000000001', 'AAAAAAAAAAAAAAAAAAAAAA',
   'AQEBAQEBAQEBAQEBAQEBAQ', now()), true,
   'one exact non-current owned device can be revoked');
+
+select lives_ok($$select * from public.tab_two_sync_register_device(
+  '43000000-0000-4000-8000-000000000003', 'BwcHBwcHBwcHBwcHBwcHBw', 'Metrics browser', now())$$,
+  'the metric fixture has an independent active device');
+select is(public.tab_two_sync_apply_mutations(
+  '43000000-0000-4000-8000-000000000003', 'BwcHBwcHBwcHBwcHBwcHBw',
+  jsonb_build_array(jsonb_build_object(
+    'idempotencyId', '53000000-0000-4000-8000-000000000021',
+    'requestDigest', repeat('M', 43), 'envelopeVersion', 1,
+    'entityType', 'metric_bucket',
+    'entityId', '00000000-0000-4000-8000-000000000002',
+    'expectedRevision', 0, 'revision', 1, 'tombstone', false,
+    'nonce', repeat('A', 16), 'ciphertext', repeat('A', 64)
+  )), now()) #>> '{0,status}', 'accepted',
+  'an opaque encrypted metric bucket uses the existing optimistic mutation path');
+select is((select count(*) from private.sync_records
+  where account_id = '43000000-0000-4000-8000-000000000003'
+    and entity_type = 'metric_bucket'
+    and entity_id = '00000000-0000-4000-8000-000000000002'), 1::bigint,
+  'the server stores one metric ciphertext record without a plaintext metrics table');
+select throws_ok($$select public.tab_two_sync_apply_mutations(
+  '43000000-0000-4000-8000-000000000003', 'BwcHBwcHBwcHBwcHBwcHBw',
+  jsonb_build_array(jsonb_build_object(
+    'idempotencyId', '53000000-0000-4000-8000-000000000022',
+    'requestDigest', repeat('N', 43), 'envelopeVersion', 1,
+    'entityType', 'metric_bucket', 'entityId', 'tasks:2026-09-02',
+    'expectedRevision', 0, 'revision', 1, 'tombstone', false,
+    'nonce', repeat('A', 16), 'ciphertext', repeat('A', 64)
+  )), now())$$,
+  '22023', 'sync_mutation_invalid',
+  'a metric entity id cannot reveal its source or date');
+select results_eq(
+  $$select entity_type, entity_id, revision from public.tab_two_sync_pull_records(
+    '43000000-0000-4000-8000-000000000003', 'BwcHBwcHBwcHBwcHBwcHBw', 0, 0, 100)$$,
+  $$values ('metric_bucket'::text, '00000000-0000-4000-8000-000000000002'::text, 1::bigint)$$,
+  'the account-bound pull returns only its encrypted metric record');
+select throws_ok($$select * from public.tab_two_sync_pull_records(
+  '43000000-0000-4000-8000-000000000001', 'BwcHBwcHBwcHBwcHBwcHBw', 0, 0, 100)$$,
+  'P0001', 'sync_device_not_active',
+  'a metric device cannot traverse into another account');
 
 select is(public.tab_two_sync_store_account_key(
   '43000000-0000-4000-8000-000000000001', 1::smallint, repeat('A', 54), now()), true,

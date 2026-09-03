@@ -323,6 +323,47 @@ describe('sync coordinator lifecycle', () => {
     expect((driver.dump()['tab-two:sync-index:v1'] as SyncIndexStateV1).lastVaultVersion).toBe(3)
   })
 
+  it('projects, applies, and removes encrypted metric entities through the coordinator storage boundary', async () => {
+    const localInstallation = '00000000-0000-4000-8000-000000000001'
+    const metricId = '00000000-0000-4000-8000-000000000002'
+    const initial = {
+      ...defaults(),
+      metricsHistory: {
+        version: 1 as const,
+        installationId: localInstallation,
+        buckets: [],
+      },
+    }
+    const driver = memoryDriver(initial)
+    const adapter = createCoordinatorStorage({ driver, authority: driver.authority, accountId })
+    const entity = {
+      schemaVersion: 1 as const,
+      entityType: 'metric_bucket' as const,
+      entityId: metricId,
+      value: {
+        schemaVersion: 1 as const,
+        date: '2026-09-02',
+        source: 'focus' as const,
+        sourceInstanceId: '00000000-0000-4000-8000-000000000009',
+        installationId: '00000000-0000-4000-8000-000000000009',
+        sequence: 1,
+        values: { kind: 'focus' as const, sessions: 1, minutes: 25 },
+      },
+    }
+    await adapter.applyRemote({
+      entityType: 'metric_bucket', entityId: metricId, entity,
+      revision: 1, vaultVersion: 1, digest: await digestSyncEntity(entity), conflict: false,
+    })
+    expect((driver.dump().metricsHistory as typeof initial.metricsHistory).installationId).toBe(localInstallation)
+    expect((await adapter.project()).find((candidate) => candidate.entityType === 'metric_bucket')).toEqual(entity)
+
+    await adapter.applyRemote({
+      entityType: 'metric_bucket', entityId: metricId, entity: null,
+      revision: 2, vaultVersion: 2, digest: await digestSyncEntity(null), conflict: false,
+    })
+    expect((driver.dump().metricsHistory as typeof initial.metricsHistory).buckets).toEqual([])
+  })
+
   it('leaves the full page unapplied and unacknowledged when a later record cannot authenticate', async () => {
     const key = await generateDataKey()
     const { encryptSyncRecord } = await import('./crypto')

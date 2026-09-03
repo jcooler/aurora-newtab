@@ -322,49 +322,49 @@ git commit -m "feat: record task and focus aggregates"
 - Consumes: `MetricBucketV1`, `MetricsHistoryV1`, existing `SyncEntityV1`, and AES-256-GCM sync envelopes.
 - Produces: `metric_bucket` as the only new `SyncEntityType`; its server-visible `entityId` is exactly the random bucket UUID.
 
-- [ ] **Step 1: Write failing deny-by-default sync tests**
+- [x] **Step 1: Write failing deny-by-default sync tests**
 
 Assert `metricsHistory` is classified as synced, every bucket becomes one `metric_bucket`, entity IDs expose neither date nor source, values are exact-key validated before encryption and after decryption, unknown metric fields reject, and applying/removing a bucket preserves unrelated local history. Expand the exhaustive secret corpus with metric-shaped attempts containing task text, event titles, repository names, routes, URLs, sessions, and provider payloads.
 
-- [ ] **Step 2: Run client sync tests and observe RED**
+- [x] **Step 2: Run client sync tests and observe RED**
 
 Run: `npm test -- --run src/sync/entityPolicy.test.ts src/sync/coordinator.test.ts`
 
 Expected: FAIL because `metricsHistory` is unclassified and `metric_bucket` is unknown.
 
-- [ ] **Step 3: Implement the encrypted entity projection**
+- [x] **Step 3: Implement the encrypted entity projection**
 
 Add `metric_bucket` to `SYNC_ENTITY_TYPES` and `SyncEntityValueByType`. Keep `metricsHistory` in `SYNCED_AURORA_KEYS`. `projectSyncEntities` emits only validated buckets. `applySyncEntity` initializes a missing local history with a local installation ID, unions incoming buckets by opaque ID, prunes retention, and never changes the local installation ID to a foreign one. `removeSyncEntity` removes only the matching opaque bucket.
 
-- [ ] **Step 4: Write the local SQL and Edge RED tests**
+- [x] **Step 4: Write the local SQL and Edge RED tests**
 
 Assert the migration extends the exact sync entity-type constraint to `metric_bucket` without widening grants or RLS. Prove authenticated users can exchange encrypted metric records only through the existing account-bound functions, cross-account attempts fail, plaintext metric keys never appear in stored ciphertext, and quota/revision/tombstone behavior remains identical.
 
-- [ ] **Step 5: Implement migration 00600 and function allowlists**
+- [x] **Step 5: Implement migration 00600 and function allowlists**
 
 Use a forward migration that drops and recreates only the existing entity-type check constraint with the prior values plus `metric_bucket`. Do not add a plaintext metrics table or a new Edge Function. Extend only the shared allowlist used by the already-deployed sync handlers.
 
-- [ ] **Step 6: Run local database and function tests**
+- [x] **Step 6: Run local database and function tests**
 
 Run:
 
 ```powershell
 npx supabase db reset --local
 npm run test:supabase-local
-npx supabase db lint --local --level error
-npx vitest run --config supabase/functions/tests/vitest.config.ts supabase/functions/tests/sync-functions.test.ts
+npx supabase db lint --local --schema private,public --level error --fail-on error
+npx vitest run supabase/functions/tests/sync-functions.test.ts
 ```
 
 Expected: migration reset succeeds, pgTAP passes, lint reports zero errors, and Edge tests pass.
 
-- [ ] **Step 7: Commit the encrypted-sync checkpoint**
+- [x] **Step 7: Commit the encrypted-sync checkpoint**
 
 ```powershell
 git add src/sync/types.ts src/sync/entityPolicy.ts src/sync/entityPolicy.test.ts src/sync/coordinator.test.ts supabase/migrations/20260902000600_metrics_sync_entity.sql supabase/functions/_shared/syncHandlers.ts supabase/tests/database/encrypted_sync_rls.test.sql supabase/functions/tests/sync-functions.test.ts
 git commit -m "feat: sync encrypted metric buckets"
 ```
 
-- [ ] **Step 8: Stop before hosted mutation**
+- [x] **Step 8: Stop before hosted mutation**
 
 Record local proof and leave migration 00600 undeployed. Hosted Supabase mutation requires a concise exact owner gate after the complete PM-P5 diff passes review.
 
