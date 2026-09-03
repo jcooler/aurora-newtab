@@ -49,7 +49,8 @@ test('permits only redacted metadata in hosted Google evidence', () => {
     result: 'PASS',
     project: 'ovlobmvxtryitupxwylg',
     accounts: ['sha256:123456789abc'],
-    interactions: { stateReplayRejected: true },
+    functions: [{ slug: 'google-calendar-session', verifyJwt: true }],
+    interactions: { stateReplayRejected: true, gatewayJwtRequired: true },
     cleanup: { authUsers: true, residualSyntheticRows: 0 },
   }
   assert.doesNotThrow(() => assertSafeHostedGoogleEvidence(evidence))

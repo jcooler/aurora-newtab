@@ -24,7 +24,7 @@ const BASE64URL_32 = /^[A-Za-z0-9_-]{43}$/u
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 function unsafeEvidenceKey(key) {
-  return /(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|service[_-]?role|authorization[_-]?url|provider[_-]?subject|ciphertext|fingerprint|pkce|nonce|email|id[_-]?token|api[_-]?key|jwt)/iu.test(key)
+  return /(?:access[_-]?token|refresh[_-]?token|client[_-]?secret|service[_-]?role|authorization[_-]?url|provider[_-]?subject|ciphertext|fingerprint|pkce|nonce|email|id[_-]?token|api[_-]?key)/iu.test(key)
 }
 
 export function assertSafeHostedGoogleEvidence(evidence) {
