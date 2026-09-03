@@ -497,7 +497,7 @@ git commit -m "feat: add unified metrics history UI"
 - Consumes: the complete PM-P5 diff, exact source commit, production/preview builds, and deferred PM-P4 witness.
 - Produces: one redacted exact-provenance QA report, one cumulative owner checklist, and a separately requested hosted migration gate.
 
-- [ ] **Step 1: Review the complete packet once**
+- [x] **Step 1: Review the complete packet once**
 
 Inspect all PM-P5 commits for Critical/Important privacy leakage, duplicate aggregation, retention drift, entitlement bypass, storage migration loss, sync identity leakage, cross-account access, destructive-action ambiguity, accessibility, and existing widget/layout regression. Apply at most one focused repair/rereview cycle.
 

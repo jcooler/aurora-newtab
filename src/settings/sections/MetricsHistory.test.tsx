@@ -77,6 +77,8 @@ describe('Metrics history settings', () => {
     const deleteMetricsHistory = vi.fn(async () => undefined)
     render(<MetricsHistoryView metrics={metrics({ deleteMetricsHistory })} signedIn onSignIn={vi.fn()} onViewPlans={vi.fn()} today="2026-09-02" />)
 
+    expect(screen.getByText('Existing activity can build new summaries again after deletion.')).toBeTruthy()
+
     fireEvent.change(screen.getByLabelText('History to delete'), { target: { value: 'tasks' } })
     fireEvent.click(screen.getByRole('button', { name: 'Delete selected history' }))
     expect(deleteMetricsHistory).not.toHaveBeenCalled()

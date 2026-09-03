@@ -90,6 +90,7 @@ describe('Metrics widget approved states', () => {
     expect(screen.getByText('50m')).toBeTruthy()
     expect(screen.getByText('5 done')).toBeTruthy()
     expect(screen.getByText('75%')).toBeTruthy()
+    expect(screen.queryByText(/previous period/i)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'View history' }))
     expect(onOpenMetrics).toHaveBeenCalledOnce()
   })
@@ -137,5 +138,16 @@ describe('Metrics widget approved states', () => {
     expect(line.textContent).toContain('3 active days')
     expect(line.textContent).toContain('Focus 50m')
     expect(line.textContent).toContain('Tasks 5')
+  })
+
+  it.each([
+    ['loading', metrics({ hydrated: false, history: null }), 'disabled', 'Metrics: Loading'],
+    ['locked', metrics({ entitled: false, history: null }), 'disabled', 'Metrics: Premium history'],
+    ['first use', metrics({ history: null }), 'up_to_date', 'Metrics: Ready when you are'],
+    ['unavailable', metrics({ history: null, issue: 'storage' }), 'needs_attention', 'Metrics: Unavailable'],
+  ] as const)('keeps the %s state inside the one-line Docked contract', (_name, value, syncPhase, label) => {
+    render(<MetricsWidgetView canvasSize="compact" docked today="2026-09-02" metrics={value} syncPhase={syncPhase} />)
+    expect(screen.getByLabelText(label).hasAttribute('data-dock-line')).toBe(true)
+    expect(screen.queryByRole('region', { name: 'Metrics' })).toBeNull()
   })
 })

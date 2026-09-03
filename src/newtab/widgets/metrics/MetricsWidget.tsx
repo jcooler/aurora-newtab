@@ -113,7 +113,10 @@ function ActivityRhythm({ summary, bars = false, compact = false }: { summary: M
 function summaryPair(history: NonNullable<MetricsContextValue['history']>, range: MetricRange, today: string) {
   const current = summarizeMetrics(history, range, today)
   const previous = summarizeMetrics(history, range, shiftDay(current.start, -1))
-  return { current, previous }
+  const previousAvailable = history.buckets.some((bucket) => (
+    bucket.date >= previous.start && bucket.date <= previous.end
+  ))
+  return { current, previous, previousAvailable }
 }
 
 function Locked({ tier, onOpenMetrics }: { tier: 'compact' | 'standard' | 'full'; onOpenMetrics?: () => void }) {
@@ -167,14 +170,14 @@ function CompactMetrics({ summary }: { summary: MetricSummary }) {
   )
 }
 
-function StandardMetrics({ summary, previous, onOpenMetrics }: { summary: MetricSummary; previous: MetricSummary; onOpenMetrics?: () => void }) {
+function StandardMetrics({ summary, previous, previousAvailable, onOpenMetrics }: { summary: MetricSummary; previous: MetricSummary; previousAvailable: boolean; onOpenMetrics?: () => void }) {
   const active = activeDayCount(summary)
   const delta = active - activeDayCount(previous)
   return (
     <>
       <header className="metrics-standard-header"><strong>Metrics</strong>{onOpenMetrics ? <button type="button" onClick={onOpenMetrics}>View history</button> : null}</header>
       <div className="metrics-standard-summary">
-        <div><b>{active}</b><span>{' active days'}</span><small>{comparisonCopy(delta)}</small></div>
+        <div><b>{active}</b><span>{' active days'}</span>{previousAvailable ? <small>{comparisonCopy(delta)}</small> : null}</div>
         <ActivityRhythm summary={summary} bars />
       </div>
       <div className="metrics-standard-support" aria-label="Thirty day summary">
@@ -186,22 +189,23 @@ function StandardMetrics({ summary, previous, onOpenMetrics }: { summary: Metric
   )
 }
 
-function categoryRows(current: MetricSummary, previous: MetricSummary) {
+function categoryRows(current: MetricSummary, previous: MetricSummary, previousAvailable: boolean) {
   const habitCurrent = current.totals.habits.tracked ? Math.round(current.totals.habits.completed / current.totals.habits.tracked * 100) : 0
   const habitPrevious = previous.totals.habits.tracked ? Math.round(previous.totals.habits.completed / previous.totals.habits.tracked * 100) : 0
   return [
-    ['Focus', formatDuration(current.totals.focus.minutes), categoryDelta(current.totals.focus.minutes, previous.totals.focus.minutes, 'm')],
-    ['Tasks', `${current.totals.tasks.completed} done`, categoryDelta(current.totals.tasks.completed, previous.totals.tasks.completed)],
-    ['Habits', habitRate(current), categoryDelta(habitCurrent, habitPrevious, ' pts')],
-    ['Calendar', formatBusy(current.totals.calendar.busyMinutes), categoryDelta(current.totals.calendar.busyMinutes, previous.totals.calendar.busyMinutes, 'm')],
-    ['Development', `${current.totals.development.commits} commits`, categoryDelta(current.totals.development.commits, previous.totals.development.commits)],
-    ['Fitness', `${current.totals.fitness.activities} activities`, categoryDelta(current.totals.fitness.activities, previous.totals.fitness.activities)],
+    ['Focus', formatDuration(current.totals.focus.minutes), previousAvailable ? categoryDelta(current.totals.focus.minutes, previous.totals.focus.minutes, 'm') : null],
+    ['Tasks', `${current.totals.tasks.completed} done`, previousAvailable ? categoryDelta(current.totals.tasks.completed, previous.totals.tasks.completed) : null],
+    ['Habits', habitRate(current), previousAvailable ? categoryDelta(habitCurrent, habitPrevious, ' pts') : null],
+    ['Calendar', formatBusy(current.totals.calendar.busyMinutes), previousAvailable ? categoryDelta(current.totals.calendar.busyMinutes, previous.totals.calendar.busyMinutes, 'm') : null],
+    ['Development', `${current.totals.development.commits} commits`, previousAvailable ? categoryDelta(current.totals.development.commits, previous.totals.development.commits) : null],
+    ['Fitness', `${current.totals.fitness.activities} activities`, previousAvailable ? categoryDelta(current.totals.fitness.activities, previous.totals.fitness.activities) : null],
   ] as const
 }
 
 function ExpandedMetrics({
   summary,
   previous,
+  previousAvailable,
   range,
   setRange,
   status,
@@ -212,6 +216,7 @@ function ExpandedMetrics({
 }: {
   summary: MetricSummary
   previous: MetricSummary
+  previousAvailable: boolean
   range: MetricRange
   setRange: (range: MetricRange) => void
   status?: string
@@ -222,7 +227,7 @@ function ExpandedMetrics({
 }) {
   const active = activeDayCount(summary)
   const delta = active - activeDayCount(previous)
-  const rows = categoryRows(summary, previous)
+  const rows = categoryRows(summary, previous, previousAvailable)
   return (
     <>
       <header className={`metrics-expanded-header ${status ? 'metrics-expanded-header--status' : ''}`}>
@@ -236,13 +241,13 @@ function ExpandedMetrics({
       </header>
       <div className="metrics-expanded-content">
         <div className="metrics-trend-region">
-          <div className="metrics-trend-summary"><div><b>{active}</b><span>active days</span></div><small>{comparisonCopy(delta)}</small></div>
+          <div className="metrics-trend-summary"><div><b>{active}</b><span>active days</span></div>{previousAvailable ? <small>{comparisonCopy(delta)}</small> : null}</div>
           <ActivityRhythm summary={summary} />
           <div className="metrics-axis-copy"><span>{summary.start.slice(5).replace('-', '/')}</span><span>Today</span></div>
           {notice && onRetry ? <div className="metrics-collection-notice" role="status"><span>{notice}</span><button type="button" onClick={onRetry}>Try again</button></div> : null}
         </div>
         <div className="metrics-category-list" aria-label="Metric categories">
-          {rows.map(([label, value, deltaCopy]) => <div className="metrics-category-row" key={label}><span>{label}</span><strong>{value}</strong><small>{deltaCopy}</small></div>)}
+          {rows.map(([label, value, deltaCopy]) => <div className="metrics-category-row" key={label}><span>{label}</span><strong>{value}</strong>{deltaCopy ? <small>{deltaCopy}</small> : null}</div>)}
         </div>
       </div>
     </>
@@ -273,24 +278,36 @@ export function MetricsWidgetView({
     [metrics.history, requestedRange, today],
   )
 
+  if (docked) {
+    if (!metrics.hydrated) return <DockLine label="Metrics" facts={['Loading']} />
+    if (metrics.issue && !hasHistory) return <DockLine label="Metrics" facts={['Unavailable']} tone="attention" />
+    if (!metrics.entitled && !hasHistory) return <DockLine label="Metrics" facts={['Premium history']} />
+    if (!hasHistory || !summaries) return <DockLine label="Metrics" facts={['Ready when you are']} />
+    const status = metrics.issue
+      ? 'Updates paused'
+      : !metrics.entitled
+        ? 'History paused'
+        : syncPhase === 'offline'
+          ? 'Sync offline'
+          : null
+    return <DockLine label="Metrics" facts={[`${activeDayCount(summaries.current)} active days`, `Focus ${formatDuration(summaries.current.totals.focus.minutes)}`, `Tasks ${summaries.current.totals.tasks.completed}`, status]} tone={metrics.issue ? 'attention' : 'quiet'} />
+  }
+
   if (!metrics.hydrated) return <Waiting tier={tier} issue={false} retry={metrics.retryMetrics} />
   if (metrics.issue && !hasHistory) return <Waiting tier={tier} issue retry={metrics.retryMetrics} />
   if (!metrics.entitled && !hasHistory) return <Locked tier={tier} onOpenMetrics={onOpenMetrics} />
   if (!hasHistory || !summaries) return <Empty tier={tier} />
 
-  if (docked) {
-    return <DockLine label="Metrics" facts={[`${activeDayCount(summaries.current)} active days`, `Focus ${formatDuration(summaries.current.totals.focus.minutes)}`, `Tasks ${summaries.current.totals.tasks.completed}`]} />
-  }
-
   const state = metrics.issue ? 'partial' : !metrics.entitled || syncPhase === 'offline' ? 'stale' : 'ready'
   return (
     <TierFrame label="Metrics" tier={tier} state={state} className={`metrics-frame metrics-frame--${tier}`}>
       {tier === 'compact' ? <CompactMetrics summary={summaries.current} /> : null}
-      {tier === 'standard' ? <StandardMetrics summary={summaries.current} previous={summaries.previous} onOpenMetrics={onOpenMetrics} /> : null}
+      {tier === 'standard' ? <StandardMetrics summary={summaries.current} previous={summaries.previous} previousAvailable={summaries.previousAvailable} onOpenMetrics={onOpenMetrics} /> : null}
       {tier === 'full' ? (
         <ExpandedMetrics
           summary={summaries.current}
           previous={summaries.previous}
+          previousAvailable={summaries.previousAvailable}
           range={range}
           setRange={setRange}
           status={!metrics.entitled ? 'History paused' : syncPhase === 'offline' ? 'Sync offline' : metrics.issue ? 'Update interrupted' : undefined}

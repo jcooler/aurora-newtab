@@ -128,6 +128,7 @@ export function MetricsHistoryView({
           <div className="mt-5">
             <h3 className="text-sm font-medium text-fg">Delete history</h3>
             <p className="mt-1 text-xs leading-relaxed text-fg-muted">Deletion removes only saved metric summaries. Your tasks, habits, and connector data are unchanged.</p>
+            <p className="mt-1 text-xs leading-relaxed text-fg-muted">Existing activity can build new summaries again after deletion.</p>
             <div className="mt-3 flex flex-wrap items-end gap-2">
               <label className="min-w-48 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
                 History to delete
