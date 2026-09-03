@@ -364,4 +364,3 @@ Do not roll back or edit migration 00700, the Google OAuth client, Google secret
 - [Calendar view](https://learn.microsoft.com/en-us/graph/api/user-list-calendarview?view=graph-rest-1.0)
 - [Event delta query](https://learn.microsoft.com/en-us/graph/delta-query-events)
 - [Microsoft identity platform publisher verification](https://learn.microsoft.com/en-us/entra/identity-platform/publisher-verification-overview)
-
