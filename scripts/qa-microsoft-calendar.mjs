@@ -22,6 +22,7 @@ const PREVIEW_MARKERS = Object.freeze([
   'preview-microsoft-calendar-authority',
 ])
 const ACCOUNT_ID = '43000000-0000-4000-8000-000000000001'
+const GOOGLE_CONNECTION = '63000000-0000-4000-8000-000000000001'
 const PERSONAL_CONNECTION = '64000000-0000-4000-8000-000000000001'
 const WORK_CONNECTION = '64000000-0000-4000-8000-000000000002'
 
@@ -380,7 +381,7 @@ async function seedMicrosoftState(page, {
   tier = 'full',
   metrics = false,
 } = {}) {
-  await page.evaluate(async ({ accountId, personalConnection, workConnection, issue, includeIcs, placement, tier, metrics }) => {
+  await page.evaluate(async ({ accountId, googleConnection, personalConnection, workConnection, issue, includeIcs, placement, tier, metrics }) => {
     const canonical = (value) => {
       if (value === null) return 'null'
       if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') return JSON.stringify(value)
@@ -458,6 +459,44 @@ async function seedMicrosoftState(page, {
       },
     }
     if (includeIcs) {
+      const googleCalendar = {
+        enabled: true,
+        accountId,
+        accounts: [{
+          connectionId: googleConnection,
+          displayEmail: 'alex@example.test',
+          calendars: [{ calendarId: 'primary', name: 'Google planning', color: '#a855f7', primary: true }],
+        }],
+      }
+      connectors.googleCalendar = googleCalendar
+      connectorSnapshots.googleCalendar = {
+        fetchedAt: now,
+        scope: await scope('googleCalendar', googleCalendar, { accountId, timeZone }),
+        data: {
+          version: 1,
+          fetchedAt: now,
+          calendars: [{
+            connectionId: googleConnection,
+            calendarId: 'primary',
+            color: '#a855f7',
+            windowStart: now - 31 * 86_400_000,
+            windowEnd: now + 62 * 86_400_000,
+            syncToken: 'synthetic-google-sync-token',
+            events: [{
+              eventId: 'event-google-primary',
+              title: 'Google focus',
+              status: 'confirmed',
+              start: start + 15 * 60_000,
+              end: end + 15 * 60_000,
+              allDay: false,
+              startDate: null,
+              endDate: null,
+              updatedAt: now,
+              calendarUrl: 'https://calendar.google.com/calendar/event?eid=fixture',
+            }],
+          }],
+        },
+      }
       const ics = { enabled: true, calendars: [{ name: 'Local schedule', url: 'https://feeds.invalid/local.ics', color: '#f59e0b' }] }
       connectors.ics = ics
       connectorSnapshots.ics = {
@@ -488,7 +527,7 @@ async function seedMicrosoftState(page, {
       settings: { ...current.settings, muted: true, widgets },
       connectors,
       connectorSnapshots,
-      refreshPreferences: { microsoftCalendar: 'manual', ...(includeIcs ? { ics: 'manual' } : {}) },
+      refreshPreferences: { microsoftCalendar: 'manual', ...(includeIcs ? { googleCalendar: 'manual', ics: 'manual' } : {}) },
       layouts: { version: 1, activeLayoutId: layout.id, layouts: [layout] },
       calendarPreferences: { [layout.id]: { defaultView: 'agenda', includePublicHolidays: false } },
       notes: { text: 'Calendar stack peer', updatedAt: now },
@@ -509,6 +548,7 @@ async function seedMicrosoftState(page, {
     })
   }, {
     accountId: ACCOUNT_ID,
+    googleConnection: GOOGLE_CONNECTION,
     personalConnection: PERSONAL_CONNECTION,
     workConnection: WORK_CONNECTION,
     issue,
@@ -616,7 +656,7 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot) {
   await page.reload({ waitUntil: 'domcontentloaded' })
   const calendar = page.getByRole('region', { name: 'Calendar' })
   await calendar.waitFor()
-  for (const value of ['Personal planning', 'Family dinner', 'Project review', 'Local appointment']) {
+  for (const value of ['Personal planning', 'Family dinner', 'Project review', 'Google focus', 'Local appointment']) {
     await calendar.getByText(value, { exact: false }).first().waitFor()
   }
   await capture(page, viewport, 'composed-calendar-full', output, evidence, repoRoot, { state: 'composed-calendar-full' })
