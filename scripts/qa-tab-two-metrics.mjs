@@ -254,8 +254,9 @@ async function waitForMetrics(page) {
 
 async function geometry(page) {
   return page.evaluate(() => {
-    const nodes = [...document.querySelectorAll('[data-testid="canvas-item-metrics"], [data-stack-card="metrics-stack"], [data-dock-line]')]
+    const nodes = [...document.querySelectorAll('[data-testid="canvas-item-metrics"], [data-stack-card="metrics-stack"], [data-dock-line], [data-settings-scroll-owner="document"]')]
       .filter((node) => node instanceof HTMLElement && getComputedStyle(node).display !== 'none')
+      .filter((node) => node.getAttribute('data-settings-scroll-owner') !== 'document' || node.getAttribute('aria-hidden') !== 'true')
     return {
       viewportWidth: innerWidth,
       documentWidth: document.documentElement.scrollWidth,
@@ -283,6 +284,16 @@ async function openMetricsSettings(page) {
   await page.getByRole('button', { name: 'View history' }).click()
   await page.waitForFunction(() => document.activeElement?.getAttribute('data-settings-anchor') === 'metrics-history')
   assert.equal(await page.getByRole('tab', { name: 'Progress' }).getAttribute('aria-selected'), 'true')
+  await waitForSettingsSettled(page)
+}
+
+async function waitForSettingsSettled(page) {
+  await page.waitForFunction(() => {
+    const drawer = document.querySelector('[data-settings-scroll-owner="document"]')
+    if (!(drawer instanceof HTMLElement) || drawer.getAttribute('aria-hidden') === 'true') return false
+    const rect = drawer.getBoundingClientRect()
+    return rect.left >= -0.5 && rect.right <= innerWidth + 0.5
+  })
 }
 
 async function waitForHistory(page, predicate, label) {
@@ -450,6 +461,7 @@ async function exerciseViewport(page, viewport, output, evidence, repoRoot) {
     assert(box && box.width >= 44 && box.height >= 44, 'touch Metrics history control is below 44px')
     await button.tap()
     await page.waitForFunction(() => document.activeElement?.getAttribute('data-settings-anchor') === 'metrics-history')
+    await waitForSettingsSettled(page)
     evidence.interactions['touch-control'] = true
   }
   await capture(page, viewport, `preview-populated-${viewport.id}`, output, evidence, repoRoot, true)
