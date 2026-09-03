@@ -83,6 +83,7 @@ function connection(overrides: Partial<PrivateProviderConnection> = {}): Private
     id: connectionId,
     accountId,
     provider: 'google_calendar',
+    accountKind: null,
     providerSubject: 'google-subject-a',
     email: 'alex@example.test',
     displayName: 'Alex',
@@ -111,6 +112,7 @@ function dependencies(): ProviderFunctionDependencies {
       listConnections: vi.fn(async () => [{
         id: connectionId,
         provider: 'google_calendar' as const,
+        accountKind: null,
         email: 'alex@example.test',
         displayName: 'Alex',
         status: 'active' as const,
@@ -682,6 +684,7 @@ describe('provider RPC repository boundary', () => {
       data: [{
         connection_id: connectionId,
         provider: 'google_calendar',
+        account_kind: null,
         email: 'alex@example.test',
         display_name: 'Alex',
         status: 'active',
@@ -694,6 +697,7 @@ describe('provider RPC repository boundary', () => {
     await expect(createProviderRepository({ rpc }).listConnections(accountId)).resolves.toEqual([{
       id: connectionId,
       provider: 'google_calendar',
+      accountKind: null,
       email: 'alex@example.test',
       displayName: 'Alex',
       status: 'active',

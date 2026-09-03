@@ -55,6 +55,7 @@ function connectionRow(value: unknown): PrivateProviderConnection | null {
     id: row.connection_id as string,
     accountId: row.account_id as string,
     provider: row.provider as PrivateProviderConnection['provider'],
+    accountKind: (row.account_kind ?? null) as PrivateProviderConnection['accountKind'],
     providerSubject: row.provider_subject as string,
     email: row.email as string,
     displayName: (row.display_name ?? null) as string | null,
@@ -83,6 +84,7 @@ function metadataRows(value: unknown): ProviderConnectionMetadata[] {
     return {
       id: row.connection_id as string,
       provider: row.provider as ProviderConnectionMetadata['provider'],
+      accountKind: (row.account_kind ?? null) as ProviderConnectionMetadata['accountKind'],
       email: row.email as string,
       displayName: (row.display_name ?? null) as string | null,
       status: row.status as ProviderConnectionMetadata['status'],
@@ -174,6 +176,7 @@ export function createProviderRepository(client: ProviderRpcClient): ProviderRep
         target_account_id: input.accountId,
         requested_connection_id: input.id,
         provider_name: input.provider,
+        provider_account_kind: input.accountKind,
         provider_identity_subject: input.providerSubject,
         provider_email: input.email,
         provider_display_name: input.displayName,

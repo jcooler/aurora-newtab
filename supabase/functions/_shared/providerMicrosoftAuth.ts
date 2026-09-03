@@ -1,42 +1,52 @@
-import { jsonResponse } from './http.ts'
-import { decodeProviderBase64Url, encodeProviderBase64Url } from './providerCrypto.ts'
+import type { RequestAuthentication } from './requestAuth.ts'
 import {
-  GOOGLE_CALENDAR_SCOPES,
-  ProviderGoogleError,
-} from './providerGoogle.ts'
+  MICROSOFT_CALENDAR_SCOPES,
+  ProviderMicrosoftError,
+  type ProviderMicrosoftGateway,
+} from './providerMicrosoft.ts'
+import { decodeProviderBase64Url, encodeProviderBase64Url, type ProviderCrypto } from './providerCrypto.ts'
 import type {
+  PrivateProviderConnection,
   ProviderConnectionMetadata,
-  PrivateProviderConnection,
-  ProviderFunctionDependencies,
   ProviderOAuthTransaction,
+  ProviderRepository,
 } from './providerTypes.ts'
 
-export { ProviderGoogleError }
-export type {
-  PrivateProviderConnection,
-  ProviderFunctionDependencies,
-  ProviderOAuthTransaction,
-} from './providerTypes.ts'
+export interface MicrosoftProviderFunctionDependencies {
+  authenticate(request: Request): Promise<RequestAuthentication>
+  repository: ProviderRepository
+  crypto: ProviderCrypto
+  microsoft: ProviderMicrosoftGateway
+  now(): number
+  randomUUID(): string
+  randomBytes(length: number): Uint8Array
+  hash(value: string): Promise<string>
+  requestFingerprint(request: Request): Promise<string>
+  oauthCallbackUrl: string
+  allowedExtensionId: string
+}
 
+const provider = 'microsoft_calendar' as const
 const transactionLifetime = 10 * 60_000
 const maximumRequestBytes = 4_096
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const base64Url32 = /^[A-Za-z0-9_-]{43}$/u
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
+const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
+const subject = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/iu
+const personalTenant = '9188040d-6c67-4c5b-b112-36a304b66dad'
 
-type ProviderError =
-  | 'method_not_allowed'
-  | 'authentication_required'
-  | 'provider_account_not_found'
-  | 'provider_entitlement_required'
-  | 'provider_request_invalid'
-  | 'provider_rate_limited'
-  | 'provider_state_invalid'
-  | 'provider_connection_not_found'
-  | 'provider_reconnect_required'
-  | 'provider_session_unavailable'
-  | 'provider_service_unavailable'
+function jsonResponse(value: unknown, status = 200): Response {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    },
+  })
+}
 
-function providerError(error: ProviderError, status: number): Response {
+function providerError(error: string, status: number): Response {
   return jsonResponse({ error }, status)
 }
 
@@ -70,11 +80,9 @@ async function exactJson(request: Request, keys: readonly string[]): Promise<Rec
 }
 
 function exactScopes(value: readonly string[]): boolean {
-  return (
-    value.length === GOOGLE_CALENDAR_SCOPES.length
+  return value.length === MICROSOFT_CALENDAR_SCOPES.length
     && new Set(value).size === value.length
-    && GOOGLE_CALENDAR_SCOPES.every((scope) => value.includes(scope))
-  )
+    && MICROSOFT_CALENDAR_SCOPES.every((scope) => value.includes(scope))
 }
 
 function safeNonce(value: unknown): value is string {
@@ -91,32 +99,34 @@ function expectedFinalRedirect(value: unknown, clientNonce: string, extensionId:
   try {
     const url = new URL(value)
     const entries = [...url.searchParams.entries()]
-    return (
-      url.protocol === 'https:'
+    return url.protocol === 'https:'
       && url.username === ''
       && url.password === ''
       && url.port === ''
       && url.hostname === `${extensionId}.chromiumapp.org`
-      && url.pathname === '/google-calendar'
+      && url.pathname === '/microsoft-calendar'
       && url.hash === ''
       && entries.length === 1
       && entries[0][0] === 'nonce'
       && entries[0][1] === clientNonce
-    )
   } catch {
     return false
   }
 }
 
+function validSubject(value: string, accountKind: 'personal' | 'work_or_school'): boolean {
+  const match = subject.exec(value)
+  if (!match) return false
+  const isPersonal = match[1].toLowerCase() === personalTenant
+  return accountKind === 'personal' ? isPersonal : !isPersonal
+}
+
 function validConnectionRecord(value: PrivateProviderConnection, accountId: string): boolean {
-  return (
-    uuid.test(value.id)
+  return uuid.test(value.id)
     && value.accountId === accountId
-    && value.provider === 'google_calendar'
-    && value.accountKind === null
-    && typeof value.providerSubject === 'string'
-    && value.providerSubject.length > 0
-    && value.providerSubject.length <= 255
+    && value.provider === provider
+    && (value.accountKind === 'personal' || value.accountKind === 'work_or_school')
+    && validSubject(value.providerSubject, value.accountKind)
     && typeof value.email === 'string'
     && value.email.length >= 3
     && value.email.length <= 320
@@ -127,14 +137,12 @@ function validConnectionRecord(value: PrivateProviderConnection, accountId: stri
     && Number.isSafeInteger(value.updatedAt)
     && (value.revokedAt === null || Number.isSafeInteger(value.revokedAt))
     && (value.lastTokenRefreshAt === null || Number.isSafeInteger(value.lastTokenRefreshAt))
-  )
 }
 
 function validConnectionMetadata(value: ProviderConnectionMetadata): boolean {
-  return (
-    uuid.test(value.id)
-    && value.provider === 'google_calendar'
-    && value.accountKind === null
+  return uuid.test(value.id)
+    && value.provider === provider
+    && (value.accountKind === 'personal' || value.accountKind === 'work_or_school')
     && typeof value.email === 'string'
     && value.email.length >= 3
     && value.email.length <= 320
@@ -143,12 +151,11 @@ function validConnectionMetadata(value: ProviderConnectionMetadata): boolean {
     && exactScopes(value.grantedScopes)
     && Number.isSafeInteger(value.createdAt)
     && Number.isSafeInteger(value.updatedAt)
-  )
 }
 
 async function resolveAccount(
   request: Request,
-  dependencies: ProviderFunctionDependencies,
+  dependencies: MicrosoftProviderFunctionDependencies,
 ): Promise<{ accountId: string } | Response> {
   const authentication = await dependencies.authenticate(request)
   if (!authentication.ok) return providerError('authentication_required', 401)
@@ -159,25 +166,24 @@ async function resolveAccount(
 
 async function requireCapabilities(
   accountId: string,
-  dependencies: ProviderFunctionDependencies,
+  dependencies: MicrosoftProviderFunctionDependencies,
   effectiveAt: number,
 ): Promise<Response | null> {
   const capabilities = await dependencies.repository.getEffectiveCapabilities(accountId, effectiveAt)
-  if (
-    !Array.isArray(capabilities)
+  if (!Array.isArray(capabilities)
     || !capabilities.includes('multi_account')
-    || !capabilities.includes('google_calendar')
-  ) return providerError('provider_entitlement_required', 403)
+    || !capabilities.includes('microsoft_calendar')) {
+    return providerError('provider_entitlement_required', 403)
+  }
   return null
 }
 
 function callbackRedirect(transaction: ProviderOAuthTransaction, result: string): Response {
   const separator = transaction.finalRedirect.includes('?') ? '&' : '?'
-  const location = `${transaction.finalRedirect}${separator}result=${encodeURIComponent(result)}`
   return new Response(null, {
     status: 302,
     headers: {
-      location,
+      location: `${transaction.finalRedirect}${separator}result=${encodeURIComponent(result)}`,
       'cache-control': 'no-store',
       'referrer-policy': 'no-referrer',
       'x-content-type-options': 'nosniff',
@@ -185,7 +191,7 @@ function callbackRedirect(transaction: ProviderOAuthTransaction, result: string)
   })
 }
 
-function callbackResult(error: ProviderGoogleError): string {
+function callbackResult(error: ProviderMicrosoftError): string {
   switch (error.code) {
     case 'provider_identity_invalid': return 'identity_invalid'
     case 'provider_scope_mismatch': return 'scope_mismatch'
@@ -195,7 +201,13 @@ function callbackResult(error: ProviderGoogleError): string {
   }
 }
 
-export function createProviderHandlers(dependencies: ProviderFunctionDependencies): {
+function organizationApproval(error: string, description: string | null): boolean {
+  return error === 'admin_consent_required'
+    || error === 'consent_required'
+    || (description !== null && description.length <= 2_048 && description.includes('AADSTS65001'))
+}
+
+export function createMicrosoftProviderHandlers(dependencies: MicrosoftProviderFunctionDependencies): {
   oauthStart(request: Request): Promise<Response>
   oauthCallback(request: Request): Promise<Response>
   connections(request: Request): Promise<Response>
@@ -210,29 +222,23 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
           return providerError('provider_request_invalid', 400)
         }
         const body = await exactJson(request, ['clientNonce', 'finalRedirect'])
-        if (
-          !body
+        if (!body
           || !safeNonce(body.clientNonce)
-          || !expectedFinalRedirect(
-            body.finalRedirect,
-            body.clientNonce,
-            dependencies.allowedExtensionId,
-          )
-        ) return providerError('provider_request_invalid', 400)
-
+          || !expectedFinalRedirect(body.finalRedirect, body.clientNonce, dependencies.allowedExtensionId)) {
+          return providerError('provider_request_invalid', 400)
+        }
         const resolved = await resolveAccount(request, dependencies)
         if (resolved instanceof Response) return resolved
         const effectiveAt = dependencies.now()
         if (!Number.isSafeInteger(effectiveAt)) throw new Error('invalid_clock')
         const entitlement = await requireCapabilities(resolved.accountId, dependencies, effectiveAt)
         if (entitlement) return entitlement
-        const admitted = await dependencies.repository.consumeRateLimit({
+        if (!await dependencies.repository.consumeRateLimit({
           accountId: resolved.accountId,
           action: 'start',
           ipFingerprint: await dependencies.requestFingerprint(request),
           effectiveAt,
-        })
-        if (!admitted) return providerError('provider_rate_limited', 429)
+        })) return providerError('provider_rate_limited', 429)
 
         const stateBytes = dependencies.randomBytes(32)
         const verifierBytes = dependencies.randomBytes(32)
@@ -250,15 +256,13 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
           dependencies.hash(pkceVerifier),
         ])
         const pkce = await dependencies.crypto.encryptSecret(pkceVerifier, {
-          purpose: 'pkce_verifier',
-          provider: 'google_calendar',
-          accountId: resolved.accountId,
-          objectId: transactionId,
+          purpose: 'pkce_verifier', provider,
+          accountId: resolved.accountId, objectId: transactionId,
         })
         await dependencies.repository.createOAuthTransaction({
           id: transactionId,
           accountId: resolved.accountId,
-          provider: 'google_calendar',
+          provider,
           stateHash,
           clientNonceHash,
           pkce,
@@ -268,13 +272,11 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
           effectiveAt,
         })
         return jsonResponse({
-          authorizationUrl: dependencies.google.authorizationUrl({
-            clientId: dependencies.oauthClientId,
-            redirectUri: dependencies.oauthCallbackUrl,
+          authorizationUrl: dependencies.microsoft.authorizationUrl({
             state,
             nonce: body.clientNonce,
-            scopes: GOOGLE_CALENDAR_SCOPES,
             codeChallenge,
+            redirectUri: dependencies.oauthCallbackUrl,
           }),
         })
       } catch {
@@ -289,8 +291,9 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
       if (!safeNonce(state)) return providerError('provider_state_invalid', 400)
       try {
         const effectiveAt = dependencies.now()
-        const stateHash = await dependencies.hash(state)
-        const transaction = await dependencies.repository.consumeOAuthTransaction(stateHash, effectiveAt)
+        const transaction = await dependencies.repository.consumeOAuthTransaction(
+          await dependencies.hash(state), effectiveAt,
+        )
         if (!transaction) {
           await dependencies.repository.consumeRateLimit({
             accountId: null,
@@ -300,57 +303,55 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
           })
           return providerError('provider_state_invalid', 400)
         }
-        if (
-          transaction.provider !== 'google_calendar'
+        const clientNonce = new URL(transaction.finalRedirect).searchParams.get('nonce') ?? ''
+        if (transaction.provider !== provider
           || !uuid.test(transaction.id)
           || !uuid.test(transaction.accountId)
           || !uuid.test(transaction.correlationId)
-          || !expectedFinalRedirect(
-            transaction.finalRedirect,
-            new URL(transaction.finalRedirect).searchParams.get('nonce') ?? '',
-            dependencies.allowedExtensionId,
-          )
-        ) return providerError('provider_state_invalid', 400)
+          || !safeNonce(clientNonce)
+          || !expectedFinalRedirect(transaction.finalRedirect, clientNonce, dependencies.allowedExtensionId)
+          || await dependencies.hash(clientNonce) !== transaction.clientNonceHash) {
+          return providerError('provider_state_invalid', 400)
+        }
         if (transaction.expiresAt <= effectiveAt) return callbackRedirect(transaction, 'transaction_expired')
         const entitlement = await requireCapabilities(transaction.accountId, dependencies, effectiveAt)
         if (entitlement) return callbackRedirect(transaction, 'entitlement_required')
 
         const providerErrorValue = url.searchParams.get('error')
         if (providerErrorValue !== null) {
-          return callbackRedirect(transaction, providerErrorValue === 'access_denied' ? 'access_denied' : 'provider_denied')
+          const description = url.searchParams.get('error_description')
+          const result = organizationApproval(providerErrorValue, description)
+            ? 'organization_approval_required'
+            : providerErrorValue === 'access_denied' ? 'access_denied' : 'provider_denied'
+          return callbackRedirect(transaction, result)
         }
         const code = url.searchParams.get('code')
         if (!code || code.length > 2_048 || /[\u0000-\u001f\u007f]/u.test(code)) {
           return callbackRedirect(transaction, 'request_invalid')
         }
-
         try {
           const pkceVerifier = await dependencies.crypto.decryptSecret(transaction.pkce, {
-            purpose: 'pkce_verifier',
-            provider: 'google_calendar',
-            accountId: transaction.accountId,
-            objectId: transaction.id,
+            purpose: 'pkce_verifier', provider,
+            accountId: transaction.accountId, objectId: transaction.id,
           })
-          const result = await dependencies.google.exchangeAuthorizationCode({
+          const result = await dependencies.microsoft.exchangeCode({
             code,
-            clientId: dependencies.oauthClientId,
+            verifier: pkceVerifier,
             redirectUri: dependencies.oauthCallbackUrl,
-            pkceVerifier,
-            expectedNonceHash: transaction.clientNonceHash,
-            hash: dependencies.hash,
-            now: effectiveAt,
+            expectedNonce: clientNonce,
           })
-          if (await dependencies.hash(result.identity.nonce) !== transaction.clientNonceHash) {
+          if (!guid.test(result.identity.tenantId)
+            || !guid.test(result.identity.objectId)
+            || !exactScopes(result.grantedScopes)
+            || result.expiresAt <= effectiveAt + 30_000) {
             return callbackRedirect(transaction, 'identity_invalid')
           }
-          if (!exactScopes(result.grantedScopes)) return callbackRedirect(transaction, 'scope_mismatch')
-          if (result.expiresAt <= effectiveAt + 30_000) {
-            return callbackRedirect(transaction, 'provider_unavailable')
+          const providerSubject = `${result.identity.tenantId.toLowerCase()}:${result.identity.objectId.toLowerCase()}`
+          if (!validSubject(providerSubject, result.identity.accountKind)) {
+            return callbackRedirect(transaction, 'identity_invalid')
           }
           const existing = await dependencies.repository.findConnectionBySubject(
-            transaction.accountId,
-            'google_calendar',
-            result.identity.subject,
+            transaction.accountId, provider, providerSubject,
           )
           if (!result.refreshToken && !existing) {
             return callbackRedirect(transaction, 'refresh_token_required')
@@ -359,18 +360,16 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
           if (!uuid.test(targetConnectionId)) throw new Error('uuid_invalid')
           const refreshToken = result.refreshToken
             ? await dependencies.crypto.encryptSecret(result.refreshToken, {
-                purpose: 'refresh_token',
-                provider: 'google_calendar',
-                accountId: transaction.accountId,
-                objectId: targetConnectionId,
+                purpose: 'refresh_token', provider,
+                accountId: transaction.accountId, objectId: targetConnectionId,
               })
             : null
           const persisted = await dependencies.repository.upsertConnection({
             id: targetConnectionId,
             accountId: transaction.accountId,
-            provider: 'google_calendar',
-            accountKind: null,
-            providerSubject: result.identity.subject,
+            provider,
+            accountKind: result.identity.accountKind,
+            providerSubject,
             email: result.identity.email,
             displayName: result.identity.displayName,
             grantedScopes: result.grantedScopes,
@@ -379,16 +378,14 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
           })
           if (!validConnectionRecord(persisted, transaction.accountId)) throw new Error('invalid_connection')
           if (result.refreshToken && persisted.id !== targetConnectionId) {
-            const correctedRefreshToken = await dependencies.crypto.encryptSecret(result.refreshToken, {
-              purpose: 'refresh_token',
-              provider: 'google_calendar',
-              accountId: transaction.accountId,
-              objectId: persisted.id,
+            const corrected = await dependencies.crypto.encryptSecret(result.refreshToken, {
+              purpose: 'refresh_token', provider,
+              accountId: transaction.accountId, objectId: persisted.id,
             })
             if (!await dependencies.repository.rotateRefreshToken({
               accountId: transaction.accountId,
               connectionId: persisted.id,
-              refreshToken: correctedRefreshToken,
+              refreshToken: corrected,
               effectiveAt,
             })) throw new Error('provider_rotation_failed')
           }
@@ -396,7 +393,7 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
         } catch (error) {
           return callbackRedirect(
             transaction,
-            error instanceof ProviderGoogleError ? callbackResult(error) : 'provider_unavailable',
+            error instanceof ProviderMicrosoftError ? callbackResult(error) : 'provider_unavailable',
           )
         }
       } catch {
@@ -410,15 +407,14 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
         const resolved = await resolveAccount(request, dependencies)
         if (resolved instanceof Response) return resolved
         const connections = (await dependencies.repository.listConnections(resolved.accountId))
-          .filter((connection) => connection.provider === 'google_calendar')
-        if (!Array.isArray(connections) || connections.length > 5) throw new Error('invalid_connections')
+          .filter((connection) => connection.provider === provider)
+        if (connections.length > 5) throw new Error('invalid_connections')
         const publicConnections = connections.map((connection) => {
-          if (!validConnectionMetadata(connection)) {
-            throw new Error('invalid_connection')
-          }
+          if (!validConnectionMetadata(connection)) throw new Error('invalid_connection')
           return {
             id: connection.id,
             provider: connection.provider,
+            accountKind: connection.accountKind,
             email: connection.email,
             displayName: connection.displayName,
             status: connection.status,
@@ -445,13 +441,12 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
         const effectiveAt = dependencies.now()
         const entitlement = await requireCapabilities(resolved.accountId, dependencies, effectiveAt)
         if (entitlement) return entitlement
-        const admitted = await dependencies.repository.consumeRateLimit({
+        if (!await dependencies.repository.consumeRateLimit({
           accountId: resolved.accountId,
           action: 'session',
           ipFingerprint: await dependencies.requestFingerprint(request),
           effectiveAt,
-        })
-        if (!admitted) return providerError('provider_rate_limited', 429)
+        })) return providerError('provider_rate_limited', 429)
         const connection = await dependencies.repository.getConnection(resolved.accountId, body.connectionId)
         if (!connection || !validConnectionRecord(connection, resolved.accountId)) {
           return providerError('provider_connection_not_found', 404)
@@ -460,22 +455,15 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
           return providerError('provider_reconnect_required', 409)
         }
         const refreshToken = await dependencies.crypto.decryptSecret(connection.refreshToken, {
-          purpose: 'refresh_token', provider: 'google_calendar',
+          purpose: 'refresh_token', provider,
           accountId: resolved.accountId, objectId: connection.id,
         })
         let result
         try {
-          result = await dependencies.google.refreshAccessToken({
-            refreshToken,
-            clientId: dependencies.oauthClientId,
-            now: effectiveAt,
-            expectedScopes: connection.grantedScopes,
-          })
+          result = await dependencies.microsoft.refresh(refreshToken)
         } catch (error) {
-          if (error instanceof ProviderGoogleError && error.code === 'provider_grant_invalid') {
-            await dependencies.repository.markReconnectRequired(
-              resolved.accountId, connection.id, effectiveAt,
-            )
+          if (error instanceof ProviderMicrosoftError && error.code === 'provider_grant_invalid') {
+            await dependencies.repository.markReconnectRequired(resolved.accountId, connection.id, effectiveAt)
             return providerError('provider_reconnect_required', 409)
           }
           return providerError('provider_session_unavailable', 503)
@@ -485,7 +473,7 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
         }
         if (result.refreshToken) {
           const rotated = await dependencies.crypto.encryptSecret(result.refreshToken, {
-            purpose: 'refresh_token', provider: 'google_calendar',
+            purpose: 'refresh_token', provider,
             accountId: resolved.accountId, objectId: connection.id,
           })
           if (!await dependencies.repository.rotateRefreshToken({
@@ -509,40 +497,29 @@ export function createProviderHandlers(dependencies: ProviderFunctionDependencie
       if (request.method !== 'POST') return providerError('method_not_allowed', 405)
       try {
         const body = await exactJson(request, ['confirmation', 'connectionId'])
-        if (
-          !body
+        if (!body
           || body.confirmation !== 'disconnect'
           || typeof body.connectionId !== 'string'
-          || !uuid.test(body.connectionId)
-        ) return providerError('provider_request_invalid', 400)
+          || !uuid.test(body.connectionId)) {
+          return providerError('provider_request_invalid', 400)
+        }
         const resolved = await resolveAccount(request, dependencies)
         if (resolved instanceof Response) return resolved
         const effectiveAt = dependencies.now()
-        const admitted = await dependencies.repository.consumeRateLimit({
+        if (!await dependencies.repository.consumeRateLimit({
           accountId: resolved.accountId,
           action: 'disconnect',
           ipFingerprint: await dependencies.requestFingerprint(request),
           effectiveAt,
-        })
-        if (!admitted) return providerError('provider_rate_limited', 429)
+        })) return providerError('provider_rate_limited', 429)
         const connection = await dependencies.repository.getConnection(resolved.accountId, body.connectionId)
         if (!connection || !validConnectionRecord(connection, resolved.accountId)) {
           return providerError('provider_connection_not_found', 404)
         }
-        let revocationConfirmed = false
-        try {
-          const refreshToken = await dependencies.crypto.decryptSecret(connection.refreshToken, {
-            purpose: 'refresh_token', provider: 'google_calendar',
-            accountId: resolved.accountId, objectId: connection.id,
-          })
-          revocationConfirmed = await dependencies.google.revokeRefreshToken(refreshToken)
-        } catch {
-          revocationConfirmed = false
+        if (!await dependencies.repository.deleteConnection(resolved.accountId, connection.id, effectiveAt)) {
+          return providerError('provider_service_unavailable', 503)
         }
-        if (!await dependencies.repository.deleteConnection(
-          resolved.accountId, connection.id, effectiveAt,
-        )) return providerError('provider_service_unavailable', 503)
-        return jsonResponse({ disconnected: true, revocationConfirmed })
+        return jsonResponse({ disconnected: true, revocationConfirmed: false })
       } catch {
         return providerError('provider_service_unavailable', 503)
       }

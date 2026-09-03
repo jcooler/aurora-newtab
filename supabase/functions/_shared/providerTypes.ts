@@ -2,7 +2,8 @@ import type { RequestAuthentication } from './requestAuth.ts'
 import type { ProviderCrypto, ProviderSecretEnvelope } from './providerCrypto.ts'
 import type { ProviderGoogleGateway } from './providerGoogle.ts'
 
-export type ProviderId = 'google_calendar'
+export type ProviderId = 'google_calendar' | 'microsoft_calendar'
+export type ProviderAccountKind = 'personal' | 'work_or_school'
 export type ProviderConnectionStatus = 'active' | 'reconnect_required'
 export type ProviderRateLimitAction = 'start' | 'callback_failure' | 'session' | 'disconnect'
 
@@ -25,6 +26,7 @@ export interface PrivateProviderConnection {
   id: string
   accountId: string
   provider: ProviderId
+  accountKind: ProviderAccountKind | null
   providerSubject: string
   email: string
   displayName: string | null
@@ -40,6 +42,7 @@ export interface PrivateProviderConnection {
 export interface ProviderConnectionMetadata {
   id: string
   provider: ProviderId
+  accountKind: ProviderAccountKind | null
   email: string
   displayName: string | null
   status: ProviderConnectionStatus
@@ -79,6 +82,7 @@ export interface ProviderRepository {
     id: string
     accountId: string
     provider: ProviderId
+    accountKind: ProviderAccountKind | null
     providerSubject: string
     email: string
     displayName: string | null

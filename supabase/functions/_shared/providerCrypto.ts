@@ -7,7 +7,7 @@ export type ProviderSecretPurpose = 'refresh_token' | 'pkce_verifier'
 
 export interface ProviderSecretContext {
   purpose: ProviderSecretPurpose
-  provider: 'google_calendar'
+  provider: 'google_calendar' | 'microsoft_calendar'
   accountId: string
   objectId: string
 }
@@ -52,7 +52,7 @@ export function decodeProviderBase64Url(value: string): Uint8Array {
 function validContext(context: ProviderSecretContext): boolean {
   return (
     (context.purpose === 'refresh_token' || context.purpose === 'pkce_verifier')
-    && context.provider === 'google_calendar'
+    && (context.provider === 'google_calendar' || context.provider === 'microsoft_calendar')
     && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(context.accountId)
     && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(context.objectId)
   )

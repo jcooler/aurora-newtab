@@ -14,6 +14,11 @@ const connectionContext = {
   objectId: '63000000-0000-4000-8000-000000000001',
 }
 
+const microsoftContext = {
+  ...connectionContext,
+  provider: 'microsoft_calendar' as const,
+}
+
 describe('provider secret encryption', () => {
   it('round-trips a secret with versioned authenticated context and no plaintext output', async () => {
     const crypto = await createProviderCrypto(environment)
@@ -51,6 +56,18 @@ describe('provider secret encryption', () => {
       await expect(crypto.decryptSecret(envelope, context)).rejects.toThrow('provider_secret_invalid')
     }
     await expect(crypto.decryptSecret({ ...envelope, keyVersion: 2 as 1 }, connectionContext))
+      .rejects.toThrow('provider_secret_invalid')
+    await expect(crypto.decryptSecret(envelope, microsoftContext))
+      .rejects.toThrow('provider_secret_invalid')
+  })
+
+  it('round-trips Microsoft authority under provider-separated associated data', async () => {
+    const crypto = await createProviderCrypto(environment)
+    const envelope = await crypto.encryptSecret('microsoft-refresh-token', microsoftContext)
+
+    await expect(crypto.decryptSecret(envelope, microsoftContext))
+      .resolves.toBe('microsoft-refresh-token')
+    await expect(crypto.decryptSecret(envelope, connectionContext))
       .rejects.toThrow('provider_secret_invalid')
   })
 

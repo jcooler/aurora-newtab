@@ -777,7 +777,7 @@ npx supabase db lint --local --level error
 
 Expected: zero errors.
 
-- [ ] **Step 6: Commit the schema checkpoint**
+- [x] **Step 6: Commit the schema checkpoint**
 
 ```powershell
 git add supabase/migrations/20260903000800_microsoft_calendar_provider.sql supabase/tests/database/microsoft_calendar_provider.test.sql supabase/tests/database/provider_connections.test.sql
@@ -814,7 +814,7 @@ git commit -m "feat: add Microsoft provider schema"
 - Consumes: authenticated Tab Two requests, exact capabilities, private provider repository, Microsoft-specific KEK/client credentials, Microsoft v2 endpoints/JWKS, and single-use transactions.
 - Produces: five isolated Microsoft functions, exact OIDC/token validation, encrypted refresh-token rotation, short-lived session issuance, metadata-only connection listing, and truthful disconnect response.
 
-- [ ] **Step 1: Write failing hosted unit tests**
+- [x] **Step 1: Write failing hosted unit tests**
 
 Define:
 
@@ -858,7 +858,7 @@ export interface ProviderMicrosoftGateway {
 
 Cover exact `common/oauth2/v2.0/authorize` and token endpoints, PKCE S256, `prompt=select_account`, exact scopes, state/nonce, no token logging, bounded JSON/JWKS/profile responses, no redirects, key rotation, tenant-specific issuer resolution, JWKS algorithm/key ID, signature, audience, nonce, issued/expiry times, tenant/object identity, personal/work classification, exact Graph permissions, missing refresh token, retained existing refresh token on exact-subject reconsent, cross-subject refusal, refresh rotation, invalid grant reconnect state, rate limits, metadata redaction, and disconnect returning `revocationConfirmed: false` without claiming provider revocation.
 
-- [ ] **Step 2: Run Edge tests and observe RED**
+- [x] **Step 2: Run Edge tests and observe RED**
 
 ```powershell
 npx vitest run --config supabase/functions/vitest.config.ts supabase/functions/tests/provider-microsoft.test.ts supabase/functions/tests/provider-crypto.test.ts supabase/functions/tests/provider-functions.test.ts
@@ -866,7 +866,7 @@ npx vitest run --config supabase/functions/vitest.config.ts supabase/functions/t
 
 Expected: Microsoft gateway/runtime/handlers do not exist.
 
-- [ ] **Step 3: Implement the Microsoft gateway and handlers**
+- [x] **Step 3: Implement the Microsoft gateway and handlers**
 
 Use only:
 
@@ -879,11 +879,11 @@ https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalNam
 
 Validate discovered issuer and JWKS URLs against exact Microsoft HTTPS host/path rules before fetching. Classify only tenant `9188040d-6c67-4c5b-b112-36a304b66dad` as `personal` and every other validated supported tenant as `work_or_school`; never infer account kind from the email address. Store only tenant-qualified subject, chosen display email, display name, account kind, exact canonical scopes, encrypted refresh token, key version, and lifecycle timestamps. Never store an access token or raw ID token.
 
-- [ ] **Step 4: Wire the five exact functions**
+- [x] **Step 4: Wire the five exact functions**
 
 Each index creates Microsoft runtime handlers only. Use JWT verification for start, connections, session, and disconnect; callback alone is public and protected by exact single-use state. Add all five explicit entries to `supabase/config.toml`.
 
-- [ ] **Step 5: Run Edge tests and observe GREEN**
+- [x] **Step 5: Run Edge tests and observe GREEN**
 
 Run the Step 2 command and the complete Edge function suite:
 
@@ -893,7 +893,7 @@ npx vitest run --config supabase/functions/vitest.config.ts
 
 Expected: Microsoft and every Google/account/billing/sync Edge test pass.
 
-- [ ] **Step 6: Scan the hosted source for forbidden values**
+- [x] **Step 6: Scan the hosted source for forbidden values**
 
 ```powershell
 rg -n "access_token|refresh_token|id_token|client_secret|Authorization" supabase/functions/_shared supabase/functions/microsoft-calendar-* supabase/functions/tests/provider-microsoft.test.ts
@@ -901,7 +901,7 @@ rg -n "access_token|refresh_token|id_token|client_secret|Authorization" supabase
 
 Inspect every match. Expected: only typed parsing, fixed header construction, redacted test fixtures, and explicit rejection assertions; no logging, response leakage, URL credential, or source-controlled secret.
 
-- [ ] **Step 7: Commit the broker checkpoint**
+- [x] **Step 7: Commit the broker checkpoint**
 
 ```powershell
 git add supabase/functions supabase/config.toml
