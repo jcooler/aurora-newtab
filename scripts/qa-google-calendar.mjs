@@ -497,6 +497,17 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
       },
     })
   }, { homeConnection: HOME_CONNECTION, workConnection: WORK_CONNECTION })
+  await page.evaluate(() => {
+    globalThis.__googleCalendarConnectorChanges = []
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.connectors) {
+        globalThis.__googleCalendarConnectorChanges.push({
+          at: performance.now(),
+          accounts: changes.connectors.newValue?.googleCalendar?.accounts?.map((account) => account.connectionId) ?? [],
+        })
+      }
+    })
+  })
 
   const remove = page.getByRole('button', { name: 'Remove alex@example.test' })
   await remove.click()
@@ -517,7 +528,17 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
     return stored.connectors?.googleCalendar?.accounts?.length === 1
       && stored.connectors.googleCalendar.accounts[0]?.connectionId === remainingConnection
   }, WORK_CONNECTION)
+  await page.waitForTimeout(500)
   const postDisconnect = await page.evaluate(() => chrome.storage.local.get(['connectors', 'metricsHistory']))
+  if (postDisconnect.connectors.googleCalendar.accounts.length !== 1) {
+    evidence.diagnostics = {
+      ...(evidence.diagnostics ?? {}),
+      disconnect: {
+        changes: await page.evaluate(() => globalThis.__googleCalendarConnectorChanges),
+        storage: postDisconnect,
+      },
+    }
+  }
   assert.equal(postDisconnect.connectors.googleCalendar.accounts.length, 1)
   assert.equal(postDisconnect.connectors.googleCalendar.accounts[0].connectionId, WORK_CONNECTION)
   assert(postDisconnect.metricsHistory.buckets.every((bucket) => bucket.sourceInstanceId !== HOME_CONNECTION))
