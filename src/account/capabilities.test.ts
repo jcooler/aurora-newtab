@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasCapability } from './capabilities'
+import { hasCapability, hasProviderCapability } from './capabilities'
 import type { AccountSnapshot, VerifiedEntitlementLease } from './types'
 
 const now = Date.UTC(2026, 8, 1, 14, 0, 0)
@@ -77,5 +77,34 @@ describe('hasCapability', () => {
   it('rejects a verified lease bound to a different account', () => {
     const active = { ...snapshot(activeLease), accountId: 'account-456' }
     expect(hasCapability(active, 'encrypted_sync', now)).toBe(false)
+  })
+})
+
+describe('hasProviderCapability', () => {
+  it('requires both the exact provider and multi-account capabilities', () => {
+    const fullLease: VerifiedEntitlementLease = {
+      ...activeLease,
+      capabilities: ['multi_account', 'google_calendar'],
+    }
+
+    expect(hasProviderCapability(snapshot(fullLease), 'google_calendar', now)).toBe(true)
+    expect(hasProviderCapability(snapshot({
+      ...fullLease,
+      capabilities: ['google_calendar'],
+    }), 'google_calendar', now)).toBe(false)
+    expect(hasProviderCapability(snapshot({
+      ...fullLease,
+      capabilities: ['multi_account'],
+    }), 'google_calendar', now)).toBe(false)
+  })
+
+  it('inherits account binding, verification, issue-time, and expiry checks', () => {
+    const lease: VerifiedEntitlementLease = {
+      ...activeLease,
+      capabilities: ['multi_account', 'google_calendar'],
+      expiresAt: now,
+    }
+
+    expect(hasProviderCapability(snapshot(lease), 'google_calendar', now)).toBe(false)
   })
 })

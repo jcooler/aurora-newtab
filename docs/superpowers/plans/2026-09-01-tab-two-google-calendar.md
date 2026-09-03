@@ -21,7 +21,7 @@
 - Account sign-in and connector authorization remain separate. A customer explicitly starts each Google Calendar connection and deliberately selects the Google account in Google's own system browser flow.
 - True Stable Chrome multi-account support uses a separate OAuth web client and server-side refresh-token custody. Do not use `chrome.identity.getAccounts()` because it is not available on Stable. Do not reuse the Tab Two account-sign-in OAuth client.
 - Store provider client secrets and refresh tokens only in protected hosted authority. Encrypt refresh tokens at rest with a separately versioned provider-token KEK. Never put a provider client secret, refresh token, token ciphertext, or service-role secret in the extension, source-controlled environment, logs, diagnostics, screenshots, sync, or JSON backup.
-- The extension may receive a short-lived provider access token only after authenticated account binding and a current `premium_connectors` capability. Hold it in memory, never persist it, and send it only to `https://www.googleapis.com/calendar/v3/*`.
+- The extension may receive a short-lived provider access token only after authenticated account binding and current `multi_account` plus `google_calendar` capabilities. Hold it in memory, never persist it, and send it only to `https://www.googleapis.com/calendar/v3/*`.
 - Raw Google event, calendar, attendee, location, conference, description, recurrence, and response payloads never pass through Supabase. The extension requests a minimized field set directly from Google and stores normalized rebuildable snapshots in the existing local cache authority, which is excluded from backup and sync.
 - Local Google calendar IDs, selected calendar metadata, sync tokens, and account labels are private provider metadata. Exclude them from JSON backup, encrypted product sync, diagnostics, and logs in PM-P6. Cross-device users may reuse server-held account connections after sign-in, but each installation chooses its own displayed calendars until a later separately approved encrypted preference design.
 - Metrics receive only daily event count and merged busy minutes with the opaque provider connection UUID as `sourceInstanceId`. Never emit titles, attendees, locations, calendar IDs, account labels, URLs, or raw provider data.
@@ -49,7 +49,7 @@ Use this privacy disclosure immediately beside the connection action:
 ### Approved OAuth topology, pending owner gate
 
 1. The signed-in entitled extension calls `google-calendar-oauth-start` with a random client nonce and the exact `chrome.identity.getRedirectURL('google-calendar')` final return origin.
-2. The start function validates the Tab Two session, `premium_connectors` capability, exact production extension ID, rate limit, and redirect allowlist. It writes one hashed, ten-minute, single-use transaction containing account ID, state hash, PKCE verifier ciphertext, client nonce hash, and exact final redirect. It returns only Google's authorization URL.
+2. The start function validates the Tab Two session, current `multi_account` plus `google_calendar` capabilities, exact production extension ID, rate limit, and redirect allowlist. It writes one hashed, ten-minute, single-use transaction containing account ID, state hash, PKCE verifier ciphertext, client nonce hash, and exact final redirect. It returns only Google's authorization URL.
 3. The extension starts `chrome.identity.launchWebAuthFlow({ interactive: true })` from the customer's click. Google owns account selection and consent.
 4. Google redirects to the exact hosted `google-calendar-oauth-callback` URI. The callback consumes state once, checks expiry and redirect binding, exchanges the code with PKCE and the server-held web-client secret, validates issuer/audience/nonce of the returned ID token, encrypts any refresh token, upserts one `(account_id, provider, provider_subject)` connection, and redirects to the exact pre-bound `chromiumapp.org` result URL with only a success or stable error code.
 5. The extension discards the returned browser URL after checking origin/path/nonce and calls the authenticated connection-list endpoint. No provider token or customer identity travels in the final redirect.
@@ -123,28 +123,28 @@ git push
 - Create: `src/providers/types.ts`
 - Create: `src/providers/connections.ts`
 - Test: `src/providers/connections.test.ts`
-- Modify: `src/account/entitlements.ts`
-- Test: `src/account/entitlements.test.ts`
+- Modify: `src/account/capabilities.ts`
+- Test: `src/account/capabilities.test.ts`
 
 **Interfaces:**
 - Produces: `ProviderId`, `ProviderConnection`, `ProviderConnectionStatus`, `ProviderSession`, strict exact-key validators, account-scoped reducers, connection limits, and capability guards.
-- Consumes: internal account UUID, opaque connection UUID, current `premium_connectors` lease capability, and stable provider error codes.
+- Consumes: internal account UUID, opaque connection UUID, current `multi_account` plus `google_calendar` lease capabilities, and stable provider error codes.
 
-- [ ] **Step 1: Write the failing domain tests**
+- [x] **Step 1: Write the failing domain tests**
 
-Cover exact-key parsing; malformed UUIDs; duplicate subjects; cross-account replacement; unknown provider/status/scope; secret-looking extra keys; expired access-token sessions; connection add/update/revoke; one broken account while another stays usable; and deterministic display ordering.
+Cover exact-key parsing; malformed UUIDs; duplicate connection identities; cross-account replacement; unknown provider/status/scope; secret-looking extra keys; expired access-token sessions; connection add/update/revoke; one broken account while another stays usable; and deterministic display ordering. Enforce duplicate provider-subject uniqueness in the private hosted schema and pgTAP coverage in Task 4 because provider subjects never enter the public extension shape.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
-Run: `npm test -- --run src/providers/connections.test.ts src/account/entitlements.test.ts`
+Run: `npm test -- --run src/providers/connections.test.ts src/account/capabilities.test.ts`
 
-- [ ] **Step 3: Implement the closed multi-account domain**
+- [x] **Step 3: Implement the closed multi-account domain**
 
 The public extension shape contains only connection UUID, provider, display email/name, status, exact granted scopes, and timestamps. It contains no provider subject, refresh token, access token, token fingerprint, nonce, PKCE verifier, or hosted encryption metadata. Enforce five Google Calendar accounts per Tab Two account for MVP and preserve other providers as a closed future enum entry only when their packet adds them.
 
-- [ ] **Step 4: Run focused tests and observe GREEN**
+- [x] **Step 4: Run focused tests and observe GREEN**
 
-- [ ] **Step 5: Commit the domain checkpoint**
+- [x] **Step 5: Commit the domain checkpoint**
 
 ---
 
