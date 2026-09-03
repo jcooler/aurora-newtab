@@ -175,7 +175,7 @@ describe('AccountSync', () => {
       },
     }))
     expect(await screen.findByText('Your changes are safe here and will sync automatically when you’re back online.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
     await waitFor(() => expect(live.actions.syncNow).toHaveBeenCalledOnce())
     expect(screen.queryByRole('button', { name: /refresh/i })).toBeNull()
 
@@ -207,7 +207,7 @@ describe('AccountSync', () => {
     const status = await screen.findByRole('region', { name: 'Sync status' })
     expect(within(status).getByRole('heading', { name: 'Desktop needs attention' })).toBeTruthy()
     expect(within(status).getByText('Your local data is still safe on this device.')).toBeTruthy()
-    expect(within(status).getByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(within(status).getByRole('button', { name: 'Sync now' })).toBeTruthy()
     expect(within(status).queryByText('Status')).toBeNull()
 
     const devices = screen.getByRole('region', { name: 'Devices' })
@@ -220,7 +220,7 @@ describe('AccountSync', () => {
     expect(within(local).getAllByRole('listitem')).toHaveLength(3)
   })
 
-  it('makes retry progress visible and prevents duplicate sync requests', async () => {
+  it('makes sync progress visible and prevents duplicate sync requests', async () => {
     const signedActions = actions()
     let finish!: (value: { status: 'completed' }) => void
     vi.mocked(signedActions.syncNow).mockReturnValue(new Promise((resolve) => { finish = resolve }))
@@ -235,14 +235,37 @@ describe('AccountSync', () => {
       devices: [{ id: 'device-1', name: 'Desktop', lastSyncAt: null, current: true, revoked: false }],
     }), signedActions)
 
-    const retry = await screen.findByRole('button', { name: 'Try again' })
-    fireEvent.click(retry)
+    const syncNow = await screen.findByRole('button', { name: 'Sync now' })
+    fireEvent.click(syncNow)
     const pending = await screen.findByRole('button', { name: 'Syncing…' })
     expect(pending.getAttribute('aria-busy')).toBe('true')
     expect(pending.querySelector('.account-sync-status__spinner')?.getAttribute('aria-hidden')).toBe('true')
     fireEvent.click(pending)
     expect(signedActions.syncNow).toHaveBeenCalledOnce()
     await act(async () => { finish({ status: 'completed' }) })
+  })
+
+  it('shows Try again only alongside a visible sync failure message', async () => {
+    const signedActions = actions()
+    vi.mocked(signedActions.syncNow).mockResolvedValue({ status: 'needs_attention' })
+    renderAccount(signedSnapshot({
+      sync: {
+        enabled: true,
+        phase: 'needs_attention',
+        lastSuccessAt: null,
+        usedBytes: 0,
+        quotaBytes: 2_097_152,
+      },
+      devices: [{ id: 'device-1', name: 'Desktop', lastSyncAt: null, current: true, revoked: false }],
+    }), signedActions)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }))
+
+    const status = screen.getByRole('region', { name: 'Sync status' })
+    expect((await within(status).findByRole('alert')).textContent).toBe(
+      'Sync could not complete safely. Your local data has not been removed.',
+    )
+    expect(within(status).getByRole('button', { name: 'Try again' })).toBeTruthy()
   })
 
   it('keeps a previously protected status visually stable during a routine sync', async () => {
@@ -294,7 +317,7 @@ describe('AccountSync', () => {
     }), signedActions)
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Enable sync' }))
-    expect(screen.getByRole('button', { name: 'Try again' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Sync now' }).hasAttribute('disabled')).toBe(true)
     expect(screen.queryByRole('button', { name: 'Syncing…' })).toBeNull()
     expect(screen.getByRole('switch', { name: 'Enable sync' }).hasAttribute('disabled')).toBe(true)
 

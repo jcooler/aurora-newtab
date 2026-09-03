@@ -229,7 +229,7 @@ describe('SyncProvider lifecycle ownership', () => {
 
     expect(await screen.findByRole('heading', { name: 'Primary needs attention' })).toBeTruthy()
     expect(api.bootstrap).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
 
     await waitFor(() => expect(api.bootstrap).toHaveBeenCalledTimes(2))
     expect(await screen.findByRole('heading', { name: 'Primary is protected' })).toBeTruthy()
@@ -273,7 +273,7 @@ describe('SyncProvider lifecycle ownership', () => {
     expect(await screen.findByRole('heading', { name: 'Primary is protected' })).toBeTruthy()
   })
 
-  it('publishes the chosen local device name while first bootstrap needs attention', async () => {
+  it('starts syncing after enable and preserves the chosen device name if bootstrap needs attention', async () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     const driver = memoryDriver()
     const api = gateway()
@@ -295,9 +295,10 @@ describe('SyncProvider lifecycle ownership', () => {
     fireEvent.change(within(dialog).getByLabelText('Device name'), { target: { value: 'Desktop' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Enable encrypted sync' }))
 
+    await waitFor(() => expect(api.bootstrap).toHaveBeenCalledOnce())
     expect(await screen.findByText('Desktop')).toBeTruthy()
     expect(screen.getByText('This device')).toBeTruthy()
-    expect(await screen.findByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Sync now' })).toBeTruthy()
   })
 
   it('turns off a locally enabled device that never completed server registration', async () => {

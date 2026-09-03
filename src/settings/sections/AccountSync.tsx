@@ -26,6 +26,7 @@ const syncFailureCopy: Record<Exclude<SyncActionOutcome['status'], 'completed'>,
 }
 
 type SyncActionKind = 'sync' | 'disable' | 'other'
+type SyncActionError = { kind: SyncActionKind; message: string }
 
 type DestructiveTarget =
   | { kind: 'vault' }
@@ -407,7 +408,7 @@ export default function AccountSync() {
   const [billingError, setBillingError] = useState<string | null>(null)
   const [destructiveTarget, setDestructiveTarget] = useState<DestructiveTarget | null>(null)
   const [deviceNameTarget, setDeviceNameTarget] = useState<null | { mode: 'enable' | 'rename'; deviceId?: string; initialName: string }>(null)
-  const [syncActionError, setSyncActionError] = useState<string | null>(null)
+  const [syncActionError, setSyncActionError] = useState<SyncActionError | null>(null)
   const [syncActionNotice, setSyncActionNotice] = useState<string | null>(null)
   const [syncActionPending, setSyncActionPending] = useState<SyncActionKind | null>(null)
   const syncActionOriginPhase = useRef<SyncPhase | null>(null)
@@ -587,7 +588,7 @@ export default function AccountSync() {
         needs_attention: 'Your local data is still safe on this device.',
       }[presentationPhase]
   const syncing = syncActionPending === 'sync' || syncState.phase === 'syncing'
-  const retrying = syncState.phase === 'offline' || syncState.phase === 'needs_attention'
+  const retrying = syncActionError?.kind === 'sync'
   const syncActionLabel = syncing ? 'Syncing…' : retrying ? 'Try again' : 'Sync now'
 
   async function runSyncAction(action: () => Promise<SyncActionOutcome>, kind: SyncActionKind = 'other') {
@@ -601,10 +602,10 @@ export default function AccountSync() {
       if (result.status === 'deactivation_unconfirmed') {
         setSyncActionNotice(syncFailureCopy[result.status])
       } else if (result.status !== 'completed') {
-        setSyncActionError(syncFailureCopy[result.status])
+        setSyncActionError({ kind, message: syncFailureCopy[result.status] })
       }
     } catch {
-      setSyncActionError('Sync could not complete safely. Try again.')
+      setSyncActionError({ kind, message: 'Sync could not complete safely. Try again.' })
     } finally {
       syncActionOriginPhase.current = null
       setSyncActionPending(null)
@@ -684,7 +685,7 @@ export default function AccountSync() {
           {syncActionNotice ? (
             <PoliteStatus className="account-sync-status__notice">{syncActionNotice}</PoliteStatus>
           ) : null}
-          <AssertiveAlert className="account-sync-status__error">{syncActionError}</AssertiveAlert>
+          <AssertiveAlert className="account-sync-status__error">{syncActionError?.message ?? null}</AssertiveAlert>
           <dl className="account-sync-facts">
             <Fact label="Last successful sync">{formatSyncTime(syncState.lastSuccessAt)}</Fact>
             <Fact label="Storage used">{formatBytes(syncState.usedBytes)} of {formatBytes(syncState.quotaBytes)}</Fact>
