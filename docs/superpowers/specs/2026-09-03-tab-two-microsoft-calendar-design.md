@@ -106,7 +106,7 @@ Do not place a red limitations column or an exhaustive list of inaccessible Micr
 4. The function returns only a Microsoft v2 authorization URL for the `common` authority with the exact approved scopes, PKCE challenge, state, nonce, callback URI, and explicit account selection.
 5. The extension opens `chrome.identity.launchWebAuthFlow({ interactive: true })`. Microsoft owns credential entry, account selection, organization policy, and consent.
 6. Microsoft redirects only to the dedicated hosted `microsoft-calendar-oauth-callback` URI. The callback atomically consumes state, checks expiry and redirect binding, exchanges the code with PKCE and the hosted confidential-client secret, and validates audience, nonce, tenant-aware issuer, token time bounds, and supported account type.
-7. The callback obtains only stable account identity and display metadata under `User.Read`. The private provider subject is the validated tenant ID plus Microsoft object ID. Missing or inconsistent identity claims fail closed.
+7. The callback obtains only stable account identity and display metadata under `User.Read`. The private provider subject is the validated tenant ID plus Microsoft object ID. The validated tenant classification supplies the non-secret `personal` or `work_or_school` account-kind label; it is never guessed from an email domain. Missing or inconsistent identity claims fail closed.
 8. The callback encrypts a new refresh token with the Microsoft-specific versioned key. Reconsent without a new refresh token may preserve the existing encrypted token only for the exact same account-owned connection.
 9. The callback upserts one `(account_id, provider, provider_subject)` connection and redirects to the pre-bound `chromiumapp.org` result URL with only a stable success or error code and the client nonce. No token or customer identity appears in that redirect.
 10. The extension validates the returned origin, path, nonce, and result, discards the URL, and fetches the authenticated Microsoft connection list.
@@ -120,6 +120,7 @@ Do not place a red limitations column or an exhaustive list of inaccessible Micr
 Create one append-only PM-P7 migration after local design and visual approval. It may:
 
 - add `microsoft_calendar` to the private provider ID enum;
+- add nullable account-kind metadata constrained to null for Google and `personal` or `work_or_school` for Microsoft;
 - replace the Google-only scope constraint with a provider-specific exact-scope constraint;
 - extend OAuth final-redirect validation with the exact `/microsoft-calendar` return path;
 - generalize the closed provider repository procedures only as required for the new provider;
@@ -150,6 +151,7 @@ The Microsoft KEK is random, independently versioned, and not reused for Google 
 
 - Extend `ProviderId` to the closed union `google_calendar | microsoft_calendar` only in PM-P7.
 - Validate provider-specific exact scopes and reject unknown providers, statuses, properties, or secret-looking extra keys.
+- Add `accountKind: 'personal' | 'work_or_school' | null` to public connection metadata. It is null for Google and required for Microsoft.
 - Allow at most five active or reconnect-required connections per provider and ten provider connections overall while the two providers exist.
 - Preserve deterministic ordering by provider, status, display email, creation time, and opaque connection UUID.
 - Keep private provider subject, tenant ID, object ID, token ciphertext, token fingerprint, encryption metadata, PKCE material, and refresh timestamps out of the public extension connection shape.
