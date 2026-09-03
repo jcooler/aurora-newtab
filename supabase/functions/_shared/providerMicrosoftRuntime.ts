@@ -3,7 +3,7 @@ import { authenticateBearerRequest } from './requestAuth.ts'
 import { createMicrosoftProviderHandlers } from './providerMicrosoftAuth.ts'
 import { createProviderMicrosoftGateway } from './providerMicrosoft.ts'
 import {
-  createProviderCrypto,
+  createProviderCryptoFromKek,
   decodeProviderBase64Url,
   encodeProviderBase64Url,
 } from './providerCrypto.ts'
@@ -30,10 +30,10 @@ async function sha256Base64Url(value: string): Promise<string> {
 export async function createRuntimeMicrosoftProviderHandlers(environment: RuntimeEnvironment) {
   const supabaseUrl = required(environment, 'SUPABASE_URL')
   const serviceRoleKey = required(environment, 'SUPABASE_SERVICE_ROLE_KEY')
-  const encodedKek = required(environment, 'TAB_TWO_PROVIDER_TOKEN_KEK_V1')
+  const encodedKek = required(environment, 'TAB_TWO_MICROSOFT_TOKEN_KEK_V1')
   const oauthClientId = required(environment, 'MICROSOFT_CALENDAR_OAUTH_CLIENT_ID')
   const oauthClientSecret = required(environment, 'MICROSOFT_CALENDAR_OAUTH_CLIENT_SECRET')
-  const providerCrypto = await createProviderCrypto({ TAB_TWO_PROVIDER_TOKEN_KEK_V1: encodedKek })
+  const providerCrypto = await createProviderCryptoFromKek(encodedKek)
 
   const rawFingerprintKey = decodeProviderBase64Url(encodedKek)
   let fingerprintKey: CryptoKey

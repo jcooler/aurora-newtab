@@ -962,7 +962,7 @@ Expected: harness or required evidence contract is absent.
 
 Use deterministic fixtures only. Load the exact unpacked production or preview build as required per state, drive real controls, and capture original-resolution evidence at desktop `1600x900`, short `1408x600`, ultrawide `3440x1440`, and touch `390x844` with `hasTouch: true`. Production-locked proof must make no Microsoft request. Preview requests may target only fixture-owned local routes; no real Microsoft, Supabase, Google, Stripe, or customer data.
 
-- [ ] **Step 4: Run the harness test and QA GREEN**
+- [x] **Step 4: Run the harness test and QA GREEN**
 
 ```powershell
 node --test scripts/qa-microsoft-calendar.test.mjs
@@ -971,7 +971,7 @@ npm run qa:microsoft-calendar -- --exact
 
 Expected: contract test passes and the installed MV3 evidence matrix is green.
 
-- [ ] **Step 5: Run the bounded complete-diff review**
+- [x] **Step 5: Run the bounded complete-diff review**
 
 Review the diff from the Task 1 approved visual checkpoint through current HEAD against the PM-P7 spec and plan. Classify only Critical, Important, Minor, or no finding. Block only Critical/Important. If a blocking issue exists, apply one focused fix and one focused rereview; otherwise proceed without review churn.
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   createMicrosoftProviderHandlers,
   type MicrosoftProviderFunctionDependencies,
@@ -34,6 +35,16 @@ const nonce = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 const state = encodeProviderBase64Url(Uint8Array.from({ length: 32 }, () => 0x04))
 const verifier = encodeProviderBase64Url(Uint8Array.from({ length: 32 }, () => 0x08))
 const finalRedirect = `https://${extensionId}.chromiumapp.org/microsoft-calendar?nonce=${nonce}`
+
+it('requires an independent Microsoft provider KEK at the runtime boundary', () => {
+  const runtime = readFileSync(
+    new URL('../_shared/providerMicrosoftRuntime.ts', import.meta.url),
+    'utf8',
+  )
+  expect(runtime).toContain("required(environment, 'TAB_TWO_MICROSOFT_TOKEN_KEK_V1')")
+  expect(runtime).not.toContain("required(environment, 'TAB_TWO_PROVIDER_TOKEN_KEK_V1')")
+  expect(runtime).toContain('createProviderCryptoFromKek(encodedKek)')
+})
 
 const envelope: ProviderSecretEnvelope = {
   keyVersion: 1,

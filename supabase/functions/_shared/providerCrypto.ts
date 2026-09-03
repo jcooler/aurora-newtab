@@ -87,6 +87,17 @@ export async function createProviderCrypto(
   const encodedKek = environment[PROVIDER_KEK_SECRET]
   if (!encodedKek) throw new Error('provider_kek_unavailable')
 
+  return createProviderCryptoFromKek(encodedKek, cryptoImplementation)
+}
+
+/** Builds the provider envelope boundary from an already selected KEK. This
+ * lets each provider runtime require its own secret without widening the
+ * legacy Google environment contract. */
+export async function createProviderCryptoFromKek(
+  encodedKek: string,
+  cryptoImplementation: Crypto = globalThis.crypto,
+): Promise<ProviderCrypto> {
+
   let rawKek: Uint8Array
   try {
     rawKek = decodeProviderBase64Url(encodedKek)
