@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(47);
+select plan(48);
 
 select has_table('private', 'provider_connections', 'provider connections are server-only');
 select has_table('private', 'provider_oauth_transactions', 'OAuth transactions are server-only');
@@ -104,6 +104,9 @@ select is((select count(*) from public.tab_two_provider_list_connections(
 select is((select email from public.tab_two_provider_list_connections(
   '43000000-0000-4000-8000-000000000001') limit 1), 'alex@example.test',
   'the metadata result includes bounded display identity');
+select is((select account_kind from public.tab_two_provider_list_connections(
+  '43000000-0000-4000-8000-000000000001') limit 1), null,
+  'existing Google metadata retains a null account kind');
 select is((select refresh_token_fingerprint from public.tab_two_provider_get_connection(
   '43000000-0000-4000-8000-000000000001',
   '63000000-0000-4000-8000-000000000001')), repeat('M',43),

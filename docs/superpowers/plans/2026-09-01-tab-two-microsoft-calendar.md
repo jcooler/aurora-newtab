@@ -716,7 +716,7 @@ Add the boolean to both validated config descriptors. Enable it only in account-
 
 Run the Step 2 command. Expected: all tests pass and Google configuration remains unchanged.
 
-- [ ] **Step 5: Commit the configuration checkpoint**
+- [x] **Step 5: Commit the configuration checkpoint**
 
 ```powershell
 git add src/account src/services/permissions.ts src/services/permissions.test.ts src/privacy/dataFlows.test.ts
@@ -736,11 +736,11 @@ git commit -m "feat: gate Microsoft Calendar activation"
 - Consumes: migration 00700's private enum/tables/security-definer repository procedures and the exact Microsoft scope/redirect contracts.
 - Produces: additive `microsoft_calendar` provider value, provider-specific scope and redirect constraints, generalized provider RPC validation, per-provider limits, and default-deny Microsoft rows.
 
-- [ ] **Step 1: Write the failing pgTAP tests**
+- [x] **Step 1: Write the failing pgTAP tests**
 
 Test one Microsoft transaction and connection with the exact scopes, tenant-qualified subject, required `personal | work_or_school` account kind, `/microsoft-calendar` return path, encrypted envelope bounds, and current account capabilities. Reject a missing or unknown Microsoft account kind, non-null Google account kind, wrong provider scopes, broader scopes, wrong return path, cross-account access, duplicate account/provider/subject, six Microsoft connections, malformed labels, malformed token envelopes, expired/replayed transactions, missing capabilities, and direct authenticated table access. Rerun all Google provider tests unchanged.
 
-- [ ] **Step 2: Run local database tests and observe RED**
+- [x] **Step 2: Run local database tests and observe RED**
 
 ```powershell
 npx supabase start
@@ -750,7 +750,7 @@ npm run test:supabase-local
 
 Expected: new Microsoft pgTAP assertions fail because provider enum and constraints remain Google-only.
 
-- [ ] **Step 3: Write the append-only migration**
+- [x] **Step 3: Write the append-only migration**
 
 Use `alter type private.provider_id add value if not exists 'microsoft_calendar'`. Add nullable `account_kind` with a provider-specific constraint requiring null for Google and `personal | work_or_school` for Microsoft. Replace exact-scope and return-path constraints with provider-specific predicates using `provider::text` so the new enum value is not unsafely cast inside the same migration transaction. Replace only the public provider repository functions that currently reject non-Google provider names. Preserve security definer, empty `search_path`, explicit account ownership, service-role execution, bounds, uniqueness, and revocation/deletion behavior.
 
@@ -765,11 +765,11 @@ array[
 ]::text[]
 ```
 
-- [ ] **Step 4: Reset and run pgTAP GREEN**
+- [x] **Step 4: Reset and run pgTAP GREEN**
 
 Run the Step 2 reset/test sequence. Expected: all database test files pass, including every Google regression assertion.
 
-- [ ] **Step 5: Run database lint**
+- [x] **Step 5: Run database lint**
 
 ```powershell
 npx supabase db lint --local --level error
