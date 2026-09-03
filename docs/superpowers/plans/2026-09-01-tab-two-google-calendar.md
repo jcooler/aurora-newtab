@@ -443,16 +443,16 @@ Google sensitive-scope verification, production audience publication, branding r
 - Modify when verified behavior changes: `README.md`
 - Modify when verified behavior changes: `PRIVACY.md`
 
-- [ ] **Step 1: Reconcile only verified facts**
+- [x] **Step 1: Reconcile only verified facts**
 
 Distinguish visual approval, local implementation, hosted sandbox activation, Google verification, and owner manual ceilings. Never mark provider production-ready from deterministic fixtures or sandbox test users.
 
-- [ ] **Step 2: Stage only intended PM-P6 files and commit**
+- [x] **Step 2: Stage only intended PM-P6 files and commit**
 
-- [ ] **Step 3: Push and prove local/upstream/remote equality**
+- [x] **Step 3: Push and prove local/upstream/remote equality**
 
-- [ ] **Step 4: Confirm the protected original and protected untracked paths**
+- [x] **Step 4: Confirm the protected original and protected untracked paths**
 
-- [ ] **Step 5: Continue to PM-P7 unless a hard gate remains**
+- [x] **Step 5: Continue to PM-P7 unless a hard gate remains**
 
 Do not merge, package, release, enable live Stripe, provision Supabase Pro, publish the Google OAuth app to production, or perform a Chrome Web Store action.
