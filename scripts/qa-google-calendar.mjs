@@ -170,14 +170,19 @@ function eventFixture(url) {
   }
 }
 
-function attachLedgers(page, evidence, label) {
+function attachLedgers(page, evidence, label, expectedFailure, expectedConsoleError) {
   page.on('console', (message) => {
-    if (message.type() === 'error') evidence.consoleErrors.push({ label, text: message.text() })
+    if (message.type() !== 'error') return
+    const entry = { label, text: message.text() }
+    if (expectedConsoleError(message)) evidence.expectedConsoleErrors.push(entry)
+    else evidence.consoleErrors.push(entry)
   })
   page.on('pageerror', (error) => evidence.pageErrors.push({ label, text: error.message }))
-  page.on('requestfailed', (request) => evidence.failedRequests.push({
-    label, method: request.method(), url: request.url(), failure: request.failure()?.errorText,
-  }))
+  page.on('requestfailed', (request) => {
+    const entry = { label, method: request.method(), url: request.url(), failure: request.failure()?.errorText }
+    if (expectedFailure(request)) evidence.expectedFailedRequests.push(entry)
+    else evidence.failedRequests.push(entry)
+  })
 }
 
 async function launchInstalled(profile, dist, viewport, evidence, label) {
@@ -192,6 +197,8 @@ async function launchInstalled(profile, dist, viewport, evidence, label) {
     args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
   })
   let delayDiscovery = false
+  let failureMode = null
+  let eventRequestCount = 0
   await context.route(/^https?:\/\//u, async (route) => {
     const url = new URL(route.request().url())
     if (url.hostname === 'www.googleapis.com' && url.pathname === '/calendar/v3/users/me/calendarList') {
@@ -201,6 +208,12 @@ async function launchInstalled(profile, dist, viewport, evidence, label) {
     }
     if (url.hostname === 'www.googleapis.com' && /\/calendar\/v3\/calendars\/[^/]+\/events$/u.test(url.pathname)) {
       evidence.allowedRequests.push({ label, method: route.request().method(), kind: 'calendar-events' })
+      const requestIndex = eventRequestCount
+      eventRequestCount += 1
+      if (failureMode === 'partial' && requestIndex >= 2) {
+        return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { code: 401 } }) })
+      }
+      if (failureMode === 'offline') return route.abort('internetdisconnected')
       return json(route, eventFixture(url))
     }
     evidence.unexpectedRequests.push({ label, method: route.request().method(), url: route.request().url() })
@@ -208,13 +221,19 @@ async function launchInstalled(profile, dist, viewport, evidence, label) {
   })
   const page = context.pages()[0] ?? await context.newPage()
   page.setDefaultTimeout(20_000)
-  attachLedgers(page, evidence, label)
+  attachLedgers(page, evidence, label, (request) => (
+    failureMode === 'offline' && new URL(request.url()).hostname === 'www.googleapis.com'
+  ), () => failureMode !== null)
   await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
   await page.locator('[data-canvas-surface]').waitFor()
   return {
     context,
     page,
     setDiscoveryDelay(value) { delayDiscovery = value },
+    setFailureMode(value) {
+      failureMode = value
+      eventRequestCount = 0
+    },
   }
 }
 
@@ -348,6 +367,7 @@ async function seedGoogleState(page, { issue = null, includeIcs = false, placeme
     }
     const current = await chrome.storage.local.get(['settings', 'layouts', 'notes'])
     const widgets = Object.fromEntries(Object.keys(current.settings.widgets).map((key) => [key, false]))
+    widgets.ics = true
     widgets.notes = placement === 'stack'
     const layout = {
       id: `google-calendar-${placement}-${tier}`,
@@ -408,7 +428,7 @@ async function exerciseLocked(page, viewport, output, evidence, repoRoot, key) {
   await capture(page, viewport, key, output, evidence, repoRoot)
 }
 
-async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDiscoveryDelay) {
+async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDiscoveryDelay, setFailureMode) {
   await loadAccountState(page, 'active')
   await clearGoogleState(page)
   await page.reload({ waitUntil: 'domcontentloaded' })
@@ -553,7 +573,7 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
   const calendar = page.getByRole('region', { name: 'Calendar' })
   await calendar.waitFor()
   for (const value of ['Product review', 'Family dinner', 'Work planning', 'Local appointment']) {
-    assert(await calendar.getByText(value, { exact: false }).first().isVisible(), `composed Calendar is missing ${value}`)
+    await calendar.getByText(value, { exact: false }).first().waitFor()
   }
   evidence.interactions['calendar-composed'] = true
   evidence.interactions['calendar-full'] = true
@@ -566,7 +586,7 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
 
   await seedGoogleState(page, { includeIcs: true, placement: 'dock', tier: 'full' })
   await page.reload({ waitUntil: 'domcontentloaded' })
-  await page.locator('[data-dock-line]').filter({ hasText: 'Calendar' }).waitFor()
+  await page.getByLabel(/^Calendar:/u).waitFor()
   evidence.interactions['calendar-docked'] = true
   await capture(page, viewport, 'composed-calendar-docked-desktop', output, evidence, repoRoot)
 
@@ -577,6 +597,7 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
   evidence.interactions['calendar-stacked'] = true
   await capture(page, viewport, 'composed-calendar-stacked-desktop', output, evidence, repoRoot)
 
+  setFailureMode('partial')
   await seedGoogleState(page, { issue: 'reconnect_required' })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await openGoogleCard(page)
@@ -588,13 +609,17 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
 
   await page.getByRole('button', { name: /Close Google Calendar/ }).click()
   await page.getByRole('button', { name: 'Close settings' }).click()
+  setFailureMode('offline')
   await seedGoogleState(page, { issue: 'offline' })
   await page.reload({ waitUntil: 'domcontentloaded' })
   const offline = await openGoogleCard(page)
   await offline.card.getByRole('button', { name: 'Edit Google Calendar' }).click()
-  await page.getByText('Offline. Saved events remain available.').waitFor()
+  const offlineStatuses = page.getByText('Offline. Saved events remain available.')
+  await offlineStatuses.first().waitFor()
+  assert.equal(await offlineStatuses.count(), 2)
   evidence.interactions['offline-retained'] = true
 
+  setFailureMode(null)
   await page.getByRole('button', { name: /Close Google Calendar/ }).click()
   await page.getByRole('button', { name: 'Close settings' }).click()
   await loadAccountState(page, 'signed-in')
@@ -665,7 +690,7 @@ export async function runGoogleCalendarQa(args = process.argv.slice(2)) {
     builds: { production: productionBuild, accountLocal: accountLocalBuild, preview: previewBuild },
     execution: { production: 'installed-extension', accountLocal: 'installed-extension', preview: 'installed-extension' },
     interactions: Object.fromEntries(GOOGLE_CALENDAR_INTERACTIONS.map((name) => [name, false])),
-    viewports: [], screenshots: [], allowedRequests: [],
+    viewports: [], screenshots: [], allowedRequests: [], expectedFailedRequests: [], expectedConsoleErrors: [],
     unexpectedRequests: [], consoleErrors: [], pageErrors: [], failedRequests: [],
   }
   const profiles = Array.from({ length: 6 }, (_, index) => mkdtempSync(resolve(tmpdir(), `tab-two-google-calendar-${index}-`)))
@@ -685,7 +710,15 @@ export async function runGoogleCalendarQa(args = process.argv.slice(2)) {
 
     const desktop = await launchInstalled(profiles[2], previewDist, GOOGLE_CALENDAR_VIEWPORTS[0], evidence, 'preview-desktop')
     contexts.push(desktop.context)
-    await exerciseDesktop(desktop.page, GOOGLE_CALENDAR_VIEWPORTS[0], output, evidence, repoRoot, desktop.setDiscoveryDelay)
+    await exerciseDesktop(
+      desktop.page,
+      GOOGLE_CALENDAR_VIEWPORTS[0],
+      output,
+      evidence,
+      repoRoot,
+      desktop.setDiscoveryDelay,
+      desktop.setFailureMode,
+    )
     for (let index = 1; index < GOOGLE_CALENDAR_VIEWPORTS.length; index += 1) {
       const viewport = GOOGLE_CALENDAR_VIEWPORTS[index]
       const launched = await launchInstalled(profiles[index + 2], previewDist, viewport, evidence, `preview-${viewport.id}`)
