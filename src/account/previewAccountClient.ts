@@ -6,6 +6,7 @@ import type { AccountActions, AccountSnapshot, PremiumCapability } from './types
 import { localAccountSnapshot } from './localAccountClient'
 
 export const TAB_TWO_PREVIEW_ACCOUNT_FIXTURE = 'TAB_TWO_PREVIEW_ACCOUNT_FIXTURE'
+const PREVIEW_ACCOUNT_ID = '43000000-0000-4000-8000-000000000001'
 
 export type PreviewAccountState =
   | 'local'
@@ -41,7 +42,7 @@ function signedSnapshot(
   const active = state !== 'signed-in'
   return Object.freeze({
     mode: 'signed_in' as const,
-    accountId: 'preview-account-1',
+    accountId: PREVIEW_ACCOUNT_ID,
     email: 'alex@example.com',
     displayName: 'Alex Morgan',
     billing: createBillingSummary({
@@ -57,7 +58,7 @@ function signedSnapshot(
           verification: 'verified' as const,
           leaseVersion: 1 as const,
           keyId: 'preview-fixture',
-          accountId: 'preview-account-1',
+          accountId: PREVIEW_ACCOUNT_ID,
           capabilities,
           grantSources: Object.freeze(['preview_fixture'] as const),
           issuedAt: 1_700_000_000_000,

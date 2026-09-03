@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createProviderGateway, createPreviewProviderGateway, type ProviderGatewayDependencies } from './gateway'
+import { createPreviewAccountClient } from '../account/previewAccountClient'
 
 const now = Date.UTC(2026, 8, 3, 15, 0, 0)
 const origin = 'https://ovlobmvxtryitupxwylg.supabase.co'
@@ -309,5 +310,15 @@ describe('extension provider gateway', () => {
       ok: true,
       value: { provider: 'google_calendar', accessToken: 'preview-google-calendar-access-token' },
     })
+
+    vi.stubGlobal('location', { search: '?accountState=active' })
+    try {
+      const previewClient = createPreviewAccountClient()
+      const previewAccount = await previewClient.getSnapshot()
+      const previewConnections = await previewClient.providerGateway?.listConnections()
+      expect(previewConnections?.ok && previewConnections.value.accountId).toBe(previewAccount.accountId)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
