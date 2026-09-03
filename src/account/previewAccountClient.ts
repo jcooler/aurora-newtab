@@ -165,6 +165,6 @@ export function createPreviewAccountClient(): AccountClient {
     subscribe() { return () => {} },
     actions: previewActions,
     syncGateway: null,
-    providerGateway,
+    providerGateways: Object.freeze({ google_calendar: providerGateway }),
   })
 }

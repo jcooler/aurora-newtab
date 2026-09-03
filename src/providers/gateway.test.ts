@@ -316,7 +316,7 @@ describe('extension provider gateway', () => {
     try {
       const previewClient = createPreviewAccountClient()
       const previewAccount = await previewClient.getSnapshot()
-      const previewConnections = await previewClient.providerGateway?.listConnections()
+      const previewConnections = await previewClient.providerGateways.google_calendar?.listConnections()
       expect(previewConnections?.ok && previewConnections.value.accountId).toBe(previewAccount.accountId)
     } finally {
       vi.unstubAllGlobals()

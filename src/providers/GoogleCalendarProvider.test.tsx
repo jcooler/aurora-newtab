@@ -70,7 +70,9 @@ function gateway(getSession = vi.fn(async () => ({
 function client(account: AccountSnapshot, providerGateway: ProviderGateway): AccountClient {
   return {
     getSnapshot: vi.fn(async () => account), subscribe: vi.fn(() => () => {}),
-    actions: localAccountClient.actions, syncGateway: null, providerGateway,
+    actions: localAccountClient.actions,
+    syncGateway: null,
+    providerGateways: { google_calendar: providerGateway },
   }
 }
 

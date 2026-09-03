@@ -252,7 +252,7 @@ export default function GoogleCalendarConnection({
     ? localConfig
     : null
   const entitled = account.hydrated && hasProviderCapability(account.snapshot, 'google_calendar')
-  const gateway = account.client.providerGateway
+  const gateway = account.client.providerGateways.google_calendar ?? null
 
   useEffect(() => {
     if (!announcement || (phase !== 'summary' && phase !== 'consent')) return

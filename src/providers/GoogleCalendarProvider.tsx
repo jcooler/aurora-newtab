@@ -178,7 +178,7 @@ export function GoogleCalendarProvider({
     && account.hydrated
     && hasProviderCapability(account.snapshot, 'google_calendar', now()),
   )
-  const gateway = account.client.providerGateway
+  const gateway = account.client.providerGateways.google_calendar ?? null
 
   return (
     <RefreshOwner

@@ -192,7 +192,7 @@ git commit -m "feat: extend provider connections for Microsoft"
 - Consumes: `ProviderId`, exact provider scopes, account snapshots, `chrome.identity`, authenticated Supabase access tokens, and provider-specific optional-origin functions.
 - Produces: `createProviderGatewayCore(config, deps)`, backward-compatible Google wrapper behavior, `createMicrosoftCalendarGateway`, `AccountClient.providerGateways`, and exact Microsoft OAuth return validation.
 
-- [ ] **Step 1: Write failing Microsoft OAuth and gateway-core tests**
+- [x] **Step 1: Write failing Microsoft OAuth and gateway-core tests**
 
 Define the core seam:
 
@@ -253,7 +253,7 @@ Test Google compatibility and Microsoft isolation: disabled gateway, absent acco
 
 For Microsoft OAuth, accept authorization URLs only at `https://login.microsoftonline.com/common/oauth2/v2.0/authorize` and final extension returns only at the exact `/microsoft-calendar` path with one `nonce` and one known `result`.
 
-- [ ] **Step 2: Run the focused tests and observe RED**
+- [x] **Step 2: Run the focused tests and observe RED**
 
 ```powershell
 npm test -- --run src/providers/microsoftOAuth.test.ts src/providers/gatewayCore.test.ts src/providers/gateway.test.ts src/providers/microsoftGateway.test.ts src/account/supabaseAccountClient.test.ts
@@ -261,7 +261,7 @@ npm test -- --run src/providers/microsoftOAuth.test.ts src/providers/gatewayCore
 
 Expected: new modules and `providerGateways` do not exist.
 
-- [ ] **Step 3: Implement the pure OAuth boundary**
+- [x] **Step 3: Implement the pure OAuth boundary**
 
 Export:
 
@@ -285,7 +285,7 @@ export function validateMicrosoftCalendarOAuthReturn(
 
 Map `organization_approval_required` to a distinct provider-gateway error. Treat cancellation as `provider_denied`; treat state, identity, redirect, and unknown-result problems as invalid or unavailable without exposing provider payloads.
 
-- [ ] **Step 4: Extract and implement the provider gateway core**
+- [x] **Step 4: Extract and implement the provider gateway core**
 
 Keep `src/providers/gateway.ts` as the Google-specific public wrapper so current imports remain stable during the refactor. Add `src/providers/microsoftGateway.ts` as a provider-specific wrapper. Change the account client contract to:
 
@@ -301,7 +301,7 @@ export interface AccountClient {
 
 On sign-out, invalid account authority, or account switch, call `clearMemory()` for every gateway. Preserve Google request paths, exact response parsing, origin lifecycle, preview fixtures, and session behavior.
 
-- [ ] **Step 5: Run the focused tests and observe GREEN**
+- [x] **Step 5: Run the focused tests and observe GREEN**
 
 Run the Step 2 command plus:
 
@@ -311,7 +311,7 @@ npm test -- --run src/providers/GoogleCalendarProvider.test.tsx src/settings/con
 
 Expected: Microsoft behavior passes and all affected Google/account compatibility tests remain green.
 
-- [ ] **Step 6: Commit the gateway checkpoint**
+- [x] **Step 6: Commit the gateway checkpoint**
 
 ```powershell
 git add src/providers src/account src/settings/connectors/GoogleCalendarConnection.tsx src/settings/connectors/GoogleCalendarConnection.test.tsx src/settings/sections/AccountSync.test.tsx src/newtab/widgets/timer/TimerSessionProvider.test.tsx

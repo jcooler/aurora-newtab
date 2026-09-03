@@ -74,7 +74,7 @@ function client(snapshot: AccountSnapshot, providerGateway: ProviderGateway): Ac
     subscribe: vi.fn(() => () => {}),
     actions: localAccountClient.actions,
     syncGateway: null,
-    providerGateway,
+    providerGateways: { google_calendar: providerGateway },
   }
 }
 

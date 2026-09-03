@@ -22,6 +22,11 @@ import {
   type ProviderGatewayDependencies,
 } from '../providers/gateway'
 import {
+  createMicrosoftCalendarGateway,
+  type MicrosoftCalendarGatewayDependencies,
+} from '../providers/microsoftGateway'
+import type { ProviderId } from '../providers/types'
+import {
   ensureGoogleCalendarOrigin,
   removeGoogleCalendarOrigin,
 } from '../services/permissions'
@@ -75,6 +80,17 @@ export interface SupabaseAccountClientDependencies {
     | 'identity'
     | 'requestGoogleOrigin'
     | 'removeGoogleOrigin'
+  >
+  microsoftProvider?: Pick<
+    MicrosoftCalendarGatewayDependencies,
+    | 'enabled'
+    | 'origin'
+    | 'allowedOrigins'
+    | 'fetch'
+    | 'randomBytes'
+    | 'identity'
+    | 'requestMicrosoftOrigin'
+    | 'removeMicrosoftOrigin'
   >
   verifyLease(
     envelope: unknown,
@@ -165,7 +181,7 @@ export function createSupabaseAccountClient(
 ): AccountClient {
   let current: AccountSnapshot = localAccountSnapshot
   let hydration: Promise<AccountSnapshot> | null = null
-  let providerGateway: ProviderGateway | null = null
+  let providerGateways: Readonly<Partial<Record<ProviderId, ProviderGateway>>> = Object.freeze({})
   const listeners = new Set<(snapshot: AccountSnapshot) => void>()
 
   function publish(snapshot: AccountSnapshot): AccountSnapshot {
@@ -175,7 +191,7 @@ export function createSupabaseAccountClient(
   }
 
   async function clearAuthority(): Promise<AccountSnapshot> {
-    providerGateway?.clearMemory()
+    for (const gateway of Object.values(providerGateways)) gateway?.clearMemory()
     try {
       await dependencies.sessionStore.clear()
     } catch {
@@ -321,8 +337,9 @@ export function createSupabaseAccountClient(
       })
     : null
 
-  providerGateway = dependencies.provider
-    ? createProviderGateway({
+  const configuredProviderGateways: Partial<Record<ProviderId, ProviderGateway>> = {}
+  if (dependencies.provider) {
+    configuredProviderGateways.google_calendar = createProviderGateway({
         ...dependencies.provider,
         now: dependencies.now,
         getAccount: () => current.mode === 'signed_in' && current.accountId !== null
@@ -335,7 +352,23 @@ export function createSupabaseAccountClient(
         getAccessToken: async () => (await billingSession())?.accessToken ?? null,
         invalidateAuthentication: async () => { await clearAuthority() },
       })
-    : null
+  }
+  if (dependencies.microsoftProvider) {
+    configuredProviderGateways.microsoft_calendar = createMicrosoftCalendarGateway({
+      ...dependencies.microsoftProvider,
+      now: dependencies.now,
+      getAccount: () => current.mode === 'signed_in' && current.accountId !== null
+        ? {
+            accountId: current.accountId,
+            capabilities: current.lease?.capabilities ?? [],
+            leaseExpiresAt: current.lease?.expiresAt ?? 0,
+          }
+        : null,
+      getAccessToken: async () => (await billingSession())?.accessToken ?? null,
+      invalidateAuthentication: async () => { await clearAuthority() },
+    })
+  }
+  providerGateways = Object.freeze(configuredProviderGateways)
 
   async function openPlans(plan: BillingPlan) {
     try {
@@ -417,7 +450,7 @@ export function createSupabaseAccountClient(
     },
     actions,
     syncGateway,
-    providerGateway,
+    providerGateways,
   })
 }
 

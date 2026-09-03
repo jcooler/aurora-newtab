@@ -293,8 +293,8 @@ describe('Supabase AccountClient', () => {
     const client = createSupabaseAccountClient(value.deps)
     await client.getSnapshot()
 
-    expect(client.providerGateway).not.toBeNull()
-    await expect(client.providerGateway?.listConnections()).resolves.toEqual({
+    expect(client.providerGateways.google_calendar).toBeDefined()
+    await expect(client.providerGateways.google_calendar?.listConnections()).resolves.toEqual({
       ok: true,
       value: { accountId: providerAccountId, connections: [] },
     })
@@ -304,6 +304,83 @@ describe('Supabase AccountClient', () => {
         headers: expect.objectContaining({ authorization: 'Bearer access-token' }),
       }),
     )
+  })
+
+  it('exposes independently entitled Google and Microsoft gateways', async () => {
+    const providerAccountId = '43000000-0000-4000-8000-000000000001'
+    const providerResponse = (provider: 'google_calendar' | 'microsoft_calendar') => ({
+      connections: provider === 'google_calendar' ? [] : [{
+        id: '63000000-0000-4000-8000-000000000001',
+        provider,
+        accountKind: 'work_or_school',
+        email: 'alex@contoso.example',
+        displayName: 'Alex',
+        status: 'active',
+        grantedScopes: [
+          'openid',
+          'offline_access',
+          'https://graph.microsoft.com/User.Read',
+          'https://graph.microsoft.com/Calendars.ReadBasic',
+        ],
+        createdAt: now - 1,
+        updatedAt: now,
+      }],
+    })
+    value.deps.api.getAccountSnapshot = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        accountId: providerAccountId,
+        email: 'alex@example.test',
+        displayName: 'Alex Morgan',
+        subscription: { state: 'complimentary' as const },
+      },
+    }))
+    value.deps.verifyLease = vi.fn(async () => ({
+      ...lease,
+      accountId: providerAccountId,
+      capabilities: ['multi_account', 'google_calendar', 'microsoft_calendar'] as const,
+    }))
+    value.deps.provider = {
+      enabled: true,
+      origin: 'https://ovlobmvxtryitupxwylg.supabase.co',
+      allowedOrigins: ['https://ovlobmvxtryitupxwylg.supabase.co'],
+      fetch: vi.fn(async () => new Response(JSON.stringify(providerResponse('google_calendar')), {
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch,
+      randomBytes: () => new Uint8Array(32),
+      identity: {
+        getRedirectURL: () => 'https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/google-calendar',
+        launchWebAuthFlow: vi.fn(),
+      },
+      requestGoogleOrigin: vi.fn(async () => true),
+      removeGoogleOrigin: vi.fn(async () => true),
+    }
+    value.deps.microsoftProvider = {
+      enabled: true,
+      origin: 'https://ovlobmvxtryitupxwylg.supabase.co',
+      allowedOrigins: ['https://ovlobmvxtryitupxwylg.supabase.co'],
+      fetch: vi.fn(async () => new Response(JSON.stringify(providerResponse('microsoft_calendar')), {
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch,
+      randomBytes: () => new Uint8Array(32),
+      identity: {
+        getRedirectURL: () => 'https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/microsoft-calendar',
+        launchWebAuthFlow: vi.fn(),
+      },
+      requestMicrosoftOrigin: vi.fn(async () => true),
+      removeMicrosoftOrigin: vi.fn(async () => true),
+    }
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+
+    expect(Object.keys(client.providerGateways).sort()).toEqual([
+      'google_calendar',
+      'microsoft_calendar',
+    ])
+    await expect(client.providerGateways.microsoft_calendar?.listConnections()).resolves.toMatchObject({
+      ok: true,
+      value: { connections: [{ accountKind: 'work_or_school' }] },
+    })
   })
 
   it('never lends the stored session to a gateway request for another account', async () => {

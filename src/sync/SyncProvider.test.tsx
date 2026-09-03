@@ -66,7 +66,7 @@ function client(value: AccountSnapshot, syncGateway: SyncGateway): AccountClient
     subscribe: vi.fn(() => () => {}),
     actions: localAccountClient.actions,
     syncGateway,
-    providerGateway: null,
+    providerGateways: {},
   }
 }
 

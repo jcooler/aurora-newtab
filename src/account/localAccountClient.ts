@@ -51,5 +51,5 @@ export const localAccountClient: AccountClient = Object.freeze({
   },
   actions: localActions,
   syncGateway: null,
-  providerGateway: null,
+  providerGateways: Object.freeze({}),
 })

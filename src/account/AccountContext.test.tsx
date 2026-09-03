@@ -69,7 +69,7 @@ function fakeClient(initial: Promise<AccountSnapshot>) {
     }),
     actions,
     syncGateway: null,
-    providerGateway: null,
+    providerGateways: {},
   }
   return {
     client,
