@@ -134,10 +134,8 @@ Its Stripe functions reject live-mode objects and are not a live billing launch.
 When encrypted sync is enabled, the Tab Two Supabase service stores AES-256-GCM
 encrypted record envelopes for approved settings, layouts, tasks, notes, habits,
 goals, links, and non-secret connector preferences. Source support for the same
-aggregate-only Metrics buckets is complete, but the hosted migration and
-affected sync-function deployment remain separately approval-gated. Until that
-activation passes, Metrics buckets remain local and are not accepted by hosted
-sync. The service also stores the
+aggregate-only Metrics buckets is active when both Metrics and encrypted sync
+are entitled and sync is explicitly enabled. The service also stores the
 provider-neutral account UUID, random device identifiers and friendly names,
 last-seen/acknowledgement metadata, record type/id/revision/tombstone/size data,
 bounded idempotency receipts, rate-limit counters, and append-only sync audit
@@ -299,12 +297,11 @@ return surface only after a sandbox billing action (item 9 below):
    pull on startup, focus restoration, an interval, or **Sync now**; offline
    edits remain local and retry with bounded backoff. Passwords, tokens,
    sessions, RSS/Calendar URLs, provider caches/responses, uploaded images, and
-   recovery-copy contents are never included. After the separately approved
-   hosted Metrics activation, eligible aggregate-only Metrics buckets may use
-   the same encrypted transport. Their ciphertext contains only the bounded
+   recovery-copy contents are never included. Eligible aggregate-only Metrics
+   buckets may use the same encrypted transport. Their ciphertext contains only the bounded
    numeric bucket described above; the request exposes only the existing
    account/device/revision metadata plus the `metric_bucket` type and a random
-   UUID record identifier. Until that activation, Metrics history stays local.
+   UUID record identifier.
 9. **Static billing return surface** -
    `tab-two-billing-return.pages.dev`, reached when Stripe redirects the browser
    after sandbox Checkout or Customer Portal. The page receives ordinary HTTPS

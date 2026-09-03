@@ -501,9 +501,8 @@ refreshing an account-bound signed lease. Stripe returns through the static
 remote assets, account data, or billing authority. Live billing is not active.
 
 Encrypted sync includes settings and layouts; tasks, notes, habits, goals, and
-links; and approved non-secret connector preferences. Source support for
-aggregate-only Metrics buckets is complete, but hosted acceptance remains off
-until the separately approved migration and sync-function deployment. Passwords, tokens,
+links; approved non-secret connector preferences; and aggregate-only Metrics
+buckets when both Metrics and sync are entitled and enabled. Passwords, tokens,
 sessions, feed/calendar URLs, provider caches and responses, uploaded images,
 and device-local operational state always stay on the device. The service keeps
 only encrypted record envelopes and bounded account/device/revision metadata,

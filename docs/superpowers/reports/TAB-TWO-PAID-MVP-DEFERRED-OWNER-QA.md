@@ -24,7 +24,7 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Only when ready to remove real history, confirm one scoped deletion and verify only the named scope disappears. Complete deletion can remain untested if preserving real history is preferred.
 - In the final modeled expired-capability build, confirm retained history remains readable while new activity no longer adds a bucket.
 - With the network unavailable, confirm the last local history remains readable and no destructive fallback occurs.
-- If encrypted sync is enabled after the separately approved hosted Metrics activation, confirm a second installation receives the same aggregate bucket without receiving raw source data.
+- With encrypted sync enabled, confirm a second installation receives the same aggregate bucket without receiving raw source data.
 
 ## Final device and accessibility ceilings
 

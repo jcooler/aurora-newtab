@@ -2,8 +2,9 @@
 
 **Date:** 2026-09-03<br>
 **Branch:** `feat/aurora-2-observatory`<br>
-**Runtime evidence source:** `13e5f7df2c082944048cbb99bdea9d19fe97358f`<br>
-**Result:** PASS for the local Metrics implementation, aggregate-only storage and export, source-complete encrypted bucket support, exact build isolation, and installed-extension Chromium QA. Hosted migration `00600` and the affected sync function deployments remain separately gated and were not applied.
+**Local runtime evidence source:** `13e5f7df2c082944048cbb99bdea9d19fe97358f`<br>
+**Hosted matrix source:** `c772838586eae9f7dbe922981134366ab36bb845`<br>
+**Result:** PASS for the local Metrics implementation, aggregate-only storage and export, encrypted bucket sync, exact build isolation, installed-extension Chromium QA, approved hosted activation, and complete synthetic-fixture cleanup.
 
 ## Delivered boundary
 
@@ -15,7 +16,7 @@
 - Capability expiry stops new collection but does not hide or delete existing local history. Offline state also preserves the last local history.
 - Settings > Progress owns a native JSON download and explicit scoped or complete deletion. Deletion requires a two-step confirmation and never follows connector disablement implicitly.
 - Schema v22 appends the Metrics widget toggle without enabling, placing, or rearranging it in an existing layout.
-- Encrypted sync projection admits only canonical `metric_bucket` records with UUID identities. The local database migration and Edge validation are source-complete, but hosted activation remains closed.
+- Encrypted sync projection admits only canonical `metric_bucket` records with UUID identities. Hosted migration 00600 and version 5 of `sync-push` and `sync-pull` now accept that same closed contract.
 
 ## Review and focused repairs
 
@@ -31,7 +32,7 @@ The review and exact browser pass closed these Important defects:
 6. The Standard `View history` action retains a 44 px target at touch-narrow width even when Chromium does not expose `pointer: coarse` as the primary pointer.
 7. The installed-extension harness waits for the responsive drawer to settle before measuring geometry.
 
-No Critical or Important finding remains open at the local and source-only ceiling.
+No Critical or Important finding remains open at the verified PM-P5 ceiling.
 
 ## Stabilized verification
 
@@ -68,20 +69,34 @@ Production and preview both ran as installed MV3 extensions from the exact track
 - The downloaded fixture contained seven aggregate-only buckets and passed the raw or sensitive key scan.
 - Request, console-error, page-error, and failed-request ledgers were empty.
 
-## Hosted activation still closed
+## Hosted activation
 
-The existing hosted authority accepts the PM-P4 vocabulary through `progress_goal`; it does not yet accept `metric_bucket`. Migration `20260902000600_metrics_sync_entity.sql` exists only in source and the local database.
+The owner approved the exact hosted gate. Supabase project `ovlobmvxtryitupxwylg` remains on Free with no payment method or paid add-on.
 
-The separately gated hosted delta is limited to:
+- The dry run found exactly one pending migration and no seed or role change.
+- Migration `20260902000600_metrics_sync_entity.sql` replaced only the private `sync_records` closed-type constraint and private `apply_sync_mutations` implementation to admit UUID-identified `metric_bucket` records.
+- Only `sync-push` and `sync-pull` were redeployed. Both are ACTIVE at version 5 with JWT verification enabled.
+- The first parallel deployment response claimed both succeeded, but metadata showed only `sync-pull` advanced. No matrix ran in that partial state. A sequential `sync-push` redeploy advanced it to version 5 before testing.
+- No table, column, index, role grant, public API, secret, OAuth setting, permission, storage bucket, realtime subscription, plan, or other function changed.
 
-1. Apply migration `00600`, which replaces the private `sync_records` type check and the private `apply_sync_mutations` implementation to admit only `metric_bucket` UUID identities. It adds no table, column, index, role grant, public API, secret, permission, or paid service.
-2. Redeploy only `sync-push` and `sync-pull` with JWT verification so their shared closed vocabulary can validate the new type in request, response, and stale-winner paths.
-3. Exercise one disposable synthetic account with one aggregate-only encrypted bucket, malformed-id rejection, pull, tombstone, isolation, and cleanup. Do not use owner product data and do not inspect ciphertext.
-4. Perform read-only post-deploy checks of migration history, function name/version/JWT state, record type counts, and zero residual synthetic rows.
+### Hosted matrix
 
-Expected Supabase Free impact is negligible: two function deployments, one private constraint/function replacement, a bounded handful of function invokes, and temporary encrypted rows removed by the same run. No payment method, plan change, new secret, OAuth change, storage bucket, realtime subscription, or additional service is required.
+One disposable Google-shaped synthetic identity and account held only `encrypted_sync` and `metrics_history` capabilities. The matrix used one random device and one aggregate-only Tasks bucket. It did not use owner product data or retain ciphertext in evidence.
 
-Rollback before any customer build reload is: remove all synthetic rows; redeploy the prior `sync-push` and `sync-pull` source; apply a reviewed forward rollback migration restoring the prior closed vocabulary and private RPC body; verify no `metric_bucket` rows remain. Installation-local Metrics history remains intact throughout.
+- Bootstrap succeeded.
+- The aggregate bucket push succeeded.
+- A non-UUID Metrics record identifier was rejected with 400 `invalid_request`.
+- An unregistered random device was rejected with 404 `device_not_found`.
+- Pull returned the expected type, UUID, revision, and tombstone metadata.
+- The revision 2 tombstone succeeded.
+- Six function invocations returned 1,351 response bytes.
+- Cleanup removed the synthetic vault, device, record, account, identity, grant, audit state, rate-limit state, and Auth user.
+
+Evidence: `artifacts/qa-metrics-sync-hosted/c772838586eae9f7dbe922981134366ab36bb845/evidence.json`
+
+Independent read-only inspection found migration count 1, both private validators admitting `metric_bucket`, zero hosted Metrics records, zero PM-P5 QA identities, and zero PM-P5 QA Auth users. It read no ciphertext or customer content.
+
+The approved Free-tier budget was respected. Rollback remains: disable client Metrics projection first, preserve installation-local history, remove only verified synthetic state, redeploy the prior two function sources, apply a reviewed forward rollback migration restoring the prior vocabulary and private RPC body, and verify no `metric_bucket` rows remain.
 
 ## Remaining manual ceilings
 
@@ -89,4 +104,4 @@ Owner hands-on QA is intentionally deferred until the end of development. The cu
 
 ## Explicit stop
 
-No hosted migration, function deployment, hosted test identity or row, Supabase plan change, production secret, OAuth change, Chrome permission, live Stripe action, package, release, merge, or Chrome Web Store action was performed for PM-P5.
+Only migration 00600, `sync-push`, `sync-pull`, and the cleaned disposable synthetic matrix changed hosted state. No Supabase plan change, payment method, paid add-on, production secret, OAuth change, Chrome permission, live Stripe action, package, release, merge, or Chrome Web Store action was performed.

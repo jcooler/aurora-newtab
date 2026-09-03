@@ -509,9 +509,9 @@ Run the affected metrics/storage/sync/widget suites, then one full `npm test -- 
 
 At desktop, short-height, ultrawide, and touch-narrow sizes, cover locked, empty, populated, expired, loading, offline, error, export, delete-confirm/cancel, focus order, visible focus, reduced motion, range controls, Settings route, layout edit, dock/stack, reload persistence, and no overflow. Capture storage writes, backend/provider requests, console errors, page errors, and failed requests against explicit allowlists.
 
-- [ ] **Step 4: Request the hosted migration gate**
+- [x] **Step 4: Request and execute the approved hosted migration gate**
 
-Present the exact local migration/function delta, rollback, expected Supabase Free impact, and read-only post-deploy inspection. Stop before applying migration 00600 until explicit owner approval. Never read ciphertext during hosted inspection.
+The owner approved the exact migration 00600, `sync-push`, `sync-pull`, synthetic matrix, cleanup, inspection, and rollback scope. Migration 00600 and only the two affected JWT-protected functions were activated on Supabase Free. The bounded aggregate-only matrix passed and cleaned every fixture. Post-deploy inspection read only migration, function, type, and count metadata, never ciphertext.
 
 - [x] **Step 5: Maintain the cumulative owner-QA checklist**
 
