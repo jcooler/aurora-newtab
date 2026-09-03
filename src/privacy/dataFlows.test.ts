@@ -233,6 +233,13 @@ describe('code-backed privacy inventory', () => {
       backend: 'authentication-metadata-only',
       operations: ['GET CalendarList and Events resources directly from Google Calendar API'],
     })
+    expect(CONNECTOR_DATA_FLOWS.microsoftCalendar).toMatchObject({
+      backup: 'excluded',
+      permission: 'optional-per-origin',
+      transmission: 'provider-direct',
+      destinations: ['graph.microsoft.com'],
+      backend: 'authentication-metadata-only',
+    })
   })
 
   it('distinguishes Aurora network requests from browser-mediated and navigation flows', () => {
@@ -360,6 +367,21 @@ describe('code-backed privacy inventory', () => {
       'no Google access token or refresh token in extension storage',
     )
     expect(ACCOUNT_SERVICE_DATA_FLOWS.googleCalendar.authority).toContain('in memory')
+  })
+
+  it('discloses direct Microsoft Graph reads and metadata-only broker traffic', () => {
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.microsoftCalendar.destinations).toEqual([
+      'https://ovlobmvxtryitupxwylg.supabase.co',
+      'https://graph.microsoft.com',
+    ])
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.microsoftCalendar.storesLocally).toEqual([
+      'selected calendar metadata',
+      'normalized rebuildable event snapshots',
+      'bounded delta links and refresh state',
+    ])
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.microsoftCalendar.authority).toBe(
+      'Supabase stores encrypted connection credentials; access tokens are memory-only; raw calendar data travels directly from Microsoft Graph to this browser.',
+    )
   })
 
   it('keeps the canonical privacy policy synchronized with the fixed environmental flow', () => {

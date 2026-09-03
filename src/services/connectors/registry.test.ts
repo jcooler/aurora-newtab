@@ -18,10 +18,11 @@ import {
 // CONNECTOR_IDS, or a registered id that getConnector can't resolve all fail
 // immediately, for the current registry and every future descriptor alike.
 describe('connector registry invariants', () => {
-  it('appends Google Calendar after all fifteen existing connector identities', () => {
+  it('appends provider calendars after all fifteen existing connector identities', () => {
     expect(CONNECTOR_IDS).toEqual([
       'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
-      'linear', 'sentry', 'todoist', 'onThisDay', 'publicHolidays', 'auroraKp', 'googleCalendar',
+      'linear', 'sentry', 'todoist', 'onThisDay', 'publicHolidays', 'auroraKp',
+      'googleCalendar', 'microsoftCalendar',
     ])
     expect(CATEGORY_ORDER).toEqual([
       'development',
@@ -91,6 +92,27 @@ describe('connector registry invariants', () => {
       id: 'googleCalendar', category: 'calendar-tasks', auth: 'oauth', excludeFromBackup: true,
     })
     expect(descriptor?.origins(configured)).toEqual(['https://www.googleapis.com/*'])
+    expect(descriptor?.ownsOrigins(configured)).toBe(true)
+  })
+
+  it('registers Microsoft Calendar as a separate account-bound OAuth connector', () => {
+    const descriptor = getConnector('microsoftCalendar')
+    const configured = {
+      enabled: true,
+      accountId: '43000000-0000-4000-8000-000000000001',
+      accounts: [{
+        connectionId: '52000000-0000-4000-8000-000000000001',
+        displayEmail: 'person@contoso.example',
+        accountKind: 'work_or_school',
+        calendars: [{
+          calendarId: 'calendar-1', name: 'Work', color: '#0078d4', isDefault: true,
+        }],
+      }],
+    } as ConnectorConfig
+    expect(descriptor).toMatchObject({
+      id: 'microsoftCalendar', category: 'calendar-tasks', auth: 'oauth', excludeFromBackup: true,
+    })
+    expect(descriptor?.origins(configured)).toEqual(['https://graph.microsoft.com/*'])
     expect(descriptor?.ownsOrigins(configured)).toBe(true)
   })
 
@@ -173,6 +195,7 @@ describe('descriptor categories', () => {
       publicHolidays: 'at-a-glance',
       auroraKp: 'at-a-glance',
       googleCalendar: 'calendar-tasks',
+      microsoftCalendar: 'calendar-tasks',
     }
     for (const d of CONNECTORS) {
       expect(d.category).toBe(expected[d.id])

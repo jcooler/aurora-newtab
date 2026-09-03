@@ -162,14 +162,19 @@ describe('migrate', () => {
         calls.push(21)
         return data
       },
-      // registry[22] upgrades v22 -> v23 (CURRENT_VERSION)
+      // registry[22] upgrades v22 -> v23
       22: (data) => {
         calls.push(22)
         return data
       },
+      // registry[23] upgrades v23 -> v24 (CURRENT_VERSION)
+      23: (data) => {
+        calls.push(23)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -685,7 +690,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(23)
+    expect(CURRENT_VERSION).toBe(24)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -778,7 +783,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(23)
+    expect(CURRENT_VERSION).toBe(24)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill and v16->v17 Flow preference are the only
     // Settings deltas on the way up.
@@ -975,7 +980,35 @@ describe('v22 -> v23', () => {
     expect(migrate(snapshot, 22)).toEqual(before)
     expect(migrate(snapshot, 22).connectors).not.toHaveProperty('googleCalendar')
     expect(migrate(snapshot, 22).settings.widgets).not.toHaveProperty('googleCalendar')
-    expect(CURRENT_VERSION).toBe(23)
+    expect(CURRENT_VERSION).toBe(24)
+  })
+})
+
+describe('v23 -> v24', () => {
+  it('preserves valid local Microsoft state, strips malformed state, and never enables a default', () => {
+    const validConfig = {
+      enabled: false,
+      accountId: '42000000-0000-4000-8000-000000000001',
+      accounts: [{
+        connectionId: '52000000-0000-4000-8000-000000000001',
+        displayEmail: 'alex@contoso.example',
+        accountKind: 'work_or_school',
+        calendars: [{ calendarId: 'work', name: 'Work', color: '#0078d4', isDefault: true }],
+      }],
+    }
+    const preserved = migrate({ ...defaults(), connectors: { microsoftCalendar: validConfig } }, 23)
+    expect(preserved.connectors.microsoftCalendar).toEqual(validConfig)
+
+    const malformed = migrate({
+      ...defaults(),
+      connectors: { microsoftCalendar: { ...validConfig, refreshToken: 'secret' } },
+      connectorSnapshots: {
+        microsoftCalendar: { fetchedAt: 1, data: { rawProviderResponse: 'private' } },
+      },
+    }, 23)
+    expect(malformed.connectors).not.toHaveProperty('microsoftCalendar')
+    expect(malformed.connectorSnapshots).not.toHaveProperty('microsoftCalendar')
+    expect(migrate(defaults() as unknown as Record<string, unknown>, 23).connectors).not.toHaveProperty('microsoftCalendar')
   })
 })
 

@@ -733,7 +733,7 @@ describe('apodCache export / import exclusion (Task 95)', () => {
 
 describe('weatherAlertCache export / import exclusion', () => {
   it('keeps the current schema version pinned and defaults the additive cache to null', () => {
-    expect(CURRENT_VERSION).toBe(23)
+    expect(CURRENT_VERSION).toBe(24)
     expect(defaults().weatherAlertCache).toBeNull()
     expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
   })
@@ -1635,7 +1635,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
       const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
       expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
       expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
-      expect(CURRENT_VERSION).toBe(23)
+      expect(CURRENT_VERSION).toBe(24)
     }
   })
 
@@ -1772,6 +1772,48 @@ describe('Google Calendar backup isolation', () => {
     const prepared = prepareBackup(JSON.stringify(envelope))
     expect(prepared.ok).toBe(true)
     if (prepared.ok) expect(prepared.data.connectors).not.toHaveProperty('googleCalendar')
+  })
+})
+
+describe('Microsoft Calendar backup isolation', () => {
+  const microsoftCalendar = {
+    enabled: true,
+    accountId: '42000000-0000-4000-8000-000000000001',
+    accounts: [{
+      connectionId: '52000000-0000-4000-8000-000000000001',
+      displayEmail: 'private-account@contoso.example',
+      accountKind: 'work_or_school',
+      calendars: [{
+        calendarId: 'private-calendar-id',
+        name: 'Private Microsoft calendar',
+        color: '#0078d4',
+        isDefault: true,
+      }],
+    }],
+  }
+
+  it('omits the complete config and cache from export and discards an injected import', () => {
+    const serialized = serializeBackup({
+      ...defaults(),
+      connectors: { microsoftCalendar } as never,
+      connectorSnapshots: {
+        microsoftCalendar: {
+          fetchedAt: 1,
+          data: { deltaLink: 'private-delta', title: 'Private Microsoft event' },
+        },
+      } as never,
+    })
+    expect(serialized).not.toContain('private-account@contoso.example')
+    expect(serialized).not.toContain('private-calendar-id')
+    expect(serialized).not.toContain('private-delta')
+
+    const envelope = JSON.parse(serializeBackup(defaults())) as {
+      data: { connectors: Record<string, unknown> }
+    }
+    envelope.data.connectors.microsoftCalendar = microsoftCalendar
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.connectors).not.toHaveProperty('microsoftCalendar')
   })
 })
 

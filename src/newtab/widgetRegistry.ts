@@ -223,6 +223,7 @@ function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | und
     case 'publicHolidays': return [selected('National holidays', 'compact')]
     case 'auroraKp': return [selected('Geomagnetic forecast', 'compact')]
     case 'googleCalendar': return [selected('Selected Google calendars', 'compact')]
+    case 'microsoftCalendar': return [selected('Selected Microsoft calendars', 'compact')]
   }
 }
 
@@ -254,10 +255,10 @@ export function selectActiveWidgetRegistry(
     if (availability.kind === 'always') return [entry]
     if (availability.kind === 'widget') return settings.widgets[availability.key] ? [entry] : []
     const config = connectors[availability.id]
-    const googleOwnsCalendarSurface = entry.id === 'ics'
+    const providerOwnsCalendarSurface = entry.id === 'ics'
       && availability.id === 'ics'
-      && connectors.googleCalendar?.enabled === true
-    if (config?.enabled !== true && !googleOwnsCalendarSurface) return []
+      && (connectors.googleCalendar?.enabled === true || connectors.microsoftCalendar?.enabled === true)
+    if (config?.enabled !== true && !providerOwnsCalendarSurface) return []
     const selectedContent = config?.enabled === true
       ? selectedConnectorContent(availability.id, config)
       : []

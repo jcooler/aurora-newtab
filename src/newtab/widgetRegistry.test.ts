@@ -174,7 +174,9 @@ describe('source-owned widget registry', () => {
 
   it('maps every delivered connector widget by enabled alone, including incomplete setup/data', () => {
     const settings = settingsWith(ALL_WIDGETS_OFF)
-    const delivered = CONNECTOR_IDS.filter((id) => id !== 'auroraKp' && id !== 'googleCalendar')
+    const delivered = CONNECTOR_IDS.filter((id) => (
+      id !== 'auroraKp' && id !== 'googleCalendar' && id !== 'microsoftCalendar'
+    ))
     for (const connectorId of delivered) {
       const enabled = { [connectorId]: connector(true) } as Partial<Record<ConnectorId, ConnectorConfig>>
       const disabled = { [connectorId]: connector(false) } as Partial<Record<ConnectorId, ConnectorConfig>>
@@ -197,6 +199,23 @@ describe('source-owned widget registry', () => {
     })
     expect(ids(active)).toContain('ics')
     expect(ids(active)).not.toContain('googleCalendar')
+  })
+
+  it('mounts the existing Calendar surface for a Microsoft-only calendar connection', () => {
+    const active = selectActiveWidgetRegistry(settingsWith(ALL_WIDGETS_OFF), {
+      microsoftCalendar: {
+        enabled: true,
+        accountId: '42000000-0000-4000-8000-000000000001',
+        accounts: [{
+          connectionId: '52000000-0000-4000-8000-000000000001',
+          displayEmail: 'calendar@contoso.example',
+          accountKind: 'work_or_school',
+          calendars: [{ calendarId: 'work', name: 'Work', color: '#0078d4', isDefault: true }],
+        }],
+      },
+    })
+    expect(ids(active)).toContain('ics')
+    expect(ids(active)).not.toContain('microsoftCalendar')
   })
 
   it('recomputes pure availability from changed settings/config without stale output or mutation', () => {

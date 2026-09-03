@@ -347,7 +347,7 @@ git commit -m "feat: add Microsoft provider gateway boundary"
 - Consumes: connector registry/storage contracts, opaque provider connection UUIDs, approved calendar selections, and the exact Graph origin.
 - Produces: `MicrosoftCalendarConfig`, normalized snapshot types, `parseMicrosoftCalendarConfig`, `isMicrosoftCalendarSnapshot`, `microsoftCalendarDescriptor`, append-only storage schema version, and explicit backup/sync/privacy exclusions.
 
-- [ ] **Step 1: Write the failing local-authority tests**
+- [x] **Step 1: Write the failing local-authority tests**
 
 Define:
 
@@ -425,7 +425,7 @@ export interface MicrosoftCalendarSnapshot {
 
 Test exact-key parsing, UUID ownership, personal/work kind, five-account cap, ten calendars per account, twenty calendars total, duplicate IDs, safe text, hex/fallback colors, bounded delta links, time bounds, event ordering, event cap, issue isolation, unknown fields, and immutability. Prove export strips `microsoftCalendar`, import discards injected state, sync projection rejects it, defaults do not create it, and privacy inventory names only local Graph transmission plus account-metadata broker traffic.
 
-- [ ] **Step 2: Run the focused tests and observe RED**
+- [x] **Step 2: Run the focused tests and observe RED**
 
 ```powershell
 npm test -- --run src/services/connectors/microsoftCalendar.test.ts src/services/connectors/registry.test.ts src/services/connectors/expansionConnectorContracts.test.ts src/lib/storage/schema.test.ts src/lib/storage/migrations.test.ts src/lib/backup.test.ts src/sync/connectorProjection.test.ts src/privacy/dataFlows.test.ts
@@ -433,11 +433,11 @@ npm test -- --run src/services/connectors/microsoftCalendar.test.ts src/services
 
 Expected: Microsoft connector ID, types, parser, storage version, and exclusions are absent.
 
-- [ ] **Step 3: Implement the local schema and descriptor**
+- [x] **Step 3: Implement the local schema and descriptor**
 
 Append `microsoftCalendar` after `googleCalendar` in `CONNECTOR_IDS`; add its config to `ConnectorConfig`; set `auth: 'oauth'`, `category: 'calendar-tasks'`, `excludeFromBackup: true`, TTL 15 minutes, origin `https://graph.microsoft.com/*`, and `ownsOrigins` only for a complete account-bound configuration. Add one append-only storage migration that strips malformed Microsoft state and never writes a default enabled connector.
 
-- [ ] **Step 4: Implement explicit privacy exclusions**
+- [x] **Step 4: Implement explicit privacy exclusions**
 
 Add `microsoftCalendar: never` to sync connector vocabulary, remove it during backup preparation/restoration, and document:
 
@@ -456,11 +456,11 @@ microsoftCalendar: {
 }
 ```
 
-- [ ] **Step 5: Run the focused tests and observe GREEN**
+- [x] **Step 5: Run the focused tests and observe GREEN**
 
 Run the Step 2 command. Expected: all selected tests pass with Google and ICS fixtures unchanged.
 
-- [ ] **Step 6: Commit the local-authority checkpoint**
+- [x] **Step 6: Commit the local-authority checkpoint**
 
 ```powershell
 git add src/services src/lib src/sync src/privacy src/test

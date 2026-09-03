@@ -4,6 +4,7 @@ import type {
   CryptoConfig,
   GoogleCalendarConfig,
   IcsConfig,
+  MicrosoftCalendarConfig,
   RssConfig,
   StatusConfig,
 } from '../../services/connectors/types'
@@ -99,8 +100,10 @@ function identityLabel(
   descriptor: ConnectorDescriptor,
   config: ConnectorConfig | undefined,
 ): string | null {
-  if (descriptor.id === 'googleCalendar') {
-    const accounts = (config as GoogleCalendarConfig | undefined)?.accounts
+  if (descriptor.id === 'googleCalendar' || descriptor.id === 'microsoftCalendar') {
+    const accounts = descriptor.id === 'googleCalendar'
+      ? (config as GoogleCalendarConfig | undefined)?.accounts
+      : (config as MicrosoftCalendarConfig | undefined)?.accounts
     if (!Array.isArray(accounts) || accounts.length === 0) return null
     const calendarCount = accounts.reduce((total, account) => total + account.calendars.length, 0)
     return `${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'} · ${calendarCount} ${calendarCount === 1 ? 'calendar' : 'calendars'}`

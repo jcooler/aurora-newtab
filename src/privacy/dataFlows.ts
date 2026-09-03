@@ -246,6 +246,23 @@ export const CONNECTOR_DATA_FLOWS: Record<ConnectorId, ConnectorDataFlow> = {
     backend: 'authentication-metadata-only',
     operations: ['GET CalendarList and Events resources directly from Google Calendar API'],
   },
+  microsoftCalendar: {
+    account: 'third-party',
+    authenticationFields: [],
+    capabilityFields: ['accounts', 'calendar selections'],
+    backup: 'excluded',
+    permission: 'optional-per-origin',
+    transmission: 'provider-direct',
+    destinationKind: 'fixed-provider',
+    destinations: ['graph.microsoft.com'],
+    trigger: ['explicit calendar discovery or visible-document refresh while enabled and entitled'],
+    methods: ['GET'],
+    sends: ['short-lived bearer token, selected calendar identifiers, bounded window, and pagination or delta cursor'],
+    receives: ['selected calendar names, colors, and minimized event fields'],
+    cache: 'connectorSnapshots-excluded-from-backup',
+    backend: 'authentication-metadata-only',
+    operations: ['GET Calendar and calendarView delta resources directly from Microsoft Graph'],
+  },
 }
 
 interface FixedDataFlow {
@@ -365,6 +382,30 @@ export const ACCOUNT_SERVICE_DATA_FLOWS = {
     ],
     authority: 'The server stores the encrypted refresh grant; the extension receives a short-lived access token in memory only after a verified paid capability check.',
     currentState: 'The extension gateway is implemented locally; production provider activation remains gated.',
+  },
+  microsoftCalendar: {
+    destinations: [
+      'https://ovlobmvxtryitupxwylg.supabase.co',
+      'https://graph.microsoft.com',
+    ],
+    trigger: ['explicit Connect Microsoft Calendar action', 'connector refresh after connection'],
+    sends: [
+      'Supabase account session to authenticated Microsoft provider functions',
+      'Microsoft OAuth authorization through a nonce-bound Chrome Identity window',
+      'short-lived Microsoft access token only to Microsoft Graph',
+    ],
+    receives: [
+      'non-secret connected-account metadata',
+      'short-lived Microsoft access token held only in page memory',
+      'read-only calendar lists and basic events normalized into the local provider cache',
+    ],
+    storesLocally: [
+      'selected calendar metadata',
+      'normalized rebuildable event snapshots',
+      'bounded delta links and refresh state',
+    ],
+    authority: 'Supabase stores encrypted connection credentials; access tokens are memory-only; raw calendar data travels directly from Microsoft Graph to this browser.',
+    currentState: 'The isolated local authority is implemented; Microsoft Entra and hosted provider activation remain gated.',
   },
 } as const
 

@@ -54,6 +54,7 @@ export interface ConnectorPreferenceById {
   publicHolidays: { enabled: boolean; countryCode: string }
   auroraKp: { enabled: boolean }
   googleCalendar: never
+  microsoftCalendar: never
 }
 
 export type ConnectorPreferenceV1 = ConnectorPreferenceById[keyof ConnectorPreferenceById]

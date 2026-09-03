@@ -19,7 +19,7 @@ export const CONNECTOR_IDS = [
   'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
   'linear', 'sentry', 'todoist',
   'onThisDay', 'publicHolidays', 'auroraKp',
-  'googleCalendar',
+  'googleCalendar', 'microsoftCalendar',
 ] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 
@@ -298,6 +298,78 @@ export interface GoogleCalendarSnapshot {
   connectionIssues?: GoogleCalendarConnectionIssue[]
 }
 
+export interface MicrosoftCalendarSelection {
+  calendarId: string
+  name: string
+  color: string
+  isDefault: boolean
+}
+
+export interface MicrosoftCalendarAccountSelection {
+  connectionId: string
+  displayEmail: string
+  accountKind: 'personal' | 'work_or_school'
+  calendars: MicrosoftCalendarSelection[]
+}
+
+export interface MicrosoftCalendarConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  accountId: string
+  accounts: MicrosoftCalendarAccountSelection[]
+}
+
+export interface MicrosoftCalendarEvent {
+  eventId: string
+  title: string
+  start: number
+  end: number
+  allDay: boolean
+  startDate: string | null
+  endDate: string | null
+  cancelled: boolean
+  showAs: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown'
+  sensitivity: 'normal' | 'personal' | 'private' | 'confidential'
+  eventType: 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster'
+  seriesMasterId: string | null
+  updatedAt: number
+}
+
+export interface MicrosoftCalendarSourceSnapshot {
+  connectionId: string
+  calendarId: string
+  color: string
+  windowStart: number
+  windowEnd: number
+  deltaLink: string
+  events: MicrosoftCalendarEvent[]
+}
+
+export type MicrosoftCalendarConnectionIssueCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'rate_limited'
+  | 'offline'
+  | 'organization_approval_required'
+  | 'provider_error'
+  | 'invalid_response'
+  | 'response_too_large'
+  | 'limit_exceeded'
+  | 'cursor_expired'
+  | 'entitlement_required'
+  | 'reconnect_required'
+
+export interface MicrosoftCalendarConnectionIssue {
+  connectionId: string
+  code: MicrosoftCalendarConnectionIssueCode
+}
+
+export interface MicrosoftCalendarSnapshot {
+  version: 1
+  fetchedAt: number
+  calendars: MicrosoftCalendarSourceSnapshot[]
+  connectionIssues?: MicrosoftCalendarConnectionIssue[]
+}
+
 export type ConnectorConfig =
   | RssConfig
   | GithubConfig
@@ -315,6 +387,7 @@ export type ConnectorConfig =
   | PublicHolidaysConfig
   | AuroraKpConfig
   | GoogleCalendarConfig
+  | MicrosoftCalendarConfig
 
 export interface ConnectorSnapshot {
   /** Missing only on legacy v1 caches; the hook treats those as absent. */

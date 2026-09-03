@@ -8,10 +8,12 @@ it('forces each new storage authority through an explicit sync classification de
   expect([...SYNCED_AURORA_KEYS, ...EXCLUDED_AURORA_KEYS].sort()).toEqual(Object.keys(defaults()).sort())
 })
 
-it('schema v23 keeps aggregate history nullable, Metrics off, and provider config absent by default', () => {
-  expect(CURRENT_VERSION).toBe(23)
+it('schema v24 keeps aggregate history nullable, Metrics off, and provider configs absent by default', () => {
+  expect(CURRENT_VERSION).toBe(24)
   expect(defaults().metricsHistory).toBeNull()
   expect(defaults().settings.widgets.metrics).toBe(false)
   expect(defaults().connectors).not.toHaveProperty('googleCalendar')
   expect(defaults().connectorSnapshots).not.toHaveProperty('googleCalendar')
+  expect(defaults().connectors).not.toHaveProperty('microsoftCalendar')
+  expect(defaults().connectorSnapshots).not.toHaveProperty('microsoftCalendar')
 })

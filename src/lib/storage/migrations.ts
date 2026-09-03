@@ -1,6 +1,10 @@
 import { CURRENT_VERSION, DEFAULT_BRIEFING_SOURCES, defaults, type AuroraData } from './schema'
 import { isPlainObject } from '../object'
 import { layoutV2FromLegacy } from '../layout/v2'
+import {
+  isMicrosoftCalendarSnapshot,
+  parseMicrosoftCalendarConfig,
+} from '../../services/connectors/microsoftCalendar'
 
 type Snapshot = Record<string, unknown>
 
@@ -330,6 +334,37 @@ export const migrations: Record<number, Migration> = {
   // Keep the registry step identity so no connection is enabled, configured,
   // or placed and every prior authority remains byte-equivalent.
   22: (data) => data,
+  // v23 -> v24: Microsoft Calendar adds a device-local provider authority.
+  // Preserve an already-valid development snapshot, but strip malformed or
+  // secret-bearing injected rows. No default config or enabled state is ever
+  // materialized by this migration.
+  23: (data) => {
+    const connectors = isPlainObject(data.connectors) ? { ...data.connectors } : data.connectors
+    if (isPlainObject(connectors)
+      && Object.prototype.hasOwnProperty.call(connectors, 'microsoftCalendar')
+      && parseMicrosoftCalendarConfig(connectors.microsoftCalendar) === null) {
+      delete connectors.microsoftCalendar
+    }
+    const connectorSnapshots = isPlainObject(data.connectorSnapshots)
+      ? { ...data.connectorSnapshots }
+      : data.connectorSnapshots
+    if (isPlainObject(connectorSnapshots)
+      && Object.prototype.hasOwnProperty.call(connectorSnapshots, 'microsoftCalendar')) {
+      const entry = connectorSnapshots.microsoftCalendar
+      const valid = isPlainObject(entry)
+        && Object.keys(entry).every((key) => ['scope', 'fetchedAt', 'data'].includes(key))
+        && (entry.scope === undefined || typeof entry.scope === 'string')
+        && Number.isSafeInteger(entry.fetchedAt)
+        && (entry.fetchedAt as number) >= 0
+        && isMicrosoftCalendarSnapshot(entry.data)
+      if (!valid) delete connectorSnapshots.microsoftCalendar
+    }
+    return {
+      ...data,
+      ...(connectors === undefined ? {} : { connectors }),
+      ...(connectorSnapshots === undefined ? {} : { connectorSnapshots }),
+    }
+  },
 }
 
 export function migrate(

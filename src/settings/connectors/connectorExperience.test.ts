@@ -15,7 +15,9 @@ describe('connectorExperience', () => {
       expect(experience.benefits.every((benefit) => benefit.trim().length > 8)).toBe(true)
       expect(experience.privacySummary.trim().length).toBeGreaterThan(20)
       expect(experience.categoryLabel).toBe(CATEGORY_LABELS[descriptor.category])
-      expect(experience.entitlement).toBe(descriptor.id === 'googleCalendar' ? 'premium' : 'included')
+      expect(experience.entitlement).toBe(
+        descriptor.id === 'googleCalendar' || descriptor.id === 'microsoftCalendar' ? 'premium' : 'included',
+      )
     }
   })
 

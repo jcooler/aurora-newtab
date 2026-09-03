@@ -25,6 +25,7 @@ import { onThisDayDescriptor } from './onThisDay'
 import { publicHolidaysDescriptor } from './publicHolidays'
 import { auroraKpDescriptor } from './auroraKp'
 import { googleCalendarDescriptor } from './googleCalendar'
+import { microsoftCalendarDescriptor } from './microsoftCalendar'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
@@ -76,6 +77,7 @@ export const CONNECTORS: ConnectorDescriptor[] = [
   publicHolidaysDescriptor as ConnectorDescriptor,
   auroraKpDescriptor as ConnectorDescriptor,
   googleCalendarDescriptor as ConnectorDescriptor,
+  microsoftCalendarDescriptor as ConnectorDescriptor,
 ]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan

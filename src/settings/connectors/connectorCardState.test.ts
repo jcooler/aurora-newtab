@@ -30,6 +30,16 @@ const configured: Record<ConnectorId, ConnectorConfig> = {
       calendars: [{ calendarId: 'primary', name: 'Sam', color: '#4285f4', primary: true }],
     }],
   },
+  microsoftCalendar: {
+    enabled: true,
+    accountId: '42000000-0000-4000-8000-000000000001',
+    accounts: [{
+      connectionId: '62000000-0000-4000-8000-000000000001',
+      displayEmail: 'sam@contoso.example',
+      accountKind: 'work_or_school',
+      calendars: [{ calendarId: 'work', name: 'Work', color: '#0078d4', isDefault: true }],
+    }],
+  },
 }
 
 const reconnect: Record<ConnectorId, ConnectorConfig> = {
@@ -49,6 +59,7 @@ const reconnect: Record<ConnectorId, ConnectorConfig> = {
   publicHolidays: { enabled: true, countryCode: '' },
   auroraKp: { enabled: undefined } as unknown as ConnectorConfig,
   googleCalendar: { enabled: true, accounts: [] } as ConnectorConfig,
+  microsoftCalendar: { enabled: true, accounts: [] } as ConnectorConfig,
 }
 
 const setupExpected: Expected = {
@@ -117,6 +128,7 @@ const identities: Partial<Record<ConnectorId, string>> = {
   sentry: 'Connected to team',
   todoist: 'Connected to Todoist',
   googleCalendar: '1 account · 1 calendar',
+  microsoftCalendar: '1 account · 1 calendar',
 }
 
 describe('deriveConnectorCardState', () => {
@@ -140,7 +152,7 @@ describe('deriveConnectorCardState', () => {
     })
 
     it(`${id}: reconnect-shaped input`, () => {
-      const expected = identities[id] && id !== 'googleCalendar'
+      const expected = identities[id] && id !== 'googleCalendar' && id !== 'microsoftCalendar'
         ? reconnectExpected(identities[id]!)
         : setupExpected
       expect(deriveConnectorCardState(descriptor, reconnect[id])).toEqual(expected)

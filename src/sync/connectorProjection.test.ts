@@ -41,6 +41,7 @@ const EXPECTED_PROJECTIONS: Record<ConnectorId, Record<string, unknown> | null> 
   publicHolidays: { enabled: true, countryCode: 'US' },
   auroraKp: { enabled: true },
   googleCalendar: null,
+  microsoftCalendar: null,
 }
 
 function secretBearingFixture(id: ConnectorId): ConnectorConfig {
@@ -87,6 +88,13 @@ describe('connector sync projection', () => {
     } as ConnectorConfig
     expect(projectConnectorPreference('googleCalendar', local)).toBeNull()
     expect(() => applyConnectorPreference('googleCalendar', local, { enabled: true }))
+      .toThrow('sync_connector_preference_invalid')
+  })
+
+  it('excludes the complete Microsoft Calendar connection and selection config from encrypted sync', () => {
+    const local = COMPLETE_CONNECTOR_CONTRACT_FIXTURES.microsoftCalendar
+    expect(projectConnectorPreference('microsoftCalendar', local)).toBeNull()
+    expect(() => applyConnectorPreference('microsoftCalendar', local, { enabled: true }))
       .toThrow('sync_connector_preference_invalid')
   })
 

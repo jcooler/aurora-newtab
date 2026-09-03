@@ -100,6 +100,7 @@ function hasAuthority(id: ConnectorId, config: Record<string, unknown>): boolean
     case 'auroraKp':
       return true
     case 'googleCalendar':
+    case 'microsoftCalendar':
       return false
   }
 }
@@ -205,6 +206,7 @@ export function projectConnectorPreference<I extends ConnectorId>(
         ? { enabled: source.enabled, countryCode: source.countryCode }
         : null) as ConnectorPreferenceById[I] | null
     case 'googleCalendar':
+    case 'microsoftCalendar':
       return null
   }
 }
@@ -260,6 +262,7 @@ function validPreference(id: ConnectorId, value: unknown): value is ConnectorPre
     case 'publicHolidays':
       return exactKeys(candidate, ['enabled', 'countryCode'], ['enabled', 'countryCode']) && /^[A-Z]{2}$/u.test(candidate.countryCode as string)
     case 'googleCalendar':
+    case 'microsoftCalendar':
       return false
   }
 }

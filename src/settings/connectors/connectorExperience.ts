@@ -109,12 +109,18 @@ const EXPERIENCES: Record<ConnectorId, ConnectorExperienceBase> = {
     benefits: ['See every chosen calendar in one agenda', 'Bring more than one Google account together', 'Keep source colors and private load metrics current'],
     privacySummary: 'Google sends event details directly to this browser while Tab Two keeps an encrypted connection ready for your next visit.',
   },
+  microsoftCalendar: {
+    mark: '31',
+    outcome: 'Bring the Microsoft calendars you choose into one calm, current schedule.',
+    benefits: ['See every chosen calendar in one agenda', 'Bring personal and work calendars together', 'Keep source colors and private load metrics current'],
+    privacySummary: 'Microsoft sends event details directly to this browser while Tab Two keeps an encrypted connection ready for your next visit.',
+  },
 }
 
 export function connectorExperience(descriptor: ConnectorDescriptor): ConnectorExperience {
   return {
     ...EXPERIENCES[descriptor.id],
     categoryLabel: CATEGORY_LABELS[descriptor.category],
-    entitlement: descriptor.id === 'googleCalendar' ? 'premium' : 'included',
+    entitlement: descriptor.id === 'googleCalendar' || descriptor.id === 'microsoftCalendar' ? 'premium' : 'included',
   }
 }

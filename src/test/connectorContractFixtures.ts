@@ -95,4 +95,19 @@ export const COMPLETE_CONNECTOR_CONTRACT_FIXTURES = {
       }],
     }],
   },
+  microsoftCalendar: {
+    enabled: true,
+    accountId: '42000000-0000-4000-8000-000000000001',
+    accounts: [{
+      connectionId: '52000000-0000-4000-8000-000000000002',
+      displayEmail: 'contract-user@contoso.example',
+      accountKind: 'work_or_school',
+      calendars: [{
+        calendarId: 'contract-microsoft-calendar',
+        name: 'Contract Microsoft calendar',
+        color: '#0078d4',
+        isDefault: true,
+      }],
+    }],
+  },
 } as const satisfies Record<ConnectorId, ConnectorConfig>

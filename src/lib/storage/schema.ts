@@ -5,7 +5,7 @@ import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../serv
 import type { RefreshPreferences } from '../../services/refreshPolicy'
 import type { MetricsHistoryV1 } from '../../metrics/types'
 
-export const CURRENT_VERSION = 23
+export const CURRENT_VERSION = 24
 
 export const FLOW_AMBIENCE_VALUES = ['off', 'creek', 'rain', 'ocean', 'forest'] as const
 export type FlowAmbience = typeof FLOW_AMBIENCE_VALUES[number]
