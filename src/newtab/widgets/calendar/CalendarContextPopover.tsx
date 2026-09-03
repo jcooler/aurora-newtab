@@ -1,14 +1,14 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { placeAttentionPanel, type AttentionRect } from '../../../lib/layout/attentionPanelPlacement'
-import { calendarColorClass, type CalendarColor } from '../../../services/connectors/calendarColors'
+import { calendarColorClass, isCalendarColor } from '../../../services/connectors/calendarColors'
 
 export interface CalendarContextRow {
   key: string
   kind: 'holiday' | 'event'
   title: string
   detail: string
-  color?: CalendarColor
+  color?: string
 }
 
 export default function CalendarContextPopover({
@@ -125,7 +125,8 @@ export default function CalendarContextPopover({
               <div key={row.key} data-calendar-context-kind={row.kind} className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2">
                 <span
                   data-calendar-color={row.color}
-                  className={`mt-1.5 size-1.5 rounded-full ${row.color ? calendarColorClass(row.color) : 'bg-accent'}`}
+                  className={`mt-1.5 size-1.5 rounded-full ${row.color && isCalendarColor(row.color) ? calendarColorClass(row.color) : row.color ? '' : 'bg-accent'}`}
+                  style={row.color && !isCalendarColor(row.color) ? { backgroundColor: row.color } : undefined}
                   aria-hidden
                 />
                 <span className="min-w-0">

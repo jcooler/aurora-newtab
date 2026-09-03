@@ -10,6 +10,7 @@ import { initializePermissionMirror } from '../services/permissionMirror'
 import { AccountProvider } from '../account/AccountContext'
 import { SyncProvider } from '../sync/SyncProvider'
 import { MetricsProvider } from '../metrics/MetricsProvider'
+import { GoogleCalendarProvider } from '../providers/GoogleCalendarProvider'
 import './index.css'
 
 type NotesHarnessController = Readonly<{
@@ -121,11 +122,13 @@ createRoot(document.getElementById('root')!, {
   <StrictMode>
     <StorageProvider storage={storage} syncRuntime={{ driver, authority: storageAuthority }}>
       <AccountProvider>
-        <MetricsProvider>
-          <SyncProvider>
-            <App />
-          </SyncProvider>
-        </MetricsProvider>
+        <GoogleCalendarProvider>
+          <MetricsProvider>
+            <SyncProvider>
+              <App />
+            </SyncProvider>
+          </MetricsProvider>
+        </GoogleCalendarProvider>
       </AccountProvider>
     </StorageProvider>
   </StrictMode>,

@@ -81,12 +81,16 @@ function Probe({
   ttl,
   runtimeScope,
   isData,
+  retryDelayMs,
+  shouldRetry,
 }: {
   config: RssConfig
   refresh: (prev: string | null) => Promise<string>
   ttl?: number
   runtimeScope?: unknown
   isData?: (value: unknown) => value is string
+  retryDelayMs?: (baseMs: number) => number
+  shouldRetry?: (value: string) => boolean
 }) {
   const { data, fetchedAt, refreshing, lastError, state } = useConnectorSnapshot(
     'rss',
@@ -95,6 +99,7 @@ function Probe({
     ttl,
     runtimeScope,
     isData,
+    { retryDelayMs, shouldRetry },
   )
   return (
     <ul>
@@ -131,10 +136,19 @@ function mount(
   config: RssConfig = configA,
   runtimeScope?: unknown,
   isData?: (value: unknown) => value is string,
+  options?: { retryDelayMs?: (baseMs: number) => number; shouldRetry?: (value: string) => boolean },
 ) {
   return render(
     <StorageProvider storage={storage}>
-      <Probe config={config} refresh={refresh} ttl={ttl} runtimeScope={runtimeScope} isData={isData} />
+      <Probe
+        config={config}
+        refresh={refresh}
+        ttl={ttl}
+        runtimeScope={runtimeScope}
+        isData={isData}
+        retryDelayMs={options?.retryDelayMs}
+        shouldRetry={options?.shouldRetry}
+      />
     </StorageProvider>,
   )
 }
@@ -933,6 +947,36 @@ describe('useConnectorSnapshot', () => {
     view.unmount()
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a valid partial snapshot early with a bounded connector-specific delay', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-13T12:00:00Z'))
+    const storage = await freshStorage()
+    const refresh = vi.fn<(_: string | null) => Promise<string>>()
+      .mockResolvedValueOnce('partial')
+      .mockResolvedValueOnce('complete')
+    const retryDelayMs = vi.fn(() => 1_250)
+
+    mount(storage, refresh, 60_000, configA, undefined, undefined, {
+      retryDelayMs,
+      shouldRetry: (value) => value === 'partial',
+    })
+    await act(async () => {
+      for (let index = 0; index < 12; index += 1) await Promise.resolve()
+    })
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(retryDelayMs).toHaveBeenCalledWith(30_000)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_249)
+    })
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
     })
     expect(refresh).toHaveBeenCalledTimes(2)
   })

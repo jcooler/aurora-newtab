@@ -1727,6 +1727,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
 describe('Google Calendar backup isolation', () => {
   const googleCalendar = {
     enabled: true,
+    accountId: '42000000-0000-4000-8000-000000000001',
     accounts: [{
       connectionId: '52000000-0000-4000-8000-000000000001',
       displayEmail: 'private-account@example.com',

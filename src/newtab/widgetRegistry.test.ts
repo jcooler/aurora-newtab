@@ -183,6 +183,22 @@ describe('source-owned widget registry', () => {
     }
   })
 
+  it('mounts the existing Calendar surface for a Google-only calendar connection', () => {
+    const active = selectActiveWidgetRegistry(settingsWith(ALL_WIDGETS_OFF), {
+      googleCalendar: {
+        enabled: true,
+        accountId: '42000000-0000-4000-8000-000000000001',
+        accounts: [{
+          connectionId: '52000000-0000-4000-8000-000000000001',
+          displayEmail: 'calendar@example.test',
+          calendars: [{ calendarId: 'primary', name: 'Calendar', color: '#4285f4', primary: true }],
+        }],
+      },
+    })
+    expect(ids(active)).toContain('ics')
+    expect(ids(active)).not.toContain('googleCalendar')
+  })
+
   it('recomputes pure availability from changed settings/config without stale output or mutation', () => {
     const settingsA = settingsWith({ ...ALL_WIDGETS_OFF, weather: true })
     const connectorsA = { rss: connector(true) }

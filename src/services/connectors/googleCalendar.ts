@@ -2,6 +2,8 @@ import type {
   ConnectorDescriptor,
   GoogleCalendarAccountSelection,
   GoogleCalendarConfig,
+  GoogleCalendarConnectionIssue,
+  GoogleCalendarConnectionIssueCode,
   GoogleCalendarEvent,
   GoogleCalendarSelection,
   GoogleCalendarSnapshot,
@@ -16,8 +18,11 @@ const MAX_CALENDARS_PER_ACCOUNT = 10
 const MAX_SELECTED_CALENDARS = 20
 const MAX_CALENDAR_LIST_BYTES = 1_048_576
 const MAX_EVENTS_PAGE_BYTES = 4_194_304
+const MAX_REFRESH_BYTES = 5 * 1_048_576
 const MAX_PAGES = 10
 const MAX_EVENTS_PER_CALENDAR = 10_000
+const MAX_EVENTS_PER_SNAPSHOT = 10_000
+const MAX_DISCOVERED_CALENDARS = 250
 const MAX_CONCURRENT_REQUESTS = 4
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const COLOR = /^#[0-9a-f]{6}$/u
@@ -32,7 +37,10 @@ export type GoogleCalendarErrorCode =
   | 'provider_error'
   | 'invalid_response'
   | 'response_too_large'
+  | 'limit_exceeded'
   | 'cursor_expired'
+  | 'entitlement_required'
+  | 'reconnect_required'
 
 export class GoogleCalendarRequestError extends Error {
   constructor(public readonly code: GoogleCalendarErrorCode) {
@@ -44,7 +52,7 @@ export class GoogleCalendarRequestError extends Error {
 export interface DiscoveredGoogleCalendar extends GoogleCalendarSelection {
   foregroundColor: string
   selected: boolean
-  accessRole: 'reader' | 'writer' | 'owner'
+  accessRole: 'reader' | 'writerWithoutPrivateAccess' | 'writer' | 'owner'
 }
 
 interface RefreshInput {
@@ -62,6 +70,10 @@ interface NormalizedEventPage {
   deletedIds: string[]
   nextPageToken: string | null
   nextSyncToken: string | null
+}
+
+interface ResponseBudget {
+  remaining: number
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -171,10 +183,12 @@ function parseAccountSelection(value: unknown): GoogleCalendarAccountSelection |
 export function parseGoogleCalendarConfig(value: unknown): GoogleCalendarConfig | null {
   if (!record(value) || !exactKeys(
     value,
-    ['enabled', 'accounts'],
-    ['enabled', 'accounts', 'snapshotEpoch'],
+    ['enabled', 'accountId', 'accounts'],
+    ['enabled', 'accountId', 'accounts', 'snapshotEpoch'],
   )) return null
   if (typeof value.enabled !== 'boolean'
+    || typeof value.accountId !== 'string'
+    || !UUID.test(value.accountId)
     || !Array.isArray(value.accounts)
     || value.accounts.length < 1
     || value.accounts.length > MAX_ACCOUNTS
@@ -192,6 +206,7 @@ export function parseGoogleCalendarConfig(value: unknown): GoogleCalendarConfig 
   }
   return immutable({
     enabled: value.enabled,
+    accountId: value.accountId,
     accounts,
     ...(value.snapshotEpoch === undefined ? {} : { snapshotEpoch: value.snapshotEpoch as string }),
   })
@@ -217,6 +232,7 @@ async function requestJson(
   accessToken: string,
   maxBytes: number,
   fetchFn: typeof fetch,
+  budget?: ResponseBudget,
 ): Promise<unknown> {
   assertGoogleUrl(url)
   if (!validAccessToken(accessToken)) throw new GoogleCalendarRequestError('unauthorized')
@@ -237,14 +253,23 @@ async function requestJson(
   const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
   if (contentType !== 'application/json') throw new GoogleCalendarRequestError('invalid_response')
   const declaredLength = response.headers.get('content-length')
+  let declaredBytes = 0
   if (declaredLength !== null) {
     const bytes = Number(declaredLength)
     if (!Number.isSafeInteger(bytes) || bytes < 0) throw new GoogleCalendarRequestError('invalid_response')
     if (bytes > maxBytes) throw new GoogleCalendarRequestError('response_too_large')
+    if (budget && bytes > budget.remaining) throw new GoogleCalendarRequestError('response_too_large')
+    declaredBytes = bytes
   }
   const text = await response.text()
-  if (new TextEncoder().encode(text).byteLength > maxBytes) {
+  const actualBytes = new TextEncoder().encode(text).byteLength
+  if (actualBytes > maxBytes) {
     throw new GoogleCalendarRequestError('response_too_large')
+  }
+  const chargedBytes = Math.max(declaredBytes, actualBytes)
+  if (budget) {
+    if (chargedBytes > budget.remaining) throw new GoogleCalendarRequestError('response_too_large')
+    budget.remaining -= chargedBytes
   }
   try {
     return JSON.parse(text) as unknown
@@ -269,19 +294,22 @@ function normalizeCalendarListPage(value: unknown): {
   if (token === null) throw new GoogleCalendarRequestError('invalid_response')
   const calendars: DiscoveredGoogleCalendar[] = []
   for (const candidate of value.items) {
-    if (!record(candidate)
-      || !boundedText(candidate.id, 1_024)
-      || !boundedText(candidate.summary, 256)
+    if (!record(candidate)) throw new GoogleCalendarRequestError('invalid_response')
+    const displayName = boundedText(candidate.summaryOverride, 256)
+      ? candidate.summaryOverride
+      : candidate.summary
+    if (!boundedText(candidate.id, 1_024)
+      || !boundedText(displayName, 256)
       || !validColor(candidate.backgroundColor)
       || !validColor(candidate.foregroundColor)
-      || !['reader', 'writer', 'owner'].includes(candidate.accessRole as string)
+      || !['reader', 'writerWithoutPrivateAccess', 'writer', 'owner'].includes(candidate.accessRole as string)
       || (candidate.primary !== undefined && typeof candidate.primary !== 'boolean')
       || (candidate.selected !== undefined && typeof candidate.selected !== 'boolean')) {
       throw new GoogleCalendarRequestError('invalid_response')
     }
     calendars.push({
       calendarId: candidate.id,
-      name: candidate.summary,
+      name: displayName,
       color: candidate.backgroundColor,
       foregroundColor: candidate.foregroundColor,
       primary: candidate.primary === true,
@@ -308,17 +336,24 @@ export async function fetchGoogleCalendarList(
     const url = new URL(CALENDAR_LIST_PATH, GOOGLE_API_ORIGIN)
     url.searchParams.set('maxResults', '250')
     url.searchParams.set('minAccessRole', 'reader')
+    url.searchParams.set('showDeleted', 'false')
     url.searchParams.set('showHidden', 'false')
     url.searchParams.set('colorRgbFormat', 'true')
-    url.searchParams.set('fields', 'items(id,summary,primary,selected,accessRole,backgroundColor,foregroundColor),nextPageToken')
+    url.searchParams.set('fields', 'items(id,summary,summaryOverride,backgroundColor,foregroundColor,colorId,primary,selected,hidden,deleted,accessRole,timeZone),nextPageToken,nextSyncToken')
     if (pageToken !== null) url.searchParams.set('pageToken', pageToken)
     const normalized = normalizeCalendarListPage(
       await requestJson(url, accessToken, MAX_CALENDAR_LIST_BYTES, fetchFn),
     )
     for (const calendar of normalized.calendars) {
       if (calendarIds.has(calendar.calendarId)) throw new GoogleCalendarRequestError('invalid_response')
+      if (calendars.length >= MAX_DISCOVERED_CALENDARS) {
+        throw new GoogleCalendarRequestError('limit_exceeded')
+      }
       calendarIds.add(calendar.calendarId)
       calendars.push(calendar)
+    }
+    if (normalized.nextPageToken !== null && calendars.length >= MAX_DISCOVERED_CALENDARS) {
+      throw new GoogleCalendarRequestError('limit_exceeded')
     }
     if (normalized.nextPageToken === null) {
       return immutable(calendars.sort((left, right) => (
@@ -444,7 +479,7 @@ function eventsUrl(
   url.searchParams.set('maxResults', '2500')
   url.searchParams.set('showDeleted', 'true')
   url.searchParams.set('singleEvents', 'true')
-  url.searchParams.set('fields', 'items(id,status,summary,start,end,updated,htmlLink,hangoutLink),nextPageToken,nextSyncToken')
+  url.searchParams.set('fields', 'items(id,status,summary,start,end,htmlLink,hangoutLink,conferenceData(entryPoints(entryPointType,uri)),recurringEventId,originalStartTime,updated,transparency),nextPageToken,nextSyncToken,timeZone')
   if (syncToken) {
     url.searchParams.set('syncToken', syncToken)
   } else {
@@ -462,6 +497,7 @@ async function fetchEventChanges(
   windowEnd: number,
   syncToken: string | null,
   fetchFn: typeof fetch,
+  budget: ResponseBudget,
 ): Promise<{ events: GoogleCalendarEvent[]; deletedIds: string[]; syncToken: string }> {
   const events: GoogleCalendarEvent[] = []
   const deletedIds: string[] = []
@@ -478,6 +514,7 @@ async function fetchEventChanges(
       accessToken,
       MAX_EVENTS_PAGE_BYTES,
       fetchFn,
+      budget,
     ))
     for (const id of [...normalized.events.map((event) => event.eventId), ...normalized.deletedIds]) {
       if (eventIds.has(id)) throw new GoogleCalendarRequestError('invalid_response')
@@ -509,6 +546,7 @@ async function refreshSource(
   windowStart: number,
   windowEnd: number,
   fetchFn: typeof fetch,
+  budget: ResponseBudget,
 ): Promise<GoogleCalendarSourceSnapshot> {
   const canIncrement = previous !== null
     && previous.windowStart === windowStart
@@ -522,6 +560,7 @@ async function refreshSource(
       windowEnd,
       canIncrement && previous ? previous.syncToken : null,
       fetchFn,
+      budget,
     )
   } catch (error) {
     if (!(error instanceof GoogleCalendarRequestError)
@@ -534,6 +573,7 @@ async function refreshSource(
       windowEnd,
       null,
       fetchFn,
+      budget,
     )
     previous = null
   }
@@ -570,6 +610,7 @@ export async function refreshGoogleCalendarSnapshot(input: RefreshInput): Promis
     sourceKey(calendar.connectionId, calendar.calendarId), calendar,
   ]))
   const tokenPromises = new Map<string, Promise<string>>()
+  const responseBudget: ResponseBudget = { remaining: MAX_REFRESH_BYTES }
   const tokenFor = (id: string): Promise<string> => {
     const existing = tokenPromises.get(id)
     if (existing) return existing
@@ -583,29 +624,87 @@ export async function refreshGoogleCalendarSnapshot(input: RefreshInput): Promis
   const selections = config.accounts.flatMap((account) => (
     account.calendars.map((calendar) => ({ account, calendar }))
   ))
-  const results = new Array<GoogleCalendarSourceSnapshot>(selections.length)
+  const results = new Array<
+    | { ok: true; value: GoogleCalendarSourceSnapshot }
+    | { ok: false; code: GoogleCalendarConnectionIssueCode }
+  >(selections.length)
+  const issueCode = (error: unknown): GoogleCalendarConnectionIssueCode => (
+    error instanceof GoogleCalendarRequestError ? error.code : 'provider_error'
+  )
   let next = 0
   const worker = async (): Promise<void> => {
     while (next < selections.length) {
       const index = next
       next += 1
       const selection = selections[index]!
-      results[index] = await refreshSource(
-        selection.account,
-        selection.calendar,
-        await tokenFor(selection.account.connectionId),
-        priorBySource.get(sourceKey(selection.account.connectionId, selection.calendar.calendarId)) ?? null,
-        input.windowStart,
-        input.windowEnd,
-        input.fetchFn ?? fetch,
-      )
+      try {
+        results[index] = {
+          ok: true,
+          value: await refreshSource(
+            selection.account,
+            selection.calendar,
+            await tokenFor(selection.account.connectionId),
+            priorBySource.get(sourceKey(selection.account.connectionId, selection.calendar.calendarId)) ?? null,
+            input.windowStart,
+            input.windowEnd,
+            input.fetchFn ?? fetch,
+            responseBudget,
+          ),
+        }
+      } catch (error) {
+        results[index] = { ok: false, code: issueCode(error) }
+      }
     }
   }
   await Promise.all(Array.from(
     { length: Math.min(MAX_CONCURRENT_REQUESTS, selections.length) },
     () => worker(),
   ))
-  return immutable({ version: 1, fetchedAt, calendars: results })
+  const calendars: GoogleCalendarSourceSnapshot[] = []
+  const connectionIssues: GoogleCalendarConnectionIssue[] = []
+  let retainedEventCount = 0
+  const retainPrevious = (account: GoogleCalendarAccountSelection): boolean => {
+    const retained = account.calendars.flatMap((calendar) => {
+      const source = priorBySource.get(sourceKey(account.connectionId, calendar.calendarId))
+      return source ? [source] : []
+    })
+    const eventCount = retained.reduce((total, source) => total + source.events.length, 0)
+    if (retainedEventCount + eventCount > MAX_EVENTS_PER_SNAPSHOT) return false
+    calendars.push(...retained)
+    retainedEventCount += eventCount
+    return true
+  }
+  let offset = 0
+  for (const account of config.accounts) {
+    const accountResults = results.slice(offset, offset + account.calendars.length)
+    offset += account.calendars.length
+    const failed = accountResults.find((result) => !result.ok)
+    if (failed && !failed.ok) {
+      connectionIssues.push({ connectionId: account.connectionId, code: failed.code })
+      retainPrevious(account)
+      continue
+    }
+    const accountEventCount = accountResults.reduce((total, result) => (
+      result.ok ? total + result.value.events.length : total
+    ), 0)
+    if (retainedEventCount + accountEventCount > MAX_EVENTS_PER_SNAPSHOT) {
+      connectionIssues.push({ connectionId: account.connectionId, code: 'limit_exceeded' })
+      retainPrevious(account)
+      continue
+    }
+    for (const result of accountResults) {
+      if (result.ok) {
+        calendars.push(result.value)
+        retainedEventCount += result.value.events.length
+      }
+    }
+  }
+  return immutable({
+    version: 1,
+    fetchedAt,
+    calendars,
+    ...(connectionIssues.length > 0 ? { connectionIssues } : {}),
+  })
 }
 
 function validEvent(value: unknown): value is GoogleCalendarEvent {
@@ -633,12 +732,37 @@ function validEvent(value: unknown): value is GoogleCalendarEvent {
 
 export function isGoogleCalendarSnapshot(value: unknown): value is GoogleCalendarSnapshot {
   if (!record(value)
-    || !exactKeys(value, ['version', 'fetchedAt', 'calendars'], ['version', 'fetchedAt', 'calendars'])
+    || !exactKeys(
+      value,
+      ['version', 'fetchedAt', 'calendars'],
+      ['version', 'fetchedAt', 'calendars', 'connectionIssues'],
+    )
     || value.version !== 1
     || !validTimestamp(value.fetchedAt)
     || !Array.isArray(value.calendars)
     || value.calendars.length > MAX_SELECTED_CALENDARS) return false
+  if (value.connectionIssues !== undefined) {
+    if (!Array.isArray(value.connectionIssues) || value.connectionIssues.length > MAX_ACCOUNTS) return false
+    const issueConnections = new Set<string>()
+    const issueCodes = new Set<GoogleCalendarConnectionIssueCode>([
+      'unauthorized', 'forbidden', 'rate_limited', 'offline', 'provider_error',
+      'invalid_response', 'response_too_large', 'cursor_expired',
+      'limit_exceeded',
+      'entitlement_required', 'reconnect_required',
+    ])
+    for (const issue of value.connectionIssues) {
+      if (!record(issue)
+        || !exactKeys(issue, ['connectionId', 'code'], ['connectionId', 'code'])
+        || typeof issue.connectionId !== 'string'
+        || !UUID.test(issue.connectionId)
+        || issueConnections.has(issue.connectionId)
+        || typeof issue.code !== 'string'
+        || !issueCodes.has(issue.code as GoogleCalendarConnectionIssueCode)) return false
+      issueConnections.add(issue.connectionId)
+    }
+  }
   const sources = new Set<string>()
+  let eventCount = 0
   for (const candidate of value.calendars) {
     if (!record(candidate)
       || !exactKeys(
@@ -657,6 +781,8 @@ export function isGoogleCalendarSnapshot(value: unknown): value is GoogleCalenda
       || !Array.isArray(candidate.events)
       || candidate.events.length > MAX_EVENTS_PER_CALENDAR
       || !candidate.events.every(validEvent)) return false
+    eventCount += candidate.events.length
+    if (eventCount > MAX_EVENTS_PER_SNAPSHOT) return false
     const key = sourceKey(candidate.connectionId, candidate.calendarId)
     if (sources.has(key)) return false
     sources.add(key)

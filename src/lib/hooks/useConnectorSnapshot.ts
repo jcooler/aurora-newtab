@@ -30,6 +30,13 @@ interface SnapshotState<T> {
   lastError: string | null
 }
 
+export interface ConnectorSnapshotOptions<T> {
+  /** Maps the bounded base retry delay to a connector-specific bounded delay. */
+  retryDelayMs?: (baseMs: number) => number
+  /** Marks a valid committed snapshot as partial and eligible for an earlier retry. */
+  shouldRetry?: (data: T) => boolean
+}
+
 const EMPTY_STATE = {
   configKey: null,
   data: null,
@@ -50,6 +57,7 @@ export function useConnectorSnapshot<T>(
   ttlMs?: number,
   runtimeScope?: unknown,
   isData?: (value: unknown) => value is T,
+  options?: ConnectorSnapshotOptions<T>,
 ): {
   data: T | null
   fetchedAt: number | null
@@ -59,6 +67,7 @@ export function useConnectorSnapshot<T>(
 } {
   const storage = useStorage()
   const [refreshPreferences] = useStoredKey('refreshPreferences')
+  const refreshPreferencesHydrated = refreshPreferences !== undefined
   const policyTtlMs = effectiveRefreshMs(id, refreshPreferences)
   const resolvedTtlMs = ttlMs ?? policyTtlMs ?? null
   const cacheAuthorityEpoch = useSyncExternalStore(
@@ -75,12 +84,17 @@ export function useConnectorSnapshot<T>(
   refreshRef.current = refresh
   const isDataRef = useRef(isData)
   isDataRef.current = isData
+  const retryDelayRef = useRef(options?.retryDelayMs)
+  retryDelayRef.current = options?.retryDelayMs
+  const shouldRetryRef = useRef(options?.shouldRetry)
+  shouldRetryRef.current = options?.shouldRetry
 
   useLayoutEffect(() => {
     latestConfigKeys.set(id, configKey)
   }, [id, configKey])
 
   useEffect(() => {
+    if (!refreshPreferencesHydrated) return
     let live = true
     let unsubscribe: () => void = () => undefined
     let unsubscribeConnectors: () => void = () => undefined
@@ -128,16 +142,24 @@ export function useConnectorSnapshot<T>(
 
       let checkFreshness: () => Promise<void>
 
-      const scheduleSnapshot = (snapshot: ConnectorSnapshot) => {
-        if (resolvedTtlMs === null) return
-        const dueIn = Math.max(0, snapshot.fetchedAt + resolvedTtlMs - Date.now())
-        scheduleCheck(dueIn, checkFreshness)
-      }
-
       const scheduleRetry = () => {
         if (resolvedTtlMs === null || document.visibilityState !== 'visible') return
-        const retryIn = Math.min(Math.max(resolvedTtlMs, 1_000), 30_000)
+        const base = Math.min(Math.max(resolvedTtlMs, 1_000), 30_000)
+        const candidate = retryDelayRef.current?.(base) ?? base
+        const retryIn = Number.isFinite(candidate)
+          ? Math.min(Math.max(Math.round(candidate), 1_000), 30_000)
+          : base
         scheduleCheck(retryIn, checkFreshness)
+      }
+
+      const scheduleSnapshot = (snapshot: ConnectorSnapshot) => {
+        if (resolvedTtlMs === null) return
+        if (shouldRetryRef.current?.(snapshot.data as T)) {
+          scheduleRetry()
+          return
+        }
+        const dueIn = Math.max(0, snapshot.fetchedAt + resolvedTtlMs - Date.now())
+        scheduleCheck(dueIn, checkFreshness)
       }
 
       const runRefresh = async (previousData: T | null): Promise<void> => {
@@ -163,6 +185,7 @@ export function useConnectorSnapshot<T>(
           if (
             shared?.scope === scope &&
             (!isDataRef.current || isDataRef.current(shared.data)) &&
+            !shouldRetryRef.current?.(shared.data as T) &&
             (resolvedTtlMs === null || Date.now() - shared.fetchedAt < resolvedTtlMs)
           ) {
             showSnapshot(shared)
@@ -249,7 +272,9 @@ export function useConnectorSnapshot<T>(
           await runRefresh(null)
           return
         }
-        if (resolvedTtlMs !== null && Date.now() - snapshot.fetchedAt >= resolvedTtlMs) {
+        if (shouldRetryRef.current?.(snapshot.data as T)) {
+          await runRefresh(snapshot.data as T)
+        } else if (resolvedTtlMs !== null && Date.now() - snapshot.fetchedAt >= resolvedTtlMs) {
           await runRefresh(snapshot.data as T)
         } else {
           scheduleSnapshot(snapshot)
@@ -313,7 +338,9 @@ export function useConnectorSnapshot<T>(
           if (document.visibilityState === 'visible') await runRefresh(null)
           return
         }
-        if (resolvedTtlMs !== null && Date.now() - snapshot.fetchedAt >= resolvedTtlMs) {
+        if (shouldRetryRef.current?.(snapshot.data as T)) {
+          await runRefresh(snapshot.data as T)
+        } else if (resolvedTtlMs !== null && Date.now() - snapshot.fetchedAt >= resolvedTtlMs) {
           await runRefresh(snapshot.data as T)
         } else {
           scheduleSnapshot(snapshot)
@@ -332,7 +359,7 @@ export function useConnectorSnapshot<T>(
       unsubscribeConnectors()
       removeRestorationListeners()
     }
-  }, [id, storage, configKey, connectorConfigKey, cacheAuthorityEpoch, resolvedTtlMs])
+  }, [id, storage, configKey, connectorConfigKey, cacheAuthorityEpoch, resolvedTtlMs, refreshPreferencesHydrated])
 
   const current = state.configKey === configKey ? state : EMPTY_STATE
   const now = Date.now()

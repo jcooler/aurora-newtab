@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { IcsEvent } from '../../../services/connectors/ics'
+import type { GoogleCalendarConfig, GoogleCalendarSnapshot } from '../../../services/connectors/types'
 import type { PublicHoliday } from '../../../services/connectors/publicHolidays'
 import { calendarMonthCells, composeCalendarItems } from './calendarComposition'
 
@@ -43,6 +44,100 @@ describe('composeCalendarItems', () => {
   it('does not include public holidays when the layout preference is off', () => {
     const items = composeCalendarItems({ events: [], holidays, includeHolidays: false, now, timeZone: 'UTC' })
     expect(items).toEqual([])
+  })
+
+  it('keeps identical ICS and Google events distinct with explicit text and color source identity', () => {
+    const firstConnection = '52000000-0000-4000-8000-000000000001'
+    const secondConnection = '52000000-0000-4000-8000-000000000002'
+    const googleConfig: GoogleCalendarConfig = {
+      enabled: true,
+      accountId: '42000000-0000-4000-8000-000000000001',
+      accounts: [{
+        connectionId: firstConnection,
+        displayEmail: 'home@example.com',
+        calendars: [{ calendarId: 'primary', name: 'Home', color: '#4285f4', primary: true }],
+      }, {
+        connectionId: secondConnection,
+        displayEmail: 'work@example.com',
+        calendars: [{ calendarId: 'work', name: 'Team', color: '#0b8043', primary: true }],
+      }],
+    }
+    const googleSnapshot: GoogleCalendarSnapshot = {
+      version: 1,
+      fetchedAt: now,
+      calendars: googleConfig.accounts.map((account, index) => ({
+        connectionId: account.connectionId,
+        calendarId: account.calendars[0]!.calendarId,
+        color: account.calendars[0]!.color,
+        windowStart: now - 86_400_000,
+        windowEnd: now + 86_400_000,
+        syncToken: `sync-${index}`,
+        events: [{
+          eventId: `same-${index}`,
+          title: 'Design sync',
+          status: 'confirmed',
+          start: Date.parse('2026-09-07T14:00:00.000Z'),
+          end: Date.parse('2026-09-07T14:30:00.000Z'),
+          allDay: false,
+          startDate: null,
+          endDate: null,
+          updatedAt: now,
+        }],
+      })),
+    }
+    const items = composeCalendarItems({
+      events,
+      icsCalendars: [{ name: 'Personal', url: 'https://example.test/private.ics', color: 'sky' }],
+      googleConfig,
+      googleSnapshot,
+      holidays: [],
+      includeHolidays: false,
+      now,
+      timeZone: 'UTC',
+    }).filter((item) => item.kind === 'event' && item.title === 'Design sync')
+
+    expect(items).toHaveLength(3)
+    expect(items.map((item) => [item.authority, item.sourceLabel, item.sourceColor])).toEqual([
+      ['ics', 'Personal', 'sky'],
+      ['google_calendar', 'Home · home@example.com', '#4285f4'],
+      ['google_calendar', 'Team · work@example.com', '#0b8043'],
+    ])
+  })
+
+  it('uses Google all-day date identity instead of shifting UTC midnight across time zones', () => {
+    const connectionId = '52000000-0000-4000-8000-000000000001'
+    const googleConfig: GoogleCalendarConfig = {
+      enabled: true,
+      accountId: '42000000-0000-4000-8000-000000000001',
+      accounts: [{
+        connectionId,
+        displayEmail: 'home@example.com',
+        calendars: [{ calendarId: 'primary', name: 'Home', color: '#4285f4', primary: true }],
+      }],
+    }
+    const googleSnapshot: GoogleCalendarSnapshot = {
+      version: 1,
+      fetchedAt: now,
+      calendars: [{
+        connectionId,
+        calendarId: 'primary',
+        color: '#4285f4',
+        windowStart: now - 86_400_000,
+        windowEnd: now + 2 * 86_400_000,
+        syncToken: 'sync',
+        events: [{
+          eventId: 'all-day', title: 'Family day', status: 'confirmed',
+          start: Date.parse('2026-09-08T00:00:00.000Z'),
+          end: Date.parse('2026-09-09T00:00:00.000Z'),
+          allDay: true, startDate: '2026-09-08', endDate: '2026-09-09', updatedAt: now,
+        }],
+      }],
+    }
+    const item = composeCalendarItems({
+      events: [], googleConfig, googleSnapshot, holidays: [], includeHolidays: false,
+      now, timeZone: 'America/New_York',
+    })[0]
+    expect(item).toMatchObject({ dateKey: '2026-09-08', allDay: true })
   })
 })
 

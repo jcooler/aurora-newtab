@@ -80,6 +80,17 @@ vi.mock('../metrics/MetricsProvider', async () => {
   }
 })
 
+vi.mock('../providers/GoogleCalendarProvider', async () => {
+  const React = await import('react')
+  return {
+    GoogleCalendarProvider: ({ children }: { children: React.ReactNode }) => React.createElement(
+      React.Fragment,
+      null,
+      children,
+    ),
+  }
+})
+
 vi.mock('./App', async () => {
   const React = await import('react')
   const { default: WidgetBoundary } = await import('./components/WidgetBoundary')

@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  GoogleCalendarRequestError,
   fetchGoogleCalendarList,
   isGoogleCalendarSnapshot,
   parseGoogleCalendarConfig,
@@ -15,6 +14,7 @@ const now = Date.UTC(2026, 8, 3, 16, 0, 0)
 const windowStart = Date.UTC(2026, 7, 1)
 const windowEnd = Date.UTC(2026, 9, 1)
 const connectionId = '52000000-0000-4000-8000-000000000001'
+const accountId = '42000000-0000-4000-8000-000000000001'
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -26,6 +26,7 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
 function config(calendarCount = 1): GoogleCalendarConfig {
   return {
     enabled: true,
+    accountId,
     accounts: [{
       connectionId,
       displayEmail: 'jon@example.com',
@@ -139,6 +140,10 @@ describe('Google Calendar discovery', () => {
       expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer access-token')
     }
     expect(new URL(String(fetchFn.mock.calls[1]![0])).searchParams.get('pageToken')).toBe('page-2')
+    const firstRequest = new URL(String(fetchFn.mock.calls[0]![0]))
+    expect(firstRequest.searchParams.get('showDeleted')).toBe('false')
+    expect(firstRequest.searchParams.get('showHidden')).toBe('false')
+    expect(firstRequest.searchParams.get('fields')).toContain('summaryOverride')
   })
 
   it('rejects duplicate pagination tokens, non-JSON responses, and oversized bodies', async () => {
@@ -155,6 +160,19 @@ describe('Google Calendar discovery', () => {
     await expect(fetchGoogleCalendarList('token', vi.fn<typeof fetch>().mockResolvedValue(
       json({ items: [] }, 200, { 'Content-Length': String(1_048_577) }),
     ))).rejects.toMatchObject({ code: 'response_too_large' })
+  })
+
+  it('caps discovery at 250 calendars even when Google offers another page', async () => {
+    const items = Array.from({ length: 250 }, (_, index) => ({
+      id: `calendar-${index}@example.com`, summary: `Calendar ${index}`,
+      accessRole: 'reader', backgroundColor: '#4285f4', foregroundColor: '#ffffff',
+    }))
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json({ items, nextPageToken: 'overflow' }))
+
+    await expect(fetchGoogleCalendarList('token', fetchFn)).rejects.toMatchObject({
+      code: 'limit_exceeded',
+    })
+    expect(fetchFn).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -218,6 +236,33 @@ describe('Google Calendar event refresh', () => {
     expect(request.searchParams.has('syncToken')).toBe(false)
   })
 
+  it('keeps recurring instances distinct while discarding provider recurrence metadata', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(page([{
+      id: 'series_20260904T140000Z', status: 'confirmed', summary: 'Daily standup',
+      start: { dateTime: '2026-09-04T10:00:00-04:00' },
+      end: { dateTime: '2026-09-04T10:15:00-04:00' },
+      recurringEventId: 'series', originalStartTime: { dateTime: '2026-09-04T10:00:00-04:00' },
+      updated: '2026-09-03T15:59:00Z',
+    }, {
+      id: 'series_20260905T140000Z', status: 'confirmed', summary: 'Daily standup',
+      start: { dateTime: '2026-09-05T10:00:00-04:00' },
+      end: { dateTime: '2026-09-05T10:15:00-04:00' },
+      recurringEventId: 'series', originalStartTime: { dateTime: '2026-09-05T10:00:00-04:00' },
+      updated: '2026-09-03T15:59:00Z',
+    }]))
+
+    const result = await refreshGoogleCalendarSnapshot({
+      config: config(), previous: null, windowStart, windowEnd,
+      getAccessToken: async () => 'token', fetchFn, now: () => now,
+    })
+
+    expect(result.calendars[0]?.events.map((event) => event.eventId)).toEqual([
+      'series_20260904T140000Z',
+      'series_20260905T140000Z',
+    ])
+    expect(JSON.stringify(result)).not.toMatch(/recurringEventId|originalStartTime/u)
+  })
+
   it('applies cancellation tombstones without disturbing another cached event', async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(page([{
       id: 'event-1', status: 'cancelled',
@@ -265,7 +310,107 @@ describe('Google Calendar event refresh', () => {
     expect(new URL(String(fetchFn.mock.calls[0]![0])).searchParams.has('syncToken')).toBe(false)
   })
 
-  it('limits direct Calendar API work to four requests and returns no partial snapshot', async () => {
+  it('retains the previous complete connection when a later page fails', async () => {
+    const fetchFn = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(json({
+        items: [{
+          id: 'uncommitted', status: 'confirmed', summary: 'Do not commit',
+          start: { dateTime: '2026-09-06T10:00:00Z' },
+          end: { dateTime: '2026-09-06T11:00:00Z' },
+          updated: '2026-09-03T16:00:00Z',
+        }],
+        nextPageToken: 'page-2',
+      }))
+      .mockResolvedValueOnce(json({ error: 'failed' }, 500))
+
+    const previous = priorSnapshot()
+    const result = await refreshGoogleCalendarSnapshot({
+      config: config(), previous, windowStart, windowEnd,
+      getAccessToken: async () => 'token', fetchFn, now: () => now,
+    })
+
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+    expect(result.calendars).toEqual(previous.calendars)
+    expect(JSON.stringify(result)).not.toContain('uncommitted')
+    expect(result.connectionIssues).toEqual([{ connectionId, code: 'provider_error' }])
+  })
+
+  it('enforces one five MiB decoded-response budget across all refresh pages', async () => {
+    const fetchFn = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(json({ items: [], nextPageToken: 'page-2' }, 200, {
+        'Content-Length': String(3 * 1_048_576),
+      }))
+      .mockResolvedValueOnce(json({ items: [], nextSyncToken: 'new-token' }, 200, {
+        'Content-Length': String(3 * 1_048_576),
+      }))
+    const previous = priorSnapshot()
+    const result = await refreshGoogleCalendarSnapshot({
+      config: config(), previous, windowStart, windowEnd,
+      getAccessToken: async () => 'token', fetchFn, now: () => now,
+    })
+
+    expect(result.calendars).toEqual(previous.calendars)
+    expect(result.connectionIssues).toEqual([{ connectionId, code: 'response_too_large' }])
+  })
+
+  it('caps the complete normalized snapshot at ten thousand event instances', async () => {
+    const largeConfig = config(6)
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const calendarId = decodeURIComponent(new URL(String(input)).pathname.split('/').at(-2) ?? 'calendar')
+      return page(Array.from({ length: 2_000 }, (_, index) => ({
+        id: `${calendarId}-${index}`, status: 'confirmed', summary: 'Bounded event',
+        start: { dateTime: '2026-09-06T10:00:00Z' },
+        end: { dateTime: '2026-09-06T11:00:00Z' },
+        updated: '2026-09-03T16:00:00Z',
+      })))
+    })
+    const result = await refreshGoogleCalendarSnapshot({
+      config: largeConfig, previous: null, windowStart, windowEnd,
+      getAccessToken: async () => 'token', fetchFn, now: () => now,
+    })
+
+    expect(result.calendars).toEqual([])
+    expect(result.connectionIssues).toEqual([{ connectionId, code: 'limit_exceeded' }])
+    expect(isGoogleCalendarSnapshot(result)).toBe(true)
+  })
+
+  it('retains cached data and exposes a stable offline issue when Google is unreachable', async () => {
+    const previous = priorSnapshot()
+    const result = await refreshGoogleCalendarSnapshot({
+      config: config(), previous, windowStart, windowEnd,
+      getAccessToken: async () => 'token',
+      fetchFn: vi.fn<typeof fetch>().mockRejectedValue(new TypeError('network details stay private')),
+      now: () => now,
+    })
+
+    expect(result.calendars).toEqual(previous.calendars)
+    expect(result.connectionIssues).toEqual([{ connectionId, code: 'offline' }])
+    expect(JSON.stringify(result)).not.toContain('network details')
+  })
+
+  it('drops a deselected source without disturbing a selected source', async () => {
+    const previous: GoogleCalendarSnapshot = {
+      ...priorSnapshot(),
+      calendars: [
+        ...priorSnapshot().calendars,
+        {
+          ...priorSnapshot().calendars[0]!,
+          calendarId: 'removed@example.com',
+          color: '#0b8043',
+          syncToken: 'removed-token',
+        },
+      ],
+    }
+    const result = await refreshGoogleCalendarSnapshot({
+      config: config(), previous, windowStart, windowEnd,
+      getAccessToken: async () => 'token', fetchFn: vi.fn<typeof fetch>().mockResolvedValue(page()),
+      now: () => now,
+    })
+
+    expect(result.calendars.map((source) => source.calendarId)).toEqual(['primary'])
+  })
+
+  it('limits direct Calendar API work to four requests and retains one connection atomically', async () => {
     let inFlight = 0
     let maximum = 0
     let release!: () => void
@@ -300,7 +445,56 @@ describe('Google Calendar event refresh', () => {
     await expect(refreshGoogleCalendarSnapshot({
       config: failingConfig, previous, windowStart, windowEnd,
       getAccessToken: async () => 'token', fetchFn: failingFetch, now: () => now,
-    })).rejects.toBeInstanceOf(GoogleCalendarRequestError)
+    })).resolves.toEqual({
+      version: 1,
+      fetchedAt: now,
+      calendars: previous.calendars,
+      connectionIssues: [{ connectionId, code: 'provider_error' }],
+    })
     expect(previous).toEqual(before)
+  })
+
+  it('commits a healthy account while retaining a failed account without mixing partial calendars', async () => {
+    const secondConnectionId = '52000000-0000-4000-8000-000000000002'
+    const multi: GoogleCalendarConfig = {
+      enabled: true,
+      accountId,
+      accounts: [
+        config().accounts[0]!,
+        {
+          connectionId: secondConnectionId,
+          displayEmail: 'work@example.com',
+          calendars: [{ calendarId: 'work', name: 'Work', color: '#0b8043', primary: true }],
+        },
+      ],
+    }
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(async (input) => (
+      new URL(String(input)).pathname.includes('/primary/')
+        ? json({ error: 'private-provider-body' }, 500)
+        : page([{
+            id: 'work-event', status: 'confirmed', summary: 'Work planning',
+            start: { dateTime: '2026-09-05T10:00:00Z' },
+            end: { dateTime: '2026-09-05T11:00:00Z' },
+            updated: '2026-09-03T16:00:00Z',
+          }], 'work-token')
+    ))
+
+    const result = await refreshGoogleCalendarSnapshot({
+      config: multi,
+      previous: priorSnapshot(),
+      windowStart,
+      windowEnd,
+      getAccessToken: async () => 'token',
+      fetchFn,
+      now: () => now,
+    })
+
+    expect(result.calendars.map((source) => [source.connectionId, source.calendarId, source.syncToken]))
+      .toEqual([
+        [connectionId, 'primary', 'old-sync-token'],
+        [secondConnectionId, 'work', 'work-token'],
+      ])
+    expect(result.connectionIssues).toEqual([{ connectionId, code: 'provider_error' }])
+    expect(JSON.stringify(result.connectionIssues)).not.toContain('private-provider-body')
   })
 })

@@ -243,6 +243,7 @@ export interface GoogleCalendarAccountSelection {
 
 export interface GoogleCalendarConfig extends ConnectorCacheIdentity {
   enabled: boolean
+  accountId: string
   accounts: GoogleCalendarAccountSelection[]
 }
 
@@ -272,10 +273,29 @@ export interface GoogleCalendarSourceSnapshot {
   events: GoogleCalendarEvent[]
 }
 
+export type GoogleCalendarConnectionIssueCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'rate_limited'
+  | 'offline'
+  | 'provider_error'
+  | 'invalid_response'
+  | 'response_too_large'
+  | 'limit_exceeded'
+  | 'cursor_expired'
+  | 'entitlement_required'
+  | 'reconnect_required'
+
+export interface GoogleCalendarConnectionIssue {
+  connectionId: string
+  code: GoogleCalendarConnectionIssueCode
+}
+
 export interface GoogleCalendarSnapshot {
   version: 1
   fetchedAt: number
   calendars: GoogleCalendarSourceSnapshot[]
+  connectionIssues?: GoogleCalendarConnectionIssue[]
 }
 
 export type ConnectorConfig =

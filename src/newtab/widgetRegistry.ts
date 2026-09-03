@@ -254,8 +254,14 @@ export function selectActiveWidgetRegistry(
     if (availability.kind === 'always') return [entry]
     if (availability.kind === 'widget') return settings.widgets[availability.key] ? [entry] : []
     const config = connectors[availability.id]
-    if (config?.enabled !== true) return []
-    return [Object.freeze({ ...entry, selectedContent: Object.freeze([...selectedConnectorContent(availability.id, config)]) })]
+    const googleOwnsCalendarSurface = entry.id === 'ics'
+      && availability.id === 'ics'
+      && connectors.googleCalendar?.enabled === true
+    if (config?.enabled !== true && !googleOwnsCalendarSurface) return []
+    const selectedContent = config?.enabled === true
+      ? selectedConnectorContent(availability.id, config)
+      : []
+    return [Object.freeze({ ...entry, selectedContent: Object.freeze([...selectedContent]) })]
   })
 }
 

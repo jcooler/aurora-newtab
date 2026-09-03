@@ -73,6 +73,47 @@ describe('calendar aggregates', () => {
       { date: '2026-09-02', source: 'calendar', sourceInstanceId: 'ics', values: { kind: 'calendar', events: 1, busyMinutes: 30 } },
     ])
   })
+
+  it('merges busy intervals within each Google connection and keeps accounts in separate opaque series', () => {
+    const home = '52000000-0000-4000-8000-000000000001'
+    const work = '52000000-0000-4000-8000-000000000002'
+    const event = (eventId: string, start: number, end: number) => ({
+      eventId, title: `Private ${eventId}`, status: 'confirmed', start, end,
+      allDay: false, startDate: null, endDate: null, updatedAt: end,
+    })
+    const series = collectConnectorSeries({
+      googleCalendar: {
+        fetchedAt: localEpoch('2026-09-02', 15),
+        data: {
+          version: 1,
+          fetchedAt: localEpoch('2026-09-02', 15),
+          calendars: [{
+            connectionId: home, calendarId: 'private-home-a', color: '#4285f4',
+            windowStart: localEpoch('2026-09-01'), windowEnd: localEpoch('2026-09-03'), syncToken: 'private-sync-a',
+            events: [event('home-a', localEpoch('2026-09-02', 9), localEpoch('2026-09-02', 10))],
+          }, {
+            connectionId: home, calendarId: 'private-home-b', color: '#0b8043',
+            windowStart: localEpoch('2026-09-01'), windowEnd: localEpoch('2026-09-03'), syncToken: 'private-sync-b',
+            events: [event('home-b', localEpoch('2026-09-02', 9, 30), localEpoch('2026-09-02', 10, 30))],
+          }, {
+            connectionId: work, calendarId: 'private-work', color: '#d50000',
+            windowStart: localEpoch('2026-09-01'), windowEnd: localEpoch('2026-09-03'), syncToken: 'private-sync-c',
+            events: [event('work-a', localEpoch('2026-09-02', 12), localEpoch('2026-09-02', 12, 30))],
+          }],
+        },
+      },
+    }, '2026-09-02')
+
+    expect(series).toContainEqual({
+      date: '2026-09-02', source: 'calendar', sourceInstanceId: home,
+      values: { kind: 'calendar', events: 2, busyMinutes: 90 },
+    })
+    expect(series).toContainEqual({
+      date: '2026-09-02', source: 'calendar', sourceInstanceId: work,
+      values: { kind: 'calendar', events: 1, busyMinutes: 30 },
+    })
+    expect(JSON.stringify(series)).not.toMatch(/private|home-a|sync|calendarId|title/i)
+  })
 })
 
 describe('development and fitness aggregates', () => {

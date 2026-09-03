@@ -83,6 +83,7 @@ export const COMPLETE_CONNECTOR_CONTRACT_FIXTURES = {
   },
   googleCalendar: {
     enabled: true,
+    accountId: '42000000-0000-4000-8000-000000000001',
     accounts: [{
       connectionId: '52000000-0000-4000-8000-000000000001',
       displayEmail: 'contract-user@example.invalid',

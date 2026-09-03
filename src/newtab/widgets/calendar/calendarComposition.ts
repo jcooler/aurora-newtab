@@ -3,22 +3,38 @@ import type { MonthCell } from '../../../lib/monthGrid'
 import type { IcsEvent } from '../../../services/connectors/ics'
 import { publicHolidayDisplayName, type PublicHoliday } from '../../../services/connectors/publicHolidays'
 import type { CalendarWeekStart } from '../../../lib/layout/namedLayouts'
+import type {
+  GoogleCalendarConfig,
+  GoogleCalendarSnapshot,
+  IcsCalendar,
+} from '../../../services/connectors/types'
+import { calendarColorOf } from '../../../services/connectors/calendarColors'
 
 export type { CalendarWeekStart } from '../../../lib/layout/namedLayouts'
 
 export type CalendarAgendaItem =
   | {
       kind: 'event'
+      authority: 'ics' | 'google_calendar'
+      sourceId: string
+      sourceLabel: string
+      sourceColor: string
+      eventId: string
       title: string
       dateKey: string
       start: number
       end: number
       allDay: boolean
-      cal: number
+      cal?: number
+      eventUrl?: string
       meetUrl?: string
     }
   | {
       kind: 'holiday'
+      authority: 'public_holidays'
+      sourceId: 'public_holidays'
+      sourceLabel: 'Public holidays'
+      sourceColor: 'accent'
       title: string
       dateKey: string
       start: number
@@ -56,12 +72,18 @@ function displayTitle(value: string): string {
 
 export function composeCalendarItems({
   events,
+  icsCalendars = [],
+  googleConfig,
+  googleSnapshot,
   holidays,
   includeHolidays,
   now,
   timeZone,
 }: {
   events: readonly IcsEvent[]
+  icsCalendars?: readonly IcsCalendar[]
+  googleConfig?: GoogleCalendarConfig | null
+  googleSnapshot?: GoogleCalendarSnapshot | null
   holidays: readonly PublicHoliday[]
   includeHolidays: boolean
   now: number | Date
@@ -69,11 +91,16 @@ export function composeCalendarItems({
 }): CalendarAgendaItem[] {
   const nowMs = now instanceof Date ? now.getTime() : now
   const todayKey = zonedDateKey(nowMs, timeZone)
-  const eventItems: CalendarAgendaItem[] = events.flatMap((event) => {
+  const icsItems: CalendarAgendaItem[] = events.flatMap((event, index) => {
     const title = displayTitle(event.summary)
     if (!title || !Number.isFinite(event.start) || !Number.isFinite(event.end) || event.end <= nowMs) return []
     return [{
       kind: 'event' as const,
+      authority: 'ics' as const,
+      sourceId: `ics:${event.cal}`,
+      sourceLabel: icsCalendars[event.cal]?.name ?? `Calendar ${event.cal + 1}`,
+      sourceColor: calendarColorOf(icsCalendars[event.cal]?.color, event.cal),
+      eventId: `ics:${event.cal}:${event.start}:${index}`,
       title,
       dateKey: zonedDateKey(event.start, timeZone),
       start: event.start,
@@ -83,19 +110,61 @@ export function composeCalendarItems({
       ...(event.meetUrl ? { meetUrl: event.meetUrl } : {}),
     }]
   })
+  const googleAccounts = new Map((googleConfig?.enabled ? googleConfig.accounts : []).map((account) => (
+    [account.connectionId, account] as const
+  )))
+  const googleItems: CalendarAgendaItem[] = (googleSnapshot?.calendars ?? []).flatMap((source) => {
+    const account = googleAccounts.get(source.connectionId)
+    const calendar = account?.calendars.find((candidate) => candidate.calendarId === source.calendarId)
+    if (!account || !calendar) return []
+    return source.events.flatMap((event): CalendarAgendaItem[] => {
+      const title = displayTitle(event.title)
+      const dateKey = event.allDay ? event.startDate : zonedDateKey(event.start, timeZone)
+      const stillRelevant = event.allDay
+        ? typeof event.endDate === 'string' && event.endDate > todayKey
+        : event.end > nowMs
+      if (!title || !dateKey || !stillRelevant) return []
+      return [{
+        kind: 'event',
+        authority: 'google_calendar',
+        sourceId: `${source.connectionId}\n${source.calendarId}`,
+        sourceLabel: `${calendar.name} · ${account.displayEmail}`,
+        sourceColor: calendar.color,
+        eventId: event.eventId,
+        title,
+        dateKey,
+        start: event.start,
+        end: event.end,
+        allDay: event.allDay,
+        ...(event.calendarUrl ? { eventUrl: event.calendarUrl } : {}),
+        ...(event.meetUrl ? { meetUrl: event.meetUrl } : {}),
+      }]
+    })
+  })
   const holidayCandidates: CalendarAgendaItem[] = includeHolidays
     ? holidays.flatMap((holiday) => {
         const title = displayTitle(publicHolidayDisplayName(holiday))
         if (!title || !validDateKey(holiday.date) || holiday.date < todayKey) return []
         const start = dateOrdinal(holiday.date)
-        return [{ kind: 'holiday' as const, title, dateKey: holiday.date, start, end: start + 86_400_000, allDay: true as const }]
+        return [{
+          kind: 'holiday' as const,
+          authority: 'public_holidays' as const,
+          sourceId: 'public_holidays' as const,
+          sourceLabel: 'Public holidays' as const,
+          sourceColor: 'accent' as const,
+          title,
+          dateKey: holiday.date,
+          start,
+          end: start + 86_400_000,
+          allDay: true as const,
+        }]
       })
     : []
   const holidayIdentities = new Set(holidayCandidates.map((item) => `${item.dateKey}\n${normalizedTitle(item.title)}`))
-  const deduplicatedEvents = includeHolidays
-    ? eventItems.filter((item) => !item.allDay || !holidayIdentities.has(`${item.dateKey}\n${normalizedTitle(item.title)}`))
-    : eventItems
-  const occupied = new Set(deduplicatedEvents.map((item) => `${item.dateKey}\n${normalizedTitle(item.title)}`))
+  const deduplicatedIcs = includeHolidays
+    ? icsItems.filter((item) => !item.allDay || !holidayIdentities.has(`${item.dateKey}\n${normalizedTitle(item.title)}`))
+    : icsItems
+  const occupied = new Set(deduplicatedIcs.map((item) => `${item.dateKey}\n${normalizedTitle(item.title)}`))
   const holidayItems = holidayCandidates.filter((item) => {
     const identity = `${item.dateKey}\n${normalizedTitle(item.title)}`
     if (occupied.has(identity)) return false
@@ -103,11 +172,19 @@ export function composeCalendarItems({
     return true
   })
 
-  return [...deduplicatedEvents, ...holidayItems].sort((left, right) => {
+  return [...deduplicatedIcs, ...googleItems, ...holidayItems].sort((left, right) => {
     const dateOrder = left.dateKey.localeCompare(right.dateKey)
     if (dateOrder !== 0) return dateOrder
     const rank = (item: CalendarAgendaItem) => item.kind === 'event' && !item.allDay ? 0 : item.kind === 'event' ? 1 : 2
-    return rank(left) - rank(right) || left.start - right.start || left.title.localeCompare(right.title)
+    const authorityRank = (item: CalendarAgendaItem) => item.authority === 'ics'
+      ? 0
+      : item.authority === 'google_calendar' ? 1 : 2
+    return rank(left) - rank(right)
+      || left.start - right.start
+      || authorityRank(left) - authorityRank(right)
+      || left.sourceId.localeCompare(right.sourceId, 'en-US')
+      || left.title.localeCompare(right.title, 'en-US')
+      || (left.kind === 'event' && right.kind === 'event' ? left.eventId.localeCompare(right.eventId, 'en-US') : 0)
   })
 }
 

@@ -13,8 +13,8 @@ import {
   type IcsData,
   type IcsEvent,
 } from '../../../services/connectors/ics'
-import { calendarColorClass, calendarColorOf } from '../../../services/connectors/calendarColors'
-import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
+import { calendarColorClass, calendarColorOf, isCalendarColor } from '../../../services/connectors/calendarColors'
+import type { GoogleCalendarConfig, IcsCalendar, IcsConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import DockLine from '../shared/DockLine'
@@ -36,6 +36,7 @@ import {
 import type { PublicHolidaysConfig } from '../../../services/connectors/types'
 import { calendarMonthCells, composeCalendarItems, type CalendarAgendaItem } from './calendarComposition'
 import CalendarContextPopover, { type CalendarContextRow } from './CalendarContextPopover'
+import { useGoogleCalendar } from '../../../providers/GoogleCalendarProvider'
 
 // The calendar widget — Task 54, the seventh connector and the second
 // no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
@@ -114,6 +115,7 @@ export default function CalendarWidget({
         ics={ics}
         calendars={calendars}
         holidayConfig={connectors?.publicHolidays as PublicHolidaysConfig | undefined}
+        googleConfig={connectors?.googleCalendar as GoogleCalendarConfig | undefined}
         canvasSize={canvasSize ?? (stageVariant === 'compact' ? 'compact' : 'standard')}
         docked={docked}
       />
@@ -156,6 +158,7 @@ function UnifiedCalendarWidget({
   ics,
   calendars,
   holidayConfig,
+  googleConfig,
   canvasSize,
   docked = false,
 }: {
@@ -163,6 +166,7 @@ function UnifiedCalendarWidget({
   ics: IcsConfig | undefined
   calendars: IcsCalendar[]
   holidayConfig: PublicHolidaysConfig | undefined
+  googleConfig: GoogleCalendarConfig | undefined
   canvasSize: CanvasSize
   docked?: boolean
 }) {
@@ -171,6 +175,7 @@ function UnifiedCalendarWidget({
   const [weekStart] = useStoredKey('calendarWeekStart')
   const localDay = useLocalDay()
   const now = useNow(60_000)
+  const google = useGoogleCalendar()
   const activeIcs = ics?.enabled && calendars.length > 0 ? ics : DISABLED_ICS
   const countryCode = normalizeHolidayCountryCode(holidayConfig?.countryCode)
   const activeHolidays = holidayConfig?.enabled && countryCode
@@ -199,6 +204,9 @@ function UnifiedCalendarWidget({
     : []
   const items = composeCalendarItems({
     events: icsSnapshot.data?.events ?? [],
+    icsCalendars: calendars,
+    googleConfig,
+    googleSnapshot: google.snapshot,
     holidays,
     includeHolidays: preference.includePublicHolidays,
     now,
@@ -217,7 +225,7 @@ function UnifiedCalendarWidget({
   if (canvasSize === 'compact') {
     return (
       <TierFrame label="Calendar" tier="compact" state={items.length > 0 ? 'ready' : 'empty'} className="justify-center gap-2 px-3 py-2.5">
-        <CalendarAgenda items={items} calendars={calendars} limit={2} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+        <CalendarAgenda items={items} limit={2} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
       </TierFrame>
     )
   }
@@ -230,11 +238,11 @@ function UnifiedCalendarWidget({
           className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] items-center gap-5"
         >
           <div data-testid="calendar-full-month" className="min-w-0">
-            <CalendarMonth items={items} holidays={holidays} calendars={calendars} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} timeZone={localDay.timeZone} roomy />
+            <CalendarMonth items={items} holidays={holidays} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} timeZone={localDay.timeZone} roomy />
           </div>
           <section data-testid="calendar-full-agenda" aria-label="Agenda" className="min-w-0 border-l border-panel-border pl-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-fg-muted">Agenda</p>
-            <CalendarAgenda items={items} calendars={calendars} limit={8} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+            <CalendarAgenda items={items} limit={8} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
           </section>
         </div>
       </TierFrame>
@@ -246,14 +254,14 @@ function UnifiedCalendarWidget({
     <TierFrame label="Calendar" tier="standard" state={items.length > 0 ? 'ready' : 'empty'} className="justify-start gap-1.5 px-3 py-2">
       <div data-calendar-standard-composition className="min-h-0 w-full">
         {preference.defaultView === 'month' ? (
-          <CalendarMonth items={items} holidays={holidays} calendars={calendars} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} timeZone={localDay.timeZone} viewControl={viewTabs} />
+          <CalendarMonth items={items} holidays={holidays} todayKey={localDay.key} weekStart={weekStart ?? 'locale'} timeZone={localDay.timeZone} viewControl={viewTabs} />
         ) : (
           <>
             <div className="flex min-h-7 items-center justify-between gap-2">
               <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-muted">Calendar</span>
               {viewTabs}
             </div>
-            <CalendarAgenda items={items} calendars={calendars} limit={4} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
+            <CalendarAgenda items={items} limit={4} timeZone={localDay.timeZone} emptyLabel="Nothing coming up." />
           </>
         )}
       </div>
@@ -275,13 +283,11 @@ function CalendarViewTabs({ active, onChange }: { active: 'agenda' | 'month'; on
 
 function CalendarAgenda({
   items,
-  calendars,
   limit,
   timeZone,
   emptyLabel,
 }: {
   items: readonly CalendarAgendaItem[]
-  calendars: readonly IcsCalendar[]
   limit: number
   timeZone: string
   emptyLabel: string
@@ -291,13 +297,19 @@ function CalendarAgenda({
   return (
     <ul className="grid min-h-0 gap-1.5">
       {visible.map((item) => {
-        const color = item.kind === 'holiday'
-          ? 'accent'
-          : calendarColorOf(calendars[item.cal]?.color, item.cal)
+        const color = item.sourceColor
         return (
-          <li key={`${item.kind}-${item.dateKey}-${item.title}-${item.start}`} className="flex min-w-0 items-baseline gap-2 text-sm">
-            <span data-calendar-color={color} className={`size-1.5 shrink-0 rounded-full ${calendarColorClass(color)}`} aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-fg">{item.title}</span>
+          <li key={`${item.authority}-${item.sourceId}-${item.kind === 'event' ? item.eventId : item.dateKey}`} className="flex min-w-0 items-baseline gap-2 text-sm">
+            <span
+              data-calendar-color={color}
+              className={`size-1.5 shrink-0 rounded-full ${isCalendarColor(color) ? calendarColorClass(color) : ''}`}
+              style={!isCalendarColor(color) ? { backgroundColor: color } : undefined}
+              aria-hidden
+            />
+            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="min-w-0 truncate text-fg">{item.title}</span>
+              <span data-calendar-source-label className="min-w-0 truncate text-[10px] text-fg-muted">{item.sourceLabel}</span>
+            </span>
             <time className="shrink-0 text-xs text-fg-muted">{agendaWhen(item, timeZone)}</time>
           </li>
         )
@@ -314,7 +326,7 @@ function agendaWhen(item: CalendarAgendaItem, timeZone: string): string {
   return `${day}, ${time}`
 }
 
-function CalendarMonth({ items, holidays, calendars, todayKey, weekStart, timeZone, viewControl, roomy = false }: { items: readonly CalendarAgendaItem[]; holidays: readonly PublicHoliday[]; calendars: readonly IcsCalendar[]; todayKey: string; weekStart: 'locale' | 'sunday' | 'monday'; timeZone: string; viewControl?: ReactNode; roomy?: boolean }) {
+function CalendarMonth({ items, holidays, todayKey, weekStart, timeZone, viewControl, roomy = false }: { items: readonly CalendarAgendaItem[]; holidays: readonly PublicHoliday[]; todayKey: string; weekStart: 'locale' | 'sunday' | 'monday'; timeZone: string; viewControl?: ReactNode; roomy?: boolean }) {
   const [todayYear, todayMonth] = todayKey.split('-').map(Number)
   const [view, setView] = useState(() => new Date(todayYear!, todayMonth! - 1, 1))
   const locale = typeof navigator === 'undefined' ? 'en-US' : navigator.language
@@ -348,16 +360,15 @@ function CalendarMonth({ items, holidays, calendars, todayKey, weekStart, timeZo
   for (const item of items) {
     if (item.kind !== 'event' || !visibleDateKeys.has(item.dateKey)) continue
     const rows = contextRows.get(item.dateKey) ?? []
-    const calendar = calendars[item.cal]
-    const color = calendarColorOf(calendar?.color, item.cal)
+    const color = item.sourceColor
     const when = item.allDay
       ? 'All day'
       : new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone }).format(item.start)
     rows.push({
-      key: `event:${item.dateKey}:${item.start}:${item.title}:${item.cal}`,
+      key: `event:${item.authority}:${item.sourceId}:${item.eventId}`,
       kind: 'event',
       title: item.title,
-      detail: calendar?.name ? `${when} · ${calendar.name}` : when,
+      detail: `${when} · ${item.sourceLabel}`,
       color,
     })
     contextRows.set(item.dateKey, rows)
@@ -398,8 +409,8 @@ function CalendarMonth({ items, holidays, calendars, todayKey, weekStart, timeZo
                             key={color}
                             data-calendar-occupancy-marker=""
                             data-calendar-color={color}
-                            className={`rounded-full ${calendarColorClass(color)}`}
-                            style={{ width: '3px', height: '3px' }}
+                            className={`rounded-full ${isCalendarColor(color) ? calendarColorClass(color) : ''}`}
+                            style={{ width: '3px', height: '3px', ...(!isCalendarColor(color) ? { backgroundColor: color } : {}) }}
                           />
                         ))}
                       </span>
@@ -447,7 +458,7 @@ function MonthHolidaySummary({ holidays }: { holidays: readonly PublicHoliday[] 
   )
 }
 
-function calendarMarkerColors(rows: readonly CalendarContextRow[]): ReturnType<typeof calendarColorOf>[] {
+function calendarMarkerColors(rows: readonly CalendarContextRow[]): string[] {
   return [...new Set(rows.map((row) => row.color ?? 'accent'))].slice(0, 3)
 }
 

@@ -299,21 +299,31 @@ activation gate is explicitly approved.
 - Produces: one visible-tab Google refresh owner; per-connection partial success; provider-neutral ordered Calendar items; distinct source color/label; and aggregate-only calendar Metrics buckets by opaque connection UUID.
 - Consumes: the existing Calendar widget instead of adding a second calendar widget, existing `useConnectorSnapshot` concepts, ICS/public-holiday composition, and `collectCalendarSeries`.
 
-- [ ] **Step 1: Write failing ownership/composition/metrics tests**
+- [x] **Step 1: Write failing ownership/composition/metrics tests**
 
 Cover two Google accounts plus ICS, identical event titles across authorities, recurring instances, all-day and DST bounds, partial account failure, retained complete snapshots during pagination failure, offline behavior, Manual mode, entitlement expiry, 410 resync, source removal, busy-time interval merging within one connection, and separate metrics series across connections.
 
-- [ ] **Step 2: Implement provider-neutral composition**
+- [x] **Step 2: Implement provider-neutral composition**
 
 Do not change ICS event IDs or cache shape. Map ICS and Google normalized events into an ephemeral `CalendarAgendaItem` input with explicit authority and source identity. Sort by start with deterministic source tie-breaks. Never deduplicate across accounts/calendars because duplicate placement can be intentional.
 
-- [ ] **Step 3: Implement refresh ownership and metrics emission**
+- [x] **Step 3: Implement refresh ownership and metrics emission**
 
 Refresh only selected calendars for active entitled connections. A connection error cannot blank another account or ICS. Commit a connection snapshot only after every required page validates. Feed only normalized start/end/all-day values to `collectCalendarSeries` and use connection UUID as the allowed source instance ID.
 
-- [ ] **Step 4: Run focused tests and observe GREEN**
+- [x] **Step 4: Run focused tests and observe GREEN**
 
-- [ ] **Step 5: Commit the refresh/composition checkpoint**
+- [x] **Step 5: Commit the refresh/composition checkpoint**
+
+Implementation note: `GoogleCalendarProvider` reuses the shared visible-document
+snapshot owner and adds a bounded jittered retry path for valid partial snapshots.
+The existing Calendar renderer now composes free ICS, public holidays, and selected
+Google sources without cross-authority deduplication. Google event metrics are grouped
+only by opaque connection UUID, while provider labels, calendar IDs, event IDs, titles,
+URLs, and cursors remain outside metric history. The focused gate covers Manual mode,
+entitlement expiry, offline retention, partial account success, pagination atomicity,
+source removal, recurrence, all-day/DST behavior, resource caps, and Google-only
+Calendar availability.
 
 ---
 

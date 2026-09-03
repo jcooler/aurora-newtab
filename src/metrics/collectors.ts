@@ -1,6 +1,7 @@
 import type { Habit, TodoList } from '../lib/storage/schema'
 import { isIcsData, type IcsEvent } from '../services/connectors/ics'
-import type { ConnectorSnapshot } from '../services/connectors/types'
+import { isGoogleCalendarSnapshot } from '../services/connectors/googleCalendar'
+import type { ConnectorSnapshot, GoogleCalendarEvent } from '../services/connectors/types'
 import { isMetricDateKey, metricsRetentionStart } from './history'
 import type { MetricBucketInput } from './types'
 
@@ -139,7 +140,9 @@ function localDayBounds(date: string): readonly [number, number] {
   return [start.getTime(), end.getTime()]
 }
 
-function busyMinutes(events: readonly IcsEvent[], start: number, end: number): number {
+type CalendarMetricEvent = Pick<IcsEvent | GoogleCalendarEvent, 'start' | 'end' | 'allDay'>
+
+function busyMinutes(events: readonly CalendarMetricEvent[], start: number, end: number): number {
   const intervals = events
     .filter((event) => !event.allDay && event.end > event.start && event.start < end && event.end > start)
     .map((event) => [Math.max(start, event.start), Math.min(end, event.end)] as const)
@@ -161,7 +164,7 @@ function busyMinutes(events: readonly IcsEvent[], start: number, end: number): n
 }
 
 export function collectCalendarSeries(
-  events: readonly IcsEvent[],
+  events: readonly CalendarMetricEvent[],
   sourceInstanceId: string,
   today: string,
 ): MetricBucketInput[] {
@@ -287,12 +290,25 @@ function contributionDays(value: unknown): Array<{ date: string; count: number }
 }
 
 export function collectConnectorSeries(
-  snapshots: Partial<Record<'ics' | 'github' | 'gitlab' | 'vercel', ConnectorSnapshot>>,
+  snapshots: Partial<Record<'ics' | 'github' | 'gitlab' | 'vercel' | 'googleCalendar', ConnectorSnapshot>>,
   today: string,
 ): MetricBucketInput[] {
   const output: MetricBucketInput[] = []
   const ics = snapshots.ics?.data
   if (isIcsData(ics)) output.push(...collectCalendarSeries(ics.events, 'ics', today))
+
+  const google = snapshots.googleCalendar?.data
+  if (isGoogleCalendarSnapshot(google)) {
+    const eventsByConnection = new Map<string, GoogleCalendarEvent[]>()
+    for (const calendar of google.calendars) {
+      const events = eventsByConnection.get(calendar.connectionId) ?? []
+      events.push(...calendar.events)
+      eventsByConnection.set(calendar.connectionId, events)
+    }
+    for (const [connectionId, events] of eventsByConnection) {
+      output.push(...collectCalendarSeries(events, connectionId, today))
+    }
+  }
 
   for (const source of ['github', 'gitlab'] as const) {
     const data = snapshots[source]?.data
