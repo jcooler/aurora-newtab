@@ -14,7 +14,12 @@ import {
   type IcsEvent,
 } from '../../../services/connectors/ics'
 import { calendarColorClass, calendarColorOf, isCalendarColor } from '../../../services/connectors/calendarColors'
-import type { GoogleCalendarConfig, IcsCalendar, IcsConfig } from '../../../services/connectors/types'
+import type {
+  GoogleCalendarConfig,
+  IcsCalendar,
+  IcsConfig,
+  MicrosoftCalendarConfig,
+} from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import DockLine from '../shared/DockLine'
@@ -37,6 +42,7 @@ import type { PublicHolidaysConfig } from '../../../services/connectors/types'
 import { calendarMonthCells, composeCalendarItems, type CalendarAgendaItem } from './calendarComposition'
 import CalendarContextPopover, { type CalendarContextRow } from './CalendarContextPopover'
 import { useGoogleCalendar } from '../../../providers/GoogleCalendarProvider'
+import { useMicrosoftCalendar } from '../../../providers/MicrosoftCalendarProvider'
 
 // The calendar widget — Task 54, the seventh connector and the second
 // no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
@@ -116,6 +122,7 @@ export default function CalendarWidget({
         calendars={calendars}
         holidayConfig={connectors?.publicHolidays as PublicHolidaysConfig | undefined}
         googleConfig={connectors?.googleCalendar as GoogleCalendarConfig | undefined}
+        microsoftConfig={connectors?.microsoftCalendar as MicrosoftCalendarConfig | undefined}
         canvasSize={canvasSize ?? (stageVariant === 'compact' ? 'compact' : 'standard')}
         docked={docked}
       />
@@ -159,6 +166,7 @@ function UnifiedCalendarWidget({
   calendars,
   holidayConfig,
   googleConfig,
+  microsoftConfig,
   canvasSize,
   docked = false,
 }: {
@@ -167,6 +175,7 @@ function UnifiedCalendarWidget({
   calendars: IcsCalendar[]
   holidayConfig: PublicHolidaysConfig | undefined
   googleConfig: GoogleCalendarConfig | undefined
+  microsoftConfig: MicrosoftCalendarConfig | undefined
   canvasSize: CanvasSize
   docked?: boolean
 }) {
@@ -176,6 +185,7 @@ function UnifiedCalendarWidget({
   const localDay = useLocalDay()
   const now = useNow(60_000)
   const google = useGoogleCalendar()
+  const microsoft = useMicrosoftCalendar()
   const activeIcs = ics?.enabled && calendars.length > 0 ? ics : DISABLED_ICS
   const countryCode = normalizeHolidayCountryCode(holidayConfig?.countryCode)
   const activeHolidays = holidayConfig?.enabled && countryCode
@@ -207,6 +217,8 @@ function UnifiedCalendarWidget({
     icsCalendars: calendars,
     googleConfig,
     googleSnapshot: google.snapshot,
+    microsoftConfig,
+    microsoftSnapshot: microsoft.snapshot,
     holidays,
     includeHolidays: preference.includePublicHolidays,
     now,

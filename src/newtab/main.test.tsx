@@ -91,6 +91,17 @@ vi.mock('../providers/GoogleCalendarProvider', async () => {
   }
 })
 
+vi.mock('../providers/MicrosoftCalendarProvider', async () => {
+  const React = await import('react')
+  return {
+    MicrosoftCalendarProvider: ({ children }: { children: React.ReactNode }) => React.createElement(
+      'div',
+      { 'data-microsoft-calendar-provider': '' },
+      children,
+    ),
+  }
+})
+
 vi.mock('./App', async () => {
   const React = await import('react')
   const { default: WidgetBoundary } = await import('./components/WidgetBoundary')
@@ -159,6 +170,7 @@ describe('new-tab React root caught-error handling', () => {
       expect(document.querySelector('[role="alert"][aria-label="Calendar unavailable"]')).toBeTruthy()
       expect(document.body.textContent).toContain('Calendar sibling survives')
       expect(document.querySelector('[data-account-provider]')).toBeTruthy()
+      expect(document.querySelector('[data-microsoft-calendar-provider]')).toBeTruthy()
       expect(document.querySelector('[data-metrics-provider]')).toBeTruthy()
     })
 

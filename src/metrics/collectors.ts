@@ -1,7 +1,12 @@
 import type { Habit, TodoList } from '../lib/storage/schema'
 import { isIcsData, type IcsEvent } from '../services/connectors/ics'
 import { isGoogleCalendarSnapshot } from '../services/connectors/googleCalendar'
-import type { ConnectorSnapshot, GoogleCalendarEvent } from '../services/connectors/types'
+import { isMicrosoftCalendarSnapshot } from '../services/connectors/microsoftCalendar'
+import type {
+  ConnectorSnapshot,
+  GoogleCalendarEvent,
+  MicrosoftCalendarEvent,
+} from '../services/connectors/types'
 import { isMetricDateKey, metricsRetentionStart } from './history'
 import type { MetricBucketInput } from './types'
 
@@ -140,7 +145,7 @@ function localDayBounds(date: string): readonly [number, number] {
   return [start.getTime(), end.getTime()]
 }
 
-type CalendarMetricEvent = Pick<IcsEvent | GoogleCalendarEvent, 'start' | 'end' | 'allDay'> & {
+type CalendarMetricEvent = Pick<IcsEvent | GoogleCalendarEvent | MicrosoftCalendarEvent, 'start' | 'end' | 'allDay'> & {
   startDate?: string | null
   endDate?: string | null
 }
@@ -312,7 +317,10 @@ function contributionDays(value: unknown): Array<{ date: string; count: number }
 }
 
 export function collectConnectorSeries(
-  snapshots: Partial<Record<'ics' | 'github' | 'gitlab' | 'vercel' | 'googleCalendar', ConnectorSnapshot>>,
+  snapshots: Partial<Record<
+    'ics' | 'github' | 'gitlab' | 'vercel' | 'googleCalendar' | 'microsoftCalendar',
+    ConnectorSnapshot
+  >>,
   today: string,
 ): MetricBucketInput[] {
   const output: MetricBucketInput[] = []
@@ -325,6 +333,19 @@ export function collectConnectorSeries(
     for (const calendar of google.calendars) {
       const events = eventsByConnection.get(calendar.connectionId) ?? []
       events.push(...calendar.events)
+      eventsByConnection.set(calendar.connectionId, events)
+    }
+    for (const [connectionId, events] of eventsByConnection) {
+      output.push(...collectCalendarSeries(events, connectionId, today))
+    }
+  }
+
+  const microsoft = snapshots.microsoftCalendar?.data
+  if (isMicrosoftCalendarSnapshot(microsoft)) {
+    const eventsByConnection = new Map<string, MicrosoftCalendarEvent[]>()
+    for (const calendar of microsoft.calendars) {
+      const events = eventsByConnection.get(calendar.connectionId) ?? []
+      events.push(...calendar.events.filter((event) => !event.cancelled))
       eventsByConnection.set(calendar.connectionId, events)
     }
     for (const [connectionId, events] of eventsByConnection) {

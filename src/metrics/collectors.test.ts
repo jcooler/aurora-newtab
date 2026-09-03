@@ -139,6 +139,44 @@ describe('calendar aggregates', () => {
       else process.env.TZ = previousTimeZone
     }
   })
+
+  it('stores Microsoft Calendar metrics only as connection UUID, date, count, and merged busy minutes', () => {
+    const connectionId = '62000000-0000-4000-8000-000000000001'
+    const firstStart = localEpoch('2026-09-02', 9)
+    const secondStart = localEpoch('2026-09-02', 9, 30)
+    const microsoftEvent = (eventId: string, title: string, start: number, end: number) => ({
+      eventId, title, start, end, allDay: false, startDate: null, endDate: null,
+      cancelled: false, showAs: 'busy' as const, sensitivity: 'normal' as const,
+      eventType: 'singleInstance' as const, seriesMasterId: null, updatedAt: end,
+    })
+    const series = collectConnectorSeries({
+      microsoftCalendar: {
+        fetchedAt: localEpoch('2026-09-02', 15),
+        data: {
+          version: 1,
+          fetchedAt: localEpoch('2026-09-02', 15),
+          calendars: [{
+            connectionId,
+            calendarId: 'private-work-calendar',
+            color: '#0078d4',
+            windowStart: localEpoch('2026-09-01'),
+            windowEnd: localEpoch('2026-09-03'),
+            deltaLink: 'https://graph.microsoft.com/v1.0/me/calendars/private-work-calendar/calendarView/delta?$deltatoken=private-cursor',
+            events: [
+              microsoftEvent('private-event-a', 'Private planning', firstStart, firstStart + 60 * 60_000),
+              microsoftEvent('private-event-b', 'Secret review', secondStart, secondStart + 60 * 60_000),
+            ],
+          }],
+        },
+      },
+    }, '2026-09-02')
+
+    expect(series).toEqual([{
+      date: '2026-09-02', source: 'calendar', sourceInstanceId: connectionId,
+      values: { kind: 'calendar', events: 2, busyMinutes: 90 },
+    }])
+    expect(JSON.stringify(series)).not.toMatch(/Private planning|Secret review|private-work-calendar|private-cursor|private-event/u)
+  })
 })
 
 describe('development and fitness aggregates', () => {

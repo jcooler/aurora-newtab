@@ -7,6 +7,8 @@ import type {
   GoogleCalendarConfig,
   GoogleCalendarSnapshot,
   IcsCalendar,
+  MicrosoftCalendarConfig,
+  MicrosoftCalendarSnapshot,
 } from '../../../services/connectors/types'
 import { calendarColorOf } from '../../../services/connectors/calendarColors'
 
@@ -15,7 +17,7 @@ export type { CalendarWeekStart } from '../../../lib/layout/namedLayouts'
 export type CalendarAgendaItem =
   | {
       kind: 'event'
-      authority: 'ics' | 'google_calendar'
+      authority: 'ics' | 'google_calendar' | 'microsoft_calendar'
       sourceId: string
       sourceLabel: string
       sourceColor: string
@@ -75,6 +77,8 @@ export function composeCalendarItems({
   icsCalendars = [],
   googleConfig,
   googleSnapshot,
+  microsoftConfig,
+  microsoftSnapshot,
   holidays,
   includeHolidays,
   now,
@@ -84,6 +88,8 @@ export function composeCalendarItems({
   icsCalendars?: readonly IcsCalendar[]
   googleConfig?: GoogleCalendarConfig | null
   googleSnapshot?: GoogleCalendarSnapshot | null
+  microsoftConfig?: MicrosoftCalendarConfig | null
+  microsoftSnapshot?: MicrosoftCalendarSnapshot | null
   holidays: readonly PublicHoliday[]
   includeHolidays: boolean
   now: number | Date
@@ -141,6 +147,35 @@ export function composeCalendarItems({
       }]
     })
   })
+  const microsoftAccounts = new Map((microsoftConfig?.enabled ? microsoftConfig.accounts : []).map((account) => (
+    [account.connectionId, account] as const
+  )))
+  const microsoftItems: CalendarAgendaItem[] = (microsoftSnapshot?.calendars ?? []).flatMap((source) => {
+    const account = microsoftAccounts.get(source.connectionId)
+    const calendar = account?.calendars.find((candidate) => candidate.calendarId === source.calendarId)
+    if (!account || !calendar) return []
+    return source.events.flatMap((event): CalendarAgendaItem[] => {
+      const title = displayTitle(event.title)
+      const dateKey = event.allDay ? event.startDate : zonedDateKey(event.start, timeZone)
+      const stillRelevant = event.allDay
+        ? typeof event.endDate === 'string' && event.endDate > todayKey
+        : event.end > nowMs
+      if (!title || !dateKey || !stillRelevant || event.cancelled) return []
+      return [{
+        kind: 'event',
+        authority: 'microsoft_calendar',
+        sourceId: `${source.connectionId}\n${source.calendarId}`,
+        sourceLabel: `${calendar.name} · ${account.displayEmail}`,
+        sourceColor: calendar.color,
+        eventId: event.eventId,
+        title,
+        dateKey,
+        start: event.start,
+        end: event.end,
+        allDay: event.allDay,
+      }]
+    })
+  })
   const holidayCandidates: CalendarAgendaItem[] = includeHolidays
     ? holidays.flatMap((holiday) => {
         const title = displayTitle(publicHolidayDisplayName(holiday))
@@ -172,13 +207,13 @@ export function composeCalendarItems({
     return true
   })
 
-  return [...deduplicatedIcs, ...googleItems, ...holidayItems].sort((left, right) => {
+  return [...deduplicatedIcs, ...googleItems, ...microsoftItems, ...holidayItems].sort((left, right) => {
     const dateOrder = left.dateKey.localeCompare(right.dateKey)
     if (dateOrder !== 0) return dateOrder
     const rank = (item: CalendarAgendaItem) => item.kind === 'event' && !item.allDay ? 0 : item.kind === 'event' ? 1 : 2
     const authorityRank = (item: CalendarAgendaItem) => item.authority === 'ics'
       ? 0
-      : item.authority === 'google_calendar' ? 1 : 2
+      : item.authority === 'google_calendar' ? 1 : item.authority === 'microsoft_calendar' ? 2 : 3
     return rank(left) - rank(right)
       || left.start - right.start
       || authorityRank(left) - authorityRank(right)

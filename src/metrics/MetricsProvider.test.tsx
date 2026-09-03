@@ -212,6 +212,48 @@ describe('MetricsProvider', () => {
     expect(JSON.stringify(result.current.history)).not.toMatch(/Private planning|private-calendar|private-sync|private-event/u)
   })
 
+  it('stores only aggregate Microsoft Calendar values under the opaque connection UUID', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    const connectionId = '62000000-0000-4000-8000-000000000001'
+    const start = new Date(2026, 8, 2, 9).getTime()
+    const { result } = await harness(snapshot(), {
+      connectorSnapshots: {
+        microsoftCalendar: {
+          fetchedAt: NOW,
+          data: {
+            version: 1,
+            fetchedAt: NOW,
+            calendars: [{
+              connectionId,
+              calendarId: 'private-microsoft-calendar',
+              color: '#0078d4',
+              windowStart: NOW - 86_400_000,
+              windowEnd: NOW + 86_400_000,
+              deltaLink: 'https://graph.microsoft.com/v1.0/me/calendars/private-microsoft-calendar/calendarView/delta?$deltatoken=private-cursor',
+              events: [{
+                eventId: 'private-microsoft-event', title: 'Private Microsoft planning',
+                start, end: start + 60 * 60_000, allDay: false, startDate: null, endDate: null,
+                cancelled: false, showAs: 'busy', sensitivity: 'normal', eventType: 'singleInstance',
+                seriesMasterId: null, updatedAt: NOW,
+              }],
+            }],
+          },
+        },
+      },
+    })
+    await settle()
+
+    expect(result.current.history?.buckets).toContainEqual(expect.objectContaining({
+      source: 'calendar',
+      sourceInstanceId: connectionId,
+      values: { kind: 'calendar', events: 1, busyMinutes: 60 },
+    }))
+    expect(JSON.stringify(result.current.history)).not.toMatch(
+      /Private Microsoft planning|private-microsoft-calendar|private-cursor|private-microsoft-event/u,
+    )
+  })
+
   it('stops collection when the verified lease expires', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(NOW)

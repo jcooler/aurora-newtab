@@ -557,7 +557,7 @@ git commit -m "feat: add Microsoft Calendar Graph refresh"
 - Consumes: local Microsoft config/cache, `AccountClient.providerGateways.microsoft_calendar`, current capability lease, local timezone/day, provider-neutral Calendar composition, and the existing aggregate Calendar collector.
 - Produces: `MicrosoftCalendarProvider`, `useMicrosoftCalendar`, provider-aware composed agenda rows, partial-account refresh state, and UUID-scoped aggregate-only Microsoft Calendar Metrics.
 
-- [ ] **Step 1: Write failing runtime, composition, and Metrics tests**
+- [x] **Step 1: Write failing runtime, composition, and Metrics tests**
 
 Test no provider call when disabled, account mismatch, hydration incomplete, capability absent, or entitlement expired; one visible-document Web Lock owner; 31-day-before/61-day-after DST-safe window; manual preference; pending and retry state; bounded 20 percent jitter; retained snapshot when inactive; partial-account retry; and no service-worker or alarm path.
 
@@ -580,7 +580,7 @@ export function composeCalendarItems(input: {
 
 Test `authority: 'microsoft_calendar'`, opaque source identity, account-qualified source label, preserved colors, safe ordering, expired-event filtering, all-day local date behavior, same-title coexistence across non-holiday authorities, and Google/ICS/Public Holidays unchanged. Test Metrics output contains only connection UUID, date, event count, and merged busy minutes.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```powershell
 npm test -- --run src/providers/MicrosoftCalendarProvider.test.tsx src/newtab/main.test.tsx src/newtab/widgets/calendar/calendarComposition.test.ts src/newtab/widgets/calendar/CalendarWidget.test.tsx src/metrics/collectors.test.ts src/metrics/MetricsProvider.test.tsx
@@ -588,7 +588,7 @@ npm test -- --run src/providers/MicrosoftCalendarProvider.test.tsx src/newtab/ma
 
 Expected: Microsoft runtime/context/composition fields are missing.
 
-- [ ] **Step 3: Implement the Microsoft runtime provider**
+- [x] **Step 3: Implement the Microsoft runtime provider**
 
 Mirror the verified visible-document ownership policy without sharing Google cache state. Provide:
 
@@ -605,15 +605,15 @@ export function useMicrosoftCalendar(): MicrosoftCalendarRuntimeState
 
 Nest `MicrosoftCalendarProvider` beside `GoogleCalendarProvider` under the same Account and Storage authorities. Do not make either provider depend on the other's availability.
 
-- [ ] **Step 4: Implement composition and aggregate-only collection**
+- [x] **Step 4: Implement composition and aggregate-only collection**
 
 Add Microsoft rows to `CalendarAgendaItem` and the unified Calendar. Keep account-qualified text labels so color is never the only source indicator. Pass each connection's normalized events to the existing calendar collector, which clips local days and merges overlaps. Do not add a Microsoft-only widget.
 
-- [ ] **Step 5: Run focused tests and observe GREEN**
+- [x] **Step 5: Run focused tests and observe GREEN**
 
 Run the Step 2 command. Expected: all runtime/composition/Metrics tests pass.
 
-- [ ] **Step 6: Commit the runtime checkpoint**
+- [x] **Step 6: Commit the runtime checkpoint**
 
 ```powershell
 git add src/providers/MicrosoftCalendarProvider.tsx src/providers/MicrosoftCalendarProvider.test.tsx src/newtab src/metrics

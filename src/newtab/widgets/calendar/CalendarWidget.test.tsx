@@ -19,6 +19,17 @@ import CalendarWidget, {
 } from './CalendarWidget'
 import type { AsyncResourceState } from '../../../lib/asyncState'
 
+let microsoftRuntime: {
+  entitled: boolean
+  snapshot: import('../../../services/connectors/types').MicrosoftCalendarSnapshot | null
+  refreshing: boolean
+  lastError: string | null
+} = { entitled: false, snapshot: null, refreshing: false, lastError: null }
+
+vi.mock('../../../providers/MicrosoftCalendarProvider', () => ({
+  useMicrosoftCalendar: () => microsoftRuntime,
+}))
+
 beforeAll(() => {
   const digest = vi.fn(async (_algorithm: AlgorithmIdentifier, source: BufferSource) => {
     const bytes =
@@ -42,7 +53,10 @@ beforeAll(() => {
 // across cases; reset it so one test's refresh can't dedupe the next — same
 // discipline as every other connector widget test (CryptoWidget.test.tsx et
 // al.).
-beforeEach(() => __resetInFlight())
+beforeEach(() => {
+  __resetInFlight()
+  microsoftRuntime = { entitled: false, snapshot: null, refreshing: false, lastError: null }
+})
 afterEach(() => __resetInFlight())
 
 const DAY_MS = 86_400_000
@@ -162,6 +176,62 @@ describe('CalendarWidget', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.useRealTimers()
+  })
+
+  it('renders a Microsoft event through the existing unified Calendar surface with text and color identity', async () => {
+    const accountId = '42000000-0000-4000-8000-000000000001'
+    const connectionId = '62000000-0000-4000-8000-000000000001'
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      microsoftCalendar: {
+        enabled: true,
+        accountId,
+        accounts: [{
+          connectionId,
+          displayEmail: 'alex@contoso.example',
+          accountKind: 'work_or_school',
+          calendars: [{ calendarId: 'work', name: 'Work', color: '#0078d4', isDefault: true }],
+        }],
+      },
+    })
+    await storage.set('calendarPreferences', {
+      work: { defaultView: 'agenda', includePublicHolidays: false },
+    })
+    microsoftRuntime = {
+      entitled: false,
+      refreshing: false,
+      lastError: null,
+      snapshot: {
+        version: 1,
+        fetchedAt: NOW,
+        calendars: [{
+          connectionId,
+          calendarId: 'work',
+          color: '#0078d4',
+          windowStart: NOW - DAY_MS,
+          windowEnd: NOW + DAY_MS,
+          deltaLink: 'https://graph.microsoft.com/v1.0/me/calendars/work/calendarView/delta?$deltatoken=opaque',
+          events: [{
+            eventId: 'planning', title: 'Microsoft planning', start: NOW + 60 * 60_000,
+            end: NOW + 90 * 60_000, allDay: false, startDate: null, endDate: null,
+            cancelled: false, showAs: 'busy', sensitivity: 'normal', eventType: 'singleInstance',
+            seriesMasterId: null, updatedAt: NOW,
+          }],
+        }],
+      },
+    }
+
+    await act(async () => {
+      mountUnified(storage, 'standard')
+      for (let index = 0; index < 16; index += 1) await Promise.resolve()
+    })
+    expect(screen.getByText('Microsoft planning')).toBeTruthy()
+    expect(screen.getByText('Work · alex@contoso.example')).toBeTruthy()
+    const dot = screen.getByText('Microsoft planning').closest('li')?.querySelector<HTMLElement>(
+      '[data-calendar-color="#0078d4"]',
+    )
+    expect(dot?.style.backgroundColor).toBe('rgb(0, 120, 212)')
   })
 
   it('Standard exposes a labelled Agenda/Month switch and writes only its companion preference', async () => {

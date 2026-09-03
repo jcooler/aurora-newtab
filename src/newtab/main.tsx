@@ -11,6 +11,7 @@ import { AccountProvider } from '../account/AccountContext'
 import { SyncProvider } from '../sync/SyncProvider'
 import { MetricsProvider } from '../metrics/MetricsProvider'
 import { GoogleCalendarProvider } from '../providers/GoogleCalendarProvider'
+import { MicrosoftCalendarProvider } from '../providers/MicrosoftCalendarProvider'
 import './index.css'
 
 type NotesHarnessController = Readonly<{
@@ -123,11 +124,13 @@ createRoot(document.getElementById('root')!, {
     <StorageProvider storage={storage} syncRuntime={{ driver, authority: storageAuthority }}>
       <AccountProvider>
         <GoogleCalendarProvider>
-          <MetricsProvider>
-            <SyncProvider>
-              <App />
-            </SyncProvider>
-          </MetricsProvider>
+          <MicrosoftCalendarProvider>
+            <MetricsProvider>
+              <SyncProvider>
+                <App />
+              </SyncProvider>
+            </MetricsProvider>
+          </MicrosoftCalendarProvider>
         </GoogleCalendarProvider>
       </AccountProvider>
     </StorageProvider>
