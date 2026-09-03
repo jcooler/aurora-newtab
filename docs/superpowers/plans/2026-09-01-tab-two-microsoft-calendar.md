@@ -479,13 +479,13 @@ git commit -m "feat: add local Microsoft Calendar authority"
 - Consumes: `MicrosoftCalendarConfig`, prior complete snapshot, requested window, memory-only token callback, and injected `fetch`.
 - Produces: `fetchMicrosoftCalendarList`, `refreshMicrosoftCalendarSnapshot`, exact Graph URL validation, paginated discovery, atomic per-calendar delta, bounded normalization, and stable issue codes.
 
-- [ ] **Step 1: Write failing hostile-response and refresh tests**
+- [x] **Step 1: Write failing hostile-response and refresh tests**
 
 Cover exact `graph.microsoft.com` HTTPS origin, `/v1.0/me/calendars` discovery, allowed query keys, `$select` value, `@odata.nextLink` validation, response media type, content length, decoded budget, page limit, calendar limit, malformed colors, duplicate calendars, and account-bound errors.
 
 For delta, cover `/v1.0/me/calendars/{encoded-id}/calendarView/delta`, exact `startDateTime` and `endDateTime`, absence of `$select`, validated `@odata.nextLink`/`@odata.deltaLink`, UTC and all-day normalization, safe title handling, cancellation deletion, `showAs`, sensitivity, event type, series ID, unknown-field discard, 410/invalid-cursor rebuild, interrupted pagination retaining the old snapshot, changed window full rebuild, 10,000-event cap, 5 MiB refresh cap, four-request concurrency, one failed connection with another preserved, and no token in URL or retained object.
 
-- [ ] **Step 2: Run the connector test and observe RED**
+- [x] **Step 2: Run the connector test and observe RED**
 
 ```powershell
 npm test -- --run src/services/connectors/microsoftCalendar.test.ts
@@ -493,7 +493,7 @@ npm test -- --run src/services/connectors/microsoftCalendar.test.ts
 
 Expected: discovery and refresh exports are missing.
 
-- [ ] **Step 3: Implement the request gateway and discovery**
+- [x] **Step 3: Implement the request gateway and discovery**
 
 Use these exported signatures:
 
@@ -521,15 +521,15 @@ export async function refreshMicrosoftCalendarSnapshot(input: {
 
 Every request uses `redirect: 'error'`, `credentials: 'omit'`, `cache: 'no-store'`, a bounded timeout, bearer header, acceptable JSON media type, and atomic response parsing. Reject provider links outside the exact allowlist before fetching them.
 
-- [ ] **Step 4: Implement atomic delta normalization**
+- [x] **Step 4: Implement atomic delta normalization**
 
 Request basic event fields only through `Calendars.ReadBasic`; do not use unsupported `$select` on delta. Accumulate pages in memory under the total byte and event budgets, normalize only the approved event allowlist, then atomically replace the source snapshot and final delta link. Keep the previous source on every interrupted or malformed sequence.
 
-- [ ] **Step 5: Run the connector test and observe GREEN**
+- [x] **Step 5: Run the connector test and observe GREEN**
 
 Run the Step 2 command. Expected: all Microsoft connector tests pass.
 
-- [ ] **Step 6: Commit the Graph checkpoint**
+- [x] **Step 6: Commit the Graph checkpoint**
 
 ```powershell
 git add src/services/connectors/microsoftCalendar.ts src/services/connectors/microsoftCalendar.test.ts
