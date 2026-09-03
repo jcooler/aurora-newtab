@@ -29,6 +29,7 @@
     "qa:stripe-billing": "node scripts/qa-stripe-billing.mjs",
     "qa:metrics-sync-hosted": "node scripts/qa-metrics-sync-hosted.mjs --exact",
     "qa:google-calendar-hosted": "node scripts/qa-google-calendar-hosted.mjs --exact",
+    "qa:microsoft-calendar-hosted": "node scripts/qa-microsoft-calendar-hosted.mjs --exact",
     "qa:billing-return-site": "node scripts/qa-billing-return-site.mjs",
     "qa:tab-two-v2-connectors": "node scripts/qa-tab-two-v2-connectors.mjs --exact",
     "qa:tab-two-v2-progress": "node scripts/qa-tab-two-v2-progress.mjs --exact",

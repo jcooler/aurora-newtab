@@ -1027,7 +1027,7 @@ Expected: local HEAD, upstream, and remote branch SHA are identical. Protected u
 - Consumes: owner-approved exact mutation checklist, dedicated Entra application, exact callback/scopes, three secret values, migration 00800, five reviewed functions, synthetic test identities, and the local implementation checkpoint.
 - Produces: bounded hosted OAuth-policy proof, exact cleanup, enabled production feature flag for the approved cohort only, and durable evidence without real calendar content.
 
-- [ ] **Step 1: Present the exact activation checklist and stop**
+- [x] **Step 1: Present the exact activation checklist and stop**
 
 List before approval:
 
@@ -1044,11 +1044,11 @@ List before approval:
 11. Exact cleanup queries and rollback commands.
 12. Explicit exclusions: no owner calendar content, general publication, verified publisher, tenant-wide consent, Supabase Pro, live Stripe, merge, release, package, or Store action.
 
-- [ ] **Step 2: Proceed only after explicit owner approval**
+- [x] **Step 2: Proceed only after explicit owner approval**
 
 The approval text must authorize the listed Entra and hosted sandbox mutations. Design, visual, or local-code approval is insufficient.
 
-- [ ] **Step 3: Write the hosted harness tests before mutation**
+- [x] **Step 3: Write the hosted harness tests before mutation**
 
 The harness accepts values only from process memory or direct secure prompts, redacts every credential/token, caps traffic, creates disposable synthetic Tab Two accounts, never requests Microsoft calendar data, and proves exact cleanup. Test JWT enforcement, redirect binding, entitlement denial, exact authorization parameters, state replay, personal/work metadata shapes, cross-account rejection, scope rejection, token rotation metadata, rate limits, disconnect deletion with `revocationConfirmed: false`, and account-history deletion.
 
