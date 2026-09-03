@@ -201,6 +201,13 @@ function deltaFixture(url) {
   }
 }
 
+export function microsoftGraphFixtureStatus(url, issue) {
+  if (!url.pathname.includes('/calendars/project/calendarView/delta')) return 200
+  if (issue === 'forbidden') return 403
+  if (issue === 'unauthorized') return 401
+  return 200
+}
+
 function attachLedgers(page, evidence, label) {
   page.on('console', (message) => {
     if (message.type() === 'error') evidence.consoleErrors.push({ label, text: message.text() })
@@ -218,6 +225,7 @@ function attachLedgers(page, evidence, label) {
 }
 
 async function launchInstalled(profile, dist, viewport, evidence, label, mode) {
+  let graphIssue = null
   const context = await chromium.launchPersistentContext(profile, {
     channel: 'chromium',
     headless: true,
@@ -240,6 +248,14 @@ async function launchInstalled(profile, dist, viewport, evidence, label, mode) {
         path: url.pathname,
         disposition: 'fixture-fulfilled',
       })
+      const status = microsoftGraphFixtureStatus(url, graphIssue)
+      if (status !== 200) {
+        return route.fulfill({
+          status,
+          contentType: 'application/json; charset=utf-8',
+          body: JSON.stringify({ error: { code: status === 401 ? 'InvalidAuthenticationToken' : 'Authorization_RequestDenied' } }),
+        })
+      }
       return fixtureJson(route, url.pathname === '/v1.0/me/calendars'
         ? calendarListFixture()
         : deltaFixture(url))
@@ -256,7 +272,13 @@ async function launchInstalled(profile, dist, viewport, evidence, label, mode) {
   const existing = evidence.extensionIds[mode]
   if (existing) assert.equal(existing, extensionId, `${mode} extension ID changed across profiles`)
   else evidence.extensionIds[mode] = extensionId
-  return { context, page }
+  return {
+    context,
+    page,
+    setGraphIssue(issue) {
+      graphIssue = issue
+    },
+  }
 }
 
 async function loadPreviewState(page, microsoftState = null) {
@@ -609,8 +631,9 @@ async function exerciseOrganization(page, viewport, output, evidence, repoRoot) 
   await capture(page, viewport, 'organization-approval', output, evidence, repoRoot, { state: 'organization-approval' })
 }
 
-async function exerciseShort(page, viewport, output, evidence, repoRoot) {
+async function exerciseShort(page, viewport, output, evidence, repoRoot, setGraphIssue) {
   await loadPreviewState(page)
+  setGraphIssue('forbidden')
   await seedMicrosoftState(page, { issue: 'forbidden' })
   await page.reload({ waitUntil: 'domcontentloaded' })
   let opened = await openMicrosoftCard(page)
@@ -622,6 +645,7 @@ async function exerciseShort(page, viewport, output, evidence, repoRoot) {
   })
 
   await page.reload({ waitUntil: 'domcontentloaded' })
+  setGraphIssue('unauthorized')
   await seedMicrosoftState(page, { issue: 'reconnect_required' })
   await page.reload({ waitUntil: 'domcontentloaded' })
   opened = await openMicrosoftCard(page)
@@ -767,7 +791,7 @@ export async function runMicrosoftCalendarQa(args = process.argv.slice(2)) {
 
     const short = await launchInstalled(profiles[4], previewDist, MICROSOFT_CALENDAR_VIEWPORTS[1], evidence, 'preview-short', 'preview')
     contexts.push(short.context)
-    await exerciseShort(short.page, MICROSOFT_CALENDAR_VIEWPORTS[1], output, evidence, repoRoot)
+    await exerciseShort(short.page, MICROSOFT_CALENDAR_VIEWPORTS[1], output, evidence, repoRoot, short.setGraphIssue)
     await short.context.close()
     contexts.pop()
 

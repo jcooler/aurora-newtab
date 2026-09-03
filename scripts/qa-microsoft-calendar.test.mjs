@@ -9,6 +9,7 @@ import {
   assertArtifactIsolation,
   assertEvidenceContract,
   inspectGeometry,
+  microsoftGraphFixtureStatus,
   requireExact,
 } from './qa-microsoft-calendar.mjs'
 
@@ -60,6 +61,21 @@ test('reports horizontal escapes without treating vertical scrolling as escape',
     bodyWidth: 390,
     rects: [{ id: 'dialog', left: -2, right: 388 }, { id: 'card', left: 12, right: 400 }],
   }), { horizontalOverflow: true, escaped: ['dialog', 'card'] })
+})
+
+test('keeps one synthetic account partial while the other account remains available', () => {
+  assert.equal(microsoftGraphFixtureStatus(
+    new URL('https://graph.microsoft.com/v1.0/me/calendars/default/calendarView/delta'),
+    'forbidden',
+  ), 200)
+  assert.equal(microsoftGraphFixtureStatus(
+    new URL('https://graph.microsoft.com/v1.0/me/calendars/project/calendarView/delta'),
+    'forbidden',
+  ), 403)
+  assert.equal(microsoftGraphFixtureStatus(
+    new URL('https://graph.microsoft.com/v1.0/me/calendars/project/calendarView/delta'),
+    'unauthorized',
+  ), 401)
 })
 
 function cleanEvidence() {
