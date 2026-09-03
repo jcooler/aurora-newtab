@@ -36,6 +36,8 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Reconnect one approved test account and confirm its saved row is replaced rather than duplicated. Remove one account and confirm the other Google account and every ICS calendar remain unchanged.
 - From a second signed-in Tab Two installation, confirm the server-held Google connection can be reused only by the same Tab Two account while each installation keeps its own displayed-calendar selections.
 - Revoke the approved test grant from Google's account controls. Confirm Tab Two moves only that account to a clear reconnect state, retains its last local events, and recovers after explicit reconnection.
+- After a normal token lifetime or explicit reconnect, confirm the same account resumes without duplicating its connection row; this is the real-Google complement to the automated hosted rotation-metadata test.
+- If a real Google incremental cursor expires during the final test window, confirm Tab Two performs one bounded full refresh for only that calendar and leaves the other connected calendars intact. Do not force or corrupt owner Calendar data merely to produce a 410 response.
 - Repeat the connect, account-add, reconnect, and remove paths in stable Chrome to confirm the native Google popup opens, closes, and restores focus reliably.
 - Verify keyboard-only operation, visible focus, and spoken labels for consent, picker, account rows, reconnect, and disconnect with the owner's real assistive-technology setup.
 - Smoke test the final unpacked build on the owner's MacBook, including Google popup behavior, picker scrolling, source colors, and Calendar full, docked, and stacked presentations.

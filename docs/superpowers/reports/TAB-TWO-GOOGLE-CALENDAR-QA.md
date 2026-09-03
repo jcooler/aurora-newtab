@@ -4,13 +4,14 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Installed-extension evidence source:** `bacf83980f1a8a383190d537270ad9d210fa3e97`<br>
 **Stabilized developer-gate source:** `e3c2eb6`<br>
-**Result:** PASS for the local PM-P6 implementation, account isolation, aggregate-only Metrics projection, exact build isolation, and installed-extension Chromium QA. Hosted Google OAuth and Supabase provider activation remain disabled behind the separate Task 9 gate.
+**Hosted sandbox boundary source:** `c29092ca741205ad3dbe70b17cad82526ae25024`<br>
+**Result:** PASS for the local PM-P6 implementation, account isolation, aggregate-only Metrics projection, exact build isolation, installed-extension Chromium QA, and the approved hosted Google/Supabase sandbox boundary. Real Google account consent, token exchange/refresh, Calendar reads, and Google-side revocation remain deferred owner/test-user ceilings and are not represented as production-ready.
 
 ## Delivered boundary
 
 - Google Calendar is an additive premium connector. All existing local features and all 15 existing connectors, including ICS Calendar, remain free and retain their existing storage ownership.
 - Tab Two account sign-in and Google Calendar authorization are separate. Provider connections are scoped to a Tab Two account and expose only connection identity, display identity, status, exact granted scopes, and timestamps to the extension.
-- Refresh and access tokens remain memory-only in the extension. The local provider broker stores only AES-256-GCM refresh-token ciphertext and associated encryption metadata; it stores no event content.
+- Refresh tokens remain only in the hosted broker and are encrypted there with AES-256-GCM; access tokens remain memory-only in the extension. The broker stores no Calendar content.
 - Google Calendar requests use only `openid`, `email`, `calendar.calendarlist.readonly`, and `calendar.events.readonly`. Calendar discovery and event requests go directly from the extension to `www.googleapis.com` after the optional origin is granted.
 - The local Calendar keeps Google, ICS, month-grid, and public-holiday authorities separate while composing selected Google and ICS events into one existing Calendar presentation.
 - Multiple Google accounts retain independent selected calendars, colors, refresh issues, reconnect actions, and disconnect actions.
@@ -33,13 +34,16 @@ The registry contract fixture was also corrected to include its required Tab Two
 | Gate | Result |
 |---|---|
 | Affected PM-P6 suites | 34 files, 1,047 tests passed |
-| Whole repository | `npm test -- --run`: 265 files, 4,194 tests passed |
+| Whole repository | `npm test`: 265 files, 4,195 tests passed |
 | TypeScript | `npx tsc --noEmit`: exit 0 |
 | Dependency audit | `npm audit --audit-level=high`: 0 vulnerabilities |
 | Fresh local database | `npx supabase db reset --local`: migrations through `20260903000700_provider_connections.sql` applied locally |
 | Database adversary matrix | `npm run test:supabase-local`: 5 pgTAP files, 272 tests passed |
 | Database lint | `npx supabase db lint --local --level error`: zero schema errors |
 | Provider Edge functions | 2 files, 29 tests passed |
+| Hosted harness contract | 2 Node tests passed |
+| Hosted boundary matrix | 10 function invocations, 1,779 response bytes, and exact cleanup passed from `c29092c` |
+| Linked database lint | Zero schema errors |
 | Exact build isolation | Preview 305 modules, account-local 352 modules, production 354 modules; production restored last |
 | Production fixture scan | No preview account or Google Calendar token fixture marker in production output |
 | Secret and evidence scans | No production secret material in the PM-P6 diff; no token or secret fixture material in retained QA evidence |
@@ -61,12 +65,18 @@ Production, account-local, and preview all ran as installed MV3 extensions from 
 - Desktop 1600x900, short 1408x600, ultrawide 3440x1440, and touch-enabled 390x844 had no horizontal overflow or escaped controls.
 - The fault-injection ledger records the expected synthetic 401 and three offline request failures separately. Unexpected request, console-error, page-error, and failed-request ledgers are empty.
 
-## Hosted state and remaining ceilings
+## Hosted sandbox activation
 
-Migration 00700 and the five provider functions were exercised locally only. The production client remains configured with `googleCalendarEnabled: false`; no Google API activation, OAuth consent-screen change, Google OAuth client, hosted provider secret, hosted migration, hosted function deployment, optional-origin request in the owner's installation, package, release, merge, or Chrome Web Store action was performed.
+The owner approved the exact ten-item Task 9 gate. Google Calendar API is enabled on the dedicated project. The external OAuth application remains in Testing with the approved owner test user, exact identity plus read-only Calendar scopes, and sandbox GitHub legal links. A separate Web OAuth client contains only the exact Supabase callback; the existing account-sign-in client was not changed. The generated client ID, client secret, and random 32-byte provider KEK were transmitted directly to Supabase secret storage and were never printed, copied into a file, or committed.
 
-Owner hands-on QA remains deferred in `TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md`. Deterministic fixtures do not claim real Google account selection, real consent, cross-installation connection reuse, Google-side revocation, stable Chrome popup behavior, real assistive technology, or MacBook behavior.
+Only migration `20260903000700_provider_connections.sql` was applied. Only `google-calendar-oauth-start`, `google-calendar-oauth-callback`, `google-calendar-connections`, `google-calendar-session`, and `google-calendar-disconnect` were deployed. All are active at version 1; JWT verification is enabled for the four extension-authenticated endpoints and disabled only for Google's callback endpoint. The production descriptor now enables Google Calendar for the bounded OAuth-testing cohort. This does not publish the OAuth app or make the connector generally available.
+
+The hosted boundary matrix used three disposable synthetic Tab Two accounts and no Google account or Calendar content. In ten function invocations and 1,779 response bytes it proved the gateway JWT boundary, exact Google authorization URL and scopes, redirect binding, entitlement denial, single-use state/replay rejection, two-account metadata isolation, cross-account rejection, hosted rotation metadata, rate limiting, disconnect after synthetic revocation failure, and per-account provider-history deletion. Direct Calendar request minimization, atomic paging, and 410 cursor reset remain covered by local transport tests because raw Calendar traffic deliberately bypasses Supabase.
+
+Independent metadata-only inspection found migration count 1, all six selected security constraints present, the three required hosted secret names present, and zero residual provider connections, OAuth transactions, provider rate-limit rows, or PM-P6 Auth users. Evidence: `artifacts/qa-google-calendar-hosted/c29092ca741205ad3dbe70b17cad82526ae25024/evidence.json`.
+
+Owner hands-on QA remains deferred in `TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md`. The matrix does not claim a real Google authorization-code exchange, renewable token lifecycle against Google, live Calendar discovery/event reads, cross-installation connection reuse, Google-side revocation, stable Chrome popup behavior, real assistive technology, or MacBook behavior.
 
 ## Explicit stop
 
-The next action is Task 9's exact ten-item Google and Supabase sandbox activation gate. It requires a new explicit owner approval listing every item before any hosted or Google Cloud mutation occurs.
+Google sensitive-scope verification, production audience publication, branding review, customer rollout, package, release, merge, Supabase Pro, live Stripe, and every Chrome Web Store action remain separately gated. PM-P6 may reconcile and continue to PM-P7 planning without asking the owner to perform the deferred cumulative manual checklist.

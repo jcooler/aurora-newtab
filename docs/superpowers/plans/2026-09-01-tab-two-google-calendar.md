@@ -420,13 +420,13 @@ Do not execute this task without a new explicit owner approval that lists every 
 9. Perform read-only post-deploy inspection of function version/JWT settings, migration/constraint presence, row counts, and residual test identities. Never read refresh-token ciphertext, event cache, access tokens, or event content.
 10. Roll back by disabling the five functions, revoking/removing the Google test client secret, deleting residual synthetic connection/transaction/rate-limit rows, and leaving all free connector/calendar authorities intact.
 
-- [ ] **Step 1: Present the exact gate and stop**
+- [x] **Step 1: Present the exact gate and stop**
 
-- [ ] **Step 2: If approved, activate only the listed sandbox scope**
+- [x] **Step 2: If approved, activate only the listed sandbox scope**
 
-- [ ] **Step 3: Run the bounded hosted matrix and cleanup**
+- [x] **Step 3: Run the bounded hosted matrix and cleanup**
 
-- [ ] **Step 4: Record redacted evidence and separately track Google verification**
+- [x] **Step 4: Record redacted evidence and separately track Google verification**
 
 Google sensitive-scope verification, production audience publication, branding review, production customer availability, Store permission/listing changes, merge, package, release, and rollout remain separate later gates even if the sandbox matrix passes.
 
