@@ -40,6 +40,7 @@ function connection(
   return {
     connectionId: id,
     provider: 'google_calendar',
+    accountKind: null,
     displayEmail: email,
     displayName: 'Alex',
     status,

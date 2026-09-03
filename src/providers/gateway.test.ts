@@ -152,6 +152,7 @@ describe('extension provider gateway', () => {
         connections: [{
           connectionId,
           provider: 'google_calendar',
+          accountKind: null,
           displayEmail: 'alex@example.test',
           displayName: 'Alex',
           status: 'active',

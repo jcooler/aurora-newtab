@@ -98,6 +98,23 @@ describe('hasProviderCapability', () => {
     }), 'google_calendar', now)).toBe(false)
   })
 
+  it('preserves the signed Microsoft Calendar capability behind multi-account access', () => {
+    const fullLease: VerifiedEntitlementLease = {
+      ...activeLease,
+      capabilities: ['multi_account', 'microsoft_calendar'],
+    }
+
+    expect(hasProviderCapability(snapshot(fullLease), 'microsoft_calendar', now)).toBe(true)
+    expect(hasProviderCapability(snapshot({
+      ...fullLease,
+      capabilities: ['microsoft_calendar'],
+    }), 'microsoft_calendar', now)).toBe(false)
+    expect(hasProviderCapability(snapshot({
+      ...fullLease,
+      capabilities: ['multi_account'],
+    }), 'microsoft_calendar', now)).toBe(false)
+  })
+
   it('inherits account binding, verification, issue-time, and expiry checks', () => {
     const lease: VerifiedEntitlementLease = {
       ...activeLease,

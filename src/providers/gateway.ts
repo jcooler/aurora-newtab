@@ -212,6 +212,7 @@ export function createProviderGateway(deps: ProviderGatewayDependencies): Provid
       normalized.push({
         connectionId: value.id,
         provider: value.provider,
+        accountKind: null,
         displayEmail: value.email,
         displayName: value.displayName,
         status: value.status,
@@ -331,6 +332,7 @@ export function createPreviewProviderGateway(
     {
       connectionId: '63000000-0000-4000-8000-000000000001',
       provider: 'google_calendar' as const,
+      accountKind: null,
       displayEmail: 'alex@example.test',
       displayName: 'Alex',
       status: 'active' as const,
@@ -341,6 +343,7 @@ export function createPreviewProviderGateway(
     {
       connectionId: '63000000-0000-4000-8000-000000000002',
       provider: 'google_calendar' as const,
+      accountKind: null,
       displayEmail: 'work@example.test',
       displayName: 'Work',
       status: 'active' as const,

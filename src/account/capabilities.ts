@@ -25,5 +25,8 @@ export function hasProviderCapability(
     case 'google_calendar':
       return hasCapability(snapshot, 'multi_account', now)
         && hasCapability(snapshot, 'google_calendar', now)
+    case 'microsoft_calendar':
+      return hasCapability(snapshot, 'multi_account', now)
+        && hasCapability(snapshot, 'microsoft_calendar', now)
   }
 }

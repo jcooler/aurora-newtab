@@ -95,13 +95,18 @@ git push
 - Modify: `src/providers/types.ts`
 - Modify: `src/providers/connections.ts`
 - Modify: `src/providers/connections.test.ts`
+- Modify: `src/providers/gateway.ts` (Google normalization compatibility only)
+- Modify: `src/providers/gateway.test.ts` (Google normalization compatibility only)
+- Modify: `src/account/capabilities.ts`
 - Modify: `src/account/capabilities.test.ts`
+- Modify: `src/settings/connectors/GoogleCalendarConnection.tsx` (Google fixture compatibility only)
+- Modify: `src/settings/connectors/GoogleCalendarConnection.test.tsx` (Google fixture compatibility only)
 
 **Interfaces:**
 - Consumes: the existing provider connection/session contracts and signed `microsoft_calendar` capability.
 - Produces: `MicrosoftCalendarScope`, `ProviderScope`, `ProviderAccountKind`, `MICROSOFT_CALENDAR_SCOPES`, provider-specific scope parsing, validated Personal / Work or school metadata, five-connections-per-provider enforcement, ten-connections-overall enforcement, and deterministic cross-provider ordering.
 
-- [ ] **Step 1: Write the failing connection-domain tests**
+- [x] **Step 1: Write the failing connection-domain tests**
 
 Add fixtures with the exact types:
 
@@ -126,7 +131,7 @@ export const MICROSOFT_CALENDAR_SCOPES = [
 
 Add `accountKind: ProviderAccountKind | null` to `ProviderConnection`. Cover `microsoft_calendar` exact-scope acceptance, required Microsoft account kind, Google requiring null account kind, unknown account kind, wrong scope order, missing scope, broader scope, Google scopes attached to Microsoft, Microsoft scopes attached to Google, six connections for one provider, five Google plus five Microsoft, eleven total, duplicate UUIDs across providers, provider ordering, session/provider mismatch, and unknown properties.
 
-- [ ] **Step 2: Run the focused tests and observe RED**
+- [x] **Step 2: Run the focused tests and observe RED**
 
 ```powershell
 npm test -- --run src/providers/connections.test.ts src/account/capabilities.test.ts
@@ -134,7 +139,7 @@ npm test -- --run src/providers/connections.test.ts src/account/capabilities.tes
 
 Expected: failures because `microsoft_calendar`, provider-specific scopes, and per-provider limits are not implemented.
 
-- [ ] **Step 3: Implement the closed provider extension**
+- [x] **Step 3: Implement the closed provider extension**
 
 Set:
 
@@ -146,11 +151,11 @@ export const MAX_PROVIDER_CONNECTIONS_TOTAL = 10
 
 Replace the single `validScopes` branch with an exact ordered lookup keyed by `ProviderId`. Require `accountKind === null` for Google and `personal | work_or_school` for Microsoft. Keep the public shape free of provider subject, tenant ID, object ID, access token, refresh token, fingerprint, nonce, PKCE, ciphertext, and key metadata.
 
-- [ ] **Step 4: Run the focused tests and observe GREEN**
+- [x] **Step 4: Run the focused tests and observe GREEN**
 
 Run the Step 2 command. Expected: all selected tests pass.
 
-- [ ] **Step 5: Commit the provider-domain checkpoint**
+- [x] **Step 5: Commit the provider-domain checkpoint**
 
 ```powershell
 git add src/providers/types.ts src/providers/connections.ts src/providers/connections.test.ts src/account/capabilities.test.ts

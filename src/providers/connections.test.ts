@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_CALENDAR_SCOPES,
-  MAX_PROVIDER_CONNECTIONS,
+  MAX_PROVIDER_CONNECTIONS_PER_PROVIDER,
+  MAX_PROVIDER_CONNECTIONS_TOTAL,
+  MICROSOFT_CALENDAR_SCOPES,
   parseProviderConnection,
   parseProviderSession,
   reduceProviderConnections,
@@ -21,6 +23,7 @@ function connection(
   return {
     connectionId: `52000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
     provider: 'google_calendar',
+    accountKind: null,
     displayEmail: `person-${index}@example.com`,
     displayName: `Person ${index}`,
     status: 'active',
@@ -29,6 +32,20 @@ function connection(
     updatedAt: now - 1_000 + index,
     ...overrides,
   }
+}
+
+function microsoftConnection(
+  index: number,
+  overrides: Partial<ProviderConnection> = {},
+): ProviderConnection {
+  return connection(index, {
+    provider: 'microsoft_calendar',
+    accountKind: index % 2 === 0 ? 'work_or_school' : 'personal',
+    displayEmail: `microsoft-${index}@example.com`,
+    displayName: `Microsoft ${index}`,
+    grantedScopes: MICROSOFT_CALENDAR_SCOPES,
+    ...overrides,
+  })
 }
 
 function state(items: readonly ProviderConnection[] = []): ProviderConnectionsState {
@@ -43,19 +60,44 @@ describe('provider connection parsing', () => {
 
     expect(parsed).toEqual(connection(1))
     expect(Object.keys(parsed ?? {}).sort()).toEqual([
-      'connectionId', 'createdAt', 'displayEmail', 'displayName', 'grantedScopes',
+      'accountKind', 'connectionId', 'createdAt', 'displayEmail', 'displayName', 'grantedScopes',
       'provider', 'status', 'updatedAt',
     ])
     expect(Object.isFrozen(parsed)).toBe(true)
     expect(Object.isFrozen(parsed?.grantedScopes)).toBe(true)
   })
 
+  it.each(['personal', 'work_or_school'] as const)(
+    'accepts the exact Microsoft Calendar scope set and %s account kind',
+    (accountKind) => {
+      expect(parseProviderConnection(microsoftConnection(2, { accountKind }))).toEqual(
+        microsoftConnection(2, { accountKind }),
+      )
+    },
+  )
+
   it.each([
     ['malformed UUID', { ...connection(1), connectionId: 'connection-1' }],
     ['unknown provider', { ...connection(1), provider: 'gmail' }],
     ['unknown status', { ...connection(1), status: 'paused' }],
+    ['non-null Google account kind', { ...connection(1), accountKind: 'personal' }],
+    ['missing Microsoft account kind', { ...microsoftConnection(1), accountKind: null }],
+    ['unknown Microsoft account kind', { ...microsoftConnection(1), accountKind: 'consumer' }],
     ['unknown scope', { ...connection(1), grantedScopes: [...GOOGLE_CALENDAR_SCOPES, 'drive.readonly'] }],
     ['missing scope', { ...connection(1), grantedScopes: GOOGLE_CALENDAR_SCOPES.slice(0, -1) }],
+    ['wrong Microsoft scope order', {
+      ...microsoftConnection(1),
+      grantedScopes: [MICROSOFT_CALENDAR_SCOPES[1], MICROSOFT_CALENDAR_SCOPES[0], ...MICROSOFT_CALENDAR_SCOPES.slice(2)],
+    }],
+    ['missing Microsoft scope', {
+      ...microsoftConnection(1), grantedScopes: MICROSOFT_CALENDAR_SCOPES.slice(0, -1),
+    }],
+    ['broader Microsoft scope', {
+      ...microsoftConnection(1),
+      grantedScopes: [...MICROSOFT_CALENDAR_SCOPES, 'https://graph.microsoft.com/Calendars.Read'],
+    }],
+    ['Google scopes on Microsoft', { ...microsoftConnection(1), grantedScopes: GOOGLE_CALENDAR_SCOPES }],
+    ['Microsoft scopes on Google', { ...connection(1), grantedScopes: MICROSOFT_CALENDAR_SCOPES }],
     ['provider subject', { ...connection(1), providerSubject: 'google-subject' }],
     ['refresh token', { ...connection(1), refreshToken: 'secret' }],
     ['access token', { ...connection(1), accessToken: 'secret' }],
@@ -93,6 +135,7 @@ describe('provider connection parsing', () => {
     expect(parseProviderSession({ ...session, expiresAt: now }, connection(1).connectionId, now)).toBeNull()
     expect(parseProviderSession({ ...session, refreshToken: 'never' }, connection(1).connectionId, now)).toBeNull()
     expect(parseProviderSession(session, connection(2).connectionId, now)).toBeNull()
+    expect(parseProviderSession(session, connection(1).connectionId, now, 'microsoft_calendar')).toBeNull()
   })
 })
 
@@ -107,16 +150,36 @@ describe('account-scoped provider connection state', () => {
     })
   })
 
-  it('rejects duplicate connection identities and enforces the five-account limit', () => {
-    expect(replaceProviderConnections(null, accountId, [connection(1), connection(1)])).toEqual({
+  it('rejects duplicate connection identities even when the duplicate crosses providers', () => {
+    expect(replaceProviderConnections(null, accountId, [
+      connection(1),
+      microsoftConnection(1),
+    ])).toEqual({
       ok: false,
       code: 'duplicate_connection',
     })
+  })
+
+  it('enforces five connections per provider and ten connections overall', () => {
     expect(replaceProviderConnections(
       null,
       accountId,
-      Array.from({ length: MAX_PROVIDER_CONNECTIONS + 1 }, (_, index) => connection(index + 1)),
+      Array.from({ length: MAX_PROVIDER_CONNECTIONS_PER_PROVIDER + 1 }, (_, index) => connection(index + 1)),
     )).toEqual({ ok: false, code: 'connection_limit' })
+
+    const ten = [
+      ...Array.from({ length: MAX_PROVIDER_CONNECTIONS_PER_PROVIDER }, (_, index) => connection(index + 1)),
+      ...Array.from(
+        { length: MAX_PROVIDER_CONNECTIONS_PER_PROVIDER },
+        (_, index) => microsoftConnection(index + 6),
+      ),
+    ]
+    expect(ten).toHaveLength(MAX_PROVIDER_CONNECTIONS_TOTAL)
+    expect(replaceProviderConnections(null, accountId, ten).ok).toBe(true)
+    expect(replaceProviderConnections(null, accountId, [...ten, microsoftConnection(11)])).toEqual({
+      ok: false,
+      code: 'connection_limit',
+    })
   })
 
   it('adds, updates, revokes, and removes one connection without disabling another', () => {
@@ -173,5 +236,34 @@ describe('account-scoped provider connection state', () => {
       connection(4).connectionId,
       connection(1).connectionId,
     ])
+  })
+
+  it('orders providers before the existing display tiebreakers', () => {
+    const result = replaceProviderConnections(null, accountId, [
+      microsoftConnection(4, { status: 'active', displayEmail: 'a@example.com' }),
+      connection(3, { status: 'revoked', displayEmail: 'z@example.com' }),
+      microsoftConnection(2, { status: 'reconnect_required', displayEmail: 'z@example.com' }),
+      connection(1, { status: 'active', displayEmail: 'a@example.com' }),
+    ])
+
+    expect(result.ok && result.value.connections.map((item) => item.provider)).toEqual([
+      'google_calendar',
+      'google_calendar',
+      'microsoft_calendar',
+      'microsoft_calendar',
+    ])
+  })
+
+  it('allows a sixth overall connection when it is the first connection for another provider', () => {
+    const googleConnections = Array.from(
+      { length: MAX_PROVIDER_CONNECTIONS_PER_PROVIDER },
+      (_, index) => connection(index + 1),
+    )
+    const result = reduceProviderConnections(state(googleConnections), {
+      type: 'upsert',
+      connection: microsoftConnection(6),
+    })
+
+    expect(result.ok && result.value.connections).toHaveLength(6)
   })
 })

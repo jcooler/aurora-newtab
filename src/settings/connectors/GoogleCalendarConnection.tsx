@@ -374,6 +374,7 @@ export default function GoogleCalendarConnection({
     const providerConnection: ProviderConnection = 'status' in connection ? connection : {
       connectionId: connection.connectionId,
       provider: 'google_calendar',
+      accountKind: null,
       displayEmail: connection.displayEmail,
       displayName: null,
       status: 'active',
@@ -721,6 +722,7 @@ function stateFromConfig(config: GoogleCalendarConfig): ProviderConnectionsState
     connections: config.accounts.map((selected) => ({
       connectionId: selected.connectionId,
       provider: 'google_calendar',
+      accountKind: null,
       displayEmail: selected.displayEmail,
       displayName: null,
       status: 'active',

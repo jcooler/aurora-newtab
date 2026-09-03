@@ -1,4 +1,4 @@
-export const PROVIDER_IDS = ['google_calendar'] as const
+export const PROVIDER_IDS = ['google_calendar', 'microsoft_calendar'] as const
 export type ProviderId = typeof PROVIDER_IDS[number]
 
 export const PROVIDER_CONNECTION_STATUSES = [
@@ -14,13 +14,24 @@ export type GoogleCalendarScope =
   | 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
   | 'https://www.googleapis.com/auth/calendar.events.readonly'
 
+export type MicrosoftCalendarScope =
+  | 'openid'
+  | 'offline_access'
+  | 'https://graph.microsoft.com/User.Read'
+  | 'https://graph.microsoft.com/Calendars.ReadBasic'
+
+export type ProviderScope = GoogleCalendarScope | MicrosoftCalendarScope
+
+export type ProviderAccountKind = 'personal' | 'work_or_school'
+
 export interface ProviderConnection {
   connectionId: string
   provider: ProviderId
+  accountKind: ProviderAccountKind | null
   displayEmail: string
   displayName: string | null
   status: ProviderConnectionStatus
-  grantedScopes: readonly GoogleCalendarScope[]
+  grantedScopes: readonly ProviderScope[]
   createdAt: number
   updatedAt: number
 }
