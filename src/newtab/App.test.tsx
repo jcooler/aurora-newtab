@@ -1467,6 +1467,29 @@ describe('App Canvas composition', () => {
     expect(document.activeElement?.closest('[data-settings-anchor="progress-overview"]')).toBeTruthy()
   })
 
+  it('routes the Metrics face and hover gear to Metrics history in Progress Settings', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, metrics: true },
+    })
+    await renderApp(storage)
+
+    const faceAction = within(canvasItem('metrics')).getByRole('button', { name: 'See premium plans' })
+    fireEvent.click(faceAction)
+    expect(screen.getByRole('tab', { name: 'Progress', selected: true })).toBeTruthy()
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)) })
+    expect(document.activeElement?.closest('[data-settings-anchor="metrics-history"]')).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull())
+    fireEvent.click(within(canvasItem('metrics')).getByRole('button', { name: 'Metrics settings' }))
+    expect(screen.getByRole('tab', { name: 'Progress', selected: true })).toBeTruthy()
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)) })
+    expect(document.activeElement?.closest('[data-settings-anchor="metrics-history"]')).toBeTruthy()
+  })
+
   // The Arrange artboard, its inspector, and the Use-Desktop-everywhere
   // preview were deleted with the named-layouts rebuild (NL-P2, spec §3);
   // live on-page editing arrives in NL-P3.

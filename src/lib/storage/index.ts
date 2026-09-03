@@ -20,8 +20,9 @@ const DATA_KEYS = Object.keys(defaults()) as DataKey[]
  *  CURRENT_VERSION past a NON-identity migration requires moving this floor
  *  up to that migration's target version. Progress advances this floor to 20
  *  so a v19 store takes one verified full migration transaction that
- *  materializes the nested widget toggle and local goal authority. */
-const METADATA_ONLY_FLOOR = 20
+ *  materializes the nested widget toggle and local goal authority. Metrics
+ *  advances it again to 22 because v21 -> v22 backfills a nested toggle. */
+const METADATA_ONLY_FLOOR = 22
 const LAYOUT_DENSITY_SET: ReadonlySet<unknown> = new Set(LAYOUT_DENSITY_PREFERENCES)
 
 export class AtomicRestoreRollbackError extends Error {

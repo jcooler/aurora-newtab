@@ -6,6 +6,7 @@ export const BLOCK_IDS = [
   'linear', 'sentry', 'todoist',
   'onThisDay', 'publicHolidays', 'auroraKp',
   'progress',
+  'metrics',
 ] as const
 export type BlockId = (typeof BLOCK_IDS)[number]
 /** Block CENTER as percent of viewport (0-100 each axis), finite. */

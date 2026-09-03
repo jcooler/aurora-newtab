@@ -9,6 +9,7 @@ import type { Habit, ProgressGoal } from '../../lib/storage/schema'
 import Section from '../Section'
 import { btnDanger, btnPrimary, btnQuiet, control } from './shared'
 import ProgressGoalDialog from './ProgressGoalDialog'
+import MetricsHistory from './MetricsHistory'
 
 type OpenDialog = { kind: 'add' } | { kind: 'edit'; id: string }
 type FailedMutation =
@@ -216,6 +217,8 @@ export default function Progress({ goals, habits, storage }: {
           ) : null}
         </div>
       </div>
+
+      <MetricsHistory />
 
       <ProgressGoalDialog
         open={dialog !== null}

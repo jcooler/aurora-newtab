@@ -74,6 +74,7 @@ describe('Progress overview', () => {
     expect(within(region).getByText('Choose one thing to keep moving.')).toBeTruthy()
     expect(within(region).getByText('Add a simple daily value. It stays in this Chrome profile.')).toBeTruthy()
     expect(within(region).getByRole('button', { name: 'Add progress' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Metrics history' })).toBeTruthy()
   })
 
   it('renders manual goals in stored order before Habits in their stored order', async () => {

@@ -444,35 +444,35 @@ git commit -m "docs: approve metrics visual contract"
 - Consumes: `useMetrics()`, `summarizeMetrics`, `PremiumPrompt`, approved Task 6 visual contract, and existing widget registry/layout primitives.
 - Produces: a new `metrics` widget toggle and `BlockId`, compact/standard/full/docked presentation contracts, keyboard-accessible history range selection, export, scoped delete, and complete delete controls.
 
-- [ ] **Step 1: Write failing registry/migration/widget tests**
+- [x] **Step 1: Write failing registry/migration/widget tests**
 
 Assert `metrics` is appended after every existing widget identity so legacy layer order is unchanged, v21 to v22 backfills only the new nested toggle, old layouts remain byte-equivalent, and all widget contracts/catalog inventories contain exactly one Metrics entry. Add locked, empty, populated, expired, offline, loading, and error render assertions for each approved tier.
 
-- [ ] **Step 2: Run focused UI tests and observe RED**
+- [x] **Step 2: Run focused UI tests and observe RED**
 
 Run: `npm test -- --run src/newtab/widgetRegistry.test.ts src/newtab/widgetSizeContracts.test.ts src/newtab/widgets/metrics/MetricsWidget.test.tsx src/settings/sections/MetricsHistory.test.tsx src/settings/sections/Progress.test.tsx src/settings/SettingsPanel.test.tsx src/newtab/App.test.tsx`
 
 Expected: FAIL because the production widget and controls do not exist.
 
-- [ ] **Step 3: Add the append-only widget identity and schema v22**
+- [x] **Step 3: Add the append-only widget identity and schema v22**
 
 Add `metrics: false` after `progress` in `WidgetToggles`, set `CURRENT_VERSION = 22`, and add migration 21 using the existing generic nested-widget merge. Append `metrics` after `progress` in `BLOCK_IDS`, registry source order, default placement identities, renderers, and size contracts. Do not auto-place or auto-enable it in existing named layouts.
 
-- [ ] **Step 4: Implement the approved production widget**
+- [x] **Step 4: Implement the approved production widget**
 
 Use semantic SVG or CSS for the trend, an accessible textual summary, non-color category labels, and stable geometry. The range control updates component state only and makes no request. The widget reads local history even after entitlement expiry; without history and without capability it renders the locked state. A current capability with no history renders first-use empty state.
 
-- [ ] **Step 5: Implement export and destructive history controls**
+- [x] **Step 5: Implement export and destructive history controls**
 
 Place `Metrics history` in the existing Progress Settings tab. Export uses a user-initiated Blob download. `Delete history` uses the established two-step destructive confirmation, identifies the scope in copy, serializes through the storage authority, and triggers normal encrypted-sync tombstones only when sync is already enabled. Disabling a connector never calls deletion implicitly.
 
-- [ ] **Step 6: Run focused tests and observe GREEN**
+- [x] **Step 6: Run focused tests and observe GREEN**
 
 Run: `npm test -- --run src/newtab/widgetRegistry.test.ts src/newtab/widgetSizeContracts.test.ts src/newtab/widgets/metrics/MetricsWidget.test.tsx src/settings/sections/MetricsHistory.test.tsx src/settings/sections/Progress.test.tsx src/settings/SettingsPanel.test.tsx src/newtab/App.test.tsx src/lib/storage/migrations.test.ts src/lib/backup.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the production UI checkpoint**
+- [x] **Step 7: Commit the production UI checkpoint**
 
 ```powershell
 git add src/lib/storage src/lib/layout src/newtab src/settings src/metrics

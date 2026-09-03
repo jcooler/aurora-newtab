@@ -733,7 +733,7 @@ describe('apodCache export / import exclusion (Task 95)', () => {
 
 describe('weatherAlertCache export / import exclusion', () => {
   it('keeps the current schema version pinned and defaults the additive cache to null', () => {
-    expect(CURRENT_VERSION).toBe(21)
+    expect(CURRENT_VERSION).toBe(22)
     expect(defaults().weatherAlertCache).toBeNull()
     expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
   })
@@ -1263,6 +1263,17 @@ describe('validateBackupShape: migration-then-validate order', () => {
     }
   })
 
+  it('a current backup missing the Metrics toggle fails closed instead of importing an undefined choice', () => {
+    const data = defaults()
+    const widgets = { ...data.settings.widgets } as Record<string, unknown>
+    delete widgets.metrics
+    const result = validateBackupShape({
+      ...data,
+      settings: { ...data.settings, widgets },
+    } as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
+  })
+
   // Task 60: an OLD (v<=7) backup still carries settings.theme. isSettings no
   // longer checks (or knows) that field, and requires panelColor, so importing
   // such a backup only works because migrate()'s v7->v8 step strips theme and
@@ -1624,7 +1635,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
       const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
       expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
       expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
-      expect(CURRENT_VERSION).toBe(21)
+      expect(CURRENT_VERSION).toBe(22)
     }
   })
 

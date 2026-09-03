@@ -283,7 +283,6 @@ export const migrations: Record<number, Migration> = {
   // nested widget toggle. The top-level value is preserved verbatim when it
   // already exists; strict backup validation owns malformed current data.
   19: (data) => {
-    const d = defaults()
     const settings = data.settings
     if (!isPlainObject(settings)) return { ...data, progressGoals: [] }
     if (!isPlainObject(settings.widgets)) throw new Error('Invalid settings.widgets in schema v19')
@@ -294,7 +293,12 @@ export const migrations: Record<number, Migration> = {
         : [],
       settings: {
         ...settings,
-        widgets: { ...d.settings.widgets, ...settings.widgets },
+        widgets: {
+          ...settings.widgets,
+          progress: Object.prototype.hasOwnProperty.call(settings.widgets, 'progress')
+            ? settings.widgets.progress
+            : false,
+        },
       },
     }
   },
@@ -302,6 +306,26 @@ export const migrations: Record<number, Migration> = {
   // Keep this registry step identity; migrate()'s final defaults merge
   // materializes null without rewriting any existing user authority.
   20: (data) => data,
+  // v21 -> v22: Metrics is an optional Canvas identity. Backfill only the
+  // new nested toggle; existing widget choices and named layouts remain the
+  // user's exact authority and no placement is materialized here.
+  21: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    if (!isPlainObject(settings.widgets)) throw new Error('Invalid settings.widgets in schema v21')
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        widgets: {
+          ...settings.widgets,
+          metrics: Object.prototype.hasOwnProperty.call(settings.widgets, 'metrics')
+            ? settings.widgets.metrics
+            : false,
+        },
+      },
+    }
+  },
 }
 
 export function migrate(

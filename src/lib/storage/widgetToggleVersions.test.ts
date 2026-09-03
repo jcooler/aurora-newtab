@@ -25,6 +25,7 @@ const EXPECTED_INTRO_VERSIONS = {
   downloads: 16,
   tabGroups: 16,
   progress: 20,
+  metrics: 22,
 } as const satisfies Record<keyof WidgetToggles, number>
 
 const ORIGINAL_V1_KEYS = ['links', 'quote', 'search', 'timer', 'todo', 'weather'] as const

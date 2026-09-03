@@ -109,6 +109,7 @@ const SOURCES: readonly RegistrySource[] = [
   { id: 'auroraKp', label: 'Aurora & Kp', zone: 'pulse', order: 17, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('auroraKp') },
   // Appended so the optional intrinsic rail cannot renumber legacy sources.
   { id: 'progress', label: 'Progress', zone: 'now', order: 9, priority: 'automatic', eligibleZones: ['now', 'day', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1] }, availability: widget('progress') },
+  { id: 'metrics', label: 'Metrics', zone: 'now', order: 10, priority: 'automatic', eligibleZones: ['now', 'day', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: widget('metrics') },
 ] as const
 
 const PROFILE_ORDER: readonly LayoutProfile[] = ['compact', 'standard', 'display', 'ultrawide']

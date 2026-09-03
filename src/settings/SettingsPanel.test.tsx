@@ -431,6 +431,26 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(write.mock.calls.map(([patch]) => Object.keys(patch))).toEqual([['settings']])
   })
 
+  it('enables Metrics through Settings only and keeps layouts untouched', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    const originalLayout = await storage.get('layout')
+    const write = vi.spyOn(driver, 'write')
+    await renderPanel(storage)
+    await openWidgetsTabAndWaitForLayout(storage)
+    write.mockClear()
+
+    const metrics = within(screen.getByRole('region', { name: 'Personal' }))
+      .getByRole('switch', { name: 'Metrics history' })
+    await act(async () => { fireEvent.click(metrics) })
+
+    expect((await storage.get('settings')).widgets.metrics).toBe(true)
+    expect(await storage.get('layout')).toEqual(originalLayout)
+    expect(await storage.get('layouts')).toBeNull()
+    expect(write.mock.calls.map(([patch]) => Object.keys(patch))).toEqual([['settings']])
+  })
+
   it('the Connectors tab holds the connector cards and nothing from the other tabs', async () => {
     await renderPanel()
     openTab('Connectors')
@@ -465,8 +485,8 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     for (const name of ['Search', 'Bookmarks', 'Quick links', 'Focus timer', 'Tasks', 'Notes']) {
       expect(core.getByRole('switch', { name })).toBeTruthy()
     }
-    expect(personal.getAllByRole('switch')).toHaveLength(5)
-    for (const name of ['Weather', 'Daily quote', 'Habits summary', 'Progress rail', 'Month calendar']) {
+    expect(personal.getAllByRole('switch')).toHaveLength(6)
+    for (const name of ['Weather', 'Daily quote', 'Habits summary', 'Progress rail', 'Metrics history', 'Month calendar']) {
       expect(personal.getByRole('switch', { name })).toBeTruthy()
     }
     expect(timeAndSky.getAllByRole('switch')).toHaveLength(4)

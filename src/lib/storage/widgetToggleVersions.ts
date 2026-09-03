@@ -21,4 +21,5 @@ export const WIDGET_TOGGLE_INTRO_VERSIONS = Object.freeze({
   downloads: 16,
   tabGroups: 16,
   progress: 20,
+  metrics: 22,
 } satisfies Record<keyof WidgetToggles, number>)

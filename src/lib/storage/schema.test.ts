@@ -8,7 +8,8 @@ it('forces each new storage authority through an explicit sync classification de
   expect([...SYNCED_AURORA_KEYS, ...EXCLUDED_AURORA_KEYS].sort()).toEqual(Object.keys(defaults()).sort())
 })
 
-it('schema v21 adds a nullable aggregate metrics authority without eager data', () => {
-  expect(CURRENT_VERSION).toBe(21)
+it('schema v22 keeps aggregate history nullable and adds Metrics off by default', () => {
+  expect(CURRENT_VERSION).toBe(22)
   expect(defaults().metricsHistory).toBeNull()
+  expect(defaults().settings.widgets.metrics).toBe(false)
 })

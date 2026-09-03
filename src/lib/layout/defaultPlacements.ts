@@ -80,6 +80,10 @@ export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: num
   // Optional local-only daily progress rail. Appended as a new identity so
   // every legacy source index and layer remains stable.
   progress: { x: 13, y: 70 },
+  // Premium aggregate history. Appended identity, optional and off by
+  // default; this point is consulted only when the user explicitly enables
+  // and materializes it through the existing edit flow.
+  metrics: { x: 28, y: 84 },
 })
 
 /** Work-column connector identities that DEFAULT to their compact glance
@@ -93,6 +97,7 @@ const COMPACT_DEFAULT_IDS: ReadonlySet<BlockId> = new Set([
   'publicHolidays',
   'auroraKp',
   'progress',
+  'metrics',
 ])
 
 /** Default tier mirrors the retired preferred-size rule for the Desktop

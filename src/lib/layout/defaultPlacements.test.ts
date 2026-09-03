@@ -123,4 +123,20 @@ describe('DEFAULT_WIDGET_POINTS composition contract (QA F1-F5)', () => {
     expect(pointFromFreePlacement(placement as Extract<typeof placement, { kind: 'free' }>)).toEqual({ x: 13, y: 70 })
     expect(stored.layouts[0].widgets.progress).toBeUndefined()
   })
+
+  it('appends Metrics without changing prior points or existing named layouts', () => {
+    expect(DEFAULT_WIDGET_POINTS.metrics).toEqual({ x: 28, y: 84 })
+    expect(defaultFreePlacement('metrics', 38)).toMatchObject({ tier: 'compact', layer: 38 })
+    expect(DEFAULT_WIDGET_POINTS.progress).toEqual({ x: 13, y: 70 })
+
+    const stored: LayoutsDocument = {
+      version: 1,
+      activeLayoutId: 'daily',
+      layouts: [{ id: 'daily', name: 'Daily', widgets: {} }],
+    }
+    const bytes = JSON.stringify(stored)
+    const resolved = resolveLayoutsDocument(stored, emptyLayoutV3(), 'standard', ['metrics'])
+    expect(JSON.stringify(resolved)).toBe(bytes)
+    expect(resolved.layouts[0].widgets.metrics).toBeUndefined()
+  })
 })

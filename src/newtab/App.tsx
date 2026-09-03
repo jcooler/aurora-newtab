@@ -220,6 +220,15 @@ function AuroraApp() {
     requestSettingsOpen()
   }, [requestSettingsOpen])
 
+  const openMetricsSettings = useCallback(() => {
+    setSettingsFocusAnchor((previous) => ({
+      tab: 'progress',
+      anchor: 'metrics-history',
+      nonce: (previous?.nonce ?? 0) + 1,
+    }))
+    requestSettingsOpen()
+  }, [requestSettingsOpen])
+
   // The gear on a widget's hover chrome (named-layouts spec 2.5): Settings
   // opens focused on that widget's own section. Connector-backed widgets
   // land on their Connectors card; toggle-backed widgets on their Widgets
@@ -227,6 +236,10 @@ function AuroraApp() {
   const openSettingsForWidget = useCallback((id: BlockId) => {
     if (id === 'progress') {
       openProgressSettings()
+      return
+    }
+    if (id === 'metrics') {
+      openMetricsSettings()
       return
     }
     const entry = activeEntries.find((candidate) => candidate.id === id)
@@ -238,7 +251,7 @@ function AuroraApp() {
         : { tab: 'widgets' as const, anchor: 'widgets' }
     setSettingsFocusAnchor((previous) => ({ ...target, nonce: (previous?.nonce ?? 0) + 1 }))
     requestSettingsOpen()
-  }, [activeEntries, openProgressSettings, requestSettingsOpen])
+  }, [activeEntries, openMetricsSettings, openProgressSettings, requestSettingsOpen])
 
   const storage = useStorage()
   // The resolved named-layouts document: a valid stored document wins; until
@@ -575,6 +588,7 @@ function AuroraApp() {
   const rendererProps: WidgetRendererProps = {
     onBookmarksPopoverOpenChange: setBookmarksPopoverOpen,
     onOpenProgress: openProgressSettings,
+    onOpenMetrics: openMetricsSettings,
     utilityTray,
     // A legacy Calendar placement stays on its compatibility face until the
     // user explicitly saves consolidation. The atomic save creates this

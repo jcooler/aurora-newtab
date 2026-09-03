@@ -25,7 +25,7 @@ describe('Canvas widget size contracts', () => {
   })
 
   it('pins delivered At a glance identities to useful four-tier contracts', () => {
-    expect(Object.keys(WIDGET_SIZE_CONTRACTS).slice(-4)).toEqual(['onThisDay', 'publicHolidays', 'auroraKp', 'progress'])
+    expect(Object.keys(WIDGET_SIZE_CONTRACTS).slice(-5)).toEqual(['onThisDay', 'publicHolidays', 'auroraKp', 'progress', 'metrics'])
   })
 
   it('names selected content that needs a larger size instead of inventing a fitting choice', () => {
@@ -50,9 +50,9 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
     expect(docked).toEqual([
       'auroraKp', 'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
       'habits', 'homeassistant', 'ics', 'jira', 'linear', 'moon', 'notes', 'onThisDay', 'progress', 'publicHolidays', 'readingList',
-      'recentlyClosed', 'rss', 'sentry', 'status', 'sun', 'tabGroups', 'tasks',
+      'recentlyClosed', 'rss', 'sentry', 'status', 'sun', 'tabGroups', 'tasks', 'metrics',
       'timer', 'todoist', 'vercel', 'weather', 'worldClocks',
-    ])
+    ].sort())
     expect(WIDGET_SIZE_CONTRACTS.weather.docked).toBe('Temperature · location · condition')
     expect(WIDGET_SIZE_CONTRACTS.clock.docked).toBe('Time · date')
     expect(WIDGET_SIZE_CONTRACTS.bookmarks.docked).toBe('Full readable bookmark bar')
@@ -165,7 +165,7 @@ describe('shared frame presentation contracts', () => {
     ])
     expect(idsFor('framed')).toEqual([
       'auroraKp', 'crypto', 'downloads', 'github', 'gitlab', 'habits', 'homeassistant',
-      'ics', 'jira', 'linear', 'monthCal', 'moon', 'notes', 'onThisDay', 'publicHolidays',
+      'ics', 'jira', 'linear', 'metrics', 'monthCal', 'moon', 'notes', 'onThisDay', 'publicHolidays',
       'readingList', 'recentlyClosed', 'rss', 'sentry', 'sun', 'tabGroups',
       'tasks', 'timer', 'todoist', 'vercel', 'weather',
     ])
@@ -185,11 +185,25 @@ describe('shared frame presentation contracts', () => {
     })
   })
 
+  it('gives Metrics the approved framed history contract at every tier', () => {
+    expect(WIDGET_PRESENTATION_CONTRACTS.metrics).toMatchObject({
+      presentationClass: 'framed',
+      sizes: ['compact', 'standard', 'full'],
+      stackSizes: ['compact', 'standard', 'full'],
+      states: ['loading', 'ready', 'empty', 'stale', 'partial', 'permission-required', 'hard-error'],
+      compact: 'Seven-day active rhythm',
+      standard: 'Thirty-day activity overview',
+      full: 'Range-selectable private history',
+      docked: 'Active days, Focus, and Tasks',
+    })
+    expect(WIDGET_PRESENTATION_CONTRACTS.metrics.tiers.full?.signature).toEqual(['activity rhythm'])
+  })
+
   it('gives every framed free and stack tier an authored composition contract', () => {
     const framed = Object.entries(WIDGET_PRESENTATION_CONTRACTS)
       .filter(([, contract]) => contract.presentationClass === 'framed')
 
-    expect(framed).toHaveLength(26)
+    expect(framed).toHaveLength(27)
     for (const [id, contract] of framed) {
       expect(contract.stackSizes.every((tier) => contract.sizes.includes(tier)), `${id}/stack subset`).toBe(true)
       expect(contract.stackSizes).not.toBe(contract.sizes)

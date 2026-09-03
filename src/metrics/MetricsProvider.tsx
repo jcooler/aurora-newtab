@@ -35,10 +35,14 @@ export interface MetricsDeleteFilter {
   before?: string
 }
 
-interface MetricsContextValue {
+export type MetricsIssue = 'storage' | 'collection'
+
+export interface MetricsContextValue {
   hydrated: boolean
   entitled: boolean
   history: MetricsHistoryV1 | null
+  issue: MetricsIssue | null
+  retryMetrics(): void
   deleteMetricsHistory(filter?: MetricsDeleteFilter): Promise<void>
   exportMetricsHistory(exportedAt?: string): string | null
   recordFocusCompletion(
@@ -55,6 +59,8 @@ const MetricsContext = createContext<MetricsContextValue>({
   hydrated: true,
   entitled: false,
   history: null,
+  issue: null,
+  retryMetrics: () => {},
   deleteMetricsHistory: unavailable,
   exportMetricsHistory: () => null,
   recordFocusCompletion: (current) => current,
@@ -129,6 +135,8 @@ export function MetricsProvider({
   const { hydrated: accountHydrated, snapshot } = useAccount()
   const [sources, setSources] = useState<MetricSources | null>(null)
   const [entitlementClock, setEntitlementClock] = useState(0)
+  const [issue, setIssue] = useState<MetricsIssue | null>(null)
+  const [retryRevision, setRetryRevision] = useState(0)
   const installationIdRef = useRef<string | null>(installationId ?? null)
   const lastCollectedSignature = useRef<string | null>(null)
 
@@ -157,13 +165,16 @@ export function MetricsProvider({
         publish()
       })
       .catch(() => {
-        if (active) console.error('[tab-two] metrics storage hydration failed')
+        if (active) {
+          setIssue('storage')
+          console.error('[tab-two] metrics storage hydration failed')
+        }
       })
     return () => {
       active = false
       for (const unsubscribe of unsubscribers) unsubscribe()
     }
-  }, [storage])
+  }, [retryRevision, storage])
 
   const entitled = useMemo(
     () => accountHydrated && hasCapability(snapshot, 'metrics_history', Date.now()),
@@ -204,13 +215,21 @@ export function MetricsProvider({
       void storage.update('metricsHistory', (current) => {
         const next = reconcileCollectedMetrics(current, id, inputs, today, createId)
         return structurallyEqual(current, next) ? current : next
-      }).catch(() => {
-        lastCollectedSignature.current = null
-        console.error('[tab-two] metric collection failed')
-      })
+      }).then(() => setIssue(null), () => {
+          lastCollectedSignature.current = null
+          setIssue('collection')
+          console.error('[tab-two] metric collection failed')
+        })
     })
     return () => { cancelled = true }
   }, [createId, entitled, installationId, sources, storage])
+
+  const retryMetrics = useCallback(() => {
+    lastCollectedSignature.current = null
+    setIssue(null)
+    setSources(null)
+    setRetryRevision((value) => value + 1)
+  }, [])
 
   const deleteMetricsHistory = useCallback(async (filter?: MetricsDeleteFilter) => {
     if (filter?.before !== undefined && !isMetricDateKey(filter.before)) throw new Error('metric_date_invalid')
@@ -257,13 +276,15 @@ export function MetricsProvider({
   }, [createId, entitled, installationId])
 
   const value = useMemo<MetricsContextValue>(() => ({
-    hydrated: sources !== null && accountHydrated,
+    hydrated: (sources !== null || issue !== null) && accountHydrated,
     entitled,
     history: sources?.metricsHistory ?? null,
+    issue,
+    retryMetrics,
     deleteMetricsHistory,
     exportMetricsHistory,
     recordFocusCompletion,
-  }), [accountHydrated, deleteMetricsHistory, entitled, exportMetricsHistory, recordFocusCompletion, sources])
+  }), [accountHydrated, deleteMetricsHistory, entitled, exportMetricsHistory, issue, recordFocusCompletion, retryMetrics, sources])
 
   return <MetricsContext.Provider value={value}>{children}</MetricsContext.Provider>
 }

@@ -5,7 +5,7 @@ import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../serv
 import type { RefreshPreferences } from '../../services/refreshPolicy'
 import type { MetricsHistoryV1 } from '../../metrics/types'
 
-export const CURRENT_VERSION = 21
+export const CURRENT_VERSION = 22
 
 export const FLOW_AMBIENCE_VALUES = ['off', 'creek', 'rain', 'ocean', 'forest'] as const
 export type FlowAmbience = typeof FLOW_AMBIENCE_VALUES[number]
@@ -77,6 +77,7 @@ export interface WidgetToggles {
   downloads: boolean
   tabGroups: boolean
   progress: boolean
+  metrics: boolean
 }
 
 export interface Settings {
@@ -456,6 +457,7 @@ export function defaults(): AuroraData {
         downloads: false,
         tabGroups: false,
         progress: false,
+        metrics: false,
       },
     },
     focus: null,

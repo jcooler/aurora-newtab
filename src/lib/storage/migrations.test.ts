@@ -152,14 +152,19 @@ describe('migrate', () => {
         calls.push(19)
         return data
       },
-      // registry[20] upgrades v20 -> v21 (CURRENT_VERSION)
+      // registry[20] upgrades v20 -> v21
       20: (data) => {
         calls.push(20)
         return data
       },
+      // registry[21] upgrades v21 -> v22 (CURRENT_VERSION)
+      21: (data) => {
+        calls.push(21)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -675,7 +680,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(21)
+    expect(CURRENT_VERSION).toBe(22)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -768,7 +773,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(21)
+    expect(CURRENT_VERSION).toBe(22)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill and v16->v17 Flow preference are the only
     // Settings deltas on the way up.
@@ -855,7 +860,11 @@ describe('v12 -> v13', () => {
     delete (preProgress.settings.widgets as Record<string, unknown>).progress
     delete (preProgress as Record<string, unknown>).progressGoals
     expect(migrations[19](preProgress)).not.toEqual(preProgress)
-    for (let v = 20; v < CURRENT_VERSION; v++) {
+    expect(migrations[20](structuredClone(probe))).toEqual(probe)
+    const preMetricsWidget = structuredClone(probe)
+    delete (preMetricsWidget.settings.widgets as Record<string, unknown>).metrics
+    expect(migrations[21](preMetricsWidget)).not.toEqual(preMetricsWidget)
+    for (let v = 22; v < CURRENT_VERSION; v++) {
       const before = structuredClone(probe)
       const out = migrations[v](structuredClone(probe))
       expect(out, `migrations[${v}] must be the identity`).toEqual(before)
@@ -907,6 +916,43 @@ describe('v20 -> v21', () => {
 
     expect(migrations[20](structuredClone(snapshot))).toEqual(before)
     expect(migrate(snapshot, 20)).toEqual({ ...before, metricsHistory: null })
+  })
+})
+
+describe('v21 -> v22', () => {
+  it('backfills only the Metrics toggle and preserves every existing choice and layout byte-for-byte', () => {
+    const settings = structuredClone(defaults().settings)
+    const widgets = { ...settings.widgets } as Record<string, unknown>
+    delete widgets.metrics
+    const layouts = {
+      version: 1,
+      activeLayoutId: 'daily',
+      layouts: [{ id: 'daily', name: 'Daily', widgets: { clock: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -30, tier: 'full', layer: 0 } } }],
+    }
+    const snapshot = {
+      ...defaults(),
+      settings: { ...settings, name: 'Keep me', widgets },
+      layouts,
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const out = migrations[21](snapshot) as Record<string, unknown>
+
+    expect(out).toEqual({
+      ...before,
+      settings: {
+        ...before.settings,
+        widgets: { ...before.settings.widgets, metrics: false },
+      },
+    })
+    expect((out as { layouts: unknown }).layouts).toEqual(layouts)
+    expect(snapshot).toEqual(before)
+  })
+
+  it('rejects malformed nested widgets rather than silently replacing user settings', () => {
+    expect(() => migrations[21]({ settings: { ...defaults().settings, widgets: 'bad' } }))
+      .toThrow('Invalid settings.widgets in schema v21')
   })
 })
 

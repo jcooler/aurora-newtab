@@ -44,6 +44,7 @@ const EXPECTED = [
   ['publicHolidays', 'Public Holidays', 'pulse', 16, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
   ['auroraKp', 'Aurora & Kp', 'pulse', 17, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
   ['progress', 'Progress', 'now', 9, 'automatic', ['now', 'day', 'dock'], 'compact', { compact: [1, 1] }],
+  ['metrics', 'Metrics', 'now', 10, 'automatic', ['now', 'day', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
 ] as const
 
 const ALL_WIDGETS_OFF: WidgetToggles = {
@@ -52,6 +53,7 @@ const ALL_WIDGETS_OFF: WidgetToggles = {
   monthCal: false, sun: false, moon: false,
   readingList: false, recentlyClosed: false, downloads: false, tabGroups: false,
   progress: false,
+  metrics: false,
 }
 
 const TOGGLE_MAPPING = [
@@ -62,6 +64,7 @@ const TOGGLE_MAPPING = [
   ['readingList', 'readingList'], ['recentlyClosed', 'recentlyClosed'],
   ['downloads', 'downloads'], ['tabGroups', 'tabGroups'],
   ['progress', 'progress'],
+  ['metrics', 'metrics'],
 ] as const
 
 function settingsWith(widgets: WidgetToggles): Settings {
@@ -232,7 +235,7 @@ describe('source-owned widget registry', () => {
   it('resolves every registry renderer exhaustively with exact key set equality', () => {
     const registryKeys = WIDGET_REGISTRY.map((row) => row.rendererKey)
     expect(WIDGET_RENDERER_KEYS).toEqual(registryKeys)
-    expect(new Set(WIDGET_RENDERER_KEYS).size).toBe(37)
+    expect(new Set(WIDGET_RENDERER_KEYS).size).toBe(38)
     for (const key of registryKeys) expect(typeof resolveWidgetRenderer(key), key).toBe('function')
   })
 })

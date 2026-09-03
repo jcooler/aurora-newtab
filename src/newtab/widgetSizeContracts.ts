@@ -293,6 +293,41 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
     undefined,
     'Daily progress values',
   ),
+  metrics: framedContract(
+    ['compact', 'standard', 'full'],
+    ['compact', 'standard', 'full'],
+    PERMISSION_RESOURCE_STATES,
+    'Seven-day active rhythm',
+    'Thirty-day activity overview',
+    'Range-selectable private history',
+    'Active days, Focus, and Tasks',
+    {
+      compact: tier(
+        'Seven-day private activity at a glance',
+        ['active days', 'period'],
+        ['activity rhythm'],
+        ['completed tasks', 'Focus minutes'],
+        ['tighten spacing', 'retain seven rhythm marks'],
+        { kind: 'settings', label: 'Metrics history' },
+      ),
+      standard: tier(
+        'Thirty-day private activity overview',
+        ['active days', 'period', 'comparison'],
+        ['activity rhythm'],
+        ['Focus time', 'completed tasks', 'habit rate'],
+        ['tighten spacing', 'bound rhythm marks'],
+        { kind: 'settings', label: 'Metrics history' },
+      ),
+      full: tier(
+        'Range-selectable private history',
+        ['active days', 'range', 'comparison'],
+        ['activity rhythm'],
+        ['Focus', 'Tasks', 'Habits', 'Calendar', 'Development', 'Fitness'],
+        ['condense range labels', 'preserve native units', 'bound trend samples'],
+        { kind: 'settings', label: 'Metrics history' },
+      ),
+    },
+  ),
 })
 
 /** Compatibility name for existing content-contract consumers. */

@@ -37,6 +37,20 @@ describe('time and productivity widget renderers', () => {
     expect(element.props.onOpenProgress).toBe(onOpenProgress)
   })
 
+  it('threads Metrics tiers and direct history routing through its renderer', () => {
+    const onOpenMetrics = () => undefined
+    const element = WIDGET_RENDERERS.metrics({
+      canvasSize: 'full',
+      presentation: 'stack',
+      onOpenMetrics,
+    }) as ReactElement<{
+      canvasSize?: CanvasSize
+      onOpenMetrics?: () => void
+    }>
+    expect(element.props.canvasSize).toBe('full')
+    expect(element.props.onOpenMetrics).toBe(onOpenMetrics)
+  })
+
   it.each(['worldClocks', 'countdown'] as const)(
     'uses the approved redesigned %s face on the standalone canvas',
     (id) => {
