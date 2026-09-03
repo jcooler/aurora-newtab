@@ -1,6 +1,6 @@
 # Tab Two Privacy Policy
 
-**Effective date:** September 1, 2026
+**Effective date:** September 3, 2026
 
 Tab Two is a new-tab dashboard extension for Chrome. This policy describes,
 completely, what Tab Two stores, what it sends over the network, and to whom.
@@ -25,6 +25,14 @@ provider responses, uploaded images, and device-local operational state remain
 on the device. The hosted production sync authority is active, but no device,
 key release, or product-data transfer begins on an installation until you
 explicitly enable it.
+
+The premium Google Calendar connector is currently limited to approved OAuth
+test users while its sandbox integration is validated. It is separate from
+account sign-in and starts only when you explicitly connect a Google account.
+The Tab Two account service stores an encrypted Google refresh token and the
+minimum connection metadata needed to reconnect. Calendar lists and event
+details travel directly from Google to this browser and never pass through the
+Tab Two account service.
 Tab Two does not collect data for its developer, sell or rent your data, or
 transfer it for advertising, profiling, lending, or any unrelated purpose.
 There is no analytics and no tracking of any kind. Dashboard product data
@@ -32,10 +40,11 @@ remains on your own device. The outbound network calls
 Tab Two makes on its own, with no action from you beyond turning a widget
 on, are five read-only, keyless weather/location lookups described in full
 below. Beyond those, Tab Two's **Connectors** framework lets you point it at
-outside sites yourself or enable a built-in public source. Fifteen connectors
-ship today: RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status,
+outside sites yourself or enable a built-in public source. Fifteen free
+connectors ship today: RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status,
 Home Assistant, Linear, Sentry, Todoist, On This Day, Public Holidays, and
-Aurora & Kp. Every such request goes
+Aurora & Kp. The test-user-only premium Google Calendar connector is additive
+and does not replace the free Calendar connector. Provider data requests go
 directly from your browser to the site you configured, never through the Tab
 Two account service. Thirteen only read. Home Assistant
 sends a configured command to your own instance only when you click its
@@ -103,6 +112,12 @@ anywhere except as explicitly described under "Network calls" below:
 - A local cache of what each connector last fetched, so a widget
   doesn't need to refetch every time you open a new tab. See "Connectors"
   below.
+- If you explicitly connect Google Calendar: the opaque Tab Two connection ID,
+  account label, selected calendar identifiers, names and colors, incremental
+  sync cursors, and a rebuildable normalized event cache. These values stay on
+  this installation and are excluded from JSON backup, encrypted sync,
+  diagnostics, and logs. Google access tokens are held only in memory and are
+  never written to persistent extension storage.
 - If you explicitly sign in: one isolated Supabase access/refresh session under
   `tab-two:account-session:v1`. It is not part of `AuroraData`, JSON backup,
   diagnostics, screenshots, or the visible UI, and Sign out removes it.
@@ -130,6 +145,16 @@ append-only billing transitions. It never stores raw webhook bodies, hosted
 Checkout or Portal URLs, card data, billing addresses, receipts, payment-method
 details, or customer email as billing authority.
 Its Stripe functions reject live-mode objects and are not a live billing launch.
+
+For an explicitly connected Google Calendar test account, the hosted provider
+broker stores the Tab Two account UUID, an opaque connection UUID, Google's
+stable provider subject, email address, display name when supplied, exact
+granted scopes, status and lifecycle timestamps, and the Google refresh token
+encrypted with a separately versioned AES-256-GCM key. It also keeps short-lived
+single-use OAuth transaction records and bounded rate-limit counters. The
+broker never receives or stores calendar identifiers, calendar names or colors,
+event details, attendees, locations, meeting links, sync cursors, access tokens,
+or Calendar API responses.
 
 When encrypted sync is enabled, the Tab Two Supabase service stores AES-256-GCM
 encrypted record envelopes for approved settings, layouts, tasks, notes, habits,
@@ -160,7 +185,8 @@ and never leaves your machine.
 
 **Backup export/import.** Settings → Data lets you export everything above
 — except uploaded photos (per the previous paragraph), connector cache
-data (e.g. cached RSS headlines), and the NASA photo-of-the-day cache,
+data (e.g. cached RSS headlines), the entire Google Calendar connection
+configuration and cache, and the NASA photo-of-the-day cache,
 all of which are disposable and rebuilt automatically rather than
 something you entered — to a JSON file you choose to
 save, and re-import it later. Importing a backup also resets the NASA
@@ -195,12 +221,13 @@ account service.
 
 Tab Two makes network requests to exactly five **fixed** weather/location
 endpoints, all operated by third-party services, all read-only and keyless,
-and all sent no more data than described below - plus four **opt-in** sources: a
+and all sent no more data than described below - plus five **opt-in** sources: a
 Connector, if and only if you've configured or enabled one (item 6 below),
 NASA's Astronomy Picture of the Day, if and only if you've chosen it as your
 background (item 7 below), the Tab Two account service only after an existing
-session or explicit Account & Sync action (item 8 below), and the static billing
-return surface only after a sandbox billing action (item 9 below):
+session or explicit Account & Sync action (item 8 below), the static billing
+return surface only after a sandbox billing action (item 9 below), and the
+test-user-only premium Google Calendar connection (item 10 below):
 
 1. **Weather forecast** — `api.open-meteo.com`, once the Weather widget is
    turned on and a location is set. Sends only your saved latitude/longitude
@@ -310,6 +337,22 @@ return surface only after a sandbox billing action (item 9 below):
    subscription authority. Its local extension message contains only the fixed
    page result needed to focus an already-open Tab Two tab. The extension then
    refreshes server-verified status separately through item 8.
+10. **Premium Google Calendar test integration** - only after you explicitly
+    choose Connect and approve Chrome's optional access to
+    `www.googleapis.com`. Tab Two first uses the account service at
+    `ovlobmvxtryitupxwylg.supabase.co` to start a single-use OAuth transaction.
+    Google owns account selection and consent and receives only the exact
+    `openid`, `email`, calendar-list read-only, and calendar-events read-only
+    scopes. The broker exchanges and refreshes tokens, stores only the encrypted
+    refresh token and connection metadata described above, and returns a
+    short-lived access token to this browser. The browser then requests your
+    calendar list and selected events directly from
+    `www.googleapis.com/calendar/v3/` using minimized fields. Those Calendar API
+    responses never pass through Supabase. Tab Two does not request Gmail,
+    Drive, Contacts, calendar write access, or invitation authority. Removing
+    the last Google Calendar connection revokes the optional Google API host
+    permission; server-side disconnect attempts to revoke that exact Google
+    grant and deletes its encrypted token record.
 
 Tab Two makes no other network calls. In particular: no analytics, no
 telemetry, no crash reporting, no ad networks, no remote fonts or scripts,
@@ -367,8 +410,9 @@ instead.
   `search` to be requested at runtime instead, but doing so here would put
   a permission prompt between you and the first thing on the page.
 - **`identity`** (installed automatically) — used only after you click the
-  Account & Sync Google sign-in or fresh-verification action. It opens the
-  Google/Supabase OAuth flow and returns to Tab Two's fixed extension callback.
+  Account & Sync Google sign-in, fresh-verification action, or the separate
+  Google Calendar connection action. It opens the relevant Google OAuth flow
+  and returns to Tab Two's fixed extension callback.
   It is not used to silently sign in, enable sync, inspect other Chrome
   profiles, or read browsing history.
 - **`bookmarks`** (optional — requested at runtime, never at install).
@@ -404,7 +448,9 @@ instead.
   instead of one API. Choosing "NASA photo of the day" in Settings →
   General → Background requests both `api.nasa.gov` and `apod.nasa.gov`
   together, in that same click (see "Network calls" above). Declining
-  leaves the connector un-added, or the background unchanged. Removing the
+  leaves the connector un-added, or the background unchanged. Google Calendar
+  requests only `https://www.googleapis.com/*` from its explicit Connect
+  action. Removing the
   last feed/connection pointed at a given origin, or switching the
   background away from NASA's photo of the day, revokes that origin's
   permission automatically (`chrome.permissions.remove`) — unless another
@@ -415,7 +461,9 @@ instead.
 ## Connectors
 
 Connectors are Tab Two's framework for reaching a source you configure or a
-built-in public source you enable. Thirteen of the fifteen only read.
+built-in public source you enable. Thirteen of the fifteen free connectors only
+read. The separate premium Google Calendar connector is also read-only and is
+currently limited to approved OAuth test users.
 **Home Assistant and Todoist are the two exceptions, disclosed plainly:**
 clicking one of Home Assistant's action buttons sends a single
 command — `scene.turn_on`, `script.turn_on`, or `switch.toggle`, whichever
@@ -428,9 +476,9 @@ that task. Nothing else is ever written to any connector. Every other
 request, including Home Assistant's own `/api/states` poll, is a plain read.
 Apart from those two write paths,
 the pattern holds exactly as it always has — **direct client → provider**:
-every connector request, read or write, goes straight from your browser to
-the site you configured, never through any server Tab Two operates (it has
-none) and never past any other third party. Nothing about the request —
+every connector data request, read or write, goes straight from your browser to
+the site you configured, never through Tab Two's account service and never past
+any other third party. Nothing about the direct provider-data request —
 not its contents, not the fact that it happened — is visible to Tab Two's
 developer or anyone else.
 
@@ -487,6 +535,16 @@ backup exports entirely, same as uploaded photos, because it's disposable
 and rebuilds itself rather than being data you entered. Open Tab Two tabs
 coordinate refresh ownership so they do not intentionally multiply the same
 request.
+
+**Google Calendar, concretely.** Connecting is a separate Google OAuth action,
+not a consequence of signing into Tab Two. The hosted broker keeps the encrypted
+refresh token but receives no calendar or event payload. This browser requests
+the calendar list and selected events directly from Google's Calendar API with
+read-only access, keeps only the local metadata and rebuildable cache described
+above, and contributes only daily event counts and merged busy-minute totals to
+Metrics under an opaque connection UUID. It never sends titles, attendees,
+locations, links, calendar identifiers, account labels, or raw provider data to
+Metrics, backup, encrypted sync, diagnostics, logs, or the Tab Two service.
 
 **The remaining connectors, concretely** — each fetch is a single HTTP request sent
 directly from your browser to the named host, cached locally the same way
@@ -593,7 +651,8 @@ cover the only two write paths in this list:
 ## Data collection, sale, and sharing
 
 Tab Two's account service processes only the account identity, session,
-entitlement, and audit data described above. Dashboard product data is not
+entitlement, audit, encrypted-sync, sandbox-billing, and encrypted Google
+provider-connection data described above. Calendar and event payloads are not
 collected by that service. Other transfers occur only when necessary to
 provide the user-requested feature described in this policy: directly to
 Chrome or to the weather, NASA, cloud, feed, calendar, status, or self-hosted

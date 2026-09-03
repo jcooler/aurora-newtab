@@ -18,6 +18,13 @@ boundary owns the reviewed catalog, Checkout, Portal, webhook, and resumable
 same-plan Checkout logic. No live Stripe catalog, live payment, or paid launch
 is active.
 
+PM-P6 Google Calendar is limited to approved OAuth test users during hosted
+sandbox validation. It is a separate, explicit, read-only connection. Tab Two's
+service stores the encrypted refresh token needed to reconnect, while calendar
+lists and selected event details travel directly from Google to the browser and
+stay out of the Tab Two service. No Gmail, Drive, Contacts, calendar write, or
+invitation access is requested.
+
 ## Features
 
 - **Clock & greeting** — large local time, time-of-day greeting.
@@ -75,10 +82,12 @@ is active.
 - **Connectors** — an extensible framework for reaching outside sources
   from the dashboard, one card per source under Settings → Connectors,
   with user-configured external sources asking Chrome for access to exactly
-  the site you add and nothing more. Fifteen connectors ship today: **RSS**, **GitHub**, **GitLab**,
+  the site you add and nothing more. Fifteen free connectors ship today: **RSS**, **GitHub**, **GitLab**,
   **Jira**, **Vercel**, **Crypto**, **Calendar**, **Status**,
   **Home Assistant**, **Linear**, **Sentry**, **Todoist**,
-  **On This Day**, **Public Holidays**, and **Aurora & Kp**. See
+  **On This Day**, **Public Holidays**, and **Aurora & Kp**. A separate premium
+  **Google Calendar** connector is presently available only to approved OAuth
+  test users during sandbox validation. See
   [Connectors](#connectors) below for what each one shows, what it reads,
   the two explicit write actions, and how the permission model works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
@@ -468,6 +477,8 @@ as a single JSON file:
 
 If Tab Two is useful to you, there's a quiet "☕ Buy me a coffee" link in
 Settings' footer — or go straight to [buymeacoffee.com/joncooler](https://buymeacoffee.com/joncooler).
+
+Product use is governed by the public [Tab Two Terms of Service](TERMS.md).
 
 ## Privacy
 
