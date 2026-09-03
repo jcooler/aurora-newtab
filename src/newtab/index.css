@@ -1028,7 +1028,7 @@
   from { opacity: 0.45; }
   to { opacity: 1; }
 }
-@media (pointer: coarse) {
+@media (pointer: coarse), (any-pointer: coarse), (max-width: 520px) {
   .metrics-standard-header button { min-width: 82px; min-height: 44px; }
   .metrics-range-control button { min-height: 44px; }
 }

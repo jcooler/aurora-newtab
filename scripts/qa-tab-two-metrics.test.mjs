@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { resolve } from 'node:path'
 
@@ -23,6 +24,13 @@ test('pins the approved viewport matrix and requires exact mode', () => {
   ])
   assert.throws(() => requireExact([]), /requires --exact/)
   assert.doesNotThrow(() => requireExact(['--exact']))
+})
+
+test('keeps Metrics controls touch-sized for coarse pointers and narrow windows', () => {
+  const css = readFileSync(resolve(import.meta.dirname, '../src/newtab/index.css'), 'utf8')
+  assert.match(css, /@media \(pointer: coarse\), \(any-pointer: coarse\), \(max-width: 520px\)/)
+  assert.match(css, /\.metrics-standard-header button \{ min-width: 82px; min-height: 44px; \}/)
+  assert.match(css, /\.metrics-range-control button \{ min-height: 44px; \}/)
 })
 
 test('keeps preview fixtures out of production artifacts', () => {
