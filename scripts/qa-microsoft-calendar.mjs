@@ -529,8 +529,8 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot) {
   const secondPicker = page.getByRole('group', { name: /Calendars for /u })
   await secondPicker.waitFor()
   await page.getByRole('button', { name: 'Add to Tab Two' }).click()
-  await page.getByText('PERSONAL').waitFor()
-  await page.getByText('WORK OR SCHOOL').waitFor()
+  await page.getByText('PERSONAL', { exact: true }).waitFor()
+  await page.getByText('WORK OR SCHOOL', { exact: true }).waitFor()
   await capture(page, viewport, 'personal-and-work', output, evidence, repoRoot, { state: 'personal-and-work' })
 
   const remove = page.getByRole('button', { name: 'Remove alex@contoso.test' })
@@ -615,8 +615,8 @@ async function exerciseShort(page, viewport, output, evidence, repoRoot) {
   await page.reload({ waitUntil: 'domcontentloaded' })
   let opened = await openMicrosoftCard(page)
   await opened.card.getByRole('button', { name: 'Edit Microsoft Calendar' }).click()
-  await page.getByText('Needs attention').waitFor()
-  assert(await page.getByText('Up to date').isVisible())
+  await page.getByText('Needs attention', { exact: true }).first().waitFor()
+  assert(await page.getByText('Up to date', { exact: true }).first().isVisible())
   await capture(page, viewport, 'partial-account', output, evidence, repoRoot, {
     state: 'partial-account', recordViewport: true,
   })
@@ -641,8 +641,8 @@ async function exerciseUltrawide(page, viewport, output, evidence, repoRoot) {
   await page.reload({ waitUntil: 'domcontentloaded' })
   const { card } = await openMicrosoftCard(page)
   await card.getByRole('button', { name: 'Edit Microsoft Calendar' }).click()
-  await page.getByText('PERSONAL').waitFor()
-  await page.getByText('WORK OR SCHOOL').waitFor()
+  await page.getByText('PERSONAL', { exact: true }).waitFor()
+  await page.getByText('WORK OR SCHOOL', { exact: true }).waitFor()
   await capture(page, viewport, 'personal-and-work-ultrawide', output, evidence, repoRoot, { recordViewport: true })
 }
 
