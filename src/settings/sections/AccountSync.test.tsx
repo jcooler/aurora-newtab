@@ -64,6 +64,7 @@ function renderAccount(snapshot: AccountSnapshot, suppliedActions = actions()) {
     subscribe: () => () => {},
     actions: suppliedActions,
     syncGateway: null,
+    providerGateway: null,
   }
   render(<AccountProvider client={client}><AccountSync /></AccountProvider>)
   return suppliedActions
@@ -80,6 +81,7 @@ function renderLiveAccount(snapshot: AccountSnapshot, suppliedActions = actions(
     },
     actions: suppliedActions,
     syncGateway: null,
+    providerGateway: null,
   }
   render(<AccountProvider client={client}><AccountSync /></AccountProvider>)
   return {

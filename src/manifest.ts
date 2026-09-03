@@ -116,6 +116,9 @@ export default defineManifest((env) => ({
   // to move it to (an install-time `<all_urls>`-style host permission would
   // defeat the entire per-origin, ask-only-for-what-you-use point), so it's
   // identical in both build modes.
+  // Google Calendar uses this same optional boundary and requests only
+  // https://www.googleapis.com/* from the explicit Connect gesture. It is
+  // never promoted to install-time host access.
   optional_host_permissions: ['https://*/*'],
   // Explicitly approved local-only gate. Production and preview omit install-
   // time host access; account-local may reach only the loopback Supabase API.

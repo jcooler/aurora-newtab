@@ -99,6 +99,7 @@ describe('readAccountServiceConfig', () => {
         'local-test-key': 'MCowBQYDK2VwAyEAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       },
       encryptedSyncEnabled: true,
+      googleCalendarEnabled: true,
     })
   })
 
@@ -255,6 +256,54 @@ describe('Supabase AccountClient', () => {
     expect(value.deps.sync?.fetch).not.toHaveBeenCalled()
     await expect(client.actions.enableSync()).resolves.toEqual({ status: 'needs_attention' })
     expect(value.deps.sync?.fetch).not.toHaveBeenCalled()
+  })
+
+  it('lends the current Tab Two session to the provider gateway only after verified provider entitlement', async () => {
+    const providerAccountId = '43000000-0000-4000-8000-000000000001'
+    const providerFetch = vi.fn(async () => new Response(JSON.stringify({ connections: [] }), {
+      headers: { 'content-type': 'application/json' },
+    })) as typeof fetch
+    value.deps.api.getAccountSnapshot = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        accountId: providerAccountId,
+        email: 'alex@example.test',
+        displayName: 'Alex Morgan',
+        subscription: { state: 'complimentary' as const },
+      },
+    }))
+    value.deps.verifyLease = vi.fn(async () => ({
+      ...lease,
+      accountId: providerAccountId,
+      capabilities: ['multi_account', 'google_calendar'] as const,
+    }))
+    value.deps.provider = {
+      enabled: true,
+      origin: 'https://ovlobmvxtryitupxwylg.supabase.co',
+      allowedOrigins: ['https://ovlobmvxtryitupxwylg.supabase.co'],
+      fetch: providerFetch,
+      randomBytes: () => new Uint8Array(32),
+      identity: {
+        getRedirectURL: () => 'https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/google-calendar',
+        launchWebAuthFlow: vi.fn(),
+      },
+      requestGoogleOrigin: vi.fn(async () => true),
+      removeGoogleOrigin: vi.fn(async () => true),
+    }
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+
+    expect(client.providerGateway).not.toBeNull()
+    await expect(client.providerGateway?.listConnections()).resolves.toEqual({
+      ok: true,
+      value: { accountId: providerAccountId, connections: [] },
+    })
+    expect(providerFetch).toHaveBeenCalledWith(
+      'https://ovlobmvxtryitupxwylg.supabase.co/functions/v1/google-calendar-connections',
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: 'Bearer access-token' }),
+      }),
+    )
   })
 
   it('never lends the stored session to a gateway request for another account', async () => {

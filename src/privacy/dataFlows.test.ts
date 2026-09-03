@@ -350,6 +350,18 @@ describe('code-backed privacy inventory', () => {
     expect(privacyPolicy).toContain('not end-to-end encrypted or zero knowledge')
   })
 
+  it('discloses the Google Calendar connection broker without storing provider sessions locally', () => {
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.googleCalendar.destinations).toEqual([
+      'https://ovlobmvxtryitupxwylg.supabase.co',
+      'accounts.google.com',
+      'https://www.googleapis.com',
+    ])
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.googleCalendar.storesLocally).toContain(
+      'no Google access token or refresh token in extension storage',
+    )
+    expect(ACCOUNT_SERVICE_DATA_FLOWS.googleCalendar.authority).toContain('in memory')
+  })
+
   it('keeps the canonical privacy policy synchronized with the fixed environmental flow', () => {
     expect(privacyPolicy).toContain('exactly five **fixed** weather/location')
     expect(privacyPolicy).toContain('air-quality-api.open-meteo.com')
@@ -396,6 +408,7 @@ describe('code-backed privacy inventory', () => {
       expect(declared).not.toContain('tabs')
       expect(declared).not.toContain('history')
       expect(declared).not.toContain('downloads.open')
+      expect(built.host_permissions ?? []).not.toContain('https://www.googleapis.com/*')
     }
   })
 })

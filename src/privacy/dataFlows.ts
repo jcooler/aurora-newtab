@@ -342,6 +342,30 @@ export const ACCOUNT_SERVICE_DATA_FLOWS = {
     authority: 'Local data remains usable at all times. Only explicit enable plus a verified encrypted_sync lease can start sync traffic.',
     currentState: 'PM-P4 hosted sync authority is active. Each installation remains off until explicit enablement, and sign-in alone sends no product data.',
   },
+  googleCalendar: {
+    destinations: [
+      'https://ovlobmvxtryitupxwylg.supabase.co',
+      'accounts.google.com',
+      'https://www.googleapis.com',
+    ],
+    trigger: ['explicit Connect Google Calendar action', 'connector refresh after connection'],
+    sends: [
+      'Supabase account session to authenticated Tab Two provider functions',
+      'Google OAuth authorization through a nonce-bound Chrome Identity window',
+      'short-lived Google access token only to the Google Calendar APIs',
+    ],
+    receives: [
+      'non-secret connected-account metadata',
+      'short-lived Google access token held only in page memory',
+      'read-only calendar lists and events normalized into the local provider cache',
+    ],
+    storesLocally: [
+      'no Google access token or refresh token in extension storage',
+      'only normalized read-only calendar data and non-secret connection choices',
+    ],
+    authority: 'The server stores the encrypted refresh grant; the extension receives a short-lived access token in memory only after a verified paid capability check.',
+    currentState: 'The extension gateway is implemented locally; production provider activation remains gated.',
+  },
 } as const
 
 export const MANIFEST_PRIVACY_DESCRIPTION =

@@ -9,6 +9,10 @@ import {
   ensureOrigins,
   canonicalOriginPatterns,
   subscribePermission,
+  GOOGLE_CALENDAR_API_ORIGIN,
+  ensureGoogleCalendarOrigin,
+  hasGoogleCalendarOrigin,
+  removeGoogleCalendarOrigin,
 } from './permissions'
 
 describe('hasPermission / ensurePermission (chrome.permissions wrappers)', () => {
@@ -221,5 +225,26 @@ describe('ensureOrigins (plural gesture helper)', () => {
 
     await expect(ensureOrigins(['not a url'])).resolves.toBe(false)
     expect(request).not.toHaveBeenCalled()
+  })
+})
+
+describe('Google Calendar optional origin boundary', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('pins request, observation, and removal to the exact Google APIs origin', async () => {
+    const contains = vi.fn().mockResolvedValue(true)
+    const request = vi.fn().mockResolvedValue(true)
+    const remove = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('chrome', { permissions: { contains, request, remove } })
+
+    expect(GOOGLE_CALENDAR_API_ORIGIN).toBe('https://www.googleapis.com/*')
+    await expect(ensureGoogleCalendarOrigin()).resolves.toBe(true)
+    await expect(hasGoogleCalendarOrigin()).resolves.toBe(true)
+    await expect(removeGoogleCalendarOrigin()).resolves.toBe(true)
+    expect(request).toHaveBeenCalledWith({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
+    expect(contains).toHaveBeenCalledWith({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
+    expect(remove).toHaveBeenCalledWith({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
   })
 })

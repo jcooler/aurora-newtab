@@ -80,6 +80,7 @@ function accountClient(entitled = true): AccountClient {
     subscribe: vi.fn(() => () => {}),
     actions: localAccountClient.actions,
     syncGateway: null,
+    providerGateway: null,
   }
 }
 

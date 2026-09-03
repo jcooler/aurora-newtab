@@ -1,4 +1,5 @@
 import type { AccountClient } from './client'
+import { createPreviewProviderGateway } from '../providers/gateway'
 import { createBillingSummary } from './billing'
 import type { BillingPlan } from './billing'
 import type { AccountActions, AccountSnapshot, PremiumCapability } from './types'
@@ -157,10 +158,12 @@ const previewActions: AccountActions = Object.freeze({
 
 export function createPreviewAccountClient(): AccountClient {
   const snapshot = snapshotFor(requestedState())
+  const providerGateway = createPreviewProviderGateway('two-account', Date.UTC(2026, 8, 3, 15, 0, 0))
   return Object.freeze({
     async getSnapshot() { return snapshot },
     subscribe() { return () => {} },
     actions: previewActions,
     syncGateway: null,
+    providerGateway,
   })
 }

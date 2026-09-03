@@ -213,3 +213,20 @@ export async function ensureOrigins(urls: readonly string[]): Promise<boolean> {
 export async function removeOrigin(patternOrUrl: string): Promise<boolean> {
   return permissionsBoundary().remove({ origins: [originPattern(patternOrUrl)] })
 }
+
+/** Google Calendar's direct-read boundary is deliberately pinned instead of
+ * accepting a caller-supplied URL. The request must remain the first async
+ * boundary reached from the Connect click so Chrome retains the gesture. */
+export const GOOGLE_CALENDAR_API_ORIGIN = 'https://www.googleapis.com/*' as const
+
+export async function ensureGoogleCalendarOrigin(): Promise<boolean> {
+  return permissionsBoundary().request({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
+}
+
+export async function hasGoogleCalendarOrigin(): Promise<boolean> {
+  return permissionsBoundary().contains({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
+}
+
+export async function removeGoogleCalendarOrigin(): Promise<boolean> {
+  return permissionsBoundary().remove({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
+}

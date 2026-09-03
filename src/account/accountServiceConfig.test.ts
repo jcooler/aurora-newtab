@@ -9,6 +9,7 @@ const productionDescriptor = Object.freeze({
   publishableKey: 'sb_publishable_production-test-value',
   trustedLeaseKeys: Object.freeze({ 'production-2026-09-01': publicKey }),
   encryptedSyncEnabled: false,
+  googleCalendarEnabled: false,
 })
 
 describe('readAccountServiceConfig', () => {
@@ -41,6 +42,7 @@ describe('readAccountServiceConfig', () => {
       publishableKey: 'sb_publishable_local-test-value',
       trustedLeaseKeys: { 'local-test-key': publicKey },
       encryptedSyncEnabled: true,
+      googleCalendarEnabled: true,
     })
   })
 

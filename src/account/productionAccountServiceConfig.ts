@@ -5,6 +5,7 @@ export interface ProductionAccountServiceDescriptor {
   publishableKey: string
   trustedLeaseKeys: Readonly<Record<string, string>>
   encryptedSyncEnabled: boolean
+  googleCalendarEnabled: boolean
 }
 
 interface ProductionEnvironment {
@@ -26,6 +27,9 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
     'production-2026-09-01': 'MCowBQYDK2VwAyEA_HQX_9dTJSkjpDV-ZBiEC3bqu0bR6s81reGCbIJKlyg',
   }),
   encryptedSyncEnabled: true,
+  // The local extension boundary is ready, but hosted provider functions and
+  // credentials remain behind the later PM-P6 production activation gate.
+  googleCalendarEnabled: false,
 })
 
 export function readProductionAccountServiceConfig(
@@ -42,6 +46,7 @@ export function readProductionAccountServiceConfig(
     || !publishableKeyPattern.test(descriptor.publishableKey)
     || descriptor.publishableKey.startsWith('sb_secret_')
     || typeof descriptor.encryptedSyncEnabled !== 'boolean'
+    || typeof descriptor.googleCalendarEnabled !== 'boolean'
     || trustedEntries.length < 1
     || trustedEntries.length > 4
     || trustedEntries.some(([keyId, spki]) => !keyIdPattern.test(keyId)
@@ -55,5 +60,6 @@ export function readProductionAccountServiceConfig(
     publishableKey: descriptor.publishableKey,
     trustedLeaseKeys: Object.freeze(Object.fromEntries(trustedEntries)),
     encryptedSyncEnabled: descriptor.encryptedSyncEnabled,
+    googleCalendarEnabled: descriptor.googleCalendarEnabled,
   })
 }

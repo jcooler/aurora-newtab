@@ -3,6 +3,7 @@ export interface AccountServiceConfig {
   publishableKey: string
   trustedLeaseKeys: Readonly<Record<string, string>>
   encryptedSyncEnabled: boolean
+  googleCalendarEnabled: boolean
 }
 
 interface AccountServiceEnvironment {
@@ -58,5 +59,6 @@ export function readAccountServiceConfig(
     publishableKey,
     trustedLeaseKeys,
     encryptedSyncEnabled: true,
+    googleCalendarEnabled: true,
   })
 }

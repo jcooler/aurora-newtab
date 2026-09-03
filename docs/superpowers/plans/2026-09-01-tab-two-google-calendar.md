@@ -260,17 +260,23 @@ Migration 00700, provider KEK, Google web-client secret, and every provider func
 - Produces: build-mode provider gateway, exact OAuth return validator, in-memory token session cache, single-flight token refresh, and ownership-aware optional Google API origin grant/remove helpers.
 - Consumes: current account session/capability, existing Supabase host boundary, `chrome.identity.launchWebAuthFlow`, and existing `https://*/*` optional host declaration.
 
-- [ ] **Step 1: Write gateway/OAuth RED tests**
+- [x] **Step 1: Write gateway/OAuth RED tests**
 
 Prove local/free/preview/production separation, no silent connect, exact final redirect and nonce, cancel vs provider denial vs backend failure, no token persistence, stale session refresh, concurrent request coalescing, entitlement expiry, sign-out cleanup, account switch cleanup, optional-origin denial, and last-owner-only permission removal.
 
-- [ ] **Step 2: Implement with no new install-time permission**
+- [x] **Step 2: Implement with no new install-time permission**
 
 `identity` is already present in account-local and production builds. Keep the existing wildcard optional-host declaration and request only `https://www.googleapis.com/*` at the connection gesture. Preview uses deterministic fake connection/session data and never compiles a Google secret or production callback.
 
-- [ ] **Step 3: Run focused tests and observe GREEN**
+- [x] **Step 3: Run focused tests and observe GREEN**
 
-- [ ] **Step 4: Commit the client gateway checkpoint**
+- [x] **Step 4: Commit the client gateway checkpoint**
+
+Implementation note: the existing preview account implementation is
+`src/account/previewAccountClient.ts`, so that file supplies the deterministic
+provider fixture named above as `previewAccountService.ts`. Production remains
+configured with `googleCalendarEnabled: false` until the separate Task 9 hosted
+activation gate is explicitly approved.
 
 ---
 

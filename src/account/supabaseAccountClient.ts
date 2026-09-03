@@ -16,6 +16,15 @@ import {
 import type { AccountSessionStore, StoredAccountSessionV1 } from './sessionStorage'
 import type { AccountActions, AccountSnapshot, VerifiedEntitlementLease } from './types'
 import { createSyncGateway, type SyncGatewayDependencies } from '../sync/gateway'
+import {
+  createProviderGateway,
+  type ProviderGateway,
+  type ProviderGatewayDependencies,
+} from '../providers/gateway'
+import {
+  ensureGoogleCalendarOrigin,
+  removeGoogleCalendarOrigin,
+} from '../services/permissions'
 
 export interface AccountServiceSnapshot {
   accountId: string
@@ -56,6 +65,17 @@ export interface SupabaseAccountClientDependencies {
     createPortalSession(accessToken: string): Promise<ServiceResult<{ url: string }>>
   }
   sync?: Pick<SyncGatewayDependencies, 'origin' | 'allowedOrigins' | 'enabled' | 'fetch' | 'timeoutMs' | 'crypto'>
+  provider?: Pick<
+    ProviderGatewayDependencies,
+    | 'enabled'
+    | 'origin'
+    | 'allowedOrigins'
+    | 'fetch'
+    | 'randomBytes'
+    | 'identity'
+    | 'requestGoogleOrigin'
+    | 'removeGoogleOrigin'
+  >
   verifyLease(
     envelope: unknown,
     expectedAccountId: string,
@@ -145,6 +165,7 @@ export function createSupabaseAccountClient(
 ): AccountClient {
   let current: AccountSnapshot = localAccountSnapshot
   let hydration: Promise<AccountSnapshot> | null = null
+  let providerGateway: ProviderGateway | null = null
   const listeners = new Set<(snapshot: AccountSnapshot) => void>()
 
   function publish(snapshot: AccountSnapshot): AccountSnapshot {
@@ -154,6 +175,7 @@ export function createSupabaseAccountClient(
   }
 
   async function clearAuthority(): Promise<AccountSnapshot> {
+    providerGateway?.clearMemory()
     try {
       await dependencies.sessionStore.clear()
     } catch {
@@ -299,6 +321,22 @@ export function createSupabaseAccountClient(
       })
     : null
 
+  providerGateway = dependencies.provider
+    ? createProviderGateway({
+        ...dependencies.provider,
+        now: dependencies.now,
+        getAccount: () => current.mode === 'signed_in' && current.accountId !== null
+          ? {
+              accountId: current.accountId,
+              capabilities: current.lease?.capabilities ?? [],
+              leaseExpiresAt: current.lease?.expiresAt ?? 0,
+            }
+          : null,
+        getAccessToken: async () => (await billingSession())?.accessToken ?? null,
+        invalidateAuthentication: async () => { await clearAuthority() },
+      })
+    : null
+
   async function openPlans(plan: BillingPlan) {
     try {
       const prepared = await billingSession()
@@ -379,6 +417,7 @@ export function createSupabaseAccountClient(
     },
     actions,
     syncGateway,
+    providerGateway,
   })
 }
 
@@ -513,6 +552,21 @@ export function createConfiguredSupabaseAccountClient(config: AccountServiceConf
       allowedOrigins: [config.supabaseUrl],
       enabled: config.encryptedSyncEnabled,
       fetch: globalThis.fetch.bind(globalThis),
+    },
+    provider: {
+      origin: config.supabaseUrl,
+      allowedOrigins: [config.supabaseUrl],
+      enabled: config.googleCalendarEnabled,
+      fetch: globalThis.fetch.bind(globalThis),
+      randomBytes(size) {
+        return globalThis.crypto.getRandomValues(new Uint8Array(size))
+      },
+      identity: {
+        getRedirectURL: (path) => chrome.identity.getRedirectURL(path),
+        launchWebAuthFlow: (details) => chrome.identity.launchWebAuthFlow(details),
+      },
+      requestGoogleOrigin: ensureGoogleCalendarOrigin,
+      removeGoogleOrigin: removeGoogleCalendarOrigin,
     },
     verifyLease: (envelope, expectedAccountId, at) => verifyEntitlementLeaseV1(
       envelope as never,
