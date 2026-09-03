@@ -477,6 +477,27 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
   await page.getByRole('heading', { name: 'Your connected accounts' }).waitFor()
   evidence.interactions['reload-persistence'] = true
 
+  await page.evaluate(async ({ homeConnection, workConnection }) => {
+    const today = new Date()
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    await chrome.storage.local.set({
+      metricsHistory: {
+        version: 1,
+        installationId: '11111111-1111-4111-8111-111111111111',
+        buckets: [homeConnection, workConnection].map((connectionId, index) => ({
+          schemaVersion: 1,
+          id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+          date,
+          source: 'calendar',
+          sourceInstanceId: connectionId,
+          installationId: '11111111-1111-4111-8111-111111111111',
+          sequence: index + 1,
+          values: { kind: 'calendar', events: index + 1, busyMinutes: (index + 1) * 45 },
+        })),
+      },
+    })
+  }, { homeConnection: HOME_CONNECTION, workConnection: WORK_CONNECTION })
+
   const remove = page.getByRole('button', { name: 'Remove alex@example.test' })
   await remove.click()
   const confirmation = page.getByRole('alertdialog', { name: 'Remove alex@example.test?' })
@@ -491,6 +512,11 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
   await confirmed.getByRole('checkbox', { name: /Also delete this account’s Metrics history/i }).check()
   await confirmed.getByRole('button', { name: 'Disconnect account' }).click()
   await page.getByRole('heading', { name: 'Your connected account' }).waitFor()
+  await page.waitForFunction(async (remainingConnection) => {
+    const stored = await chrome.storage.local.get('connectors')
+    return stored.connectors?.googleCalendar?.accounts?.length === 1
+      && stored.connectors.googleCalendar.accounts[0]?.connectionId === remainingConnection
+  }, WORK_CONNECTION)
   const postDisconnect = await page.evaluate(() => chrome.storage.local.get(['connectors', 'metricsHistory']))
   assert.equal(postDisconnect.connectors.googleCalendar.accounts.length, 1)
   assert.equal(postDisconnect.connectors.googleCalendar.accounts[0].connectionId, WORK_CONNECTION)
