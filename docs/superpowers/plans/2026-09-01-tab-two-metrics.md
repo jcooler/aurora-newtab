@@ -42,7 +42,7 @@
 - Produces: `MetricSource`, `MetricValues`, `MetricBucketV1`, `MetricsHistoryV1`, `METRICS_HISTORY_VERSION`, `emptyMetricsHistory(deviceId)`, `metricsRetentionStart(today)`, `pruneMetricsHistory(history, today)`, `upsertLocalMetricBucket(history, input)`, `mergeMetricHistories(local, incoming, today)`, and `summarizeMetrics(history, range, today)`.
 - Consumes: local `YYYY-MM-DD` date keys and `crypto.randomUUID()` supplied through an injectable `createId` function in tests.
 
-- [ ] **Step 1: Write the failing domain tests**
+- [x] **Step 1: Write the failing domain tests**
 
 Cover exact tagged shapes and rejection of unknown fields, negative/fractional counts, non-finite values, invalid dates, malformed UUIDs, arbitrary activity types, oversized histories, and raw/private-looking keys. Prove the calendar cutoff from 2026-09-02 is 2025-09-01 and that the 365-day view begins 364 local days earlier without UTC day drift.
 
@@ -52,13 +52,13 @@ expect(metricRangeStart('365d', '2026-09-02')).toBe('2025-09-03')
 expect(() => assertMetricBucket({ ...bucket, values: { kind: 'tasks', completed: 1, taskText: 'secret' } })).toThrow('metric_bucket_invalid')
 ```
 
-- [ ] **Step 2: Run the focused test and observe RED**
+- [x] **Step 2: Run the focused test and observe RED**
 
 Run: `npm test -- --run src/metrics/history.test.ts`
 
 Expected: FAIL because the metrics modules do not exist.
 
-- [ ] **Step 3: Implement the closed tagged union**
+- [x] **Step 3: Implement the closed tagged union**
 
 Use these exact public shapes:
 
@@ -93,19 +93,19 @@ export interface MetricsHistoryV1 {
 }
 ```
 
-Limit a history to 8,192 buckets, use exact-key validators, cap each integer at `Number.MAX_SAFE_INTEGER`, and cap `distanceMeters` and `elevationMeters` the same way. `sourceInstanceId` and `installationId` are random UUIDs or the fixed allowlisted local source IDs `local-habits`, `local-tasks`, `ics`, `github`, `gitlab`, `jira`, `linear`, `vercel`, and `strava`; no user-controlled label is admitted.
+Limit a history to 8,192 buckets, use exact-key validators, cap each integer at `Number.MAX_SAFE_INTEGER`, and cap `distanceMeters` and `elevationMeters` the same way. `installationId` is always a random UUID. `sourceInstanceId` is a random UUID or one of the fixed allowlisted local source IDs `local-habits`, `local-tasks`, `ics`, `github`, `gitlab`, `jira`, `linear`, `vercel`, and `strava`; no user-controlled label is admitted.
 
-- [ ] **Step 4: Implement deterministic update and merge rules**
+- [x] **Step 4: Implement deterministic update and merge rules**
 
 `upsertLocalMetricBucket` may mutate only a bucket whose `installationId` equals the history installation. It retains the existing opaque bucket ID for the same `(date, source, sourceInstanceId, installationId)` tuple and increments `sequence`. Incoming sync buckets merge by opaque ID; equal IDs keep the higher sequence, and an equal sequence with unequal content throws `metric_history_conflict` instead of trusting a device clock. Summary queries sum focus buckets by installation and collapse mirrored logical source/day buckets field-by-field with maximum non-negative values.
 
-- [ ] **Step 5: Run focused tests and observe GREEN**
+- [x] **Step 5: Run focused tests and observe GREEN**
 
 Run: `npm test -- --run src/metrics/history.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the domain checkpoint**
+- [x] **Step 6: Commit the domain checkpoint**
 
 ```powershell
 git add src/metrics/types.ts src/metrics/history.ts src/metrics/history.test.ts
@@ -526,4 +526,3 @@ Do not ask the owner to execute this list during ordinary PM-P5 development. Pre
 - [ ] **Step 6: Reconcile, commit, push, and prove equality**
 
 Stage only intended PM-P5 files. Push the feature branch and prove local HEAD equals upstream and remote. Confirm the protected original and protected untracked paths remain unchanged. Do not merge, package, release, enable live Stripe, provision Supabase Pro, or perform a Chrome Web Store action.
-
