@@ -523,6 +523,6 @@ At minimum retain:
 
 Do not ask the owner to execute this list during ordinary PM-P5 development. Present the consolidated list at the end requested by the owner or when no safe implementation work remains before a hard external gate.
 
-- [ ] **Step 6: Reconcile, commit, push, and prove equality**
+- [x] **Step 6: Reconcile, commit, push, and prove equality**
 
 Stage only intended PM-P5 files. Push the feature branch and prove local HEAD equals upstream and remote. Confirm the protected original and protected untracked paths remain unchanged. Do not merge, package, release, enable live Stripe, provision Supabase Pro, or perform a Chrome Web Store action.
