@@ -27,9 +27,9 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
     'production-2026-09-01': 'MCowBQYDK2VwAyEA_HQX_9dTJSkjpDV-ZBiEC3bqu0bR6s81reGCbIJKlyg',
   }),
   encryptedSyncEnabled: true,
-  // The local extension boundary is ready, but hosted provider functions and
-  // credentials remain behind the later PM-P6 production activation gate.
-  googleCalendarEnabled: false,
+  // Hosted provider functions are active for the bounded PM-P6 OAuth-testing
+  // cohort. Public OAuth publication remains a separate approval gate.
+  googleCalendarEnabled: true,
 })
 
 export function readProductionAccountServiceConfig(

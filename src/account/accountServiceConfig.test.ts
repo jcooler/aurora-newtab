@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { readAccountServiceConfig } from './accountServiceConfig'
-import { readProductionAccountServiceConfig } from './productionAccountServiceConfig'
+import {
+  productionAccountServiceConfig,
+  readProductionAccountServiceConfig,
+} from './productionAccountServiceConfig'
 
 const publicKey = 'MCowBQYDK2VwAyEAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const productionDescriptor = Object.freeze({
@@ -17,6 +20,11 @@ describe('readAccountServiceConfig', () => {
     expect(readProductionAccountServiceConfig({ MODE: 'production' }, productionDescriptor)).toEqual(
       productionDescriptor,
     )
+  })
+
+  it('enables Google Calendar for the approved production account service', () => {
+    expect(readProductionAccountServiceConfig({ MODE: 'production' }, productionAccountServiceConfig))
+      .toMatchObject({ googleCalendarEnabled: true })
   })
 
   it.each([
