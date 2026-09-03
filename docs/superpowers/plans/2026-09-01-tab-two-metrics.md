@@ -381,11 +381,11 @@ Record local proof and leave migration 00600 undeployed. Hosted Supabase mutatio
 - Consumes: the approved Tab Two accent, typography, spacing, focus, card-density, and reduced-motion tokens; PM-P1 Account & Sync brand treatment; Task 1 summary contracts.
 - Produces: original-resolution locked, first-use empty, populated compact, populated standard, populated expanded 7/30/90/365-day, expired-history-readable, and unavailable/error PNG states at desktop plus touch-narrow geometry.
 
-- [ ] **Step 1: Read the UI skills before visual work**
+- [x] **Step 1: Read the UI skills before visual work**
 
 Use `frontend-design` and `design-workflow`. Preserve the brand colors already approved for Account & Sync. No Emil Kowalski-specific skill is installed in this workspace; apply the available motion/design-system guidance without adding a dependency.
 
-- [ ] **Step 2: Build a deterministic non-production mockup harness**
+- [x] **Step 2: Build a deterministic non-production mockup harness**
 
 Use static aggregate fixtures only. The proposed widget has:
 
@@ -396,17 +396,17 @@ Use static aggregate fixtures only. The proposed widget has:
 - expired: retained history remains visible with `History paused` and a resubscribe action;
 - loading: stable reserved geometry and reduced-motion-safe shimmer/spinner; error: useful retained data stays visible while collection status is explained.
 
-- [ ] **Step 3: Render and inspect every PNG at original resolution**
+- [x] **Step 3: Render and inspect every PNG at original resolution**
 
 Run: `node scripts/qa-metrics-mockups.mjs`
 
 Reject clipped axes, tiny labels, generic dashboard grids, excessive pills, color-only category distinctions, touch targets below 44 CSS px where coarse-pointer interaction is expected, or movement that ignores `prefers-reduced-motion`.
 
-- [ ] **Step 4: Attach PNGs directly and stop for owner visual approval**
+- [x] **Step 4: Attach PNGs directly and stop for owner visual approval**
 
 Do not edit production Metrics React or CSS until the owner explicitly approves these states. This is a product design approval gate, distinct from the cumulative end-of-development hands-on QA checklist.
 
-- [ ] **Step 5: Commit the approved visual spec and harness**
+- [x] **Step 5: Commit the approved visual spec and harness**
 
 ```powershell
 git add scripts/qa-metrics-mockups.mjs docs/superpowers/reports/TAB-TWO-METRICS-VISUAL-SPEC.md
