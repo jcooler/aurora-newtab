@@ -4,7 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Installed-extension evidence source:** `6087d131a3fbb641d392d8a123ea87fa707c3d5f`<br>
 **Stabilized developer-gate source:** `c4dd03625c50d0e0cf7c7cb8f34dcc5e0e3e9efc`<br>
-**Result:** PASS for the local PM-P7 implementation, source isolation, privacy boundaries, aggregate-only Metrics projection, exact build isolation, and installed-extension Chromium QA. Microsoft Entra registration, hosted Supabase activation, real Microsoft consent, live Graph data, and provider-side revocation remain closed or deferred.
+**Hosted activation source:** `191eb88629a5f750d2e8bd8fe338aaeec8299138`<br>
+**Result:** PASS for the local PM-P7 implementation, hosted Microsoft OAuth policy boundary, exact cleanup, source isolation, privacy boundaries, aggregate-only Metrics projection, exact build isolation, and installed-extension Chromium QA. Real Microsoft consent, live Graph data, organizational policy, and provider-side revocation remain deferred.
 
 ## Delivered boundary
 
@@ -16,6 +17,16 @@
 - Calendar composition preserves Microsoft, Google, and free ICS source colors and account/provider labels in the existing Calendar surface. No Microsoft-only widget or migration of free Calendar data exists.
 - Metrics receives only daily numeric event counts and merged busy minutes keyed by an opaque connection UUID. Microsoft account labels, event text, calendar identifiers, URLs, cursors, provider responses, tokens, and credentials are excluded from Metrics, backup, encrypted sync, diagnostics, and logs.
 - Partial-account, offline, rate-limit, entitlement, and reconnect paths retain the last complete local schedule. Disconnect removes the exact local connection and hosted authority contract without claiming to sign the customer out of Microsoft or revoke the Microsoft grant.
+
+## Hosted sandbox activation
+
+- The owner approved the exact 12-item Microsoft Entra and hosted Supabase checklist before mutation. The registered `Tab Two Calendar` application supports organizational directories and personal Microsoft accounts, uses only `https://ovlobmvxtryitupxwylg.supabase.co/functions/v1/microsoft-calendar-oauth-callback`, and remains an unverified publisher application.
+- Microsoft Graph has exactly four delegated permissions: `openid`, `offline_access`, `User.Read`, and `Calendars.ReadBasic`. Each portal row reports that admin consent is not required by default. No application permission or tenant-wide admin consent was added.
+- The 180-day `Tab Two Supabase sandbox` client credential expires on 2027-03-02. Its one-time value was copied directly into Supabase secret storage without being printed or written to a file, then removed from the system clipboard. Only the names `MICROSOFT_CALENDAR_OAUTH_CLIENT_ID`, `MICROSOFT_CALENDAR_OAUTH_CLIENT_SECRET`, and `TAB_TWO_MICROSOFT_TOKEN_KEK_V1` were inspected afterward.
+- Only migration `20260903000800_microsoft_calendar_provider.sql` was applied. Only `microsoft-calendar-oauth-start`, `microsoft-calendar-oauth-callback`, `microsoft-calendar-connections`, `microsoft-calendar-session`, and `microsoft-calendar-disconnect` were deployed. The callback is the sole JWT-disabled endpoint; the other four require JWT verification.
+- Production source `191eb88629a5f750d2e8bd8fe338aaeec8299138` enables `microsoftCalendarEnabled`. This exposes the connector to entitled customers but does not grant Graph access, connect an account, publish the Entra app, or turn on a customer setting automatically.
+- The exact synthetic hosted matrix passed 13 policy and isolation interactions in 9 function invocations and 1,695 response bytes. It used no owner data. Cleanup left zero synthetic accounts, Auth users, provider connections, OAuth transactions, and rate-limit rows. Evidence: `artifacts/qa-microsoft-calendar-hosted/191eb88629a5f750d2e8bd8fe338aaeec8299138/evidence.json`.
+- Independent metadata-only inspection found migration count 1, all four provider constraints, exactly five ACTIVE version 1 functions with the intended JWT split, all three required secret names, and zero PM-P7 QA Auth users, identities, or rate-limit rows. No ciphertext, customer row, secret value, or calendar content was read.
 
 ## Review and focused repair
 
@@ -45,9 +56,9 @@ The repository-wide suite retains its pre-existing React `act(...)` warning in `
 
 Evidence directory: `docs/superpowers/qa/microsoft-calendar/6087d131a3fbb641d392d8a123ea87fa707c3d5f/`
 
-The exact installed MV3 matrix used synthetic data only. It captured:
+The exact installed MV3 matrix used synthetic data only before hosted activation. It captured:
 
-- production locked with Microsoft compiled off and no provider request;
+- the pre-activation production lock with Microsoft compiled off and no provider request;
 - read-only consent, opening progress, calendar selection, separate personal/work accounts, organization approval, partial-account recovery, reconnect with retained events, disconnect plus optional Metrics-history deletion, and touch selection;
 - composed Microsoft, Google, and ICS events in full, stacked, and docked Calendar presentations;
 - desktop `1600x900`, short `1408x600`, ultrawide `3440x1440`, and touch-enabled `390x844` with no horizontal overflow or escaped surface;
@@ -72,11 +83,11 @@ The retained screenshots are:
 - `personal-and-work-ultrawide.png`
 - `touch-selection.png`
 
-## Manual and hosted ceilings
+## Remaining manual ceilings
 
-The local matrix does not claim a real Microsoft authorization-code exchange, renewable-token lifecycle, live Calendar discovery/delta response, organizational tenant policy, admin consent, provider-side grant revocation, native Chrome optional-host prompt, stable Chrome popup lifecycle, physical MacBook behavior, or real assistive-technology speech and interaction. Those owner checks remain in `TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md` for the final cumulative handoff.
+The local and synthetic hosted matrices do not claim a real Microsoft authorization-code exchange, renewable-token lifecycle, live Calendar discovery/delta response, organizational tenant policy, provider-side grant revocation, native Chrome optional-host prompt, stable Chrome popup lifecycle, physical MacBook behavior, or real assistive-technology speech and interaction. Those owner checks remain in `TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md` for the final cumulative handoff.
 
-Task 12 remains a hard stop. No Entra application, redirect, delegated permission, client secret, Microsoft KEK, migration 00800, Edge deployment, production feature flag, owner-installation Graph permission, or real Microsoft account/calendar access has been created or activated. Supabase Pro, live Stripe, merge, package, release, and every Chrome Web Store action remain separately gated.
+PM-P7 Task 12 is complete at the hosted sandbox boundary. General provider publication, verified publisher status, tenant-wide consent, Supabase Pro, live Stripe, merge, package, release, and every Chrome Web Store action remain separately gated.
 
 ## Repository integrity
 

@@ -44,6 +44,7 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 
 ## PM-P7 Microsoft Calendar
 
+- Use the current personal Microsoft account for the first real-flow witness. Treat a Microsoft 365 work or school account as a later coverage case, not a prerequisite for the personal-account check. The sandbox publisher remains unverified, so an organization's policy may still require administrator approval.
 - In normal stable Chrome, start Microsoft Calendar from its explicit premium connector action. Confirm Chrome's native optional Graph-origin prompt is understandable and appears before Microsoft's account flow.
 - In Microsoft's real consent flow, confirm the intended personal or work account is clearly selected and the requested delegated access is exactly identity, offline access, basic profile, and read-only basic Calendar access.
 - Confirm the calendar picker shows real names and colors, defaults the account's default calendar, and displays only calendars explicitly selected.

@@ -1052,11 +1052,11 @@ The approval text must authorize the listed Entra and hosted sandbox mutations. 
 
 The harness accepts values only from process memory or direct secure prompts, redacts every credential/token, caps traffic, creates disposable synthetic Tab Two accounts, never requests Microsoft calendar data, and proves exact cleanup. Test JWT enforcement, redirect binding, entitlement denial, exact authorization parameters, state replay, personal/work metadata shapes, cross-account rejection, scope rejection, token rotation metadata, rate limits, disconnect deletion with `revocationConfirmed: false`, and account-history deletion.
 
-- [ ] **Step 4: Apply only the approved hosted delta**
+- [x] **Step 4: Apply only the approved hosted delta**
 
 Create the dedicated Entra application/configuration, store the three secrets directly, apply only migration 00800, deploy only the five Microsoft functions with the intended JWT split, and enable only `microsoftCalendarEnabled` in production source. Do not change Google configuration or any unrelated hosted object.
 
-- [ ] **Step 5: Run the bounded hosted matrix and clean up**
+- [x] **Step 5: Run the bounded hosted matrix and clean up**
 
 ```powershell
 node --test scripts/qa-microsoft-calendar-hosted.test.mjs
@@ -1065,15 +1065,15 @@ npm run qa:microsoft-calendar-hosted -- --exact
 
 Expected: all synthetic policy checks pass within caps, then exact cleanup leaves zero PM-P7 QA Auth users, identities, provider connections, OAuth transactions, or provider rate-limit rows.
 
-- [ ] **Step 6: Perform independent metadata-only inspection**
+- [x] **Step 6: Perform independent metadata-only inspection**
 
 Verify migration 00800, provider-specific constraints, exact five active function versions and JWT split, required secret names without values, production flag, and zero residual fixtures. Do not read ciphertext, customer rows, owner data, or secret values.
 
-- [ ] **Step 7: Run the activation-delta gate and push**
+- [x] **Step 7: Run the activation-delta gate and push**
 
 Run focused config, hosted harness, provider Edge, pgTAP, lint, audit, exact production build, credential scan, and production-locked/feature-enabled fixture checks. Record evidence, commit only the approved activation delta, push, and prove local/upstream/remote equality.
 
-- [ ] **Step 8: Stop at the real-provider manual ceiling**
+- [x] **Step 8: Stop at the real-provider manual ceiling**
 
 Do not claim real Microsoft exchange, Graph refresh, organizational consent, publisher verification, physical-device behavior, or general production readiness from synthetic hosted proof. Add those checks to PM-P9's cumulative owner list. Do not merge, package, release, or perform a Store action.
 
