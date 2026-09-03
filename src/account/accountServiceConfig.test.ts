@@ -29,9 +29,9 @@ describe('readAccountServiceConfig', () => {
       .toMatchObject({ googleCalendarEnabled: true })
   })
 
-  it('keeps Microsoft Calendar hosted activation locked off in production', () => {
+  it('enables Microsoft Calendar after the approved hosted activation', () => {
     expect(readProductionAccountServiceConfig({ MODE: 'production' }, productionAccountServiceConfig))
-      .toMatchObject({ microsoftCalendarEnabled: false })
+      .toMatchObject({ microsoftCalendarEnabled: true })
   })
 
   it.each([

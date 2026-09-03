@@ -31,8 +31,9 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
   // Hosted provider functions are active for the bounded PM-P6 OAuth-testing
   // cohort. Public OAuth publication remains a separate approval gate.
   googleCalendarEnabled: true,
-  // Microsoft remains local/preview-only until the hosted Entra gate.
-  microsoftCalendarEnabled: false,
+  // The bounded PM-P7 Entra and hosted activation gate is verified. Public
+  // OAuth publication and real-provider owner QA remain separate gates.
+  microsoftCalendarEnabled: true,
 })
 
 export function readProductionAccountServiceConfig(
