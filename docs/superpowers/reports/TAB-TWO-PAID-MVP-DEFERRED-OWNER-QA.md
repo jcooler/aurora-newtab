@@ -26,6 +26,20 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - With the network unavailable, confirm the last local history remains readable and no destructive fallback occurs.
 - With encrypted sync enabled, confirm a second installation receives the same aggregate bucket without receiving raw source data.
 
+## PM-P6 Google Calendar
+
+- In normal stable Chrome, start the Google Calendar connection from its explicit premium connector action. Confirm Chrome's native optional-host prompt is understandable and appears before Google's account flow.
+- In Google's real consent flow, confirm the intended test account is clearly selected and the requested access is limited to identity plus read-only Calendar discovery and events.
+- Confirm the calendar picker shows the real calendar names and colors for that account, defaults the primary calendar, and displays only the calendars explicitly selected.
+- Add a second approved Google test account. Confirm both identities stay distinct, selected events keep their source colors, and existing free ICS events remain present in the same Calendar.
+- Close and reopen Tab Two, then confirm the selected calendars persist locally without another consent flow and without exposing a provider token.
+- Reconnect one approved test account and confirm its saved row is replaced rather than duplicated. Remove one account and confirm the other Google account and every ICS calendar remain unchanged.
+- From a second signed-in Tab Two installation, confirm the server-held Google connection can be reused only by the same Tab Two account while each installation keeps its own displayed-calendar selections.
+- Revoke the approved test grant from Google's account controls. Confirm Tab Two moves only that account to a clear reconnect state, retains its last local events, and recovers after explicit reconnection.
+- Repeat the connect, account-add, reconnect, and remove paths in stable Chrome to confirm the native Google popup opens, closes, and restores focus reliably.
+- Verify keyboard-only operation, visible focus, and spoken labels for consent, picker, account rows, reconnect, and disconnect with the owner's real assistive-technology setup.
+- Smoke test the final unpacked build on the owner's MacBook, including Google popup behavior, picker scrolling, source colors, and Calendar full, docked, and stacked presentations.
+
 ## Final device and accessibility ceilings
 
 - Use stable Chrome rather than automation Chromium for one complete Account & Sync and Metrics pass.

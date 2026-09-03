@@ -385,23 +385,23 @@ production provider flag and every hosted Google authority are still disabled.
 - Consumes: complete PM-P6 diff, deterministic preview provider, local Supabase provider broker, exact production/account-local/preview builds, and current free-product regression harnesses.
 - Produces: one exact-provenance request/storage/interaction/geometry record and cumulative owner-QA additions.
 
-- [ ] **Step 1: Perform the one bounded complete-diff review**
+- [x] **Step 1: Perform the one bounded complete-diff review**
 
 Inspect account isolation, token custody, OAuth CSRF/replay/redirect, scope exactness, secret leakage, permission ownership, incremental cursor correctness, paging atomicity, 410 recovery, quota/rate limits, disconnect/revocation, entitlement expiry, metrics privacy, backup/sync denial, accessibility, and existing ICS/Calendar regression. Apply at most one focused Critical/Important fix and rereview cycle.
 
-- [ ] **Step 2: Run the stabilized developer gate**
+- [x] **Step 2: Run the stabilized developer gate**
 
 Run affected provider/calendar/storage/sync/metrics/settings suites, then one full `npm test -- --run`, `npx tsc --noEmit`, `git diff --check`, dependency audit, secret/fixture/artifact scans, local Supabase reset/pgTAP/lint/Edge tests, exact account-local build, exact production build, exact preview build, and restore the production build last.
 
-- [ ] **Step 3: Run exact Chromium QA**
+- [x] **Step 3: Run exact Chromium QA**
 
 At 1600x900, 1408x600, 3440x1440, and touch-enabled 390x844, cover all approved states; account add/reconnect/remove; calendar selection and colors; spinner/reduced motion; keyboard focus and restoration; optional-origin request adapters; offline/expired/partial failures; composed ICS plus two Google accounts; Calendar compact/standard/full/docked/stacked geometry; Metrics aggregation; reload persistence; and zero unexpected request, storage, console, page, or failed-request entries.
 
-- [ ] **Step 4: Maintain the cumulative owner checklist without requesting it yet**
+- [x] **Step 4: Maintain the cumulative owner checklist without requesting it yet**
 
 Add only owner-only ceilings: real Google account selection/consent, native optional-host prompt, real Calendar discovery and color match, account add/reconnect/remove, cross-installation connection reuse, Google grant revocation, stable Chrome popup behavior, real assistive technology, and MacBook smoke testing. Do not ask the owner to run these during PM-P6 development.
 
-- [ ] **Step 5: Commit the local QA checkpoint**
+- [x] **Step 5: Commit the local QA checkpoint**
 
 ---
 

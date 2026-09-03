@@ -1,0 +1,355 @@
+{
+  "commit": "bacf83980f1a8a383190d537270ad9d210fa3e97",
+  "result": "PASS",
+  "builds": {
+    "production": {
+      "commit": "bacf83980f1a8a383190d537270ad9d210fa3e97",
+      "mode": "production",
+      "previewFixture": false
+    },
+    "accountLocal": {
+      "commit": "bacf83980f1a8a383190d537270ad9d210fa3e97",
+      "mode": "account-local",
+      "previewFixture": false
+    },
+    "preview": {
+      "commit": "bacf83980f1a8a383190d537270ad9d210fa3e97",
+      "mode": "preview",
+      "previewFixture": true
+    }
+  },
+  "execution": {
+    "production": "installed-extension",
+    "accountLocal": "installed-extension",
+    "preview": "installed-extension"
+  },
+  "interactions": {
+    "production-locked": true,
+    "account-local-locked": true,
+    "preconsent": true,
+    "discovery-loading": true,
+    "reduced-motion": true,
+    "calendar-picker": true,
+    "default-selection": true,
+    "save-announcement": true,
+    "add-account": true,
+    "reload-persistence": true,
+    "partial-account": true,
+    "offline-retained": true,
+    "expired-retained": true,
+    "disconnect-cancel": true,
+    "disconnect-confirm": true,
+    "history-delete-scoped": true,
+    "calendar-composed": true,
+    "calendar-full": true,
+    "calendar-docked": true,
+    "calendar-stacked": true,
+    "metrics-aggregate-only": true,
+    "keyboard-focus": true,
+    "touch-controls": true,
+    "no-overflow": true
+  },
+  "viewports": [
+    {
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/two-accounts-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "viewport": {
+        "id": "short",
+        "width": 1408,
+        "height": 600,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/two-accounts-short.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "viewport": {
+        "id": "ultrawide",
+        "width": 3440,
+        "height": 1440,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/two-accounts-ultrawide.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "viewport": {
+        "id": "touch",
+        "width": 390,
+        "height": 844,
+        "touch": true
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/calendar-picker-touch.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    }
+  ],
+  "screenshots": [
+    {
+      "id": "production-locked",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/production-locked.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "account-local-locked",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/account-local-locked.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "preconsent-desktop",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/preconsent-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "discovery-loading-desktop",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/discovery-loading-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "two-accounts-desktop",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/two-accounts-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "composed-calendar-full-desktop",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/composed-calendar-full-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "composed-calendar-docked-desktop",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/composed-calendar-docked-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "composed-calendar-stacked-desktop",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/composed-calendar-stacked-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "partial-account-desktop",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/partial-account-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "expired-retained-desktop",
+      "viewport": {
+        "id": "desktop",
+        "width": 1600,
+        "height": 900,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/expired-retained-desktop.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "two-accounts-short",
+      "viewport": {
+        "id": "short",
+        "width": 1408,
+        "height": 600,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/two-accounts-short.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "two-accounts-ultrawide",
+      "viewport": {
+        "id": "ultrawide",
+        "width": 3440,
+        "height": 1440,
+        "touch": false
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/two-accounts-ultrawide.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    },
+    {
+      "id": "calendar-picker-touch",
+      "viewport": {
+        "id": "touch",
+        "width": 390,
+        "height": 844,
+        "touch": true
+      },
+      "screenshotPath": "docs/superpowers/qa/google-calendar/bacf83980f1a8a383190d537270ad9d210fa3e97/calendar-picker-touch.png",
+      "horizontalOverflow": false,
+      "escaped": []
+    }
+  ],
+  "allowedRequests": [
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-list"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-events"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-events"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-list"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-events"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-events"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-events"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-events"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-events"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "kind": "calendar-events"
+    },
+    {
+      "label": "preview-touch",
+      "method": "GET",
+      "kind": "calendar-list"
+    }
+  ],
+  "expectedFailedRequests": [
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500&showDeleted=true&singleEvents=true&fields=items%28id%2Cstatus%2Csummary%2Cstart%2Cend%2ChtmlLink%2ChangoutLink%2CconferenceData%28entryPoints%28entryPointType%2Curi%29%29%2CrecurringEventId%2CoriginalStartTime%2Cupdated%2Ctransparency%29%2CnextPageToken%2CnextSyncToken%2CtimeZone&timeMin=2026-08-03T04%3A00%3A00.000Z&timeMax=2026-11-04T05%3A00%3A00.000Z",
+      "failure": "net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "url": "https://www.googleapis.com/calendar/v3/calendars/family%40example.test/events?maxResults=2500&showDeleted=true&singleEvents=true&fields=items%28id%2Cstatus%2Csummary%2Cstart%2Cend%2ChtmlLink%2ChangoutLink%2CconferenceData%28entryPoints%28entryPointType%2Curi%29%29%2CrecurringEventId%2CoriginalStartTime%2Cupdated%2Ctransparency%29%2CnextPageToken%2CnextSyncToken%2CtimeZone&timeMin=2026-08-03T04%3A00%3A00.000Z&timeMax=2026-11-04T05%3A00%3A00.000Z",
+      "failure": "net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "label": "preview-desktop",
+      "method": "GET",
+      "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500&showDeleted=true&singleEvents=true&fields=items%28id%2Cstatus%2Csummary%2Cstart%2Cend%2ChtmlLink%2ChangoutLink%2CconferenceData%28entryPoints%28entryPointType%2Curi%29%29%2CrecurringEventId%2CoriginalStartTime%2Cupdated%2Ctransparency%29%2CnextPageToken%2CnextSyncToken%2CtimeZone&timeMin=2026-08-03T04%3A00%3A00.000Z&timeMax=2026-11-04T05%3A00%3A00.000Z",
+      "failure": "net::ERR_INTERNET_DISCONNECTED"
+    }
+  ],
+  "expectedConsoleErrors": [
+    {
+      "label": "preview-desktop",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "label": "preview-desktop",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "label": "preview-desktop",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "label": "preview-desktop",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+    }
+  ],
+  "unexpectedRequests": [],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "failedRequests": []
+}
