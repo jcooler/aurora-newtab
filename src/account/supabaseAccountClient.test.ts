@@ -100,6 +100,7 @@ describe('readAccountServiceConfig', () => {
       },
       encryptedSyncEnabled: true,
       googleCalendarEnabled: true,
+      microsoftCalendarEnabled: true,
     })
   })
 
@@ -381,6 +382,29 @@ describe('Supabase AccountClient', () => {
       ok: true,
       value: { connections: [{ accountKind: 'work_or_school' }] },
     })
+  })
+
+  it('makes zero Microsoft hosted requests while the provider gate is disabled', async () => {
+    const microsoftFetch = vi.fn<typeof fetch>()
+    value.deps.microsoftProvider = {
+      enabled: false,
+      origin: 'https://ovlobmvxtryitupxwylg.supabase.co',
+      allowedOrigins: ['https://ovlobmvxtryitupxwylg.supabase.co'],
+      fetch: microsoftFetch,
+      randomBytes: () => new Uint8Array(32),
+      identity: {
+        getRedirectURL: () => 'https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/microsoft-calendar',
+        launchWebAuthFlow: vi.fn(),
+      },
+      requestMicrosoftOrigin: vi.fn(async () => true),
+      removeMicrosoftOrigin: vi.fn(async () => true),
+    }
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+
+    await expect(client.providerGateways.microsoft_calendar?.listConnections())
+      .resolves.toEqual({ ok: false, code: 'not_configured' })
+    expect(microsoftFetch).not.toHaveBeenCalled()
   })
 
   it('never lends the stored session to a gateway request for another account', async () => {

@@ -13,6 +13,10 @@ import {
   ensureGoogleCalendarOrigin,
   hasGoogleCalendarOrigin,
   removeGoogleCalendarOrigin,
+  MICROSOFT_GRAPH_ORIGIN,
+  ensureMicrosoftGraphOrigin,
+  hasMicrosoftGraphOrigin,
+  removeMicrosoftGraphOrigin,
 } from './permissions'
 
 describe('hasPermission / ensurePermission (chrome.permissions wrappers)', () => {
@@ -246,5 +250,41 @@ describe('Google Calendar optional origin boundary', () => {
     expect(request).toHaveBeenCalledWith({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
     expect(contains).toHaveBeenCalledWith({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
     expect(remove).toHaveBeenCalledWith({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
+  })
+})
+
+describe('Microsoft Calendar optional origin boundary', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('pins request, observation, and removal to the exact Graph origin without touching Google', async () => {
+    const contains = vi.fn().mockResolvedValue(true)
+    const request = vi.fn().mockResolvedValue(true)
+    const remove = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('chrome', { permissions: { contains, request, remove } })
+
+    expect(MICROSOFT_GRAPH_ORIGIN).toBe('https://graph.microsoft.com/*')
+    await expect(ensureMicrosoftGraphOrigin()).resolves.toBe(true)
+    await expect(hasMicrosoftGraphOrigin()).resolves.toBe(true)
+    await expect(removeMicrosoftGraphOrigin()).resolves.toBe(true)
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith({ origins: [MICROSOFT_GRAPH_ORIGIN] })
+    expect(contains).toHaveBeenCalledWith({ origins: [MICROSOFT_GRAPH_ORIGIN] })
+    expect(remove).toHaveBeenCalledWith({ origins: [MICROSOFT_GRAPH_ORIGIN] })
+    expect(request).not.toHaveBeenCalledWith({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
+  })
+
+  it('preserves an explicit denial and rejection without a second request', async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error('gesture expired'))
+    vi.stubGlobal('chrome', { permissions: { request } })
+
+    await expect(ensureMicrosoftGraphOrigin()).resolves.toBe(false)
+    await expect(ensureMicrosoftGraphOrigin()).rejects.toThrow('gesture expired')
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request).toHaveBeenNthCalledWith(1, { origins: [MICROSOFT_GRAPH_ORIGIN] })
+    expect(request).toHaveBeenNthCalledWith(2, { origins: [MICROSOFT_GRAPH_ORIGIN] })
   })
 })

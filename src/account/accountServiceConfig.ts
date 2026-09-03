@@ -4,6 +4,7 @@ export interface AccountServiceConfig {
   trustedLeaseKeys: Readonly<Record<string, string>>
   encryptedSyncEnabled: boolean
   googleCalendarEnabled: boolean
+  microsoftCalendarEnabled: boolean
 }
 
 interface AccountServiceEnvironment {
@@ -60,5 +61,6 @@ export function readAccountServiceConfig(
     trustedLeaseKeys,
     encryptedSyncEnabled: true,
     googleCalendarEnabled: true,
+    microsoftCalendarEnabled: true,
   })
 }

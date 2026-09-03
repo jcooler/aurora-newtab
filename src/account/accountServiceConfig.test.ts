@@ -4,6 +4,7 @@ import { readAccountServiceConfig } from './accountServiceConfig'
 import {
   productionAccountServiceConfig,
   readProductionAccountServiceConfig,
+  type ProductionAccountServiceDescriptor,
 } from './productionAccountServiceConfig'
 
 const publicKey = 'MCowBQYDK2VwAyEAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -13,6 +14,7 @@ const productionDescriptor = Object.freeze({
   trustedLeaseKeys: Object.freeze({ 'production-2026-09-01': publicKey }),
   encryptedSyncEnabled: false,
   googleCalendarEnabled: false,
+  microsoftCalendarEnabled: false,
 })
 
 describe('readAccountServiceConfig', () => {
@@ -27,6 +29,11 @@ describe('readAccountServiceConfig', () => {
       .toMatchObject({ googleCalendarEnabled: true })
   })
 
+  it('keeps Microsoft Calendar hosted activation locked off in production', () => {
+    expect(readProductionAccountServiceConfig({ MODE: 'production' }, productionAccountServiceConfig))
+      .toMatchObject({ microsoftCalendarEnabled: false })
+  })
+
   it.each([
     ['http origin', { ...productionDescriptor, supabaseUrl: 'http://ovlobmvxtryitupxwylg.supabase.co' }],
     ['localhost', { ...productionDescriptor, supabaseUrl: 'http://127.0.0.1:54321' }],
@@ -35,8 +42,13 @@ describe('readAccountServiceConfig', () => {
     ['path', { ...productionDescriptor, supabaseUrl: 'https://ovlobmvxtryitupxwylg.supabase.co/auth' }],
     ['secret key', { ...productionDescriptor, publishableKey: 'sb_secret_forbidden-value' }],
     ['missing trusted key', { ...productionDescriptor, trustedLeaseKeys: {} }],
+    ['missing Microsoft flag', (({ microsoftCalendarEnabled: _flag, ...descriptor }) => descriptor)(productionDescriptor)],
+    ['malformed Microsoft flag', { ...productionDescriptor, microsoftCalendarEnabled: 'yes' }],
   ])('rejects production %s', (_name, descriptor) => {
-    expect(readProductionAccountServiceConfig({ MODE: 'production' }, descriptor)).toBeNull()
+    expect(readProductionAccountServiceConfig(
+      { MODE: 'production' },
+      descriptor as unknown as ProductionAccountServiceDescriptor,
+    )).toBeNull()
   })
 
   it('preserves the exact account-local boundary', () => {
@@ -51,6 +63,7 @@ describe('readAccountServiceConfig', () => {
       trustedLeaseKeys: { 'local-test-key': publicKey },
       encryptedSyncEnabled: true,
       googleCalendarEnabled: true,
+      microsoftCalendarEnabled: true,
     })
   })
 

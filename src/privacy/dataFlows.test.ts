@@ -234,11 +234,21 @@ describe('code-backed privacy inventory', () => {
       operations: ['GET CalendarList and Events resources directly from Google Calendar API'],
     })
     expect(CONNECTOR_DATA_FLOWS.microsoftCalendar).toMatchObject({
+      account: 'third-party',
+      authenticationFields: [],
+      capabilityFields: ['accounts', 'calendar selections'],
       backup: 'excluded',
       permission: 'optional-per-origin',
       transmission: 'provider-direct',
+      destinationKind: 'fixed-provider',
       destinations: ['graph.microsoft.com'],
+      trigger: ['explicit calendar discovery or visible-document refresh while enabled and entitled'],
+      methods: ['GET'],
+      sends: ['short-lived bearer token, selected calendar identifiers, bounded window, and pagination or delta cursor'],
+      receives: ['selected calendar names, colors, and minimized event fields'],
+      cache: 'connectorSnapshots-excluded-from-backup',
       backend: 'authentication-metadata-only',
+      operations: ['GET Calendar and calendarView delta resources directly from Microsoft Graph'],
     })
   })
 
@@ -431,6 +441,7 @@ describe('code-backed privacy inventory', () => {
       expect(declared).not.toContain('history')
       expect(declared).not.toContain('downloads.open')
       expect(built.host_permissions ?? []).not.toContain('https://www.googleapis.com/*')
+      expect(built.host_permissions ?? []).not.toContain('https://graph.microsoft.com/*')
     }
   })
 })

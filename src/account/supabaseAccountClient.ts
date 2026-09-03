@@ -28,7 +28,9 @@ import {
 import type { ProviderId } from '../providers/types'
 import {
   ensureGoogleCalendarOrigin,
+  ensureMicrosoftGraphOrigin,
   removeGoogleCalendarOrigin,
+  removeMicrosoftGraphOrigin,
 } from '../services/permissions'
 
 export interface AccountServiceSnapshot {
@@ -600,6 +602,21 @@ export function createConfiguredSupabaseAccountClient(config: AccountServiceConf
       },
       requestGoogleOrigin: ensureGoogleCalendarOrigin,
       removeGoogleOrigin: removeGoogleCalendarOrigin,
+    },
+    microsoftProvider: {
+      origin: config.supabaseUrl,
+      allowedOrigins: [config.supabaseUrl],
+      enabled: config.microsoftCalendarEnabled,
+      fetch: globalThis.fetch.bind(globalThis),
+      randomBytes(size) {
+        return globalThis.crypto.getRandomValues(new Uint8Array(size))
+      },
+      identity: {
+        getRedirectURL: (path) => chrome.identity.getRedirectURL(path),
+        launchWebAuthFlow: (details) => chrome.identity.launchWebAuthFlow(details),
+      },
+      requestMicrosoftOrigin: ensureMicrosoftGraphOrigin,
+      removeMicrosoftOrigin: removeMicrosoftGraphOrigin,
     },
     verifyLease: (envelope, expectedAccountId, at) => verifyEntitlementLeaseV1(
       envelope as never,

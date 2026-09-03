@@ -230,3 +230,19 @@ export async function hasGoogleCalendarOrigin(): Promise<boolean> {
 export async function removeGoogleCalendarOrigin(): Promise<boolean> {
   return permissionsBoundary().remove({ origins: [GOOGLE_CALENDAR_API_ORIGIN] })
 }
+
+/** Microsoft Calendar's direct-read boundary mirrors the Google lifecycle but
+ * owns a separate exact origin so either provider can be removed independently. */
+export const MICROSOFT_GRAPH_ORIGIN = 'https://graph.microsoft.com/*' as const
+
+export async function ensureMicrosoftGraphOrigin(): Promise<boolean> {
+  return permissionsBoundary().request({ origins: [MICROSOFT_GRAPH_ORIGIN] })
+}
+
+export async function hasMicrosoftGraphOrigin(): Promise<boolean> {
+  return permissionsBoundary().contains({ origins: [MICROSOFT_GRAPH_ORIGIN] })
+}
+
+export async function removeMicrosoftGraphOrigin(): Promise<boolean> {
+  return permissionsBoundary().remove({ origins: [MICROSOFT_GRAPH_ORIGIN] })
+}

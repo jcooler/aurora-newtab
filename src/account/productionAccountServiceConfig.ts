@@ -6,6 +6,7 @@ export interface ProductionAccountServiceDescriptor {
   trustedLeaseKeys: Readonly<Record<string, string>>
   encryptedSyncEnabled: boolean
   googleCalendarEnabled: boolean
+  microsoftCalendarEnabled: boolean
 }
 
 interface ProductionEnvironment {
@@ -30,6 +31,8 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
   // Hosted provider functions are active for the bounded PM-P6 OAuth-testing
   // cohort. Public OAuth publication remains a separate approval gate.
   googleCalendarEnabled: true,
+  // Microsoft remains local/preview-only until the hosted Entra gate.
+  microsoftCalendarEnabled: false,
 })
 
 export function readProductionAccountServiceConfig(
@@ -47,6 +50,7 @@ export function readProductionAccountServiceConfig(
     || descriptor.publishableKey.startsWith('sb_secret_')
     || typeof descriptor.encryptedSyncEnabled !== 'boolean'
     || typeof descriptor.googleCalendarEnabled !== 'boolean'
+    || typeof descriptor.microsoftCalendarEnabled !== 'boolean'
     || trustedEntries.length < 1
     || trustedEntries.length > 4
     || trustedEntries.some(([keyId, spki]) => !keyIdPattern.test(keyId)
@@ -61,5 +65,6 @@ export function readProductionAccountServiceConfig(
     trustedLeaseKeys: Object.freeze(Object.fromEntries(trustedEntries)),
     encryptedSyncEnabled: descriptor.encryptedSyncEnabled,
     googleCalendarEnabled: descriptor.googleCalendarEnabled,
+    microsoftCalendarEnabled: descriptor.microsoftCalendarEnabled,
   })
 }

@@ -662,7 +662,7 @@ Do not add a general Account & Sync refresh button. Connection, selection, recon
 
 Run the Step 2 command. Expected: all selected tests pass.
 
-- [ ] **Step 5: Commit the Settings checkpoint**
+- [x] **Step 5: Commit the Settings checkpoint**
 
 ```powershell
 git add src/settings src/newtab/widgetRegistry.ts src/newtab/widgetRegistry.test.ts
@@ -687,7 +687,7 @@ git commit -m "feat: add Microsoft Calendar connection UI"
 - Consumes: production/account-local config descriptors, Chrome optional permissions, `AccountClient.providerGateways`, and Microsoft connector ownership.
 - Produces: `microsoftCalendarEnabled`, `MICROSOFT_GRAPH_ORIGIN`, provider-specific permission helpers, and a production-locked default until hosted activation approval.
 
-- [ ] **Step 1: Write failing configuration and permission tests**
+- [x] **Step 1: Write failing configuration and permission tests**
 
 Require:
 
@@ -700,7 +700,7 @@ export async function removeMicrosoftGraphOrigin(): Promise<boolean>
 
 Test exact origin, one permission request, rejection handling, provider ownership, no Google-origin mutation, malformed production descriptors, account-local enablement, production `microsoftCalendarEnabled: false`, and zero Microsoft hosted request when disabled.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```powershell
 npm test -- --run src/account/accountServiceConfig.test.ts src/account/supabaseAccountClient.test.ts src/services/permissions.test.ts src/privacy/dataFlows.test.ts
@@ -708,11 +708,11 @@ npm test -- --run src/account/accountServiceConfig.test.ts src/account/supabaseA
 
 Expected: Microsoft flag and permission helpers are absent.
 
-- [ ] **Step 3: Implement configuration and permissions**
+- [x] **Step 3: Implement configuration and permissions**
 
 Add the boolean to both validated config descriptors. Enable it only in account-local and deterministic preview modes. Keep production false until Task 11's hosted gate succeeds. Use the existing broad optional-host manifest authority only through an explicit Connect gesture; do not add an install-time permission or new manifest pattern.
 
-- [ ] **Step 4: Run focused tests and observe GREEN**
+- [x] **Step 4: Run focused tests and observe GREEN**
 
 Run the Step 2 command. Expected: all tests pass and Google configuration remains unchanged.
 
