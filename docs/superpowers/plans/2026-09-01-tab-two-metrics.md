@@ -192,17 +192,17 @@ git commit -m "feat: persist aggregate metrics history"
 - Consumes: `AuroraStorage`, `useAccount()`, `hasCapability(snapshot, 'metrics_history')`, local habits/todos, and existing typed connector snapshots.
 - Produces: `collectHabitSeries`, `collectTaskSeries`, `collectCalendarSeries`, `collectDevelopmentSeries`, `MetricsProvider`, `useMetrics()`, `recordFocusCompletion(minutes, date)`, `deleteMetricsHistory(filter)`, and `exportMetricsHistory()`.
 
-- [ ] **Step 1: Write failing collector tests with a hostile corpus**
+- [x] **Step 1: Write failing collector tests with a hostile corpus**
 
 Use fixtures containing habit names, task text, calendar titles/attendees/locations/URLs, repository names, issue titles, deployment URLs, connector tokens, and GPS-like fields. Assert outputs contain only the Task 1 tagged numeric shapes and allowlisted source IDs. Prove invalid/stale connector payloads are ignored rather than recorded as zeros.
 
-- [ ] **Step 2: Run collector tests and observe RED**
+- [x] **Step 2: Run collector tests and observe RED**
 
 Run: `npm test -- --run src/metrics/collectors.test.ts`
 
 Expected: FAIL because collectors do not exist.
 
-- [ ] **Step 3: Implement pure source adapters**
+- [x] **Step 3: Implement pure source adapters**
 
 - Habits: group valid completion-day keys and calculate completed, tracked, and streak without persisting habit names or IDs.
 - Tasks: count items with a valid `completedOn` day and compute `carriedForward` from unfinished items created before the requested day.
@@ -210,11 +210,11 @@ Expected: FAIL because collectors do not exist.
 - Development: GitHub/GitLab contribution days become commit counts; current review/issue/deployment items count only when a validated timestamp exists. Vercel `ERROR` becomes failures. Absence of a timestamp is not assigned to the fetch day.
 - Fitness: expose a strict `collectFitnessSeries` contract for PM-P8 using only allowlisted activity class, duration, distance, elevation, and day.
 
-- [ ] **Step 4: Write failing provider ownership tests**
+- [x] **Step 4: Write failing provider ownership tests**
 
 Prove local mode, signed-in without capability, expired lease, and unverified lease never write `metricsHistory`. Prove a current lease bootstraps one installation ID, coalesces storage changes, prunes before writing, performs no network request, and stops writing immediately when the lease expires. Existing history remains readable and deletable in every state.
 
-- [ ] **Step 5: Implement `MetricsProvider`**
+- [x] **Step 5: Implement `MetricsProvider`**
 
 Mount it beneath `AccountProvider` and above `SyncProvider`/`App`. Subscribe to `habits`, `todoLists`, `connectorSnapshots`, and `metricsHistory`. Derive only while `hasCapability(snapshot, 'metrics_history')` is true. Serialize one update through `AuroraStorage.update('metricsHistory', ...)`, retain bucket IDs for stable tuples, and never trigger a connector refresh.
 
@@ -228,13 +228,13 @@ Mount it beneath `AccountProvider` and above `SyncProvider`/`App`. Subscribe to 
 </StorageProvider>
 ```
 
-- [ ] **Step 6: Run focused tests and observe GREEN**
+- [x] **Step 6: Run focused tests and observe GREEN**
 
 Run: `npm test -- --run src/metrics/collectors.test.ts src/metrics/MetricsProvider.test.tsx src/newtab/main.test.tsx`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the collector checkpoint**
+- [x] **Step 7: Commit the collector checkpoint**
 
 ```powershell
 git add src/metrics/collectors.ts src/metrics/collectors.test.ts src/metrics/MetricsProvider.tsx src/metrics/MetricsProvider.test.tsx src/newtab/main.tsx src/newtab/main.test.tsx

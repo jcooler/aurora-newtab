@@ -69,6 +69,17 @@ vi.mock('../services/permissionMirror', () => ({
   initializePermissionMirror: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('../metrics/MetricsProvider', async () => {
+  const React = await import('react')
+  return {
+    MetricsProvider: ({ children }: { children: React.ReactNode }) => React.createElement(
+      'div',
+      { 'data-metrics-provider': '' },
+      children,
+    ),
+  }
+})
+
 vi.mock('./App', async () => {
   const React = await import('react')
   const { default: WidgetBoundary } = await import('./components/WidgetBoundary')
@@ -137,6 +148,7 @@ describe('new-tab React root caught-error handling', () => {
       expect(document.querySelector('[role="alert"][aria-label="Calendar unavailable"]')).toBeTruthy()
       expect(document.body.textContent).toContain('Calendar sibling survives')
       expect(document.querySelector('[data-account-provider]')).toBeTruthy()
+      expect(document.querySelector('[data-metrics-provider]')).toBeTruthy()
     })
 
     const safeCalls = consoleError.mock.calls.filter((call) => (

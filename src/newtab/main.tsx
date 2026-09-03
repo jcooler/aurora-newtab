@@ -9,6 +9,7 @@ import { createWebLockStorageAuthority } from '../lib/storage/authority'
 import { initializePermissionMirror } from '../services/permissionMirror'
 import { AccountProvider } from '../account/AccountContext'
 import { SyncProvider } from '../sync/SyncProvider'
+import { MetricsProvider } from '../metrics/MetricsProvider'
 import './index.css'
 
 type NotesHarnessController = Readonly<{
@@ -120,9 +121,11 @@ createRoot(document.getElementById('root')!, {
   <StrictMode>
     <StorageProvider storage={storage} syncRuntime={{ driver, authority: storageAuthority }}>
       <AccountProvider>
-        <SyncProvider>
-          <App />
-        </SyncProvider>
+        <MetricsProvider>
+          <SyncProvider>
+            <App />
+          </SyncProvider>
+        </MetricsProvider>
       </AccountProvider>
     </StorageProvider>
   </StrictMode>,
