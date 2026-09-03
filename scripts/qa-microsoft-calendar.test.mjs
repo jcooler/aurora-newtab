@@ -9,6 +9,7 @@ import {
   assertArtifactIsolation,
   assertEvidenceContract,
   inspectGeometry,
+  isExpectedMicrosoftFixtureConsole,
   microsoftGraphFixtureStatus,
   requireExact,
 } from './qa-microsoft-calendar.mjs'
@@ -78,6 +79,22 @@ test('keeps one synthetic account partial while the other account remains availa
   ), 401)
 })
 
+test('separates only exact synthetic Graph response noise from application console errors', () => {
+  assert.equal(isExpectedMicrosoftFixtureConsole(
+    'preview-short',
+    'Failed to load resource: the server responded with a status of 403 (Forbidden)',
+  ), true)
+  assert.equal(isExpectedMicrosoftFixtureConsole(
+    'preview-short',
+    'Failed to load resource: the server responded with a status of 401 (Unauthorized)',
+  ), true)
+  assert.equal(isExpectedMicrosoftFixtureConsole(
+    'preview-desktop',
+    'Failed to load resource: the server responded with a status of 403 (Forbidden)',
+  ), false)
+  assert.equal(isExpectedMicrosoftFixtureConsole('preview-short', 'Microsoft Calendar crashed'), false)
+})
+
 function cleanEvidence() {
   const sourceSha = 'abc123def456'
   return {
@@ -126,6 +143,10 @@ function cleanEvidence() {
     wireRequests: [],
     unexpectedOrigins: [],
     consoleErrors: [],
+    fixtureConsoleErrors: [
+      { label: 'preview-short', text: 'Failed to load resource: the server responded with a status of 403 (Forbidden)' },
+      { label: 'preview-short', text: 'Failed to load resource: the server responded with a status of 401 (Unauthorized)' },
+    ],
     pageErrors: [],
     failedRequests: [],
     touchTargets: [

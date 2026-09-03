@@ -138,6 +138,13 @@ export function assertEvidenceContract(evidence) {
   assert.deepEqual(evidence.wireRequests, [], 'Microsoft Calendar QA made a wire request')
   assert.deepEqual(evidence.unexpectedOrigins, [], 'Microsoft Calendar QA used an unexpected origin')
   assert.deepEqual(evidence.consoleErrors, [], 'Microsoft Calendar QA emitted console errors')
+  assert(Array.isArray(evidence.fixtureConsoleErrors)
+    && evidence.fixtureConsoleErrors.every((entry) => isExpectedMicrosoftFixtureConsole(entry.label, entry.text)),
+  'Microsoft Calendar QA recorded unexpected fixture console output')
+  assert.equal(evidence.fixtureConsoleErrors.some((entry) => entry.text.includes('status of 401')), true,
+    'Microsoft Calendar QA did not exercise the synthetic unauthorized response')
+  assert.equal(evidence.fixtureConsoleErrors.some((entry) => entry.text.includes('status of 403')), true,
+    'Microsoft Calendar QA did not exercise the synthetic forbidden response')
   assert.deepEqual(evidence.pageErrors, [], 'Microsoft Calendar QA emitted page errors')
   assert.deepEqual(evidence.failedRequests, [], 'Microsoft Calendar QA emitted failed requests')
   assert(Array.isArray(evidence.touchTargets) && evidence.touchTargets.length >= 2)
@@ -208,9 +215,17 @@ export function microsoftGraphFixtureStatus(url, issue) {
   return 200
 }
 
+export function isExpectedMicrosoftFixtureConsole(label, message) {
+  return label === 'preview-short'
+    && /^Failed to load resource: the server responded with a status of (?:401 \(Unauthorized\)|403 \(Forbidden\))$/u.test(message)
+}
+
 function attachLedgers(page, evidence, label) {
   page.on('console', (message) => {
-    if (message.type() === 'error') evidence.consoleErrors.push({ label, text: message.text() })
+    if (message.type() !== 'error') return
+    const entry = { label, text: message.text() }
+    if (isExpectedMicrosoftFixtureConsole(label, entry.text)) evidence.fixtureConsoleErrors.push(entry)
+    else evidence.consoleErrors.push(entry)
   })
   page.on('pageerror', (error) => evidence.pageErrors.push({ label, text: error.message }))
   page.on('requestfailed', (request) => {
@@ -753,6 +768,7 @@ export async function runMicrosoftCalendarQa(args = process.argv.slice(2)) {
     wireRequests: [],
     unexpectedOrigins: [],
     consoleErrors: [],
+    fixtureConsoleErrors: [],
     pageErrors: [],
     failedRequests: [],
     touchTargets: [],
