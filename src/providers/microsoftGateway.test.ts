@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createMicrosoftCalendarGateway } from './microsoftGateway'
+import {
+  createMicrosoftCalendarGateway,
+  createPreviewMicrosoftCalendarGateway,
+} from './microsoftGateway'
+import { createPreviewAccountClient } from '../account/previewAccountClient'
 
 const now = Date.UTC(2026, 8, 3, 18, 0, 0)
 const origin = 'https://ovlobmvxtryitupxwylg.supabase.co'
@@ -13,6 +17,31 @@ function json(value: unknown): Response {
 }
 
 describe('Microsoft Calendar provider gateway', () => {
+  it('provides two deterministic account kinds in preview without network or Chrome APIs', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    vi.stubGlobal('location', { search: '?accountState=active' })
+    try {
+      const gateway = createPreviewMicrosoftCalendarGateway('two-account', now)
+      const listed = await gateway.listConnections()
+      expect(listed.ok && [...listed.value.connections.map((value) => value.accountKind)].sort())
+        .toEqual(['personal', 'work_or_school'])
+      const firstId = listed.ok ? listed.value.connections[0]!.connectionId : ''
+      await expect(gateway.getSession(firstId)).resolves.toMatchObject({
+        ok: true,
+        value: { provider: 'microsoft_calendar', accessToken: 'preview-microsoft-calendar-authority' },
+      })
+      const client = createPreviewAccountClient()
+      await expect(client.providerGateways.microsoft_calendar?.listConnections()).resolves.toMatchObject({
+        ok: true,
+        value: { accountId },
+      })
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('keeps Microsoft endpoints, entitlement, metadata, and origin lifecycle isolated', async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)

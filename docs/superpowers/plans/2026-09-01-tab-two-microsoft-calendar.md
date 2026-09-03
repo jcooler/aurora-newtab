@@ -926,7 +926,7 @@ git commit -m "feat: add Microsoft Calendar OAuth broker"
 - Consumes: complete local PM-P7 implementation, deterministic preview/account-local fixtures, approved visuals, all repository tests, and exact-provenance build tooling.
 - Produces: installed MV3 Chromium evidence, privacy/request/storage ledgers, one bounded review result, stabilized full gate, durable QA report, deferred owner checklist, and pushed local implementation checkpoint.
 
-- [ ] **Step 1: Write the failing QA contract test**
+- [x] **Step 1: Write the failing QA contract test**
 
 Require the harness to prove:
 
@@ -950,7 +950,7 @@ const REQUIRED_STATES = [
 
 The evidence schema records source SHA, build provenance, extension ID, viewport, interactions, storage keys, request hosts/paths, console errors, page errors, failed requests, overflow, focus restoration, touch target sizes, reduced-motion result, and screenshot paths. It must reject missing states, owner data, secret-looking values, unexpected origins, or a non-exact build.
 
-- [ ] **Step 2: Run the harness test and observe RED**
+- [x] **Step 2: Run the harness test and observe RED**
 
 ```powershell
 node --test scripts/qa-microsoft-calendar.test.mjs
@@ -958,7 +958,7 @@ node --test scripts/qa-microsoft-calendar.test.mjs
 
 Expected: harness or required evidence contract is absent.
 
-- [ ] **Step 3: Implement installed-extension QA**
+- [x] **Step 3: Implement installed-extension QA**
 
 Use deterministic fixtures only. Load the exact unpacked production or preview build as required per state, drive real controls, and capture original-resolution evidence at desktop `1600x900`, short `1408x600`, ultrawide `3440x1440`, and touch `390x844` with `hasTouch: true`. Production-locked proof must make no Microsoft request. Preview requests may target only fixture-owned local routes; no real Microsoft, Supabase, Google, Stripe, or customer data.
 
