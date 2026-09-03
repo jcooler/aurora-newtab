@@ -51,6 +51,9 @@ async function renderProgress({ goals = [], habits = [], suppliedDriver }: {
     </StorageProvider>,
   )
   await screen.findByRole('region', { name: 'Progress' })
+  await waitFor(() => {
+    expect(screen.queryAllByTestId('progress-row')).toHaveLength(goals.length + habits.length)
+  })
   return { driver, storage }
 }
 
