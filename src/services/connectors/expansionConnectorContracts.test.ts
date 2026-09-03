@@ -72,7 +72,7 @@ describe('expansion connector authorities', () => {
   it('keeps connector identities in exact type, descriptor, Settings, and fixture parity', () => {
     expect(CONNECTOR_IDS).toEqual(EXPECTED_CONNECTOR_IDS)
     expect(CONNECTORS.map(({ id }) => id)).toEqual(EXPECTED_CONNECTOR_IDS)
-    expect(CONNECTOR_BODY_IDS).toEqual(EXPECTED_CONNECTOR_IDS.filter((id) => id !== 'googleCalendar'))
+    expect(CONNECTOR_BODY_IDS).toEqual(EXPECTED_CONNECTOR_IDS)
     expect(Object.keys(COMPLETE_CONNECTOR_CONTRACT_FIXTURES)).toEqual(EXPECTED_CONNECTOR_IDS)
     expect(sorted(WIDGET_REGISTRY.flatMap((entry) => entry.availability.kind === 'connector' ? [entry.availability.id] : [])))
       .toEqual(sorted(EXPECTED_CONNECTOR_IDS.filter((id) => id !== 'googleCalendar')))

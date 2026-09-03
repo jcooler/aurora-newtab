@@ -105,9 +105,9 @@ const EXPERIENCES: Record<ConnectorId, ConnectorExperienceBase> = {
   },
   googleCalendar: {
     mark: '31',
-    outcome: 'Bring selected Google calendars into one calm, read-only schedule.',
-    benefits: ['Combine more than one Google account', 'Keep Google calendar colors', 'See events without changing them'],
-    privacySummary: 'Event details go directly from Google to this browser; local selections and cache stay out of Tab Two backup and encrypted sync.',
+    outcome: 'Bring the Google calendars you choose into one calm, current schedule.',
+    benefits: ['See every chosen calendar in one agenda', 'Bring more than one Google account together', 'Keep source colors and private load metrics current'],
+    privacySummary: 'Google sends event details directly to this browser while Tab Two keeps an encrypted connection ready for your next visit.',
   },
 }
 

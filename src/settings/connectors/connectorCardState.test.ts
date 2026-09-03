@@ -116,6 +116,7 @@ const identities: Partial<Record<ConnectorId, string>> = {
   linear: 'Connected as Sam',
   sentry: 'Connected to team',
   todoist: 'Connected to Todoist',
+  googleCalendar: '1 account · 1 calendar',
 }
 
 describe('deriveConnectorCardState', () => {
@@ -139,7 +140,7 @@ describe('deriveConnectorCardState', () => {
     })
 
     it(`${id}: reconnect-shaped input`, () => {
-      const expected = identities[id]
+      const expected = identities[id] && id !== 'googleCalendar'
         ? reconnectExpected(identities[id]!)
         : setupExpected
       expect(deriveConnectorCardState(descriptor, reconnect[id])).toEqual(expected)

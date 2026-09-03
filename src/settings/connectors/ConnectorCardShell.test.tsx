@@ -97,6 +97,24 @@ describe('ConnectorCardShell', () => {
     expect(card?.className).toContain('min-h-')
   })
 
+  it('marks a premium connector on its catalog card', () => {
+    render(
+      <ConnectorCardShell
+        id="googleCalendar"
+        label="Google Calendar"
+        blurb="Selected calendars"
+        experience={{ ...experience, entitlement: 'premium' }}
+        presentation={unconfigured}
+        activeMode={null}
+        onOpen={() => {}}
+        onClose={() => {}}
+        onVisibilityChange={() => {}}
+      />,
+    )
+
+    expect(screen.getByText('Premium')).toBeTruthy()
+  })
+
   it('shows configured identity, Show on Canvas, and Edit without painting the body', () => {
     render(<Harness presentation={configured} />)
 

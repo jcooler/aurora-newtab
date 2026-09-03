@@ -346,19 +346,30 @@ Calendar availability.
 - Consumes: the exact approved Task 1 visual/copy contract and Tasks 2 through 6 domain/runtime.
 - Produces: locked premium entry, explicit read-only pre-consent, account connection progress, calendar discovery/selection, add-account, per-account reconnect and remove, separate history deletion choice, truthful partial/offline/expired states, and composed Calendar source context.
 
-- [ ] **Step 1: Write failing component tests**
+- [x] **Step 1: Write failing component tests**
 
 Cover pointer/keyboard/touch connect, cancel, popup closed, native optional-origin denial, discovery loading, default selected calendars, save, add account, duplicate account, reconnect, one-account failure, disconnect cancel/confirm, separate history choice, focus restoration, live announcements, reduced motion, sign-out/account switch, entitlement expiry, and no free-ICS mutation.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
-- [ ] **Step 3: Implement only the approved visual contract**
+- [x] **Step 3: Implement only the approved visual contract**
 
 Use stable reserved geometry, a reduced-motion-safe spinner during connection/discovery, non-color labels beside calendar colors, plain-language scope and privacy copy, and distinct button hierarchy. Never imitate Google's consent screen. Never say disconnected event data was deleted from Google.
 
-- [ ] **Step 4: Run focused tests and observe GREEN**
+- [x] **Step 4: Run focused tests and observe GREEN**
 
-- [ ] **Step 5: Commit the production UI checkpoint**
+- [x] **Step 5: Commit the production UI checkpoint**
+
+Implementation note: the approved UI is integrated into the existing connector
+detail dialog with premium entry, explicit pre-consent, distinct OAuth and
+calendar-discovery progress, local calendar selection, multi-account summary,
+per-account recovery, and an exact-account disconnect confirmation. Success is
+announced once and focuses the resulting account summary. The nested destructive
+dialog owns Escape and keyboard focus while open, and all progress animation
+uses the existing reduced-motion-safe utility classes, so no new global CSS was
+needed. Calendar source composition was already completed in Task 6. README and
+the public privacy policy remain unchanged at this local checkpoint because the
+production provider flag and every hosted Google authority are still disabled.
 
 ---
 

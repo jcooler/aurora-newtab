@@ -54,7 +54,12 @@ export default function ConnectorCardShell({
         <div className="min-w-0 pt-0.5">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <h4 className="text-sm font-semibold text-fg">{label}</h4>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-sm font-semibold text-fg">{label}</h4>
+                {experience.entitlement === 'premium' ? (
+                  <span className="rounded-full border border-accent/35 bg-accent/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-accent">Premium</span>
+                ) : null}
+              </div>
               <p className="mt-0.5 text-[0.68rem] font-medium uppercase tracking-[0.12em] text-fg-muted">
                 {experience.categoryLabel}
               </p>

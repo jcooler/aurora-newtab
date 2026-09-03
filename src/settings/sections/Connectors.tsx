@@ -50,6 +50,10 @@ import {
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import RefreshFrequencyControl from './RefreshFrequencyControl'
 import type { RefreshPreferences } from '../../services/refreshPolicy'
+import { useAccount } from '../../account/AccountContext'
+import { hasProviderCapability } from '../../account/capabilities'
+import { parseGoogleCalendarConfig } from '../../services/connectors/googleCalendar'
+import GoogleCalendarConnection from '../connectors/GoogleCalendarConnection'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -65,6 +69,7 @@ interface BodyProps {
   reportPendingCleanup(patterns: readonly string[]): void
   mode: ConnectorCardMode
   closeEditor(): void
+  onShowPremiumPlans(): void
 }
 
 type DisconnectableConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant' | 'crypto' | 'linear' | 'sentry' | 'todoist'
@@ -286,12 +291,15 @@ export default function Connectors({
   refreshPreferences,
   storage,
   reportPendingCleanup,
+  onShowPremiumPlans = () => undefined,
 }: {
   connectors: AuroraData['connectors'] | undefined
   refreshPreferences?: RefreshPreferences
   storage: AuroraStorage
   reportPendingCleanup(patterns: readonly string[]): void
+  onShowPremiumPlans?(): void
 }) {
+  const account = useAccount()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<ConnectorCategory | 'all'>('all')
   const [editor, setEditor] = useState<{
@@ -303,8 +311,18 @@ export default function Connectors({
   const autoOpenedReconnects = useRef(new Set<ConnectorId>())
   const q = query.trim()
 
+  const connectorConfig = (descriptor: ConnectorDescriptor): ConnectorConfig | undefined => {
+    const config = connectors?.[descriptor.id]
+    if (descriptor.id !== 'googleCalendar') return config
+    const parsed = parseGoogleCalendarConfig(config)
+    return parsed
+      && account.snapshot.mode === 'signed_in'
+      && account.snapshot.accountId === parsed.accountId
+      ? parsed
+      : undefined
+  }
   const presentation = (descriptor: ConnectorDescriptor) =>
-    deriveConnectorCardState(descriptor, connectors?.[descriptor.id])
+    deriveConnectorCardState(descriptor, connectorConfig(descriptor))
 
   useEffect(() => {
     if (editor) return
@@ -394,13 +412,14 @@ export default function Connectors({
     <ConnectorCard
       key={d.id}
       descriptor={d}
-      config={connectors?.[d.id]}
+      config={connectorConfig(d)}
       storage={storage}
       reportPendingCleanup={reportPendingCleanup}
       refreshPreferences={refreshPreferences}
       activeMode={editor?.id === d.id ? editor.mode : null}
       onOpen={(mode) => openEditor(d.id, mode)}
       onClose={() => closeEditor(d.id)}
+      onShowPremiumPlans={onShowPremiumPlans}
     />
   )
   const galleryClass = 'grid gap-2 min-[760px]:grid-cols-2'
@@ -539,6 +558,7 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   onThisDay: OnThisDayBody,
   publicHolidays: PublicHolidaysBody,
   auroraKp: AuroraKpBody,
+  googleCalendar: GoogleCalendarConnection,
 }
 
 export const CONNECTOR_BODY_IDS: readonly ConnectorId[] = Object.freeze(
@@ -554,6 +574,7 @@ function ConnectorCard({
   activeMode,
   onOpen,
   onClose,
+  onShowPremiumPlans,
 }: {
   descriptor: ConnectorDescriptor
   config: ConnectorConfig | undefined
@@ -563,9 +584,13 @@ function ConnectorCard({
   activeMode: ConnectorCardMode | null
   onOpen(mode: ConnectorCardMode): void
   onClose(): void
+  onShowPremiumPlans(): void
 }) {
   const presentation = deriveConnectorCardState(descriptor, config)
   const Body = BODY_COMPONENTS[descriptor.id]
+  const account = useAccount()
+  const canRefresh = descriptor.id !== 'googleCalendar'
+    || hasProviderCapability(account.snapshot, 'google_calendar')
 
   return (
     <ConnectorCardShell
@@ -595,9 +620,10 @@ function ConnectorCard({
           reportPendingCleanup={reportPendingCleanup}
           mode={activeMode}
           closeEditor={onClose}
+          onShowPremiumPlans={onShowPremiumPlans}
         />
       ) : null}
-      {activeMode && presentation.configured ? (
+      {activeMode && presentation.configured && canRefresh ? (
         <RefreshFrequencyControl
           source={descriptor.id}
           label={descriptor.label}

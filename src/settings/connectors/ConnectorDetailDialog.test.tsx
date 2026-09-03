@@ -53,4 +53,21 @@ describe('ConnectorDetailDialog', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+
+  it('labels premium connector details without promising inclusion', () => {
+    render(
+      <ConnectorDetailDialog
+        open
+        label="Google Calendar"
+        mode="setup"
+        experience={{ ...experience, entitlement: 'premium' }}
+        onClose={() => {}}
+      >
+        <button type="button">See premium plans</button>
+      </ConnectorDetailDialog>,
+    )
+
+    expect(screen.getByText('Premium')).toBeTruthy()
+    expect(screen.queryByText('Included today')).toBeNull()
+  })
 })

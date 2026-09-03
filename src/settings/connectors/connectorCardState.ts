@@ -2,6 +2,7 @@ import type {
   ConnectorConfig,
   ConnectorDescriptor,
   CryptoConfig,
+  GoogleCalendarConfig,
   IcsConfig,
   RssConfig,
   StatusConfig,
@@ -98,6 +99,12 @@ function identityLabel(
   descriptor: ConnectorDescriptor,
   config: ConnectorConfig | undefined,
 ): string | null {
+  if (descriptor.id === 'googleCalendar') {
+    const accounts = (config as GoogleCalendarConfig | undefined)?.accounts
+    if (!Array.isArray(accounts) || accounts.length === 0) return null
+    const calendarCount = accounts.reduce((total, account) => total + account.calendars.length, 0)
+    return `${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'} · ${calendarCount} ${calendarCount === 1 ? 'calendar' : 'calendars'}`
+  }
   if (!descriptor.identityField) return null
   const identity = text(config?.[descriptor.identityField])
   return identity ? `Connected ${descriptor.identityPhrase ?? 'as'} ${identity}` : null

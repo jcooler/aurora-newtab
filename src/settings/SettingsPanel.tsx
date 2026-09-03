@@ -199,6 +199,7 @@ export default function SettingsPanel({
           refreshPreferences={refreshPreferences}
           storage={storage}
           reportPendingCleanup={cleanup.reportPendingCleanup}
+          onShowPremiumPlans={() => setTab('account')}
         />
       )}
 
