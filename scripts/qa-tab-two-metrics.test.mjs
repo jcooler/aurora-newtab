@@ -9,6 +9,7 @@ import {
   assertArtifactIsolation,
   assertEvidenceContract,
   assertNoSensitiveMetricKeys,
+  createMetricsHistoryFixture,
   inspectGeometry,
   requireExact,
 } from './qa-tab-two-metrics.mjs'
@@ -53,6 +54,17 @@ test('rejects raw or secret-bearing keys from exported metric evidence', () => {
   for (const key of ['password', 'token', 'url', 'title', 'email', 'eventName']) {
     assert.throws(() => assertNoSensitiveMetricKeys({ history: { buckets: [{ values: { [key]: 'private' } }] } }), /sensitive metric key/i)
   }
+})
+
+test('builds a schema-shaped aggregate-only browser fixture', () => {
+  const history = createMetricsHistoryFixture('2026-09-03')
+  assert.equal(history.buckets.length, 7)
+  assert.doesNotThrow(() => assertNoSensitiveMetricKeys({ history }))
+  assert(history.buckets.every((bucket) => /^[0-9a-f-]{36}$/i.test(bucket.id)))
+  assert(history.buckets.every((bucket) => bucket.sourceInstanceId === 'ics'
+    || bucket.sourceInstanceId === 'github'
+    || bucket.sourceInstanceId === 'strava'
+    || /^[0-9a-f-]{36}$/i.test(bucket.sourceInstanceId)))
 })
 
 test('requires complete provenance, interactions, viewports, and clean browser ledgers', () => {

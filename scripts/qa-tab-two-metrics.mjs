@@ -148,16 +148,16 @@ function shiftDay(key, amount) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
 }
 
-function metricsHistory(today) {
+export function createMetricsHistoryFixture(today) {
   const installationId = '11111111-1111-4111-8111-111111111111'
   const rows = [
-    [0, 'tasks', 'synced-tasks', { kind: 'tasks', completed: 5, carriedForward: 1 }],
+    [0, 'tasks', '22222222-2222-4222-8222-222222222222', { kind: 'tasks', completed: 5, carriedForward: 1 }],
     [0, 'focus', installationId, { kind: 'focus', sessions: 2, minutes: 50 }],
-    [-1, 'habits', 'synced-habits', { kind: 'habits', completed: 3, tracked: 4, streak: 2 }],
+    [-1, 'habits', '33333333-3333-4333-8333-333333333333', { kind: 'habits', completed: 3, tracked: 4, streak: 2 }],
     [-1, 'calendar', 'ics', { kind: 'calendar', events: 2, busyMinutes: 120 }],
     [-5, 'development', 'github', { kind: 'development', commits: 4, reviews: 1, issues: 0, deployments: 1, failures: 0 }],
     [-5, 'fitness', 'strava', { kind: 'fitness', activities: 1, durationMinutes: 35, distanceMeters: 5000, elevationMeters: 40, types: { run: 1, ride: 0, walk: 0, hike: 0, swim: 0, other: 0 } }],
-    [-35, 'tasks', 'synced-tasks', { kind: 'tasks', completed: 2, carriedForward: 2 }],
+    [-35, 'tasks', '22222222-2222-4222-8222-222222222222', { kind: 'tasks', completed: 2, carriedForward: 2 }],
   ]
   return {
     version: 1,
@@ -184,10 +184,14 @@ async function seed(page, { history, tier = 'standard', placement = 'free' }) {
     const layout = {
       id: `metrics-${placement}-${tier}`,
       name: 'Metrics acceptance',
-      widgets: {},
+      widgets: {
+        clock: { kind: 'free', anchor: 'top-right', offsetX: -8, offsetY: 8, tier: 'compact', layer: 2 },
+        greeting: { kind: 'hidden' },
+        focus: { kind: 'hidden' },
+      },
     }
     if (placement === 'free') {
-      layout.widgets.metrics = { kind: 'free', anchor: 'center', offsetX: 0, offsetY: 0, tier, layer: 1 }
+      layout.widgets.metrics = { kind: 'free', anchor: 'bottom-left', offsetX: 8, offsetY: -8, tier, layer: 1 }
     } else if (placement === 'dock') {
       layout.widgets.metrics = { kind: 'docked', dock: 'bottom', order: 0, x: 50, y: 50, tier: 'compact', returnTier: tier }
     } else {
@@ -301,7 +305,7 @@ async function exerciseProduction(page, viewport, output, evidence, repoRoot) {
 
 async function exercisePreviewDesktop(page, viewport, output, evidence, repoRoot) {
   const today = localDayKey()
-  const history = metricsHistory(today)
+  const history = createMetricsHistoryFixture(today)
 
   await seed(page, { history: null, tier: 'standard', placement: 'free' })
   await loadState(page, 'active', 'loading')
@@ -435,7 +439,7 @@ async function exercisePreviewDesktop(page, viewport, output, evidence, repoRoot
 }
 
 async function exerciseViewport(page, viewport, output, evidence, repoRoot) {
-  const history = metricsHistory(localDayKey())
+  const history = createMetricsHistoryFixture(localDayKey())
   await seed(page, { history, tier: viewport.touch ? 'standard' : 'full', placement: 'free' })
   await loadState(page, 'active')
   const frame = await waitForMetrics(page)
