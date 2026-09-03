@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { useState, type ReactNode } from 'react'
 import { AccountProvider } from '../account/AccountContext'
 import { localAccountClient } from '../account/localAccountClient'
 import type { AccountClient } from '../account/client'
@@ -82,6 +82,11 @@ function Probe() {
     issues: state.snapshot?.connectionIssues?.length ?? 0,
     refreshing: state.refreshing,
   })}</output>
+}
+
+function StatefulProbe() {
+  const [count, setCount] = useState(0)
+  return <button type="button" onClick={() => setCount((current) => current + 1)}>State {count}</button>
 }
 
 function cachedGoogleSnapshot() {
@@ -165,6 +170,42 @@ describe('GoogleCalendarProvider', () => {
     expect(googleCalendarRetryDelay(30_000, () => 0.5)).toBe(25_000)
     expect(googleCalendarRetryDelay(30_000, () => 1)).toBe(30_000)
     expect(googleCalendarRetryDelay(1_000, () => 0)).toBe(1_000)
+  })
+
+  it('does not remount the application when Google Calendar becomes configured', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify({ items: [], nextSyncToken: 'sync' }), {
+      headers: { 'content-type': 'application/json' },
+    })) as typeof fetch
+    await act(async () => {
+      render(
+        <StorageProvider storage={storage}>
+          <AccountProvider client={client(snapshot(), gateway())}>
+            <GoogleCalendarProvider fetchFn={fetchFn}><StatefulProbe /></GoogleCalendarProvider>
+          </AccountProvider>
+        </StorageProvider>,
+      )
+      for (let index = 0; index < 16; index += 1) await Promise.resolve()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'State 0' }))
+
+    await act(async () => {
+      await storage.set('connectors', {
+        googleCalendar: {
+          enabled: true,
+          accountId,
+          accounts: [{
+            connectionId,
+            displayEmail: 'alex@example.test',
+            calendars: [{ calendarId: 'primary', name: 'Alex', color: '#4285f4', primary: true }],
+          }],
+        },
+      })
+      for (let index = 0; index < 32; index += 1) await Promise.resolve()
+    })
+
+    expect(screen.getByRole('button', { name: 'State 1' })).toBeTruthy()
   })
 
   it('does not request a provider session while the document is hidden, then refreshes on visibility', async () => {

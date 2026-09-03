@@ -21,6 +21,11 @@ import type { ProviderGateway, ProviderGatewayErrorCode } from './gateway'
 const HALF_DAY_MS = 12 * 60 * 60_000
 const MIN_RETRY_MS = 1_000
 const MAX_RETRY_MS = 30_000
+const INACTIVE_CONFIG: GoogleCalendarConfig = Object.freeze({
+  enabled: false,
+  accountId: '00000000-0000-4000-8000-000000000000',
+  accounts: [],
+})
 
 function secureUnitInterval(): number {
   const value = new Uint32Array(1)
@@ -93,44 +98,53 @@ function RefreshOwner({
   children,
   config,
   gateway,
+  entitled,
+  cached,
   fetchFn,
   now,
 }: {
   children: ReactNode
-  config: GoogleCalendarConfig
-  gateway: ProviderGateway
+  config: GoogleCalendarConfig | null
+  gateway: ProviderGateway | null
+  entitled: boolean
+  cached: GoogleCalendarSnapshot | null
   fetchFn: typeof fetch
   now: () => number
 }) {
   const localDay = useLocalDay()
   const window = googleCalendarWindow(now(), localDay.timeZone)
+  const active = Boolean(config?.enabled && entitled && gateway)
+  const refreshConfig = active ? config! : INACTIVE_CONFIG
   const resource = useConnectorSnapshot<GoogleCalendarSnapshot>(
     'googleCalendar',
-    config,
-    (previous) => refreshGoogleCalendarSnapshot({
-      config,
-      previous,
-      windowStart: window.start,
-      windowEnd: window.end,
-      now,
-      fetchFn,
-      getAccessToken: async (connectionId) => {
-        const result = await gateway.getSession(connectionId)
-        if (!result.ok) throw new GoogleCalendarRequestError(providerIssue(result.code))
-        return result.value.accessToken
-      },
-    }),
+    refreshConfig,
+    (previous) => {
+      if (!active || !config || !gateway) throw new Error('Google Calendar refresh is inactive')
+      return refreshGoogleCalendarSnapshot({
+        config,
+        previous,
+        windowStart: window.start,
+        windowEnd: window.end,
+        now,
+        fetchFn,
+        getAccessToken: async (connectionId) => {
+          const result = await gateway.getSession(connectionId)
+          if (!result.ok) throw new GoogleCalendarRequestError(providerIssue(result.code))
+          return result.value.accessToken
+        },
+      })
+    },
     undefined,
-    { accountId: config.accountId, timeZone: localDay.timeZone },
+    { accountId: refreshConfig.accountId, timeZone: localDay.timeZone },
     isGoogleCalendarSnapshot,
     { retryDelayMs: googleCalendarRetryDelay, shouldRetry: partialGoogleCalendarSnapshot },
   )
   return (
     <GoogleCalendarContext.Provider value={{
-      entitled: true,
-      snapshot: resource.data,
-      refreshing: resource.refreshing,
-      lastError: resource.lastError,
+      entitled,
+      snapshot: active ? resource.data : cached,
+      refreshing: active && resource.refreshing,
+      lastError: active ? resource.lastError : null,
     }}>
       {children}
     </GoogleCalendarContext.Provider>
@@ -166,21 +180,15 @@ export function GoogleCalendarProvider({
   )
   const gateway = account.client.providerGateway
 
-  if (!config || !config.enabled || !entitled || !gateway) {
-    return (
-      <GoogleCalendarContext.Provider value={{
-        entitled,
-        snapshot: cached,
-        refreshing: false,
-        lastError: null,
-      }}>
-        {children}
-      </GoogleCalendarContext.Provider>
-    )
-  }
-
   return (
-    <RefreshOwner config={config} gateway={gateway} fetchFn={fetchFn} now={now}>
+    <RefreshOwner
+      config={config?.enabled ? config : null}
+      gateway={gateway}
+      entitled={entitled}
+      cached={cached}
+      fetchFn={fetchFn}
+      now={now}
+    >
       {children}
     </RefreshOwner>
   )
