@@ -133,43 +133,43 @@ git commit -m "feat: add private aggregate metrics domain"
 - Consumes: `MetricsHistoryV1`, `assertMetricsHistory`, and `emptyMetricsHistory` from Task 1.
 - Produces: `AuroraData.metricsHistory`, schema version 21, strict backup validation, `serializeMetricsExport(history, exportedAt)`, and a privacy inventory entry.
 
-- [ ] **Step 1: Write failing storage and migration tests**
+- [x] **Step 1: Write failing storage and migration tests**
 
 Assert that v20 data receives `metricsHistory: null` without rewriting unrelated keys, current-schema backups accept a valid metrics history, malformed buckets reject the complete import, unknown metric keys fail closed, and export contains aggregates but none of a realistic secret/private corpus.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 Run: `npm test -- --run src/lib/storage/schema.test.ts src/lib/storage/migrations.test.ts src/lib/backup.test.ts src/privacy/dataFlows.test.ts src/metrics/export.test.ts`
 
 Expected: FAIL because `metricsHistory` is not a data key.
 
-- [ ] **Step 3: Add the v20 to v21 top-level authority**
+- [x] **Step 3: Add the v20 to v21 top-level authority**
 
 Set `CURRENT_VERSION = 21`, add `metricsHistory: MetricsHistoryV1 | null` to `AuroraData`, return `metricsHistory: null` from `defaults()`, and add migration `20: (data) => data`. Keep `METADATA_ONLY_FLOOR` at or below the correct last non-identity boundary; initialization may stamp v21 without eagerly writing a missing top-level history key.
 
-- [ ] **Step 4: Add strict backup and privacy handling**
+- [x] **Step 4: Add strict backup and privacy handling**
 
 Include valid aggregate history in manual backup and restore. Add this exact data-flow intent:
 
 ```ts
 metricsHistory: {
-  storage: 'chrome.storage.local and encrypted sync vault when sync is enabled',
+  storage: 'chrome.storage.local',
   sensitivity: ['user-content'],
   export: 'included',
-  transmission: 'encrypted-sync-only',
+  transmission: 'tab-two-encrypted-sync',
   description: 'Daily numeric aggregates for habits, focus, tasks, calendar load, development activity, and fitness; no titles, names, routes, or raw provider data.',
 }
 ```
 
 The dedicated export envelope is `{ product: 'Tab Two', kind: 'metrics-history', version: 1, exportedAt, history }`; parsing is not added in PM-P5 because normal backup restore already owns import.
 
-- [ ] **Step 5: Run focused tests and observe GREEN**
+- [x] **Step 5: Run focused tests and observe GREEN**
 
 Run: `npm test -- --run src/lib/storage/schema.test.ts src/lib/storage/migrations.test.ts src/lib/backup.test.ts src/privacy/dataFlows.test.ts src/metrics/export.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the storage checkpoint**
+- [x] **Step 6: Commit the storage checkpoint**
 
 ```powershell
 git add src/lib/storage/schema.ts src/lib/storage/migrations.ts src/lib/storage/index.ts src/lib/backup.ts src/lib/backup.test.ts src/lib/storage/migrations.test.ts src/lib/storage/schema.test.ts src/privacy/dataFlows.ts src/privacy/dataFlows.test.ts src/metrics/export.ts src/metrics/export.test.ts

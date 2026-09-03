@@ -17,6 +17,7 @@ import { ownedOriginPatterns } from '../services/originOwnership'
 import { migrate } from './storage/migrations'
 import { isSafeQuickLinkUrl } from './quickLinkUrl'
 import { validProgressGoals } from './progress'
+import { assertMetricsHistory } from '../metrics/history'
 import { cleanRefreshPreferences, isRefreshPreferences } from '../services/refreshPolicy'
 
 const APP_ID = 'aurora'
@@ -508,6 +509,16 @@ function isProgressGoals(v: unknown): boolean {
   return Array.isArray(v) && validProgressGoals(v).length === v.length
 }
 
+function isMetricsHistory(v: unknown): boolean {
+  if (v === null) return true
+  try {
+    assertMetricsHistory(v)
+    return true
+  } catch {
+    return false
+  }
+}
+
 const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'attentionLedger' | 'apodCache' | 'weatherAlertCache'>, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
@@ -532,6 +543,7 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'attentionLedge
   refreshPreferences: isRefreshPreferences,
   habits: isHabits,
   progressGoals: isProgressGoals,
+  metricsHistory: isMetricsHistory,
 }
 
 /** Strictly validates V1/V2/V3 known members while dropping future ids. */

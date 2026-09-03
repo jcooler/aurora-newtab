@@ -3,8 +3,9 @@ import type { CalendarLayoutPreferences, CalendarWeekStart, LayoutsDocument } fr
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 import type { RefreshPreferences } from '../../services/refreshPolicy'
+import type { MetricsHistoryV1 } from '../../metrics/types'
 
-export const CURRENT_VERSION = 20
+export const CURRENT_VERSION = 21
 
 export const FLOW_AMBIENCE_VALUES = ['off', 'creek', 'rain', 'ocean', 'forest'] as const
 export type FlowAmbience = typeof FLOW_AMBIENCE_VALUES[number]
@@ -396,6 +397,11 @@ export interface AuroraData {
   attentionLedger: AttentionLedger
   habits: Habit[]
   progressGoals: ProgressGoal[]
+  /** Premium daily numeric aggregates only. `null` means the metrics engine
+   * has never been entitled on this profile; a populated history remains
+   * readable/exportable after entitlement expiry and is encrypted by the
+   * sync serializer when the user has separately enabled sync. */
+  metricsHistory: MetricsHistoryV1 | null
   // apodCache (Task 95): a top-level key, so it needs neither a
   // CURRENT_VERSION bump nor a new migrations.ts step — migrate()'s own
   // contract comment on its final default-merge covers exactly this case:
@@ -470,6 +476,7 @@ export function defaults(): AuroraData {
     attentionLedger: { version: 1, sources: {} },
     habits: [],
     progressGoals: [],
+    metricsHistory: null,
     apodCache: null,
   }
 }

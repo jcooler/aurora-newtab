@@ -40,6 +40,7 @@ const DATA_KEYS = [
   'attentionLedger',
   'habits',
   'progressGoals',
+  'metricsHistory',
   'apodCache',
 ] as const
 
@@ -150,6 +151,16 @@ describe('code-backed privacy inventory', () => {
       export: 'included',
       transmission: 'none',
       description: 'Manual goal names, units, targets, and daily values.',
+    })
+  })
+
+  it('classifies aggregate metrics as exportable private data transmitted only through encrypted sync', () => {
+    expect(STORED_DATA_FLOWS.metricsHistory).toEqual({
+      storage: 'chrome.storage.local',
+      sensitivity: ['user-content'],
+      export: 'included',
+      transmission: 'tab-two-encrypted-sync',
+      description: 'Daily numeric aggregates for habits, focus, tasks, calendar load, development activity, and fitness; no titles, names, routes, or raw provider data.',
     })
   })
 

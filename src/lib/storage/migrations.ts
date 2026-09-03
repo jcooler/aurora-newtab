@@ -298,6 +298,10 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v20 -> v21: aggregate metrics history is a new nullable top-level key.
+  // Keep this registry step identity; migrate()'s final defaults merge
+  // materializes null without rewriting any existing user authority.
+  20: (data) => data,
 }
 
 export function migrate(

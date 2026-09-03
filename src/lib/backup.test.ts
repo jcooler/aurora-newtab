@@ -417,6 +417,45 @@ describe('serializeBackup / parseBackup round-trip', () => {
   })
 })
 
+describe('aggregate metrics backup contract', () => {
+  const metricsHistory = {
+    version: 1 as const,
+    installationId: '11111111-1111-4111-8111-111111111111',
+    buckets: [{
+      schemaVersion: 1 as const,
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      date: '2026-09-02',
+      source: 'focus' as const,
+      sourceInstanceId: '11111111-1111-4111-8111-111111111111',
+      installationId: '11111111-1111-4111-8111-111111111111',
+      sequence: 1,
+      values: { kind: 'focus' as const, sessions: 1, minutes: 25 },
+    }],
+  }
+
+  it('round-trips aggregate-only history through the ordinary user backup', () => {
+    const input = { ...defaults(), metricsHistory }
+    const envelope = JSON.parse(serializeBackup(input)) as { data: { metricsHistory: unknown } }
+    expect(envelope.data.metricsHistory).toEqual(metricsHistory)
+
+    const prepared = prepareBackup(serializeBackup(input))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.metricsHistory).toEqual(metricsHistory)
+  })
+
+  it('rejects malformed or private-looking metric fields before restore', () => {
+    const forged = structuredClone(metricsHistory) as unknown as {
+      buckets: Array<{ values: Record<string, unknown> }>
+    }
+    forged.buckets[0]!.values.taskText = 'private task'
+
+    expect(validateBackupShape({ ...defaults(), metricsHistory: forged } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "metricsHistory" data is invalid.',
+    })
+  })
+})
+
 // Task 39: schema v5 connector keys. connectorSnapshots is cache, not user
 // data, and is deliberately excluded from every export (smaller files, one
 // less validator surface on import — see backup.ts's doc comments). connectors
@@ -665,7 +704,7 @@ describe('apodCache export / import exclusion (Task 95)', () => {
 
 describe('weatherAlertCache export / import exclusion', () => {
   it('keeps the current schema version pinned and defaults the additive cache to null', () => {
-    expect(CURRENT_VERSION).toBe(20)
+    expect(CURRENT_VERSION).toBe(21)
     expect(defaults().weatherAlertCache).toBeNull()
     expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
   })
@@ -1556,7 +1595,7 @@ describe('layouts document backup boundary (NL-P1)', () => {
       const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
       expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
       expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
-      expect(CURRENT_VERSION).toBe(20)
+      expect(CURRENT_VERSION).toBe(21)
     }
   })
 

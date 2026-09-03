@@ -379,6 +379,7 @@ describe('backup restore coordinator', () => {
       attentionLedger: { version: 1, sources: {} },
       habits: [{ id: 'before-habit', name: 'Before habit', createdAt: 10, log: ['2026-08-13'] }],
       progressGoals: [],
+      metricsHistory: null,
       apodCache: null,
     }
     const restored: AuroraData = {

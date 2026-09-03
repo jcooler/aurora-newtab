@@ -147,14 +147,19 @@ describe('migrate', () => {
         calls.push(18)
         return data
       },
-      // registry[19] upgrades v19 -> v20 (CURRENT_VERSION)
+      // registry[19] upgrades v19 -> v20
       19: (data) => {
         calls.push(19)
         return data
       },
+      // registry[20] upgrades v20 -> v21 (CURRENT_VERSION)
+      20: (data) => {
+        calls.push(20)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -670,7 +675,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(20)
+    expect(CURRENT_VERSION).toBe(21)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -763,7 +768,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(20)
+    expect(CURRENT_VERSION).toBe(21)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill and v16->v17 Flow preference are the only
     // Settings deltas on the way up.
@@ -891,6 +896,17 @@ describe('v19 -> v20', () => {
         },
       },
     })
+  })
+})
+
+describe('v20 -> v21', () => {
+  it('keeps the registry step identity and materializes nullable metrics only through defaults', () => {
+    const snapshot = { ...defaults(), unknownStore: { future: ['keep'] } } as Record<string, unknown>
+    delete snapshot.metricsHistory
+    const before = structuredClone(snapshot)
+
+    expect(migrations[20](structuredClone(snapshot))).toEqual(before)
+    expect(migrate(snapshot, 20)).toEqual({ ...before, metricsHistory: null })
   })
 })
 

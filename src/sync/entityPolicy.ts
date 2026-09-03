@@ -50,6 +50,7 @@ export const EXCLUDED_AURORA_KEYS = [
   'connectorSnapshots',
   'refreshPreferences',
   'attentionLedger',
+  'metricsHistory',
   'apodCache',
 ] as const satisfies readonly DataKey[]
 
