@@ -218,27 +218,27 @@ Implementation note: `src/lib/storage/index.ts` was reviewed and intentionally r
 - Produces: the five frozen hosted contracts and default-deny private schema.
 - Consumes: verified Supabase Google session, capability authority, exact extension redirect allowlist, local-only placeholder Google client values, and injected Google token/revocation transport in tests.
 
-- [ ] **Step 1: Write failing pgTAP and Edge adversary tests**
+- [x] **Step 1: Write failing pgTAP and Edge adversary tests**
 
 Cover RLS invisibility, service-role-only mutation, cross-account reads/deletes, duplicate subject races, scope widening, state/nonce/PKCE mismatch, callback replay, expired transaction, redirect substitution, issuer/audience mismatch, absent refresh token on first connect, refresh rotation, revoke failure cleanup, stale entitlement, session theft, access-token expiry, rate limits, cipher AAD mismatch, key-version mismatch, and log/body redaction.
 
-- [ ] **Step 2: Run local database/Edge tests and observe RED**
+- [x] **Step 2: Run local database/Edge tests and observe RED**
 
-- [ ] **Step 3: Implement the migration and cryptographic authority**
+- [x] **Step 3: Implement the migration and cryptographic authority**
 
 Use private tables, security-definer functions with pinned search path and revoked public execution, exact constraints, advisory locks for duplicate connection/token rotation, authenticated metadata, and bounded retention cleanup. Never return or log provider subject or token fields outside the shared private repository.
 
-- [ ] **Step 4: Implement the OAuth and lifecycle handlers**
+- [x] **Step 4: Implement the OAuth and lifecycle handlers**
 
 Require JWT on all functions except callback. The callback accepts only GET, consumes one exact transaction, and emits an HTML-free 302 to the pre-bound chromiumapp result. Use stable public error codes; keep provider response bodies private and redacted. Disconnect always removes local server authority after best-effort Google revocation, returning whether revocation was confirmed.
 
-- [ ] **Step 5: Run local database reset, pgTAP, lint, and Edge tests**
+- [x] **Step 5: Run local database reset, pgTAP, lint, and Edge tests**
 
-- [ ] **Step 6: Stop before hosted mutation**
+- [x] **Step 6: Stop before hosted mutation**
 
 Migration 00700, provider KEK, Google web-client secret, and every provider function remain local-only until Task 9 receives an exact owner activation approval.
 
-- [ ] **Step 7: Commit the local broker checkpoint**
+- [x] **Step 7: Commit the local broker checkpoint**
 
 ---
 

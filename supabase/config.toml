@@ -57,3 +57,18 @@ verify_jwt = true
 
 [functions.account-delete]
 verify_jwt = true
+
+[functions.google-calendar-oauth-start]
+verify_jwt = true
+
+[functions.google-calendar-oauth-callback]
+verify_jwt = false
+
+[functions.google-calendar-connections]
+verify_jwt = true
+
+[functions.google-calendar-session]
+verify_jwt = true
+
+[functions.google-calendar-disconnect]
+verify_jwt = true
