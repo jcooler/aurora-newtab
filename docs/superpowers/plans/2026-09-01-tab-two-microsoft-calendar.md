@@ -975,7 +975,7 @@ Expected: contract test passes and the installed MV3 evidence matrix is green.
 
 Review the diff from the Task 1 approved visual checkpoint through current HEAD against the PM-P7 spec and plan. Classify only Critical, Important, Minor, or no finding. Block only Critical/Important. If a blocking issue exists, apply one focused fix and one focused rereview; otherwise proceed without review churn.
 
-- [ ] **Step 6: Run the stabilized full gate once**
+- [x] **Step 6: Run the stabilized full gate once**
 
 ```powershell
 npm test -- --run
@@ -992,11 +992,11 @@ npm run qa:microsoft-calendar -- --exact
 
 Expected: all tests pass, database lint has zero errors, audit has zero high-or-higher findings, builds succeed, fixture/credential scans are clean, build metadata equals final source HEAD, and installed Chromium QA passes.
 
-- [ ] **Step 7: Record the local implementation checkpoint**
+- [x] **Step 7: Record the local implementation checkpoint**
 
 Write exact counts, SHA, request/storage ledgers, screenshot paths, review result, known non-blocking warnings, manual ceilings, and protected-path status in the QA report and Aurora ledgers. Add the real Microsoft sign-in, organizational-account consent, native Chrome permission prompt, live Graph data, provider-side revocation expectations, physical MacBook, and assistive-technology checks to the final deferred owner list.
 
-- [ ] **Step 8: Commit and push the local implementation**
+- [x] **Step 8: Commit and push the local implementation**
 
 ```powershell
 git add package.json scripts/qa-microsoft-calendar.mjs scripts/qa-microsoft-calendar.test.mjs docs/superpowers/reports/TAB-TWO-MICROSOFT-CALENDAR-QA.md docs/superpowers/reports/TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md docs/superpowers/aurora-2/STATUS.md docs/superpowers/aurora-2/ROADMAP.md docs/superpowers/aurora-2/DECISIONS.md

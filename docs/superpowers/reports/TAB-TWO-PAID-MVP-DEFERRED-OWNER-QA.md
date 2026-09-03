@@ -42,6 +42,22 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Verify keyboard-only operation, visible focus, and spoken labels for consent, picker, account rows, reconnect, and disconnect with the owner's real assistive-technology setup.
 - Smoke test the final unpacked build on the owner's MacBook, including Google popup behavior, picker scrolling, source colors, and Calendar full, docked, and stacked presentations.
 
+## PM-P7 Microsoft Calendar
+
+- In normal stable Chrome, start Microsoft Calendar from its explicit premium connector action. Confirm Chrome's native optional Graph-origin prompt is understandable and appears before Microsoft's account flow.
+- In Microsoft's real consent flow, confirm the intended personal or work account is clearly selected and the requested delegated access is exactly identity, offline access, basic profile, and read-only basic Calendar access.
+- Confirm the calendar picker shows real names and colors, defaults the account's default calendar, and displays only calendars explicitly selected.
+- Add one personal Microsoft account and one Microsoft 365 work or school account. Confirm the identities remain distinct, source colors remain visible, and existing Google and free ICS events remain composed in the same Calendar.
+- If organization policy blocks consent or requires an administrator, confirm Tab Two presents a truthful organization-approval state. Do not grant unnecessary tenant-wide consent merely to satisfy QA.
+- Close and reopen Tab Two, then confirm selected calendars persist locally without another consent flow and without exposing a provider token.
+- Reconnect one Microsoft account and confirm its saved row is replaced rather than duplicated. Remove one account and confirm the other Microsoft account, Google accounts, and ICS calendars remain unchanged. If offered, verify that deleting only the removed account's aggregate history does not affect other accounts.
+- From a second signed-in Tab Two installation, confirm a server-held Microsoft connection can be reused only by the same Tab Two account while each installation keeps its own displayed-calendar selections.
+- Revoke the test grant from Microsoft's account controls. Confirm only that account moves to Reconnect, its last complete local schedule remains available, and recovery begins only after explicit reconnection.
+- After a normal token lifetime or explicit reconnect, confirm the same account resumes without duplicating its connection row.
+- Repeat connect, account-add, reconnect, and remove paths in stable Chrome to confirm the native Microsoft popup opens, closes, and restores focus reliably.
+- Verify keyboard-only operation, visible focus, and spoken labels for consent, picker, account rows, reconnect, and disconnect with the owner's real assistive-technology setup.
+- Smoke test the final unpacked build on the owner's MacBook, including popup behavior, picker scrolling, source colors, and Calendar full, docked, and stacked presentations.
+
 ## Final device and accessibility ceilings
 
 - Use stable Chrome rather than automation Chromium for one complete Account & Sync and Metrics pass.
