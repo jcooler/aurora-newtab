@@ -8,7 +8,9 @@ offers explicit, optional Google sign-in backed by Supabase for account identity
 and signed capability leases; signing in does not enable sync or upload local
 dashboard data. Encrypted sync is a separate explicit control for entitled
 accounts and encrypts only reviewed product records in the extension before
-sending them to the exact Tab Two Supabase origin. There is no analytics or tracking. Selected features make only
+sending them to the exact Tab Two Supabase origin. Premium Metrics keeps a
+bounded local history of daily numeric aggregates and never acts as analytics
+or telemetry. There is no analytics or tracking. Selected features make only
 the direct provider requests disclosed below.
 
 PM-P3 billing is active only in Stripe sandbox/test mode. Its hosted Supabase
@@ -53,6 +55,13 @@ is active.
   Habits, managed in a dedicated Settings tab. Its optional photo-first
   canvas rail is off by default and appears only when you explicitly enable
   or place it; Progress adds no account, sync, network request, or alert.
+- **Metrics** - an off-by-default premium trend widget with Compact, Standard,
+  Full, docked, and stacked views plus 7, 30, 90, and 365 day ranges. It stores
+  only daily numeric aggregates from eligible local activity and already-cached
+  connector data, retains at most 13 calendar months, and never stores task,
+  habit, event, repository, project, or provider text. Existing history remains
+  readable offline or after entitlement expiry. Settings > Progress provides a
+  native JSON export and explicit scoped or complete deletion.
 - **Month calendar** — a glance-sized month grid for "what date is the 3rd
   Friday" questions, with today ringed and a dot on any date you've added a
   countdown for. Off by default.
@@ -106,12 +115,15 @@ is active.
   reorder or remove members, and Undo or Cancel exactly. Every member keeps
   its one existing data owner, and the card never auto-rotates or moves itself.
 
-Settings is organized into five tabs: **General** (name/greeting, 24-hour
+Settings is organized into six tabs: **General** (name/greeting, 24-hour
 clock, widget color, units, mute, background), **Progress** (manual daily
-goals plus the existing Habits view), **Widgets** (per-widget on/off toggles,
-weather location, world clocks, countdowns, and named layouts),
+goals, the existing Habits view, and Metrics history controls), **Widgets**
+(per-widget on/off toggles, weather location, world clocks, countdowns, and
+named layouts),
 **Connectors** (outside data sources — see [Connectors](#connectors) below),
-and **Data** (backup/restore, plus the About footer). Every widget can be
+**Data** (backup/restore, plus the About footer), and **Account & Sync**
+(optional Google identity, sandbox billing, encrypted sync, and devices).
+Every widget can be
 turned on or off from Settings, and every setting is optional — the
 dashboard is fully usable with nothing configured beyond the defaults.
 
@@ -430,8 +442,9 @@ as a single JSON file:
   envelope (`app`, `version`, `exportedAt`, and `data`) containing every
   stored key: settings, quick links, to-do lists, the focus timer config,
   today's focus text, background preferences, weather cache, location,
-  notes, world clocks, countdowns, habits, manual Progress goals, per-source
-  refresh preferences, and connector configuration — with any
+  notes, world clocks, countdowns, habits, manual Progress goals, aggregate
+  Metrics history, per-source refresh preferences, and connector configuration
+  — with any
   field a connector marks as secret (a GitHub/
   GitLab/Jira/Vercel/Home Assistant token, or the Calendar connector's
   saved calendar addresses, or an RSS feed list) stripped out first (see
@@ -471,7 +484,7 @@ diagnostics, screenshots, and UI, and Sign out removes it. Sign-in alone never
 enables sync or uploads product data. All dashboard product data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
 preferences, weather cache, location, notes, world clocks, countdowns,
-habits, manual Progress goals, widget layout, and connector configuration (e.g. your RSS feed
+habits, manual Progress goals, aggregate Metrics history, widget layout, and connector configuration (e.g. your RSS feed
 list) — is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).
@@ -488,7 +501,9 @@ refreshing an account-bound signed lease. Stripe returns through the static
 remote assets, account data, or billing authority. Live billing is not active.
 
 Encrypted sync includes settings and layouts; tasks, notes, habits, goals, and
-links; and approved non-secret connector preferences. Passwords, tokens,
+links; and approved non-secret connector preferences. Source support for
+aggregate-only Metrics buckets is complete, but hosted acceptance remains off
+until the separately approved migration and sync-function deployment. Passwords, tokens,
 sessions, feed/calendar URLs, provider caches and responses, uploaded images,
 and device-local operational state always stay on the device. The service keeps
 only encrypted record envelopes and bounded account/device/revision metadata,

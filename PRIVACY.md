@@ -78,6 +78,15 @@ anywhere except as explicitly described under "Network calls" below:
   one done)
 - Manual Progress goals (the names, units, daily targets, and current
   local-day values you've entered)
+- If you hold a current Metrics capability: at most 13 calendar months of
+  daily numeric aggregate buckets. A bucket contains a date, a closed source
+  category, a closed source-instance identifier, random installation and bucket
+  identifiers, a sequence number, and numeric totals such as completions,
+  sessions, minutes, counts, or distances. It never contains task, habit,
+  event, repository, project, provider, or activity names or descriptions;
+  URLs; tokens; credentials; session data; raw records; or provider payloads.
+  Existing local Metrics history remains readable offline and after capability
+  expiry, but new collection requires a current capability.
 - Widget layout (the on-screen position of each widget, if you've used
   "Arrange layout" to move anything from its default spot)
 - Connector configuration (e.g., for RSS: which feed URLs you've added; for
@@ -124,7 +133,11 @@ Its Stripe functions reject live-mode objects and are not a live billing launch.
 
 When encrypted sync is enabled, the Tab Two Supabase service stores AES-256-GCM
 encrypted record envelopes for approved settings, layouts, tasks, notes, habits,
-goals, links, and non-secret connector preferences. It also stores the
+goals, links, and non-secret connector preferences. Source support for the same
+aggregate-only Metrics buckets is complete, but the hosted migration and
+affected sync-function deployment remain separately approval-gated. Until that
+activation passes, Metrics buckets remain local and are not accepted by hosted
+sync. The service also stores the
 provider-neutral account UUID, random device identifiers and friendly names,
 last-seen/acknowledgement metadata, record type/id/revision/tombstone/size data,
 bounded idempotency receipts, rate-limit counters, and append-only sync audit
@@ -168,6 +181,11 @@ is created and read entirely on your device — Tab Two never
 uploads it anywhere on its own. Where that file goes afterward (cloud
 drive, email, USB stick, etc.) is entirely up to you and outside Tab Two's
 control.
+
+Metrics history also has a dedicated user-initiated JSON download containing
+only the bounded aggregate history and export metadata described above. That
+file is created locally through the browser's native download flow and is not
+uploaded by Tab Two.
 
 Tab Two never uploads the local store or a backup file wholesale to the
 developer, analytics, or any outside service. Individual values leave the
@@ -281,7 +299,12 @@ return surface only after a sandbox billing action (item 9 below):
    pull on startup, focus restoration, an interval, or **Sync now**; offline
    edits remain local and retry with bounded backoff. Passwords, tokens,
    sessions, RSS/Calendar URLs, provider caches/responses, uploaded images, and
-   recovery-copy contents are never included.
+   recovery-copy contents are never included. After the separately approved
+   hosted Metrics activation, eligible aggregate-only Metrics buckets may use
+   the same encrypted transport. Their ciphertext contains only the bounded
+   numeric bucket described above; the request exposes only the existing
+   account/device/revision metadata plus the `metric_bucket` type and a random
+   UUID record identifier. Until that activation, Metrics history stays local.
 9. **Static billing return surface** -
    `tab-two-billing-return.pages.dev`, reached when Stripe redirects the browser
    after sandbox Checkout or Customer Portal. The page receives ordinary HTTPS

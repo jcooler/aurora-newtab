@@ -501,11 +501,11 @@ git commit -m "feat: add unified metrics history UI"
 
 Inspect all PM-P5 commits for Critical/Important privacy leakage, duplicate aggregation, retention drift, entitlement bypass, storage migration loss, sync identity leakage, cross-account access, destructive-action ambiguity, accessibility, and existing widget/layout regression. Apply at most one focused repair/rereview cycle.
 
-- [ ] **Step 2: Run the stabilized developer gate**
+- [x] **Step 2: Run the stabilized developer gate**
 
 Run the affected metrics/storage/sync/widget suites, then one full `npm test -- --run`, `npx tsc --noEmit`, `git diff --check`, dependency audit, production fixture/secret scans, local Supabase reset/pgTAP/lint/Edge tests, exact production build, exact preview build, and the production build restored last. Do not repeat already-green gates unless the review repair touches their authority.
 
-- [ ] **Step 3: Run exact Chromium metrics QA**
+- [x] **Step 3: Run exact Chromium metrics QA**
 
 At desktop, short-height, ultrawide, and touch-narrow sizes, cover locked, empty, populated, expired, loading, offline, error, export, delete-confirm/cancel, focus order, visible focus, reduced motion, range controls, Settings route, layout edit, dock/stack, reload persistence, and no overflow. Capture storage writes, backend/provider requests, console errors, page errors, and failed requests against explicit allowlists.
 
@@ -513,7 +513,7 @@ At desktop, short-height, ultrawide, and touch-narrow sizes, cover locked, empty
 
 Present the exact local migration/function delta, rollback, expected Supabase Free impact, and read-only post-deploy inspection. Stop before applying migration 00600 until explicit owner approval. Never read ciphertext during hosted inspection.
 
-- [ ] **Step 5: Maintain the cumulative owner-QA checklist**
+- [x] **Step 5: Maintain the cumulative owner-QA checklist**
 
 At minimum retain:
 
