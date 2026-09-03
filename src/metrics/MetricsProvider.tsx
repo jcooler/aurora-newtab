@@ -143,6 +143,7 @@ export function MetricsProvider({
   useEffect(() => {
     let active = true
     const latest: Partial<MetricSources> = {}
+    const unsubscribers: Array<() => void> = []
     const publish = () => {
       if (!active || SOURCE_KEYS.some((key) => !(key in latest))) return
       setSources({
@@ -152,24 +153,40 @@ export function MetricsProvider({
         metricsHistory: latest.metricsHistory!,
       })
     }
-    const unsubscribers = SOURCE_KEYS.map((key) => storage.subscribe(key, (value) => {
-      latest[key] = value as never
-      publish()
-    }))
-    void Promise.all(SOURCE_KEYS.map(async (key) => [key, await storage.get(key)] as const))
-      .then((entries) => {
-        if (!active) return
-        for (const [key, value] of entries) {
-          if (!(key in latest)) latest[key] = value as never
-        }
+    const hydrate = () => {
+      unsubscribers.push(...SOURCE_KEYS.map((key) => storage.subscribe(key, (value) => {
+        latest[key] = value as never
         publish()
-      })
-      .catch(() => {
-        if (active) {
+      })))
+      void Promise.all(SOURCE_KEYS.map(async (key) => [key, await storage.get(key)] as const))
+        .then((entries) => {
+          if (!active) return
+          for (const [key, value] of entries) {
+            if (!(key in latest)) latest[key] = value as never
+          }
+          publish()
+        })
+        .catch(() => {
+          if (active) {
+            setIssue('storage')
+            console.error('[tab-two] metrics storage hydration failed')
+          }
+        })
+    }
+    if (import.meta.env.MODE === 'preview') {
+      void import('./previewMetricsState').then(({ parsePreviewMetricsState }) => {
+        if (!active) return
+        const previewState = parsePreviewMetricsState(globalThis.location?.search ?? '')
+        if (previewState === 'loading') return
+        if (previewState === 'error') {
           setIssue('storage')
-          console.error('[tab-two] metrics storage hydration failed')
+          return
         }
+        hydrate()
       })
+    } else {
+      hydrate()
+    }
     return () => {
       active = false
       for (const unsubscribe of unsubscribers) unsubscribe()

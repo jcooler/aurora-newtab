@@ -30,6 +30,7 @@
     "qa:billing-return-site": "node scripts/qa-billing-return-site.mjs",
     "qa:tab-two-v2-connectors": "node scripts/qa-tab-two-v2-connectors.mjs --exact",
     "qa:tab-two-v2-progress": "node scripts/qa-tab-two-v2-progress.mjs --exact",
+    "qa:tab-two-metrics": "node scripts/qa-tab-two-metrics.mjs --exact",
     "qa:canvas-polish": "node scripts/qa-canvas-polish.mjs",
     "qa:weather-enrichment": "node scripts/qa-weather-enrichment.mjs",
     "verify:photos": "node scripts/verify-photo-manifest.mjs",
