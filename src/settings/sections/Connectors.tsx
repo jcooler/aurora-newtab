@@ -53,7 +53,9 @@ import type { RefreshPreferences } from '../../services/refreshPolicy'
 import { useAccount } from '../../account/AccountContext'
 import { hasProviderCapability } from '../../account/capabilities'
 import { parseGoogleCalendarConfig } from '../../services/connectors/googleCalendar'
+import { parseMicrosoftCalendarConfig } from '../../services/connectors/microsoftCalendar'
 import GoogleCalendarConnection from '../connectors/GoogleCalendarConnection'
+import MicrosoftCalendarConnection from '../connectors/MicrosoftCalendarConnection'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -313,8 +315,10 @@ export default function Connectors({
 
   const connectorConfig = (descriptor: ConnectorDescriptor): ConnectorConfig | undefined => {
     const config = connectors?.[descriptor.id]
-    if (descriptor.id !== 'googleCalendar') return config
-    const parsed = parseGoogleCalendarConfig(config)
+    if (descriptor.id !== 'googleCalendar' && descriptor.id !== 'microsoftCalendar') return config
+    const parsed = descriptor.id === 'googleCalendar'
+      ? parseGoogleCalendarConfig(config)
+      : parseMicrosoftCalendarConfig(config)
     return parsed
       && account.snapshot.mode === 'signed_in'
       && account.snapshot.accountId === parsed.accountId
@@ -559,6 +563,7 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   publicHolidays: PublicHolidaysBody,
   auroraKp: AuroraKpBody,
   googleCalendar: GoogleCalendarConnection,
+  microsoftCalendar: MicrosoftCalendarConnection,
 }
 
 export const CONNECTOR_BODY_IDS: readonly ConnectorId[] = Object.freeze(
@@ -589,8 +594,13 @@ function ConnectorCard({
   const presentation = deriveConnectorCardState(descriptor, config)
   const Body = BODY_COMPONENTS[descriptor.id]
   const account = useAccount()
-  const canRefresh = descriptor.id !== 'googleCalendar'
-    || hasProviderCapability(account.snapshot, 'google_calendar')
+  const providerCapability = descriptor.id === 'googleCalendar'
+    ? 'google_calendar'
+    : descriptor.id === 'microsoftCalendar'
+      ? 'microsoft_calendar'
+      : null
+  const canRefresh = providerCapability === null
+    || hasProviderCapability(account.snapshot, providerCapability)
 
   return (
     <ConnectorCardShell

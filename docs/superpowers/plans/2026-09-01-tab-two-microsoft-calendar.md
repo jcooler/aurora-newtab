@@ -640,11 +640,11 @@ git commit -m "feat: compose Microsoft Calendar locally"
 - Consumes: approved visual spec, Microsoft provider gateway, connection metadata, discovery, local config/cache, runtime state, account capabilities, Metrics deletion callback, and Settings focus/dialog primitives.
 - Produces: premium locked state, benefits-first consent, pending account window, calendar picker, personal/work multi-account summary, organization-approval recovery, per-account reconnect, retained-data truth, and two-step disconnect/history behavior.
 
-- [ ] **Step 1: Write failing interaction and accessibility tests**
+- [x] **Step 1: Write failing interaction and accessibility tests**
 
 Cover the exact approved copy, one primary action, no fake disabled Connect control, Connect permission as the first asynchronous boundary, `Opening Microsoft...` progress, Cancel, popup close, account-policy message, discovery loading, default-calendar selection, ten-per-account and twenty-total selection caps, save spinner, storage failure retaining prior state, two account kinds, one-account partial failure, reconnect isolation, retained-data copy, focus restoration, Escape behavior, keyboard selection, non-color labels, 44 px touch classes, reduced-motion spinner, disconnect confirmation, default keep-history choice, scoped Metrics deletion, local-cache cleanup, origin removal after the last Microsoft connection, and Google/ICS preservation.
 
-- [ ] **Step 2: Run focused UI tests and observe RED**
+- [x] **Step 2: Run focused UI tests and observe RED**
 
 ```powershell
 npm test -- --run src/settings/connectors/MicrosoftCalendarConnection.test.tsx src/settings/connectors/connectorExperience.test.ts src/settings/connectors/connectorCardState.test.ts src/settings/connectors/ConnectorCardShell.test.tsx src/newtab/widgetRegistry.test.ts
@@ -652,13 +652,13 @@ npm test -- --run src/settings/connectors/MicrosoftCalendarConnection.test.tsx s
 
 Expected: Microsoft detail component and registry experience are absent.
 
-- [ ] **Step 3: Implement the approved production UI**
+- [x] **Step 3: Implement the approved production UI**
 
 Use the visual authority exactly. Reuse the accepted Tab Two cyan accent, quiet separators, provider source rail, Space Grotesk/Inter hierarchy, and stable inline spinner geometry. Microsoft color identifies the provider only where useful; calendar colors remain provider-owned with text labels. Use `aria-live="polite"` for pending/success state and role-appropriate alert copy for blocking errors.
 
 Do not add a general Account & Sync refresh button. Connection, selection, reconnect, and retry actions own their exact operation and update state automatically.
 
-- [ ] **Step 4: Run focused UI tests and observe GREEN**
+- [x] **Step 4: Run focused UI tests and observe GREEN**
 
 Run the Step 2 command. Expected: all selected tests pass.
 
