@@ -10,6 +10,8 @@ import {
   collectTaskSeries,
 } from './collectors'
 
+declare const process: { env: Record<string, string | undefined> }
+
 function localEpoch(date: string, hour = 0, minute = 0): number {
   const [year, month, day] = date.split('-').map(Number)
   return new Date(year, month - 1, day, hour, minute).getTime()
@@ -113,6 +115,29 @@ describe('calendar aggregates', () => {
       values: { kind: 'calendar', events: 1, busyMinutes: 30 },
     })
     expect(JSON.stringify(series)).not.toMatch(/private|home-a|sync|calendarId|title/i)
+  })
+
+  it('counts a Google all-day event by its date identity without shifting it into the prior local day', () => {
+    const previousTimeZone = process.env.TZ
+    process.env.TZ = 'America/New_York'
+    try {
+      const sourceInstanceId = '52000000-0000-4000-8000-000000000001'
+      const series = collectCalendarSeries([{
+        start: Date.parse('2026-09-02T00:00:00.000Z'),
+        end: Date.parse('2026-09-03T00:00:00.000Z'),
+        allDay: true,
+        startDate: '2026-09-02',
+        endDate: '2026-09-03',
+      }], sourceInstanceId, '2026-09-02')
+
+      expect(series).toEqual([{
+        date: '2026-09-02', source: 'calendar', sourceInstanceId,
+        values: { kind: 'calendar', events: 1, busyMinutes: 0 },
+      }])
+    } finally {
+      if (previousTimeZone === undefined) delete process.env.TZ
+      else process.env.TZ = previousTimeZone
+    }
   })
 })
 

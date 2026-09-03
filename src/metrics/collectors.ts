@@ -140,7 +140,29 @@ function localDayBounds(date: string): readonly [number, number] {
   return [start.getTime(), end.getTime()]
 }
 
-type CalendarMetricEvent = Pick<IcsEvent | GoogleCalendarEvent, 'start' | 'end' | 'allDay'>
+type CalendarMetricEvent = Pick<IcsEvent | GoogleCalendarEvent, 'start' | 'end' | 'allDay'> & {
+  startDate?: string | null
+  endDate?: string | null
+}
+
+function calendarEventOccursOn(
+  event: CalendarMetricEvent,
+  date: string,
+  dayStart: number,
+  dayEnd: number,
+): boolean {
+  if (
+    event.allDay
+    && typeof event.startDate === 'string'
+    && typeof event.endDate === 'string'
+    && isMetricDateKey(event.startDate)
+    && isMetricDateKey(event.endDate)
+    && event.endDate > event.startDate
+  ) {
+    return event.startDate <= date && date < event.endDate
+  }
+  return event.start < dayEnd && event.end > dayStart
+}
 
 function busyMinutes(events: readonly CalendarMetricEvent[], start: number, end: number): number {
   const intervals = events
@@ -174,7 +196,7 @@ export function collectCalendarSeries(
     const [start, end] = localDayBounds(date)
     const current = events.filter((event) =>
       Number.isFinite(event.start) && Number.isFinite(event.end)
-      && event.end > event.start && event.start < end && event.end > start)
+      && event.end > event.start && calendarEventOccursOn(event, date, start, end))
     if (current.length === 0) return []
     return [{
       date,
