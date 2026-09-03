@@ -653,8 +653,10 @@ async function exerciseShort(page, viewport, output, evidence, repoRoot, setGrap
   await page.reload({ waitUntil: 'domcontentloaded' })
   let opened = await openMicrosoftCard(page)
   await opened.card.getByRole('button', { name: 'Edit Microsoft Calendar' }).click()
-  await page.getByText('Needs attention', { exact: true }).first().waitFor()
+  const partialWitness = page.getByText('Needs attention', { exact: true }).first()
+  await partialWitness.waitFor()
   assert(await page.getByText('Up to date', { exact: true }).first().isVisible())
+  await partialWitness.scrollIntoViewIfNeeded()
   await capture(page, viewport, 'partial-account', output, evidence, repoRoot, {
     state: 'partial-account', recordViewport: true,
   })
@@ -665,12 +667,14 @@ async function exerciseShort(page, viewport, output, evidence, repoRoot, setGrap
   await page.reload({ waitUntil: 'domcontentloaded' })
   opened = await openMicrosoftCard(page)
   await opened.card.getByRole('button', { name: 'Edit Microsoft Calendar' }).click()
-  await page.getByRole('button', { name: 'Reconnect alex@contoso.test' }).waitFor()
+  const reconnectWitness = page.getByRole('button', { name: 'Reconnect alex@contoso.test' })
+  await reconnectWitness.waitFor()
   const retained = await page.evaluate(async () => {
     const stored = await chrome.storage.local.get('connectorSnapshots')
     return stored.connectorSnapshots?.microsoftCalendar?.data?.calendars?.some((calendar) => calendar.events?.length > 0)
   })
   assert.equal(retained, true, 'reconnect state did not retain the last complete snapshot')
+  await reconnectWitness.scrollIntoViewIfNeeded()
   await capture(page, viewport, 'reconnect-retained', output, evidence, repoRoot, { state: 'reconnect-retained' })
 }
 
