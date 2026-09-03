@@ -501,7 +501,7 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot) {
   const { card } = await openMicrosoftCard(page)
   await card.getByRole('button', { name: 'Set up Microsoft Calendar' }).click()
   await page.getByRole('heading', { name: 'Bring your Microsoft calendars together.' }).waitFor()
-  assert(await page.getByText('READ-ONLY').isVisible())
+  assert(await page.getByText('READ-ONLY', { exact: true }).isVisible())
   assert(await page.getByText(/Chrome will ask to let Tab Two communicate with graph\.microsoft\.com/u).isVisible())
   evidence.interactions.permissionDisclosureVisible = true
   await capture(page, viewport, 'read-only-consent', output, evidence, repoRoot, { state: 'read-only-consent' })
