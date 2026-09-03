@@ -40,20 +40,49 @@ describe('addList', () => {
 
 describe('addItem', () => {
   it('appends an undone item to the target list', () => {
-    const out = todoReducer(seed, { type: 'addItem', listId: 'list-2', text: 'Book flights' })
+    const out = todoReducer(seed, { type: 'addItem', listId: 'list-2', text: 'Book flights', today: '2026-09-02' })
     const list = out.find((l) => l.id === 'list-2')!
     expect(list.items).toHaveLength(2)
-    expect(list.items[1]).toMatchObject({ text: 'Book flights', done: false })
+    expect(list.items[1]).toMatchObject({ text: 'Book flights', done: false, createdOn: '2026-09-02' })
     expect(list.items[1]!.id).toBeTruthy()
+  })
+
+  it('rejects an invalid provenance date without changing the list', () => {
+    expect(() => todoReducer(seed, {
+      type: 'addItem', listId: 'list-2', text: 'Book flights', today: '2026-02-30',
+    })).toThrow('todo_date_invalid')
   })
 })
 
 describe('toggleItem', () => {
-  it('flips only the matching item', () => {
-    const out = todoReducer(seed, { type: 'toggleItem', listId: 'list-1', itemId: 'i2' })
+  it('records a completion date and flips only the matching item', () => {
+    const out = todoReducer(seed, { type: 'toggleItem', listId: 'list-1', itemId: 'i1', today: '2026-09-02' })
     const list = out.find((l) => l.id === 'list-1')!
-    expect(list.items.find((i) => i.id === 'i2')!.done).toBe(false)
-    expect(list.items.find((i) => i.id === 'i1')!.done).toBe(false) // untouched
+    expect(list.items.find((i) => i.id === 'i1')).toMatchObject({ done: true, completedOn: '2026-09-02' })
+    expect(list.items.find((i) => i.id === 'i2')!.done).toBe(true) // untouched
+  })
+
+  it('removes completion provenance when an item is reopened', () => {
+    const dated: TodoList[] = [{
+      id: 'list-1', name: 'Today', items: [{
+        id: 'i1', text: 'Write report', done: true, createdOn: '2026-09-01', completedOn: '2026-09-02',
+      }],
+    }]
+    const out = todoReducer(dated, { type: 'toggleItem', listId: 'list-1', itemId: 'i1', today: '2026-09-03' })
+    expect(out[0]?.items[0]).toEqual({
+      id: 'i1', text: 'Write report', done: false, createdOn: '2026-09-01',
+    })
+  })
+
+  it('accepts legacy items without provenance and rejects invalid action dates', () => {
+    const completed = todoReducer(seed, {
+      type: 'toggleItem', listId: 'list-1', itemId: 'i1', today: '2026-09-02',
+    })
+    expect(completed[0]?.items[0]).not.toHaveProperty('createdOn')
+    expect(completed[0]?.items[0]).toHaveProperty('completedOn', '2026-09-02')
+    expect(() => todoReducer(seed, {
+      type: 'toggleItem', listId: 'list-1', itemId: 'i1', today: 'not-a-date',
+    })).toThrow('todo_date_invalid')
   })
 })
 
@@ -117,7 +146,7 @@ describe('clearDone', () => {
 
 describe('unknown listId', () => {
   it('returns the same array reference when the listId does not match any list', () => {
-    const out = todoReducer(seed, { type: 'toggleItem', listId: 'nope', itemId: 'i1' })
+    const out = todoReducer(seed, { type: 'toggleItem', listId: 'nope', itemId: 'i1', today: '2026-09-02' })
     expect(out).toBe(seed)
   })
 })

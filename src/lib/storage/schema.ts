@@ -144,6 +144,10 @@ export interface TodoItem {
   id: string
   text: string
   done: boolean
+  /** Optional so pre-metrics tasks remain valid without invented history. */
+  createdOn?: string
+  /** Present only while the item is complete. */
+  completedOn?: string
 }
 
 export interface TodoList {

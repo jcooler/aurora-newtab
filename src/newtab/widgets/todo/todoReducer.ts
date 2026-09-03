@@ -1,11 +1,12 @@
 import type { TodoItem, TodoList } from '../../../lib/storage/schema'
+import { isMetricDateKey } from '../../../metrics/history'
 
 export type TodoAction =
   | { type: 'addList'; name: string }
   | { type: 'renameList'; listId: string; name: string }
   | { type: 'removeList'; listId: string }
-  | { type: 'addItem'; listId: string; text: string }
-  | { type: 'toggleItem'; listId: string; itemId: string }
+  | { type: 'addItem'; listId: string; text: string; today: string }
+  | { type: 'toggleItem'; listId: string; itemId: string; today: string }
   | { type: 'removeItem'; listId: string; itemId: string }
   | { type: 'moveItem'; listId: string; from: number; to: number }
   | { type: 'clearDone'; listId: string }
@@ -39,16 +40,24 @@ export function todoReducer(lists: TodoList[], action: TodoAction): TodoList[] {
     case 'removeList':
       return lists.filter((l) => l.id !== action.listId)
     case 'addItem': {
+      if (!isMetricDateKey(action.today)) throw new Error('todo_date_invalid')
       const text = action.text.trim()
       if (!text) return lists
-      const item: TodoItem = { id: crypto.randomUUID(), text, done: false }
+      const item: TodoItem = { id: crypto.randomUUID(), text, done: false, createdOn: action.today }
       return mapList(lists, action.listId, (l) => ({ ...l, items: [...l.items, item] }))
     }
-    case 'toggleItem':
+    case 'toggleItem': {
+      if (!isMetricDateKey(action.today)) throw new Error('todo_date_invalid')
       return mapList(lists, action.listId, (l) => ({
         ...l,
-        items: l.items.map((i) => (i.id === action.itemId ? { ...i, done: !i.done } : i)),
+        items: l.items.map((item) => {
+          if (item.id !== action.itemId) return item
+          if (!item.done) return { ...item, done: true, completedOn: action.today }
+          const { completedOn: _completedOn, ...reopened } = item
+          return { ...reopened, done: false }
+        }),
       }))
+    }
     case 'removeItem':
       return mapList(lists, action.listId, (l) => ({
         ...l,

@@ -11,6 +11,8 @@ import {
 import { useNow } from '../../../lib/hooks/useNow'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
+import { localDateKey } from '../../../lib/habits'
+import { useMetrics } from '../../../metrics/MetricsProvider'
 import type { TimerConfig, TimerSession } from '../../../lib/storage/schema'
 import {
   liveTimerRemainingMs,
@@ -46,6 +48,7 @@ const TimerFlowContext = createContext<TimerFlowState | null>(null)
 
 export function TimerSessionProvider({ children }: { children: ReactNode }) {
   const storage = useStorage()
+  const metrics = useMetrics()
   const [storedSession] = useStoredKey('timerSession')
   const [storedConfig] = useStoredKey('timerConfig')
   // Paused and canonical-idle sessions have no moving value and own no
@@ -74,6 +77,7 @@ export function TimerSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (
       !hydrated ||
+      !metrics.hydrated ||
       storedSession === null ||
       !storedSession.running ||
       storedSession.endsAt === null ||
@@ -83,7 +87,9 @@ export function TimerSessionProvider({ children }: { children: ReactNode }) {
 
     transitionInFlight.current = true
     let completed: 'work' | 'break' | null = null
-    void storage.updateMany(['timerSession', 'timerConfig'], ({ timerSession, timerConfig }) => {
+    void storage.updateMany(
+      ['timerSession', 'timerConfig', 'metricsHistory'],
+      ({ timerSession, timerConfig, metricsHistory }) => {
       if (
         timerSession === null ||
         !timerSession.running ||
@@ -91,21 +97,32 @@ export function TimerSessionProvider({ children }: { children: ReactNode }) {
         now.getTime() < timerSession.endsAt
       ) return {}
       completed = timerSession.mode
-      return {
-        timerSession: reduceTimerSession(
+      const nextSession = reduceTimerSession(
           timerSession,
           { type: 'tick', now: now.getTime() },
           timerConfig ?? DEFAULT_CONFIG,
-        ),
+        )
+      const nextMetrics = completed === 'work'
+        ? metrics.recordFocusCompletion(
+            metricsHistory,
+            (timerConfig ?? DEFAULT_CONFIG).workMinutes,
+            localDateKey(new Date(timerSession.endsAt)),
+          )
+        : metricsHistory
+      return {
+        timerSession: nextSession,
+        ...(nextMetrics !== metricsHistory ? { metricsHistory: nextMetrics } : {}),
       }
     }).then((patch) => {
       if (Object.prototype.hasOwnProperty.call(patch, 'timerSession') && completed) {
         setJustFinished(completed)
       }
+    }).catch(() => {
+      console.error('[tab-two] timer phase transition failed')
     }).finally(() => {
       transitionInFlight.current = false
     })
-  }, [hydrated, now, storage, storedSession])
+  }, [hydrated, metrics, now, storage, storedSession])
 
   const value = useMemo<TimerSessionController>(() => ({
     hydrated,

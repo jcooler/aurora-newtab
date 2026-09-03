@@ -262,7 +262,7 @@ git commit -m "feat: collect entitlement-gated daily metrics"
 - Consumes: `recordFocusCompletion(minutes, date)` from Task 3.
 - Produces: optional `TodoItem.createdOn` and `TodoItem.completedOn` local date keys, time-injected `toggleItem`, and one atomic metrics increment for a naturally completed work phase.
 
-- [ ] **Step 1: Write failing todo provenance tests**
+- [x] **Step 1: Write failing todo provenance tests**
 
 Change `TodoAction` to accept an explicit date for state-changing operations:
 
@@ -273,31 +273,31 @@ Change `TodoAction` to accept an explicit date for state-changing operations:
 
 Assert new items store `createdOn`, incomplete to complete sets `completedOn`, complete to incomplete removes `completedOn`, old items without dates remain valid, backup/sync round trips both optional fields, and invalid dates fail closed.
 
-- [ ] **Step 2: Run todo/storage/sync tests and observe RED**
+- [x] **Step 2: Run todo/storage/sync tests and observe RED**
 
 Run: `npm test -- --run src/newtab/widgets/todo/todoReducer.test.ts src/lib/backup.test.ts src/sync/entityPolicy.test.ts`
 
 Expected: FAIL on the new provenance assertions.
 
-- [ ] **Step 3: Implement task provenance minimally**
+- [x] **Step 3: Implement task provenance minimally**
 
 Keep text and identifiers in the existing todo authority only. Metrics collectors receive only counts and date keys. Do not fabricate dates for existing tasks and do not rewrite them during migration.
 
-- [ ] **Step 4: Write failing Focus completion tests**
+- [x] **Step 4: Write failing Focus completion tests**
 
 Assert crossing an overdue work deadline records exactly one session with the configured work minutes and completion local day, while break completion, reset, remount, a second timer owner, inactive entitlement, and a failed timer write record nothing. Prove the timer transition and metrics write share one `updateMany` authority so a partial failure cannot claim a completed metric.
 
-- [ ] **Step 5: Implement the atomic Focus path**
+- [x] **Step 5: Implement the atomic Focus path**
 
 `TimerSessionProvider` reads the current metrics action from context and includes `metricsHistory` in the same storage transaction only for a committed work-to-break transition. Deduplication uses the completed timer cycle and installation-owned bucket sequence, not a React effect count.
 
-- [ ] **Step 6: Run focused tests and observe GREEN**
+- [x] **Step 6: Run focused tests and observe GREEN**
 
 Run: `npm test -- --run src/newtab/widgets/todo/todoReducer.test.ts src/lib/backup.test.ts src/sync/entityPolicy.test.ts src/newtab/widgets/timer/TimerSessionProvider.test.tsx src/metrics/MetricsProvider.test.tsx`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the action checkpoint**
+- [x] **Step 7: Commit the action checkpoint**
 
 ```powershell
 git add src/lib/storage/schema.ts src/newtab/widgets/todo src/lib/backup.ts src/lib/backup.test.ts src/sync/entityPolicy.ts src/sync/entityPolicy.test.ts src/newtab/widgets/timer/TimerSessionProvider.tsx src/newtab/widgets/timer/TimerSessionProvider.test.tsx src/metrics/MetricsProvider.tsx src/metrics/MetricsProvider.test.tsx

@@ -192,6 +192,7 @@ export default function FlowScreen() {
                     type: 'toggleItem',
                     listId: firstList.id,
                     itemId: currentTask.id,
+                    today,
                   }))
                 }}
                 className="peer sr-only"

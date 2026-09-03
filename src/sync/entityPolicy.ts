@@ -149,8 +149,13 @@ function validSettings(value: unknown): value is AuroraData['settings'] {
 
 function validTodoItems(value: unknown): value is TodoItem[] {
   return Array.isArray(value) && value.length <= 1_000 && value.every((entry) => {
-    if (!isPlainObject(entry) || !exactKeys(entry, ['id', 'text', 'done'])) return false
-    return stableId(entry.id) && text(entry.text) && typeof entry.done === 'boolean'
+    if (!isPlainObject(entry)
+      || !exactKeys(entry, ['id', 'text', 'done'], ['id', 'text', 'done', 'createdOn', 'completedOn'])) return false
+    return stableId(entry.id)
+      && text(entry.text)
+      && typeof entry.done === 'boolean'
+      && optional(entry.createdOn, dateKey)
+      && optional(entry.completedOn, dateKey)
   })
 }
 

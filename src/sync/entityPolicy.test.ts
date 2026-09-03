@@ -15,7 +15,9 @@ function fixture(): AuroraData {
     ...defaults(),
     settings: { ...defaults().settings, name: 'Alex' },
     focus: { date: '2026-09-02', text: 'Ship safely', done: false },
-    todoLists: [{ id: 'today', name: 'Today', items: [{ id: 'review', text: 'Review sync', done: true }] }],
+    todoLists: [{ id: 'today', name: 'Today', items: [{
+      id: 'review', text: 'Review sync', done: true, createdOn: '2026-09-01', completedOn: '2026-09-02',
+    }] }],
     links: [{ id: 'docs', title: 'Docs', url: 'https://example.com/docs' }],
     timerConfig: { workMinutes: 40, breakMinutes: 10 },
     location: { lat: 42.9634, lon: -85.6681, label: 'Grand Rapids', manual: true },
@@ -165,5 +167,27 @@ describe('deny-by-default sync entity policy', () => {
     expect(updated).not.toBe(data)
     expect(updated.connectors.github).toEqual({ enabled: false, token: 'github_secret_token', username: 'alex' })
     expect(data.connectors.github).toEqual({ enabled: true, token: 'github_secret_token', username: 'alex' })
+  })
+
+  it('round-trips optional todo creation and completion days', () => {
+    const projected = projectSyncEntities(fixture()).find((entity) => entity.entityType === 'todo_list')!
+    expect(projected.value).toEqual({
+      name: 'Today',
+      items: [{
+        id: 'review', text: 'Review sync', done: true, createdOn: '2026-09-01', completedOn: '2026-09-02',
+      }],
+    })
+    expect(applySyncEntity(defaults(), projected).todoLists[0]?.items[0]).toEqual({
+      id: 'review', text: 'Review sync', done: true, createdOn: '2026-09-01', completedOn: '2026-09-02',
+    })
+  })
+
+  it.each(['2026-02-30', 'tomorrow', null])('rejects invalid todo provenance date %s', (createdOn) => {
+    expect(() => applySyncEntity(defaults(), {
+      schemaVersion: 1,
+      entityType: 'todo_list',
+      entityId: 'today',
+      value: { name: 'Today', items: [{ id: 'item', text: 'Private', done: false, createdOn }] },
+    })).toThrow('sync_entity_invalid')
   })
 })

@@ -28,6 +28,7 @@ import {
 import type { MetricBucketInput, MetricSource, MetricsHistoryV1 } from './types'
 
 const DERIVED_LOCAL_SOURCES = new Set(['local-habits', 'local-tasks'])
+const createUuid = () => crypto.randomUUID()
 
 export interface MetricsDeleteFilter {
   source?: MetricSource
@@ -49,7 +50,9 @@ interface MetricsContextValue {
 
 const unavailable = async () => {}
 const MetricsContext = createContext<MetricsContextValue>({
-  hydrated: false,
+  // Isolated consumers outside the production provider keep their existing
+  // local-only behavior instead of blocking on an owner that is not mounted.
+  hydrated: true,
   entitled: false,
   history: null,
   deleteMetricsHistory: unavailable,
@@ -115,7 +118,7 @@ function structurallyEqual(left: unknown, right: unknown): boolean {
 
 export function MetricsProvider({
   children,
-  createId = () => crypto.randomUUID(),
+  createId = createUuid,
   installationId,
 }: {
   children: ReactNode
@@ -123,7 +126,7 @@ export function MetricsProvider({
   installationId?: string
 }) {
   const storage = useStorage()
-  const { snapshot } = useAccount()
+  const { hydrated: accountHydrated, snapshot } = useAccount()
   const [sources, setSources] = useState<MetricSources | null>(null)
   const [entitlementClock, setEntitlementClock] = useState(0)
   const installationIdRef = useRef<string | null>(installationId ?? null)
@@ -163,8 +166,8 @@ export function MetricsProvider({
   }, [storage])
 
   const entitled = useMemo(
-    () => hasCapability(snapshot, 'metrics_history', Date.now()),
-    [snapshot, entitlementClock],
+    () => accountHydrated && hasCapability(snapshot, 'metrics_history', Date.now()),
+    [accountHydrated, snapshot, entitlementClock],
   )
 
   useEffect(() => {
@@ -254,13 +257,13 @@ export function MetricsProvider({
   }, [createId, entitled, installationId])
 
   const value = useMemo<MetricsContextValue>(() => ({
-    hydrated: sources !== null,
+    hydrated: sources !== null && accountHydrated,
     entitled,
     history: sources?.metricsHistory ?? null,
     deleteMetricsHistory,
     exportMetricsHistory,
     recordFocusCompletion,
-  }), [deleteMetricsHistory, entitled, exportMetricsHistory, recordFocusCompletion, sources])
+  }), [accountHydrated, deleteMetricsHistory, entitled, exportMetricsHistory, recordFocusCompletion, sources])
 
   return <MetricsContext.Provider value={value}>{children}</MetricsContext.Provider>
 }

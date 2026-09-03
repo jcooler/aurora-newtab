@@ -18,6 +18,7 @@ import { migrate } from './storage/migrations'
 import { isSafeQuickLinkUrl } from './quickLinkUrl'
 import { validProgressGoals } from './progress'
 import { assertMetricsHistory } from '../metrics/history'
+import { isMetricDateKey } from '../metrics/history'
 import { cleanRefreshPreferences, isRefreshPreferences } from '../services/refreshPolicy'
 
 const APP_ID = 'aurora'
@@ -295,7 +296,14 @@ function isFocus(v: unknown): boolean {
 }
 
 function isTodoItem(v: unknown): boolean {
-  return isPlainObject(v) && isString(v.id) && isString(v.text) && isBoolean(v.done)
+  if (!isPlainObject(v)) return false
+  const allowed = ['id', 'text', 'done', 'createdOn', 'completedOn']
+  return Object.keys(v).every((key) => allowed.includes(key))
+    && isString(v.id)
+    && isString(v.text)
+    && isBoolean(v.done)
+    && (v.createdOn === undefined || isMetricDateKey(v.createdOn))
+    && (v.completedOn === undefined || isMetricDateKey(v.completedOn))
 }
 function isTodoLists(v: unknown): boolean {
   return (

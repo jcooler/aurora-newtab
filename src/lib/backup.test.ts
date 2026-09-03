@@ -155,6 +155,35 @@ describe('timerSession backup contract (Flow)', () => {
   })
 })
 
+describe('todo completion provenance backup contract', () => {
+  const todoLists = [{
+    id: 'today',
+    name: 'Today',
+    items: [{
+      id: 'ship',
+      text: 'Ship safely',
+      done: true,
+      createdOn: '2026-09-01',
+      completedOn: '2026-09-02',
+    }],
+  }]
+
+  it('round-trips optional creation and completion days', () => {
+    const prepared = prepareBackup(serializeBackup({ ...defaults(), todoLists } as never))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.todoLists).toEqual(todoLists)
+  })
+
+  it.each(['2026-02-30', 'September 2', null])('rejects invalid provenance date %s', (createdOn) => {
+    const invalid = structuredClone(todoLists) as unknown as Array<{ items: Array<Record<string, unknown>> }>
+    invalid[0]!.items[0]!.createdOn = createdOn
+    expect(validateBackupShape({ ...defaults(), todoLists: invalid } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "todoLists" data is invalid.',
+    })
+  })
+})
+
 describe('Flow ambience backup contract', () => {
   it.each(['off', 'creek', 'rain', 'ocean', 'forest'] as const)('round-trips the supported %s choice', (flowAmbience) => {
     const data = { ...defaults(), settings: { ...defaults().settings, flowAmbience, flowVolume: 15 } }

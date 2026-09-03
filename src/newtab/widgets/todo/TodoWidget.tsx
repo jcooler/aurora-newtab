@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
+import { readLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
 import { hugHorizontal } from '../../../lib/layout/anchor'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
@@ -155,7 +156,9 @@ function TodoInner({
     list.items.filter((item) => !item.done).map((item) => ({ listId: list.id, item })),
   )
   const toggleItem = (listId: string, itemId: string) => {
-    void storage.update('todoLists', (lists) => todoReducer(lists, { type: 'toggleItem', listId, itemId }))
+    void storage.update('todoLists', (lists) => todoReducer(lists, {
+      type: 'toggleItem', listId, itemId, today: readLocalDay().key,
+    }))
   }
   const trigger = (
     <button

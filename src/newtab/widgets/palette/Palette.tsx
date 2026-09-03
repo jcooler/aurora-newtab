@@ -3,6 +3,7 @@ import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
+import { readLocalDay } from '../../../lib/hooks/useLocalDay'
 import { searchWeb } from '../../../services/search'
 import { todoReducer } from '../todo/todoReducer'
 import { buildCommands, filterCommands, type CommandContext } from './commands'
@@ -50,7 +51,9 @@ export default function Palette({
               current.length === 0
                 ? todoReducer(current, { type: 'addList', name: 'Today' })
                 : current
-            return todoReducer(withToday, { type: 'addItem', listId: withToday[0]!.id, text })
+            return todoReducer(withToday, {
+              type: 'addItem', listId: withToday[0]!.id, text, today: readLocalDay().key,
+            })
           })
           .then(() => undefined),
       openSettings: onOpenSettings,

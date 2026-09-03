@@ -4,6 +4,7 @@ import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
+import { readLocalDay } from '../../../lib/hooks/useLocalDay'
 import type { PanelPlacement } from '../../../lib/layout/anchor'
 import { todoReducer, type TodoAction } from './todoReducer'
 
@@ -490,7 +491,7 @@ export default function TodoPanel({
                     id={`todo-item-${item.id}`}
                     checked={item.done}
                     onChange={() =>
-                      dispatch({ type: 'toggleItem', listId: activeList.id, itemId: item.id })
+                      dispatch({ type: 'toggleItem', listId: activeList.id, itemId: item.id, today: readLocalDay().key })
                     }
                     onKeyDown={(e) => {
                       if (!e.altKey) return
@@ -565,7 +566,7 @@ export default function TodoPanel({
             e.preventDefault()
             const data = new FormData(e.currentTarget)
             const text = String(data.get('text') ?? '')
-            dispatch({ type: 'addItem', listId: activeList.id, text })
+            dispatch({ type: 'addItem', listId: activeList.id, text, today: readLocalDay().key })
             e.currentTarget.reset()
           }}
           className="flex items-center gap-2 border-t border-hairline px-3.5 py-2.5"
