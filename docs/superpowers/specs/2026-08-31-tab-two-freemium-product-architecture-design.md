@@ -4,7 +4,7 @@
 
 **Date:** 2026-08-31
 
-**Revised:** 2026-09-01
+**Revised:** 2026-09-03
 
 **Product:** Tab Two
 
@@ -17,10 +17,11 @@ connector-led service for people who want work and personal signals combined
 across accounts and devices. Accounts and encrypted sync support that promise,
 but they are not the primary reason to upgrade.
 
-The paid MVP uses Google-only sign-in, Stripe Managed Payments, and Supabase
-Pro. It adds account-based calendar and fitness connectors, multi-account
+The paid MVP uses Google-only sign-in, Stripe Managed Payments, and Supabase.
+It adds account-based Google and Microsoft calendar connectors, multi-account
 capability, 13 months of aggregate metrics, and encrypted cross-device sync.
 Existing connectors and local features are not retroactively paywalled.
+Fitness is explicitly deferred and is not a launch dependency.
 
 This specification does not authorize infrastructure provisioning, production
 implementation, deployment, merge, Chrome Web Store changes, analytics, new
@@ -123,26 +124,26 @@ Premium must not launch until all of the following are ready:
 2. Stripe subscription, webhook, and entitlement lifecycle.
 3. Five-device encrypted sync with conflict-safe merging.
 4. Thirteen-month aggregate metrics engine.
-5. Unified Metrics widget covering Habits, Focus, Tasks, calendar load,
-   development activity, and connected fitness.
+5. Unified Metrics widget covering Habits, Focus, Tasks, calendar load, and
+   development activity.
 6. Multi-account connection framework.
 7. Google Calendar account connector with read-only, incremental OAuth scopes.
 8. Microsoft Calendar connector with delegated read-only access for supported
    personal and work accounts.
-9. Strava connector with activity summaries and metrics, contingent on provider
-   approval and sufficient athlete capacity.
-10. Self-service billing, cancellation, device management, vault deletion, and
+9. Self-service billing, cancellation, device management, vault deletion, and
     account deletion.
-11. In-extension help, connector recovery states, and user-generated redacted
+10. In-extension help, connector recovery states, and user-generated redacted
     diagnostics.
 
 The existing ICS Calendar remains free. The paid Google and Microsoft calendar
 connectors sell easier account connection, automatic calendar discovery,
 multi-account use, and metrics rather than removing the free feed-based path.
 
-If a required provider will not approve production access, the release gate must
-be re-scoped and re-approved; the requirement must not be silently replaced by
-an unsupported workaround.
+On 2026-09-03, the owner approved removing Strava from this paid-MVP release
+gate after the current Strava API policy was found to conflict with charging
+for Strava-related functionality. No fitness provider is a paid-MVP launch
+dependency. Strava remains on hold, and no replacement may enter the release
+gate without separate commercial-policy research, design, and owner approval.
 
 ### Full-product QA gate
 
@@ -197,16 +198,22 @@ ledger, and runtime results to one exact commit and production artifact.
 
 - Google Calendar: read-only account connection and calendar-load metrics.
 - Microsoft Calendar: delegated read-only Outlook.com and Microsoft 365 access.
-- Strava: activity summaries, duration, distance, elevation, consistency, and
-  related aggregate metrics after provider approval.
+
+### Deferred fitness evaluation
+
+- Strava is on hold because the current policy prohibits charging end users for
+  Strava-related API functionality; written commercial clearance would be
+  required before reconsideration.
+- MyFitnessPal and other fitness services may be evaluated, but research creates
+  no implementation, launch promise, provider account, permission, secret, or
+  paid-service authority.
 
 ### First expansion
 
 - Multiple GitHub, GitLab, Todoist, Linear, and Home Assistant accounts or
   instances.
-- Richer Strava comparisons and goals.
-- Additional fitness services such as Fitbit, COROS, Oura, or Garmin only after
-  commercial API access, scopes, costs, and retention rules are approved.
+- A separately approved fitness provider only after commercial API access,
+  scopes, costs, retention rules, capacity, and customer value are documented.
 - Metric goals, comparisons, and configurable summary cards.
 
 ### Spotify
@@ -238,7 +245,8 @@ Examples:
 - Calendar: event count and busy minutes.
 - Development: counts of commits, reviews, issues, deployments, and failures
   already available through approved connector data.
-- Strava: activity type, duration, distance, elevation, and consistency.
+- A future separately approved fitness provider may contribute only daily
+  aggregate activity type, duration, distance, elevation, and consistency.
 
 The metrics store excludes meeting titles, attendees, locations, task text,
 repository names, issue text, GPS routes, media titles, and raw provider
@@ -547,7 +555,8 @@ Customer-facing language:
 3. Revalidate Supabase pricing, data location, DPA, backup behavior, quotas, and
    spend controls.
 4. Complete Google OAuth branding and identity verification planning.
-5. Obtain Google Calendar, Microsoft, and Strava production-access decisions.
+5. Obtain Google Calendar and Microsoft production-access decisions. Keep every
+   fitness provider outside the paid-MVP gate unless separately re-approved.
 6. Design and approve the account, billing, sync, metrics, device, privacy,
    troubleshooting, and premium connector UI before production UI work.
 7. Build the paid foundation behind explicit development and test environments.
@@ -563,7 +572,8 @@ Customer-facing language:
 | Risk | Consequence | Required mitigation before implementation or launch |
 |---|---|---|
 | Stripe Managed Payments remains preview-only or rejects the product | Checkout or merchant-of-record plan cannot launch as designed | Revalidate eligibility and stability; use Lemon Squeezy only through a re-reviewed provider adapter and owner approval |
-| Google, Microsoft, or Strava access is delayed or denied | The three-connector paid launch gate is incomplete | Obtain provider decisions before promising a date; re-scope only through owner approval |
+| Google or Microsoft access is delayed or denied | The two-connector paid launch gate is incomplete | Obtain provider decisions before promising a date; re-scope only through owner approval |
+| A fitness provider's commercial terms, review path, or data policy conflicts with Tab Two | Connector removal, provider enforcement, or customer disruption | Keep fitness outside the paid-MVP gate; require current official-policy research and owner approval before design or provisioning |
 | Spotify customer-supplied credentials conflict with commercial terms | Connector removal, provider enforcement, or customer disruption | Obtain written policy clearance before advertising, selling, or distributing it |
 | Google-only identity is unavailable to a customer or blocked by an employer | Customer cannot create or recover a paid account | Keep free local use complete; disclose the requirement; retain provider-neutral account identity for a later approved provider |
 | Backend key access is described inaccurately | Privacy promise exceeds the architecture | Use "encrypted sync" only; complete threat modeling, access isolation, rotation, and incident procedures |
@@ -579,7 +589,7 @@ Customer-facing language:
 These questions do not reopen the approved product direction, but the later
 implementation plan must resolve them before code or provisioning:
 
-- Exact Google, Microsoft, and Strava OAuth scopes and approval artifacts.
+- Exact Google and Microsoft OAuth scopes and approval artifacts.
 - Account-key wrapping algorithm, secret storage, rotation, and emergency
   recovery procedure.
 - Exact sync entity map, revision format, tombstone acknowledgement, and local

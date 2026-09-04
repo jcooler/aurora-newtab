@@ -4,9 +4,9 @@
 
 **Goal:** Deliver Tab Two's connector-led paid MVP without regressing the complete local-first free product or crossing provider, cost, permission, deployment, release, or Store approval boundaries.
 
-**Architecture:** Supabase Auth, Postgres with default-deny Row Level Security, and Edge Functions form the account service; Stripe-hosted Checkout and Customer Portal remain the billing surfaces; the extension consumes signed capability leases and keeps ordinary free behavior independent of every paid service. The program is decomposed into bounded packets because account UI, authentication, billing, encrypted sync, metrics, and three provider connectors have independent failure and approval boundaries.
+**Architecture:** Supabase Auth, Postgres with default-deny Row Level Security, and Edge Functions form the account service; Stripe-hosted Checkout and Customer Portal remain the billing surfaces; the extension consumes signed capability leases and keeps ordinary free behavior independent of every paid service. The program is decomposed into bounded packets because account UI, authentication, billing, encrypted sync, metrics, and the two paid-MVP provider connectors have independent failure and approval boundaries.
 
-**Tech Stack:** React 19, TypeScript 5.9, Vitest, Testing Library, Playwright Chromium, Chrome MV3, Vite production/preview builds, Supabase Auth/Postgres/Edge Functions, Stripe Checkout/Customer Portal/webhooks, Web Crypto, Google Calendar API, Microsoft Graph, Strava API.
+**Tech Stack:** React 19, TypeScript 5.9, Vitest, Testing Library, Playwright Chromium, Chrome MV3, Vite production/preview builds, Supabase Auth/Postgres/Edge Functions, Stripe Checkout/Customer Portal/webhooks, Web Crypto, Google Calendar API, and Microsoft Graph.
 
 **Spec:** `docs/superpowers/specs/2026-08-31-tab-two-freemium-product-architecture-design.md`
 
@@ -67,7 +67,7 @@
 
 **Plan created just in time as:** `docs/superpowers/plans/2026-09-01-tab-two-metrics.md`
 
-**Deliverable:** Typed daily aggregate buckets for Habits, Focus, Tasks, calendar load, development activity, and fitness; 13-month retention; local and encrypted-vault merge rules; delete-history controls; 7/30/90/approximately-365-day views; owner-approved Metrics visuals and exact populated/empty/error geometry.
+**Deliverable:** Typed daily aggregate buckets for Habits, Focus, Tasks, calendar load, and development activity; 13-month retention; local and encrypted-vault merge rules; delete-history controls; 7/30/90/approximately-365-day views; owner-approved Metrics visuals and exact populated/empty/error geometry. A future fitness source may extend this closed aggregate vocabulary only through a separately approved packet.
 
 **Rollback:** Disable aggregation and preserve/export existing local buckets. No raw event, task, repository, route, or media history is collected.
 
@@ -87,13 +87,13 @@
 
 **Rollback:** Disable Microsoft Calendar independently; Google Calendar, free ICS, local Calendar, and all existing connectors remain functional.
 
-### Packet PM-P8: Strava
+### Packet PM-P8: Fitness provider evaluation - deferred
 
-**Plan created just in time as:** `docs/superpowers/plans/2026-09-01-tab-two-strava.md`
+**Research recorded just in time as:** `02-research/2026-09-03-tab-two-fitness-provider-options.md`
 
-**Deliverable:** Approval-contingent read-only activity summaries and aggregate duration, distance, elevation, type, and consistency metrics with no GPS routes or raw activity history. Do not advertise, sell, or make Strava a launch dependency until production athlete capacity and commercial approval are documented.
+**Deliverable:** No paid-MVP runtime deliverable. The owner placed Strava on hold on 2026-09-03 because its current API policy conflicts with charging for Strava-related functionality. Evaluate MyFitnessPal and other fitness providers without creating provider authority, incurring cost, requesting permissions, storing secrets, or substituting a provider into the paid MVP without a separately approved design.
 
-**Rollback:** Disable Strava independently while preserving local Metrics and every other connector.
+**Rollback:** Not applicable. No Strava or replacement-provider runtime, account, credential, permission, or hosted state is created.
 
 ### Packet PM-P9: Full-product stabilization and paid release dossier
 
@@ -138,4 +138,4 @@ Reconcile `STATUS.md`, `ROADMAP.md`, `DECISIONS.md`, privacy/public docs when be
 
 ## Program completion
 
-The paid MVP is implemented only when PM-P1 through PM-P9 are verified and pushed, all provider approvals required by the final scope are documented, the owner MacBook smoke pass is complete, and no Critical or Important full-product QA finding remains. Completion still does not authorize merging or any Chrome Web Store action.
+The paid MVP is implemented only when PM-P1 through PM-P7 and PM-P9 are verified and pushed, PM-P8 remains explicitly dispositioned as deferred research, all provider approvals required by the final scope are documented, the owner MacBook smoke pass is complete, and no Critical or Important full-product QA finding remains. Completion still does not authorize merging or any Chrome Web Store action.
