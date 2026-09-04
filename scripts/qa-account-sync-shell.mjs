@@ -26,7 +26,7 @@ export const ACCOUNT_SYNC_VIEWPORTS = Object.freeze([
 
 export const ACCOUNT_SYNC_INTERACTIONS = Object.freeze([
   'production-local',
-  'six-tab-keyboard',
+  'seven-tab-keyboard',
   'preview-signed-in',
   'preview-active',
   'preview-past-due',
@@ -281,11 +281,14 @@ async function exerciseProduction(page, viewport, output, judgments, evidence, r
   await page.locator('.settings-gear').click()
   await page.waitForFunction(() => document.querySelector('[data-settings-scroll-owner="document"]')?.getAttribute('aria-hidden') !== 'true')
   const tabs = page.getByRole('tab')
-  assert.deepEqual(await tabs.allTextContents(), ['General', 'Progress', 'Widgets', 'Connectors', 'Data', 'Account & Sync'])
+  assert.deepEqual(
+    await tabs.allTextContents(),
+    ['General', 'Progress', 'Widgets', 'Connectors', 'Data', 'Account & Sync', 'Help'],
+  )
 
   const visited = ['General']
   await page.getByRole('tab', { name: 'General' }).focus()
-  for (const expected of ['Progress', 'Widgets', 'Connectors', 'Data', 'Account & Sync']) {
+  for (const expected of ['Progress', 'Widgets', 'Connectors', 'Data', 'Account & Sync', 'Help']) {
     await page.keyboard.press('ArrowDown')
     await page.waitForFunction((label) => (
       [...document.querySelectorAll('[role="tab"]')]
@@ -293,9 +296,10 @@ async function exerciseProduction(page, viewport, output, judgments, evidence, r
     ), expected)
     visited.push(expected)
   }
-  assert.deepEqual(visited, ['General', 'Progress', 'Widgets', 'Connectors', 'Data', 'Account & Sync'])
-  evidence.interactions['six-tab-keyboard'] = true
+  assert.deepEqual(visited, ['General', 'Progress', 'Widgets', 'Connectors', 'Data', 'Account & Sync', 'Help'])
+  evidence.interactions['seven-tab-keyboard'] = true
 
+  await page.getByRole('tab', { name: 'Account & Sync' }).click()
   await page.getByRole('heading', { name: 'Local mode' }).waitFor()
   await clearAndArmStorageLog(page)
   await page.getByRole('region', { name: 'Encrypted & synced' }).waitFor()

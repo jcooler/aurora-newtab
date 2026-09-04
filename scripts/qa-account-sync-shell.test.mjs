@@ -29,7 +29,7 @@ test('pins original-resolution desktop and touch installed-extension viewports',
 test('requires every account state and destructive confirmation', () => {
   assert.deepEqual(ACCOUNT_SYNC_INTERACTIONS, [
     'production-local',
-    'six-tab-keyboard',
+    'seven-tab-keyboard',
     'preview-signed-in',
     'preview-active',
     'preview-past-due',
