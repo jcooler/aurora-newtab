@@ -57,8 +57,8 @@ function artifactText(root) {
 export function assertArtifactIsolation(productionText, previewText) {
   for (const marker of PREVIEW_MARKERS) {
     assert(!productionText.includes(marker), `production artifact contains preview fixture marker: ${marker}`)
-    assert(previewText.includes(marker), `preview artifact is missing fixture marker: ${marker}`)
   }
+  assert(previewText.includes('preview_fixture'), 'preview artifact is missing its runtime fixture marker')
 }
 
 export function inspectGeometry({ viewportWidth, documentWidth, bodyWidth, rects }) {

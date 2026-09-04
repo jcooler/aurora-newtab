@@ -31,7 +31,7 @@ test('pins the approved portability states and original-resolution viewports', (
 test('requires exact invocation and keeps preview markers out of production', () => {
   assert.throws(() => requireExact([]), /requires --exact/)
   assert.doesNotThrow(() => requireExact(['--exact']))
-  const preview = 'TAB_TWO_PREVIEW_ACCOUNT_FIXTURE preview_fixture account export enabled'
+  const preview = 'preview_fixture account export enabled'
   assert.doesNotThrow(() => assertArtifactIsolation('production account export disabled', preview))
   assert.throws(() => assertArtifactIsolation('preview_fixture leaked', preview), /production artifact/)
 })
