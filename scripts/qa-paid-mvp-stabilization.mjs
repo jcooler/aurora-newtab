@@ -31,6 +31,14 @@ export function requireExact(args) {
   assert(args.includes('--exact'), 'Tab Two paid MVP stabilization QA requires --exact')
 }
 
+export function planPaidMvpGateExecutions(args) {
+  const includeOwnerAssisted = args.includes('--include-owner-assisted')
+  return PAID_MVP_GATES.map((gate) => ({
+    ...gate,
+    disposition: gate.ownerAssisted && !includeOwnerAssisted ? 'DEFERRED_OWNER_QA' : 'RUN',
+  }))
+}
+
 function assertNoForbiddenKeys(value, path = 'index') {
   if (Array.isArray(value)) {
     value.forEach((entry, index) => assertNoForbiddenKeys(entry, `${path}[${index}]`))
@@ -46,7 +54,10 @@ function assertNoForbiddenKeys(value, path = 'index') {
 export function assertPaidMvpEvidenceIndex(index) {
   assertNoForbiddenKeys(index)
   assert.equal(index.schemaVersion, 1, 'evidence index schema is not supported')
-  assert.equal(index.result, 'PASS', 'evidence index is not PASS')
+  assert(
+    ['PASS', 'AUTOMATED_PASS_OWNER_QA_PENDING'].includes(index.result),
+    'evidence index is not an accepted pass state',
+  )
   assert.equal(typeof index.sourceCommit, 'string', 'evidence source commit is missing')
   assert.equal(index.buildCommit, index.sourceCommit, 'evidence provenance does not match source')
   assert.deepEqual(
@@ -54,9 +65,13 @@ export function assertPaidMvpEvidenceIndex(index) {
     PAID_MVP_GATES.map(({ command }) => command),
     'evidence command list does not match the approved gate order',
   )
-  for (const entry of index.entries) {
+  for (const [indexPosition, entry] of index.entries.entries()) {
+    const gate = PAID_MVP_GATES[indexPosition]
     assert.deepEqual(Object.keys(entry).sort(), [...INDEX_KEYS].sort(), `${entry.command} index keys are not redacted and exact`)
-    assert.equal(entry.result, 'PASS', `${entry.command} did not pass`)
+    assert(
+      entry.result === 'PASS' || (gate.ownerAssisted && entry.result === 'DEFERRED_OWNER_QA'),
+      `${entry.command} did not pass or declare its owner-QA boundary`,
+    )
     assert.equal(entry.sourceCommit, index.sourceCommit, `${entry.command} source commit drifted`)
     assert.equal(entry.buildCommit, index.buildCommit, `${entry.command} build commit drifted`)
     assert(entry.evidencePath === null || (
@@ -70,6 +85,12 @@ export function assertPaidMvpEvidenceIndex(index) {
       assert(Number.isSafeInteger(total) && total >= 0, `${entry.command} ledger total is invalid`)
     }
   }
+  const deferred = index.entries.filter(({ result }) => result === 'DEFERRED_OWNER_QA')
+  assert.equal(
+    index.result,
+    deferred.length === 0 ? 'PASS' : 'AUTOMATED_PASS_OWNER_QA_PENDING',
+    'evidence result does not match its deferred owner-QA entries',
+  )
   return index
 }
 
@@ -132,10 +153,21 @@ export async function runPaidMvpStabilization(args = process.argv.slice(2)) {
   }
 
   try {
-    for (const gate of PAID_MVP_GATES) {
-      if (gate.ownerAssisted) {
-        process.stdout.write(`${gate.command}: owner-assisted browser checkpoint starting\n`)
+    for (const gate of planPaidMvpGateExecutions(args)) {
+      if (gate.disposition === 'DEFERRED_OWNER_QA') {
+        process.stdout.write(`${gate.command}: deferred to the cumulative owner QA handoff\n`)
+        index.entries.push({
+          command: gate.command,
+          result: 'DEFERRED_OWNER_QA',
+          sourceCommit,
+          buildCommit: build.commit,
+          evidencePath: null,
+          screenshotCount: 0,
+          ledgerTotals: { requests: 0, storageWrites: 0, consoleErrors: 0, pageErrors: 0, failedRequests: 0 },
+        })
+        continue
       }
+      if (gate.ownerAssisted) process.stdout.write(`${gate.command}: owner-assisted browser checkpoint starting\n`)
       runGate(repoRoot, gate)
       const relativeEvidence = gate.evidence(sourceCommit)
       let evidence = {}
@@ -155,7 +187,9 @@ export async function runPaidMvpStabilization(args = process.argv.slice(2)) {
         ledgerTotals: ledgerTotals(evidence),
       })
     }
-    index.result = 'PASS'
+    index.result = index.entries.some(({ result }) => result === 'DEFERRED_OWNER_QA')
+      ? 'AUTOMATED_PASS_OWNER_QA_PENDING'
+      : 'PASS'
     assertPaidMvpEvidenceIndex(index)
     writeFileSync(resolve(output, 'evidence.json'), `${JSON.stringify(index, null, 2)}\n`)
     process.stdout.write(`PASS: Tab Two paid MVP stabilization (${sourceCommit})\n`)

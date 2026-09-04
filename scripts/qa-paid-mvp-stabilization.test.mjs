@@ -9,11 +9,13 @@ import {
   PAID_MVP_MANUAL_CEILINGS,
   PAID_MVP_WIDGET_MATRIX,
 } from './paid-mvp-qa-matrix.mjs'
-import {
+import * as stabilization from './qa-paid-mvp-stabilization.mjs'
+
+const {
   PAID_MVP_GATES,
   assertPaidMvpEvidenceIndex,
   requireExact,
-} from './qa-paid-mvp-stabilization.mjs'
+} = stabilization
 
 const repoRoot = resolve(import.meta.dirname, '..')
 
@@ -104,6 +106,20 @@ test('pins the approved specialist command order and exact entry point', () => {
   assert.doesNotThrow(() => requireExact(['--exact']))
 })
 
+test('defers owner-assisted browser work unless the caller opts in explicitly', () => {
+  assert.equal(typeof stabilization.planPaidMvpGateExecutions, 'function')
+
+  const defaultPlan = stabilization.planPaidMvpGateExecutions(['--exact'])
+  assert.equal(
+    defaultPlan.find(({ command }) => command === 'qa:account-auth-production')?.disposition,
+    'DEFERRED_OWNER_QA',
+  )
+  assert(defaultPlan.filter(({ disposition }) => disposition === 'RUN').every(({ ownerAssisted }) => !ownerAssisted))
+
+  const ownerPlan = stabilization.planPaidMvpGateExecutions(['--exact', '--include-owner-assisted'])
+  assert(ownerPlan.every(({ disposition }) => disposition === 'RUN'))
+})
+
 test('accepts only a provenance-bound, redacted evidence index', () => {
   const commands = PAID_MVP_GATES.map(({ command }) => command)
   const index = {
@@ -125,4 +141,24 @@ test('accepts only a provenance-bound, redacted evidence index', () => {
   assert.throws(() => assertPaidMvpEvidenceIndex({ ...index, accessToken: 'secret' }), /forbidden/i)
   assert.throws(() => assertPaidMvpEvidenceIndex({ ...index, buildCommit: 'different' }), /provenance/i)
   assert.throws(() => assertPaidMvpEvidenceIndex({ ...index, entries: index.entries.slice(1) }), /command list/i)
+})
+
+test('accepts an honest automated-pass index with owner QA deferred', () => {
+  const index = {
+    schemaVersion: 1,
+    sourceCommit: 'abc123',
+    buildCommit: 'abc123',
+    result: 'AUTOMATED_PASS_OWNER_QA_PENDING',
+    entries: PAID_MVP_GATES.map(({ command, ownerAssisted }) => ({
+      command,
+      result: ownerAssisted ? 'DEFERRED_OWNER_QA' : 'PASS',
+      sourceCommit: 'abc123',
+      buildCommit: 'abc123',
+      evidencePath: ownerAssisted ? null : `artifacts/${command}/evidence.json`,
+      screenshotCount: ownerAssisted ? 0 : 2,
+      ledgerTotals: { requests: 0, storageWrites: 0, consoleErrors: 0, pageErrors: 0, failedRequests: 0 },
+    })),
+  }
+
+  assert.doesNotThrow(() => assertPaidMvpEvidenceIndex(index))
 })
