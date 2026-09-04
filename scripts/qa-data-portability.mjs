@@ -216,15 +216,17 @@ async function armStorageWrites(page) {
   })
 }
 
-async function currentGeometry(page) {
-  const raw = await page.evaluate(() => {
+async function currentGeometry(page, state) {
+  const raw = await page.evaluate((captureState) => {
     const visible = (element) => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
     }
     const root = document.querySelector('[role="dialog"][aria-modal="true"]')
-      ?? document.querySelector('[role="tabpanel"][aria-label="Account & Sync"]')
+      ?? document.querySelector(captureState === 'touch-recovery'
+        ? '[role="region"][aria-label="Recovery copies"]'
+        : '[role="region"][aria-label="Your data"]')
     const rects = root ? [root, ...root.querySelectorAll('button')].filter(visible).map((element, index) => {
       const rect = element.getBoundingClientRect()
       return {
@@ -239,7 +241,7 @@ async function currentGeometry(page) {
       bodyWidth: document.body.scrollWidth,
       rects,
     }
-  })
+  }, state)
   return inspectGeometry(raw)
 }
 
@@ -252,7 +254,7 @@ async function capture(page, state, viewport, output, evidence) {
     screenshotPath: relative(repoRoot, path).replaceAll('\\', '/'),
     viewportId: viewport.id,
     pixelSize: { width: metadata.width, height: metadata.height },
-    geometry: await currentGeometry(page),
+    geometry: await currentGeometry(page, state),
   }
 }
 
