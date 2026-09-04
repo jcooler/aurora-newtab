@@ -347,6 +347,7 @@ async function exercisePreviewTouch(page, viewport, output, evidence) {
   await recoveries.waitFor()
   const labels = await recoveries.getByRole('button').allTextContents()
   evidence.interactions.recoveryActionOrder = JSON.stringify(labels) === JSON.stringify(['Restore', 'Download copy', 'Discard'])
+  await recoveries.scrollIntoViewIfNeeded()
   await capture(page, 'touch-recovery', viewport, output, evidence)
   await armStorageWrites(page)
   const recoveryDownload = page.waitForEvent('download')
