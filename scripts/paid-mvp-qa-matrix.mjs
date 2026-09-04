@@ -166,6 +166,7 @@ const FLOW_EVIDENCE = Object.freeze({
   conflicts: 'qa:account-sync-shell',
   deletion: 'qa:account-sync-shell',
   backup: 'qa:free-baseline',
+  'data-portability': 'qa:data-portability',
   help: 'qa:paid-mvp-support',
   diagnostics: 'qa:paid-mvp-support',
 })

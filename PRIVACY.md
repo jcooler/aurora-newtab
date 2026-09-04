@@ -223,6 +223,20 @@ only the bounded aggregate history and export metadata described above. That
 file is created locally through the browser's native download flow and is not
 uploaded by Tab Two.
 
+**Account-data and recovery downloads.** Account-data export requires fresh Google verification
+before Tab Two requests a current server-held snapshot.
+The service response contains account and provider metadata, subscription and
+entitlement state, devices, encrypted sync records and tombstones, and the
+account data key needed by the signed-in client. Encrypted sync records are decrypted on this device
+and are never returned as server plaintext. The downloaded file excludes passwords, sign-in sessions, payment identifiers, provider tokens, encryption keys,
+raw provider caches, uploaded images, logs, and audit records.
+
+A recovery-copy download is created only from the selected account-bound copy
+already held by this installation. It makes no server request and does not
+restore, discard, or otherwise change that copy. Tab Two does not import account-data or recovery-copy files.
+The production account-data control remains disabled until its separately approved hosted activation and proof are
+complete.
+
 The Help tab's diagnostic report is assembled locally from a fixed set of app
 version, account-state, billing-state, and aggregate sync-health fields. It is
 shown in full for your review and downloaded only after an explicit user

@@ -84,6 +84,14 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Cancel once and confirm focus returns to Create diagnostic report. Then download once and confirm Tab Two never sends the report automatically.
 - Confirm the prelaunch support notice has no dead or public submission action. After a monitored private support channel is approved and configured, confirm its final customer route separately. Never post a diagnostic report or personal information publicly.
 
+## Data portability
+
+- In the final production build after separately approved hosted activation, open Settings > Account & Sync and choose Download account data. Confirm fresh Google verification is required before the server-held snapshot is requested.
+- Cancel the verification flow once and confirm focus returns to Download account data with no request or file. Then complete verification and confirm exactly one readable JSON file downloads.
+- Confirm the account-data file contains the expected account, connected-account, subscription, entitlement, device, and decrypted synced-record fields. Confirm it contains no passwords, sign-in sessions, payment identifiers, provider tokens, encryption keys, raw provider caches, uploaded images, logs, or audit records, and that there is no server plaintext version of encrypted sync records.
+- With a conflict recovery copy present, download it before restore or discard. Confirm the local JSON contains only that account-bound recovery copy, makes no server request, and does not restore, discard, or otherwise change the copy.
+- Confirm Settings > Data remains the only installation backup that Tab Two can import. Account-data and recovery-copy version 1 files must be rejected rather than presented as restorable backups.
+
 ## Safety boundaries
 
 - Do not use owner data for destructive hosted tests.

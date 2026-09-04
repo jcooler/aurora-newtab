@@ -66,7 +66,7 @@ test('owns every required paid MVP interaction family', () => {
   const required = [
     'drag-drop', 'keyboard', 'touch', 'named-layouts', 'stacks', 'docks', 'persistence',
     'account', 'billing', 'sync', 'metrics', 'google-calendar', 'microsoft-calendar',
-    'quota', 'conflicts', 'deletion', 'backup', 'help', 'diagnostics',
+    'quota', 'conflicts', 'deletion', 'backup', 'data-portability', 'help', 'diagnostics',
   ]
   assert.deepEqual(PAID_MVP_FLOW_MATRIX.map(({ id }) => id), required)
   assertClassified(PAID_MVP_FLOW_MATRIX, 'flow')
@@ -92,9 +92,10 @@ test('pins the approved specialist command order and exact entry point', () => {
     'qa:canvas-polish',
     'qa:tab-two-v2-connectors',
     'qa:tab-two-v2-progress',
-    'qa:account-auth-production',
     'qa:stripe-billing',
     'qa:account-sync-shell',
+    'qa:data-portability',
+    'qa:account-auth-production',
     'qa:tab-two-metrics',
     'qa:google-calendar',
     'qa:microsoft-calendar',
@@ -152,9 +153,10 @@ test('prepares each specialist with the build mode its fixtures require', () => 
       ['qa:canvas-polish', null],
       ['qa:tab-two-v2-connectors', null],
       ['qa:tab-two-v2-progress', null],
-      ['qa:account-auth-production', []],
       ['qa:stripe-billing', null],
       ['qa:account-sync-shell', ['--mode=preview']],
+      ['qa:data-portability', null],
+      ['qa:account-auth-production', []],
       ['qa:tab-two-metrics', ['--mode=preview']],
       ['qa:google-calendar', ['--mode=preview']],
       ['qa:microsoft-calendar', ['--mode=preview']],

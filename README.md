@@ -484,6 +484,20 @@ as a single JSON file:
   what Tab Two expects — e.g. a hand-edited or corrupted value), Import shows
   why, names the field, and leaves your current data untouched.
 
+### Data portability
+
+Settings > Account & Sync can download readable account and synced data after fresh Google verification.
+This is separate from the local backup in Settings > Data, which restores this
+installation. Recovery copies can be downloaded locally before restore or discard.
+Tab Two does not import account-data or recovery-copy files.
+
+The account-data download excludes passwords, sign-in sessions, payment
+identifiers, provider tokens, encryption keys, raw provider caches, uploaded
+images, logs, and audit records. Recovery-copy downloads use only the selected
+account-bound copy already stored on this installation. The production
+account-data control remains disabled until its separately approved hosted
+activation and proof are complete.
+
 ## Support
 
 Settings → **Help** shows the current account, billing, and encrypted-sync state

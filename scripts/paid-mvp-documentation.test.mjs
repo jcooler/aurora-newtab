@@ -12,6 +12,7 @@ const files = Object.freeze({
   terms: read('TERMS.md'),
   threat: read('docs/superpowers/specs/2026-08-31-tab-two-paid-mvp-threat-model.md'),
   ownerQa: read('docs/superpowers/reports/TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md'),
+  help: read('src/settings/sections/HelpSupport.tsx'),
 })
 
 test('customer-facing docs describe the complete paid MVP without a fitness connector', () => {
@@ -48,4 +49,23 @@ test('threat model and final owner checklist match the implemented support bound
   assert.match(files.ownerQa, /Help and diagnostics/i)
   assert.match(files.ownerQa, /never sends the report automatically/i)
   assert.match(files.ownerQa, /subscription status converges automatically/i)
+})
+
+test('customer docs distinguish every data download without overstating hosted activation or import', () => {
+  assert.match(files.readme, /Account & Sync can download readable account and synced data after fresh Google verification/i)
+  assert.match(files.readme, /separate from the local backup in Settings > Data/i)
+  assert.match(files.readme, /Recovery copies can be downloaded locally before restore or discard/i)
+  assert.match(files.readme, /does not import account-data or recovery-copy files/i)
+
+  assert.match(files.privacy, /account-data export requires fresh Google verification/i)
+  assert.match(files.privacy, /encrypted sync records are decrypted on this device.*never returned as server plaintext/is)
+  assert.match(files.privacy, /passwords, sign-in sessions, payment identifiers, provider tokens, encryption keys/i)
+  assert.match(files.privacy, /production account-data control remains disabled until.*hosted activation/is)
+  assert.match(files.privacy, /does not import account-data or recovery-copy files/i)
+
+  assert.match(files.help, /Data creates the local backup used to restore this installation/)
+  assert.match(files.help, /Account & Sync can download readable account and synced data after Google verification/)
+  assert.match(files.help, /Recovery copies can be downloaded locally before restore or discard/)
+  assert.match(files.ownerQa, /## Data portability/)
+  assert.match(files.ownerQa, /no server plaintext/i)
 })

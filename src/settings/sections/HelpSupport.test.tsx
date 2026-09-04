@@ -103,7 +103,9 @@ describe('Help and troubleshooting', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Microsoft Calendar' }))
     expect(screen.getByText(/personal and work or school accounts stay separate/i)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Backup and deletion' }))
-    expect(screen.getByText(/Data creates a local backup/i)).toBeTruthy()
+    expect(screen.getByText(
+      'Data creates the local backup used to restore this installation. Account & Sync can download readable account and synced data after Google verification. Recovery copies can be downloaded locally before restore or discard.',
+    )).toBeTruthy()
   })
 
   it('does not send customers to an unavailable public support destination', () => {

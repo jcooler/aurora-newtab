@@ -204,7 +204,7 @@ export function HelpSupportView({
         </DisclosureSection>
         <DisclosureSection title="Backup and deletion">
           <p className="text-sm leading-relaxed text-fg-muted">
-            Data creates a local backup you can keep before making major changes. Account & Sync handles synced-data and account deletion, with fresh verification before anything is removed from the service.
+            Data creates the local backup used to restore this installation. Account & Sync can download readable account and synced data after Google verification. Recovery copies can be downloaded locally before restore or discard.
           </p>
         </DisclosureSection>
       </Section>
