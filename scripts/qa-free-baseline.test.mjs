@@ -31,7 +31,7 @@ test('pins desktop and supported touch-device evidence', () => {
 
 test('declares every approved free-baseline interaction', () => {
   assert.deepEqual(FREE_BASELINE_INTERACTIONS, [
-    'settings-five-tabs',
+    'settings-seven-tabs',
     'settings-layout',
     'connector-gear-route',
     'keyboard-edit-entry',

@@ -15,7 +15,7 @@ export const FREE_BASELINE_VIEWPORTS = Object.freeze([
 ])
 
 export const FREE_BASELINE_INTERACTIONS = Object.freeze([
-  'settings-five-tabs',
+  'settings-seven-tabs',
   'settings-layout',
   'connector-gear-route',
   'keyboard-edit-entry',
@@ -326,8 +326,8 @@ async function exerciseDesktop(page, viewport, output, judgments, evidence, repo
 
   await openSettings(page)
   const tabs = await page.getByRole('tab').allTextContents()
-  assert.deepEqual(tabs, ['General', 'Progress', 'Widgets', 'Connectors', 'Data'])
-  evidence.interactions['settings-five-tabs'] = true
+  assert.deepEqual(tabs, ['General', 'Progress', 'Widgets', 'Connectors', 'Data', 'Account & Sync', 'Help'])
+  evidence.interactions['settings-seven-tabs'] = true
   await page.getByRole('tab', { name: 'Widgets' }).click()
   await page.getByRole('region', { name: 'Layout' }).waitFor()
   evidence.interactions['settings-layout'] = true
@@ -419,7 +419,10 @@ async function exerciseDesktop(page, viewport, output, judgments, evidence, repo
 async function exerciseTouch(page, context, viewport, output, judgments, evidence, repoRoot) {
   await armWriteLog(page)
   await openSettings(page)
-  assert.deepEqual(await page.getByRole('tab').allTextContents(), ['General', 'Progress', 'Widgets', 'Connectors', 'Data'])
+  assert.deepEqual(
+    await page.getByRole('tab').allTextContents(),
+    ['General', 'Progress', 'Widgets', 'Connectors', 'Data', 'Account & Sync', 'Help'],
+  )
   await capture(page, viewport, 'touch-settings-tabs', output, judgments, evidence, repoRoot)
   await page.getByRole('tab', { name: 'Widgets' }).click()
   const layout = page.getByRole('region', { name: 'Layout' })
