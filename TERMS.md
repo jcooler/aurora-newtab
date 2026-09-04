@@ -11,7 +11,7 @@ terms. If you do not agree, do not use the extension or its services.
 Tab Two is a local-first new-tab dashboard. Most features and all included free
 connectors work without a Tab Two account. Optional account features can include
 Google sign-in, encrypted sync, subscription management, premium Metrics, and
-read-only provider connections such as Google Calendar.
+read-only provider connections such as Google Calendar and Microsoft Calendar.
 
 Features may change as the product develops. Material changes to paid features
 or these terms will be disclosed before they take effect when required by law.
@@ -34,14 +34,15 @@ Tab Two only the limited permission needed to process that information to
 provide features you explicitly request. The [Tab Two Privacy
 Policy](PRIVACY.md) explains what is stored, transmitted, retained, and deleted.
 
-Google Calendar access is read-only. Tab Two requests only the approved identity
-and calendar-read scopes, displays calendars you select, and does not create,
-edit, delete, or send calendar events or invitations. You can disconnect a
-provider or revoke its access through the provider at any time.
+Google Calendar and Microsoft Calendar access is read-only. Tab Two requests
+only the approved identity and calendar-read scopes, displays calendars you
+select, and does not create, edit, delete, or send calendar events or
+invitations. You can disconnect a provider or revoke its access through the
+provider at any time.
 
-Google, Stripe, Supabase, Chrome, and other connected services are operated by
-third parties under their own terms and policies. Tab Two is not responsible for
-their availability, content, or independent actions.
+Google, Microsoft, Stripe, Supabase, Chrome, and other connected services are
+operated by third parties under their own terms and policies. Tab Two is not
+responsible for their availability, content, or independent actions.
 
 ## Paid plans
 
@@ -59,6 +60,11 @@ protect users, comply with law, or respond to a third-party service change. No
 online service can be guaranteed to be uninterrupted or error-free. Local data
 already stored in your browser remains subject to Chrome and your device's own
 storage behavior.
+
+Product assistance and self-service guidance are provided on a best-effort
+basis without a guaranteed response or resolution time. Diagnostics are created
+locally for your review and are never sent automatically; do not post a report
+or personal information to a public support issue.
 
 ## Intellectual property
 
@@ -86,7 +92,10 @@ excluded.
 You may stop using Tab Two at any time. You can disconnect providers, delete
 synced data, delete your Tab Two account, remove the extension, and separately
 remove local extension data through Chrome. These actions have different effects
-as explained in the Privacy Policy and in-product confirmations.
+as explained in the Privacy Policy and in-product confirmations. Deleting synced
+data or the Tab Two account removes the applicable service-side data but does
+not erase local data from an installation. Removing local extension data through
+Chrome is a separate action.
 
 Tab Two may restrict account-service access when reasonably necessary to address
 abuse, security risk, legal requirements, or a material breach of these terms.
@@ -101,4 +110,5 @@ provide it.
 ## Contact
 
 Questions about these terms can be submitted through the project's public issue
-tracker: [github.com/jcooler/aurora-newtab/issues](https://github.com/jcooler/aurora-newtab/issues).
+tracker: [github.com/jcooler/tab-two-support/issues](https://github.com/jcooler/tab-two-support/issues).
+Do not attach a diagnostic report or personal information to a public issue.

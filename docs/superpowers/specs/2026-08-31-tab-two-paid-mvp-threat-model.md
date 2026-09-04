@@ -1,19 +1,24 @@
 # Tab Two Paid MVP Threat Model
 
 **Date:** 2026-08-31
-**Status:** Owner-approved consolidated security direction; implementation not started
+**Status:** Implemented sandbox boundary under stabilization; no live paid release approved
 **Authority:** `2026-08-31-tab-two-freemium-product-architecture-design.md`
 
 ## Purpose
 
 This threat model defines the security boundaries that the paid MVP must meet
-before infrastructure or production implementation is approved. It covers
+for the implemented sandbox system. It covers
 Google account authentication, Stripe Managed Payments, signed entitlements,
 complimentary owner access, devices, encrypted sync, aggregate metrics,
 premium connector OAuth, Supabase, diagnostics, and deletion.
 
-It does not authorize provisioning, production secrets, new extension
-permissions, deployment, publication, or Chrome Web Store changes.
+It does not authorize any additional provisioning or secret change, live paid
+infrastructure, merge, packaging, publication, or Chrome Web Store action.
+
+Fitness integration is deferred from the paid MVP. For backward compatibility,
+historical wire values `strava` and `fitness` remain parseable in closed schemas,
+but no customer-facing launch surface, provider request, runtime module, host
+authority, or new grant advertises or exercises them.
 
 ## Security objectives
 
@@ -43,7 +48,7 @@ flowchart LR
   F --> K["Protected key operations"]
   S["Stripe and Link"] --> W["Signature-verified webhook"]
   W --> D
-  E --> P["Google, Microsoft, and Strava APIs"]
+  E --> P["Google and Microsoft APIs"]
   F --> P
 ```
 
@@ -181,9 +186,10 @@ flowchart LR
   is auto-evicted.
 - Vault deletion and account deletion require fresh authentication, explicit
   confirmation, idempotent backend jobs, and an owner-visible final state.
-- User-generated diagnostics are assembled locally, shown for review, and sent
-  only through an explicit user action. Redaction tests use realistic tokens,
-  nested URLs, event/task text, and provider payloads.
+- User-generated diagnostics are assembled locally, shown for review, and
+  downloaded only after an explicit user action. They are never sent
+  automatically. Redaction tests use realistic tokens, nested URLs, event/task
+  text, and provider payloads.
 
 ### Availability and cost abuse
 
@@ -225,8 +231,8 @@ flowchart LR
 
 ## Incident and recovery requirements
 
-- Maintain an owner-only runbook for revoking Supabase, Stripe, Google,
-  Microsoft, and Strava secrets; rotating the account key-encryption key;
+- Maintain an owner-only runbook for revoking Supabase, Stripe, Google, and
+  Microsoft secrets; rotating the account key-encryption key;
   disabling checkout; disabling one connector; and invalidating all sessions.
 - Security, privacy, deletion, quota, webhook, provider, and spend alerts reach
   the monitored owner alias.
@@ -238,9 +244,10 @@ flowchart LR
 
 ## Approval gates still required
 
-- Exact account and connector OAuth registrations and scopes.
-- Addition of the Chrome `identity` permission and any provider host authority.
-- Supabase and Stripe provisioning or production secret creation.
-- Account & Sync, Metrics, billing, device, conflict, deletion, and premium
-  connector visual approval.
-- Production deployment, Chrome Web Store mutation, rollout, or publication.
+- Final owner-assisted stable-Chrome, real-provider, assistive-technology,
+  physical MacBook, and mixed-DPI verification.
+- External Google and Microsoft production verification or publisher-review
+  actions beyond the approved sandbox registrations and scopes.
+- Any live Stripe activation, Supabase paid-plan change, additional production
+  permission, secret, or hosted mutation.
+- Merge, package, release, Chrome Web Store mutation, rollout, or publication.

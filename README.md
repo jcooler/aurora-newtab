@@ -25,6 +25,14 @@ lists and selected event details travel directly from Google to the browser and
 stay out of the Tab Two service. No Gmail, Drive, Contacts, calendar write, or
 invitation access is requested.
 
+PM-P7 Microsoft Calendar is likewise a separate, explicit, read-only sandbox
+connection for supported personal and Microsoft 365 work or school accounts.
+The service stores its encrypted refresh token and minimum connection metadata;
+calendar lists and selected event details travel directly between Microsoft
+Graph and the browser. Tab Two requests only basic profile and read-only basic
+calendar access, never mail, contacts, files, calendar write, or invitation
+authority.
+
 ## Features
 
 - **Clock & greeting** — large local time, time-of-day greeting.
@@ -64,8 +72,9 @@ invitation access is requested.
   or place it; Progress adds no account, sync, network request, or alert.
 - **Metrics** - an off-by-default premium trend widget with Compact, Standard,
   Full, docked, and stacked views plus 7, 30, 90, and 365 day ranges. It stores
-  only daily numeric aggregates from eligible local activity and already-cached
-  connector data, retains at most 13 calendar months, and never stores task,
+  only daily numeric aggregates in the closed Habits, Focus, Tasks, Calendar,
+  and Development categories, retains at most 13 calendar months, and never
+  stores task,
   habit, event, repository, project, or provider text. Existing history remains
   readable offline or after entitlement expiry. Settings > Progress provides a
   native JSON export and explicit scoped or complete deletion.
@@ -86,8 +95,8 @@ invitation access is requested.
   **Jira**, **Vercel**, **Crypto**, **Calendar**, **Status**,
   **Home Assistant**, **Linear**, **Sentry**, **Todoist**,
   **On This Day**, **Public Holidays**, and **Aurora & Kp**. A separate premium
-  **Google Calendar** connector is presently available only to approved OAuth
-  test users during sandbox validation. See
+  **Google Calendar** and **Microsoft Calendar** connectors are presently
+  available only to approved sandbox users during provider validation. See
   [Connectors](#connectors) below for what each one shows, what it reads,
   the two explicit write actions, and how the permission model works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
@@ -124,14 +133,16 @@ invitation access is requested.
   reorder or remove members, and Undo or Cancel exactly. Every member keeps
   its one existing data owner, and the card never auto-rotates or moves itself.
 
-Settings is organized into six tabs: **General** (name/greeting, 24-hour
+Settings is organized into seven tabs: **General** (name/greeting, 24-hour
 clock, widget color, units, mute, background), **Progress** (manual daily
 goals, the existing Habits view, and Metrics history controls), **Widgets**
 (per-widget on/off toggles, weather location, world clocks, countdowns, and
 named layouts),
 **Connectors** (outside data sources — see [Connectors](#connectors) below),
-**Data** (backup/restore, plus the About footer), and **Account & Sync**
-(optional Google identity, sandbox billing, encrypted sync, and devices).
+**Data** (backup/restore, plus the About footer), **Account & Sync**
+(optional Google identity, sandbox billing, encrypted sync, and devices), and
+**Help** (live account, billing, and sync status; recovery guidance; and a local
+diagnostic report you review before downloading).
 Every widget can be
 turned on or off from Settings, and every setting is optional — the
 dashboard is fully usable with nothing configured beyond the defaults.
@@ -475,7 +486,15 @@ as a single JSON file:
 
 ## Support
 
-If Tab Two is useful to you, there's a quiet "☕ Buy me a coffee" link in
+Settings → **Help** shows the current account, billing, and encrypted-sync state
+alongside focused recovery guidance. Its local diagnostic report is assembled
+on your device from a fixed, non-identifying status schema, shown to you for
+review, and downloaded only when you choose. Tab Two never uploads or sends it
+automatically. Do not post a diagnostic report or personal information on the
+public support board. Product assistance is best-effort and has no guaranteed
+response time.
+
+If Tab Two is useful to you, there's also a quiet "☕ Buy me a coffee" link in
 Settings' footer — or go straight to [buymeacoffee.com/joncooler](https://buymeacoffee.com/joncooler).
 
 Product use is governed by the public [Tab Two Terms of Service](TERMS.md).
@@ -507,7 +526,10 @@ for a normal browser tab. An open same-plan Checkout can return the same safe
 URL instead of creating a competing Session. Stripe/Link, not Tab Two, handle
 card and billing details. Tab Two stores no hosted URL or payment-method data,
 ignores browser return state as authority, and enables capabilities only after
-refreshing an account-bound signed lease. Stripe returns through the static
+refreshing an account-bound signed lease. Subscription state revalidates
+automatically when Account & Sync opens or regains focus and through short,
+bounded retries after a hosted handoff; there is no manual Refresh billing
+control. Stripe returns through the static
 `tab-two-billing-return.pages.dev` surface, which has no analytics, cookies,
 remote assets, account data, or billing authority. Live billing is not active.
 

@@ -5,6 +5,15 @@
 
 This is the one cumulative owner checklist. Automated tests and installed-extension harnesses continue during development; the owner should not execute these items packet by packet.
 
+## PM-P2 account and PM-P3 billing
+
+- In normal stable Chrome with the final unpacked production build, sign out and complete one Google sign-in. Confirm the native account flow returns to Tab Two, the correct identity appears, and no sync or upload begins merely because you signed in.
+- Close and reopen Settings, then confirm the signed-in account and complimentary or sandbox subscription state return without another login.
+- In Stripe test mode, start one monthly Checkout and one introductory annual Checkout without completing both purchases. Confirm the hosted pages show the server-selected price and that the annual offer says it renews at $19.99 per year.
+- Complete only the intended Stripe test purchase. Confirm subscription status converges automatically after returning to Tab Two, without a Refresh billing button or a page reload.
+- Open Manage billing, cancel the sandbox subscription, and confirm the cancelling state and access-through date converge automatically. Do not activate live mode or use a real payment method.
+- Close a Checkout tab before completion, then start the same plan again. Confirm Tab Two safely resumes or creates the allowed sandbox Checkout instead of leaving billing unavailable.
+
 ## PM-P4 encrypted sync
 
 - In normal stable Chrome with the final unpacked production build, confirm the correct signed-in account and device name are shown.
@@ -66,6 +75,14 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Verify keyboard-only operation, visible focus, and spoken labels with the owner's real assistive-technology setup.
 - Smoke test the final unpacked build on the owner's MacBook, including touchpad scrolling, Settings containment, layout editing, Metrics range controls, and downloaded export.
 - Check mixed-DPI or external-monitor movement if that is part of the owner's normal setup.
+
+## Help and diagnostics
+
+- Open Settings > Help and confirm Account, Billing, and Encrypted sync match the corresponding product surfaces without a manual refresh control.
+- Expand every recovery topic by keyboard and pointer, confirm the copy matches the state it describes, and verify focus remains visible.
+- Create a diagnostic report and review every field before download. Confirm it contains only product/version and aggregate account, billing, and sync-health states, with no names, email addresses, identifiers, tokens, URLs, content, provider payloads, storage values, requests, or logs.
+- Cancel once and confirm focus returns to Create diagnostic report. Then download once and confirm Tab Two never sends the report automatically.
+- Confirm the public support-board warning is clear. Do not attach the report or personal information to a public issue.
 
 ## Safety boundaries
 
