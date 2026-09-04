@@ -30,7 +30,6 @@ const RANGE_DATA = Object.freeze({
       ['Habits', '86%', '+9 pts'],
       ['Calendar', '8h 30m', '-1h'],
       ['Development', '18 commits', '+5'],
-      ['Fitness', '3 activities', '+1'],
     ],
   }),
   '30d': Object.freeze({
@@ -46,7 +45,6 @@ const RANGE_DATA = Object.freeze({
       ['Habits', '84%', '+7 pts'],
       ['Calendar', '27h busy', '-2h'],
       ['Development', '42 commits', '+8'],
-      ['Fitness', '6 activities', '+2'],
     ],
   }),
   '90d': Object.freeze({
@@ -62,7 +60,6 @@ const RANGE_DATA = Object.freeze({
       ['Habits', '81%', '+5 pts'],
       ['Calendar', '79h busy', '-7h'],
       ['Development', '136 commits', '+22'],
-      ['Fitness', '21 activities', '+6'],
     ],
   }),
   '365d': Object.freeze({
@@ -78,7 +75,6 @@ const RANGE_DATA = Object.freeze({
       ['Habits', '79%', '+8 pts'],
       ['Calendar', '318h busy', '-21h'],
       ['Development', '584 commits', '+91'],
-      ['Fitness', '88 activities', '+17'],
     ],
   }),
 })

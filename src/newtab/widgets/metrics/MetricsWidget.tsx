@@ -198,7 +198,6 @@ function categoryRows(current: MetricSummary, previous: MetricSummary, previousA
     ['Habits', habitRate(current), previousAvailable ? categoryDelta(habitCurrent, habitPrevious, ' pts') : null],
     ['Calendar', formatBusy(current.totals.calendar.busyMinutes), previousAvailable ? categoryDelta(current.totals.calendar.busyMinutes, previous.totals.calendar.busyMinutes, 'm') : null],
     ['Development', `${current.totals.development.commits} commits`, previousAvailable ? categoryDelta(current.totals.development.commits, previous.totals.development.commits) : null],
-    ['Fitness', `${current.totals.fitness.activities} activities`, previousAvailable ? categoryDelta(current.totals.fitness.activities, previous.totals.fitness.activities) : null],
   ] as const
 }
 

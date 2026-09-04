@@ -104,7 +104,7 @@ describe('Metrics widget approved states', () => {
     expect(within(ranges).getByRole('button', { name: '7d' }).getAttribute('aria-pressed')).toBe('true')
     expect(within(ranges).getByRole('button', { name: '30d' }).getAttribute('aria-pressed')).toBe('false')
     expect(screen.getByText('Development')).toBeTruthy()
-    expect(screen.getByText('Fitness')).toBeTruthy()
+    expect(screen.queryByText('Fitness')).toBeNull()
   })
 
   it('keeps retained history visible when entitlement expires or sync is offline', () => {

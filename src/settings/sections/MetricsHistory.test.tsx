@@ -88,6 +88,15 @@ describe('Metrics history settings', () => {
     expect(deleteMetricsHistory).toHaveBeenCalledWith({ source: 'tasks' })
   })
 
+  it('offers only the five paid-MVP metric categories while legacy fitness data remains readable', () => {
+    render(<MetricsHistoryView metrics={metrics()} signedIn onSignIn={vi.fn()} onViewPlans={vi.fn()} today="2026-09-02" />)
+
+    const options = [...screen.getByLabelText('History to delete').querySelectorAll('option')]
+      .map((option) => option.textContent)
+    expect(options).toEqual(['Habits', 'Focus', 'Tasks', 'Calendar', 'Development'])
+    expect(screen.queryByText('Fitness')).toBeNull()
+  })
+
   it('requires a separate two-step confirmation for complete deletion', async () => {
     const deleteMetricsHistory = vi.fn(async () => undefined)
     render(<MetricsHistoryView metrics={metrics({ deleteMetricsHistory })} signedIn onSignIn={vi.fn()} onViewPlans={vi.fn()} today="2026-09-02" />)

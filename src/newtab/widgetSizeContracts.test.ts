@@ -197,6 +197,10 @@ describe('shared frame presentation contracts', () => {
       docked: 'Active days, Focus, and Tasks',
     })
     expect(WIDGET_PRESENTATION_CONTRACTS.metrics.tiers.full?.signature).toEqual(['activity rhythm'])
+    expect(WIDGET_PRESENTATION_CONTRACTS.metrics.tiers.full?.supporting).toEqual([
+      'Focus', 'Tasks', 'Habits', 'Calendar', 'Development',
+    ])
+    expect(WIDGET_PRESENTATION_CONTRACTS.metrics.tiers.full?.supporting).not.toContain('Fitness')
   })
 
   it('gives every framed free and stack tier an authored composition contract', () => {

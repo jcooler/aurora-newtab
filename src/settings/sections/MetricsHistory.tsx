@@ -4,19 +4,28 @@ import PremiumPrompt from '../../account/PremiumPrompt'
 import { useAccount } from '../../account/AccountContext'
 import { readLocalDay } from '../../lib/hooks/useLocalDay'
 import { useMetrics, type MetricsContextValue } from '../../metrics/MetricsProvider'
-import { METRIC_SOURCES, type MetricSource } from '../../metrics/types'
+import type { MetricSource } from '../../metrics/types'
 import { btnDanger, btnQuiet, select } from './shared'
 
-const SOURCE_LABELS: Readonly<Record<MetricSource, string>> = Object.freeze({
+const DISPLAY_METRIC_SOURCES = [
+  'habits',
+  'focus',
+  'tasks',
+  'calendar',
+  'development',
+] as const satisfies readonly MetricSource[]
+
+type DisplayMetricSource = (typeof DISPLAY_METRIC_SOURCES)[number]
+
+const SOURCE_LABELS: Readonly<Record<DisplayMetricSource, string>> = Object.freeze({
   habits: 'Habits',
   focus: 'Focus',
   tasks: 'Tasks',
   calendar: 'Calendar',
   development: 'Development',
-  fitness: 'Fitness',
 })
 
-type ArmedDeletion = { kind: 'source'; source: MetricSource } | { kind: 'all' } | null
+type ArmedDeletion = { kind: 'source'; source: DisplayMetricSource } | { kind: 'all' } | null
 
 export function MetricsHistoryView({
   metrics,
@@ -32,7 +41,7 @@ export function MetricsHistoryView({
   today: string
 }) {
   const [promptVisible, setPromptVisible] = useState(true)
-  const [selectedSource, setSelectedSource] = useState<MetricSource>('tasks')
+  const [selectedSource, setSelectedSource] = useState<DisplayMetricSource>('tasks')
   const [armed, setArmed] = useState<ArmedDeletion>(null)
   const [pending, setPending] = useState(false)
   const [alert, setAlert] = useState<string | null>(null)
@@ -137,12 +146,12 @@ export function MetricsHistoryView({
                   className={`${select} mt-1 w-full normal-case tracking-normal`}
                   value={selectedSource}
                   onChange={(event) => {
-                    setSelectedSource(event.currentTarget.value as MetricSource)
+                    setSelectedSource(event.currentTarget.value as DisplayMetricSource)
                     setArmed(null)
                     setAlert(null)
                   }}
                 >
-                  {METRIC_SOURCES.map((source) => <option key={source} value={source}>{SOURCE_LABELS[source]}</option>)}
+                  {DISPLAY_METRIC_SOURCES.map((source) => <option key={source} value={source}>{SOURCE_LABELS[source]}</option>)}
                 </select>
               </label>
               <button

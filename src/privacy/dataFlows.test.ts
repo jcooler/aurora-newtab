@@ -160,7 +160,7 @@ describe('code-backed privacy inventory', () => {
       sensitivity: ['user-content'],
       export: 'included',
       transmission: 'tab-two-encrypted-sync',
-      description: 'Daily numeric aggregates for habits, focus, tasks, calendar load, development activity, and fitness; no titles, names, routes, or raw provider data.',
+      description: 'Daily numeric aggregates for habits, focus, tasks, calendar load, and development activity; no titles, names, routes, or raw provider data.',
     })
   })
 

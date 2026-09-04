@@ -51,7 +51,7 @@ export const STORED_DATA_FLOWS: Record<DataKey, StoredDataFlow> = {
   attentionLedger: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'excluded', transmission: 'none', description: 'Device-local stable work-item ids and first-observation timestamps.' },
   habits: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'Habit names and completion history.' },
   progressGoals: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'Manual goal names, units, targets, and daily values.' },
-  metricsHistory: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'tab-two-encrypted-sync', description: 'Daily numeric aggregates for habits, focus, tasks, calendar load, development activity, and fitness; no titles, names, routes, or raw provider data.' },
+  metricsHistory: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'tab-two-encrypted-sync', description: 'Daily numeric aggregates for habits, focus, tasks, calendar load, and development activity; no titles, names, routes, or raw provider data.' },
   apodCache: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'excluded', transmission: 'none', description: 'Rebuildable NASA photo metadata cache.' },
 }
 

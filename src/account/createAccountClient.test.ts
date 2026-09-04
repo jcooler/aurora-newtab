@@ -94,6 +94,15 @@ describe('createAccountClient', () => {
       expect.objectContaining({
         mode: 'signed_in',
         billing: expect.objectContaining({ state: 'active', plan: 'monthly' }),
+        lease: expect.objectContaining({
+          capabilities: [
+            'encrypted_sync',
+            'multi_account',
+            'metrics_history',
+            'google_calendar',
+            'microsoft_calendar',
+          ],
+        }),
         sync: expect.objectContaining({ enabled: false, phase: 'needs_attention' }),
         devices: expect.arrayContaining([
           expect.objectContaining({ id: 'preview-device-5', revoked: false }),

@@ -322,7 +322,7 @@ export const WIDGET_PRESENTATION_CONTRACTS: Readonly<Record<BlockId, WidgetPrese
         'Range-selectable private history',
         ['active days', 'range', 'comparison'],
         ['activity rhythm'],
-        ['Focus', 'Tasks', 'Habits', 'Calendar', 'Development', 'Fitness'],
+        ['Focus', 'Tasks', 'Habits', 'Calendar', 'Development'],
         ['condense range labels', 'preserve native units', 'bound trend samples'],
         { kind: 'settings', label: 'Metrics history' },
       ),

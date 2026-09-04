@@ -25,7 +25,6 @@ const capabilities: readonly PremiumCapability[] = [
   'metrics_history',
   'google_calendar',
   'microsoft_calendar',
-  'strava',
 ]
 
 const previewDevices = Object.freeze([

@@ -66,12 +66,12 @@ test('rejects raw or secret-bearing keys from exported metric evidence', () => {
 
 test('builds a schema-shaped aggregate-only browser fixture', () => {
   const history = createMetricsHistoryFixture('2026-09-03')
-  assert.equal(history.buckets.length, 7)
+  assert.equal(history.buckets.length, 6)
   assert.doesNotThrow(() => assertNoSensitiveMetricKeys({ history }))
+  assert.equal(history.buckets.some((bucket) => bucket.source === 'fitness'), false)
   assert(history.buckets.every((bucket) => /^[0-9a-f-]{36}$/i.test(bucket.id)))
   assert(history.buckets.every((bucket) => bucket.sourceInstanceId === 'ics'
     || bucket.sourceInstanceId === 'github'
-    || bucket.sourceInstanceId === 'strava'
     || /^[0-9a-f-]{36}$/i.test(bucket.sourceInstanceId)))
 })
 
