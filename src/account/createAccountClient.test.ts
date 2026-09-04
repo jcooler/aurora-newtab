@@ -134,6 +134,14 @@ describe('createAccountClient', () => {
       mode: 'signed_in',
       accountId: '43000000-0000-4000-8000-000000000001',
     })
+    await expect(recovery.syncGateway!.bootstrap({
+      accountId: '43000000-0000-4000-8000-000000000001',
+      deviceId: 'AAECAwQFBgcICQoLDA0ODw',
+      friendlyName: 'Desktop',
+    })).resolves.toMatchObject({
+      ok: true,
+      value: { summary: { currentDeviceId: 'AAECAwQFBgcICQoLDA0ODw' } },
+    })
 
     const failure = await loadClient('preview', '?accountState=active&accountExportState=failure')
     await expect(failure.actions.prepareAccountDataExport()).resolves.toEqual({ status: 'data_unavailable' })

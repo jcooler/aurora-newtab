@@ -104,8 +104,12 @@ describe('SyncProvider lifecycle ownership', () => {
     await local.updateDevice(accountId, (current) => ({ ...current, enabled: true, registration: 'active' }))
     const api = gateway()
     let heldSignal: AbortSignal | undefined
-    const request = vi.fn(async (_name: string, options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => {
-      heldSignal = options.signal
+    const bootstrap = vi.mocked(api.bootstrap).getMockImplementation()!
+    vi.mocked(api.bootstrap).mockImplementation(async (input, signal) => {
+      heldSignal = signal
+      return bootstrap(input, signal)
+    })
+    const request = vi.fn(async (_name: string, _options: LockOptions, callback: (lock: Lock | null) => Promise<void>) => {
       return callback({ name: 'tab-two:encrypted-sync:v1', mode: 'exclusive' } as Lock)
     })
     Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
@@ -118,9 +122,10 @@ describe('SyncProvider lifecycle ownership', () => {
     )
     await waitFor(() => expect(api.bootstrap).toHaveBeenCalledOnce())
     await waitFor(() => expect(api.pull).toHaveBeenCalled())
-    expect(request).toHaveBeenCalledWith('tab-two:encrypted-sync:v1', expect.objectContaining({
-      mode: 'exclusive', ifAvailable: true, signal: expect.any(AbortSignal),
-    }), expect.any(Function))
+    expect(request).toHaveBeenCalledWith('tab-two:encrypted-sync:v1', {
+      mode: 'exclusive', ifAvailable: true,
+    }, expect.any(Function))
+    expect(request.mock.calls[0]?.[1]).not.toHaveProperty('signal')
     await waitFor(() => expect(screen.getByText('up_to_date')).toBeTruthy())
     view.unmount()
     expect(heldSignal?.aborted).toBe(true)
