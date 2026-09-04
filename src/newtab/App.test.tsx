@@ -1437,14 +1437,18 @@ describe('App Canvas composition', () => {
     await renderApp(storage)
 
     const opener = await screen.findByRole('button', { name: 'Open Progress' })
-    opener.focus()
-    fireEvent.click(opener)
+    await act(async () => {
+      opener.focus()
+      fireEvent.click(opener)
+    })
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Progress', selected: true })).toBeTruthy()
     await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)) })
     expect(document.activeElement?.closest('[data-settings-anchor="progress-overview"]')).toBeTruthy()
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' })
+    })
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull())
     expect(document.activeElement).toBe(opener)
   })
