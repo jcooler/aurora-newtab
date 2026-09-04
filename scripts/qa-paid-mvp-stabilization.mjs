@@ -7,18 +7,18 @@ import { pathToFileURL } from 'node:url'
 import { assertExactBuildTrackedStatus } from './build-contracts.mjs'
 
 export const PAID_MVP_GATES = Object.freeze([
-  Object.freeze({ command: 'qa:free-baseline', evidence: (sha) => `artifacts/qa-free-baseline/${sha}/evidence.json` }),
-  Object.freeze({ command: 'qa:widget-redesign-production', evidence: () => 'docs/superpowers/catalog/widget-redesign/production/evidence.json' }),
+  Object.freeze({ command: 'qa:free-baseline', buildMode: 'production', evidence: (sha) => `artifacts/qa-free-baseline/${sha}/evidence.json` }),
+  Object.freeze({ command: 'qa:widget-redesign-production', buildMode: 'preview', evidence: () => 'docs/superpowers/catalog/widget-redesign/production/evidence.json' }),
   Object.freeze({ command: 'qa:canvas-polish', evidence: () => 'docs/superpowers/qa/canvas-polish/acceptance/evidence.json' }),
   Object.freeze({ command: 'qa:tab-two-v2-connectors', evidence: () => 'docs/superpowers/qa/tab-two-v2-connectors/acceptance/evidence.json' }),
   Object.freeze({ command: 'qa:tab-two-v2-progress', evidence: (sha) => `artifacts/qa-tab-two-v2-progress/${sha}/evidence.json` }),
-  Object.freeze({ command: 'qa:account-auth-production', exact: true, ownerAssisted: true, evidence: (sha) => `artifacts/qa-account-auth-production/${sha}/evidence.json` }),
+  Object.freeze({ command: 'qa:account-auth-production', buildMode: 'production', ownerAssisted: true, evidence: (sha) => `artifacts/qa-account-auth-production/${sha}/evidence.json` }),
   Object.freeze({ command: 'qa:stripe-billing', sourceContract: true, evidence: () => null }),
-  Object.freeze({ command: 'qa:account-sync-shell', exact: true, evidence: (sha) => `artifacts/qa-account-sync-shell/${sha}/evidence.json` }),
-  Object.freeze({ command: 'qa:tab-two-metrics', evidence: (sha) => `artifacts/qa-tab-two-metrics/${sha}/evidence.json` }),
-  Object.freeze({ command: 'qa:google-calendar', evidence: (sha) => `docs/superpowers/qa/google-calendar/${sha}/evidence.json` }),
-  Object.freeze({ command: 'qa:microsoft-calendar', evidence: (sha) => `docs/superpowers/qa/microsoft-calendar/${sha}/evidence.json` }),
-  Object.freeze({ command: 'qa:paid-mvp-support', exact: true, evidence: (sha) => `artifacts/qa-paid-mvp-support/${sha}/evidence.json` }),
+  Object.freeze({ command: 'qa:account-sync-shell', buildMode: 'preview', evidence: (sha) => `artifacts/qa-account-sync-shell/${sha}/evidence.json` }),
+  Object.freeze({ command: 'qa:tab-two-metrics', buildMode: 'preview', evidence: (sha) => `artifacts/qa-tab-two-metrics/${sha}/evidence.json` }),
+  Object.freeze({ command: 'qa:google-calendar', buildMode: 'preview', evidence: (sha) => `docs/superpowers/qa/google-calendar/${sha}/evidence.json` }),
+  Object.freeze({ command: 'qa:microsoft-calendar', buildMode: 'preview', evidence: (sha) => `docs/superpowers/qa/microsoft-calendar/${sha}/evidence.json` }),
+  Object.freeze({ command: 'qa:paid-mvp-support', buildMode: 'production', evidence: (sha) => `artifacts/qa-paid-mvp-support/${sha}/evidence.json` }),
 ])
 
 const INDEX_KEYS = Object.freeze([
@@ -132,6 +132,21 @@ export function gateNpmInvocation(gate, npmExecPath = process.env.npm_execpath) 
   return npmInvocation(['run', gate.command, '--', '--exact'], npmExecPath)
 }
 
+export function buildArgsForGate(gate) {
+  if (gate.buildMode === 'production') return []
+  if (gate.buildMode === 'preview') return ['--mode=preview']
+  return null
+}
+
+function prepareGateBuild(repoRoot, gate) {
+  const args = buildArgsForGate(gate)
+  if (args === null) return
+  execFileSync(process.execPath, [resolve(repoRoot, 'scripts/build.mjs'), ...args], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  })
+}
+
 function runGate(repoRoot, gate) {
   const invocation = gateNpmInvocation(gate)
   execFileSync(invocation.executable, invocation.args, {
@@ -178,6 +193,7 @@ export async function runPaidMvpStabilization(args = process.argv.slice(2)) {
         continue
       }
       if (gate.ownerAssisted) process.stdout.write(`${gate.command}: owner-assisted browser checkpoint starting\n`)
+      prepareGateBuild(repoRoot, gate)
       runGate(repoRoot, gate)
       const relativeEvidence = gate.evidence(sourceCommit)
       let evidence = {}

@@ -142,6 +142,27 @@ test('passes exact mode to every specialist gate from the exact orchestrator', (
   )
 })
 
+test('prepares each specialist with the build mode its fixtures require', () => {
+  assert.equal(typeof stabilization.buildArgsForGate, 'function')
+  assert.deepEqual(
+    PAID_MVP_GATES.map((gate) => [gate.command, stabilization.buildArgsForGate(gate)]),
+    [
+      ['qa:free-baseline', []],
+      ['qa:widget-redesign-production', ['--mode=preview']],
+      ['qa:canvas-polish', null],
+      ['qa:tab-two-v2-connectors', null],
+      ['qa:tab-two-v2-progress', null],
+      ['qa:account-auth-production', []],
+      ['qa:stripe-billing', null],
+      ['qa:account-sync-shell', ['--mode=preview']],
+      ['qa:tab-two-metrics', ['--mode=preview']],
+      ['qa:google-calendar', ['--mode=preview']],
+      ['qa:microsoft-calendar', ['--mode=preview']],
+      ['qa:paid-mvp-support', []],
+    ],
+  )
+})
+
 test('accepts only a provenance-bound, redacted evidence index', () => {
   const commands = PAID_MVP_GATES.map(({ command }) => command)
   const index = {
