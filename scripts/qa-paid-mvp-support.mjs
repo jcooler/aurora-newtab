@@ -371,7 +371,7 @@ async function exerciseDesktop(page, viewport, output, judgments, evidence, repo
     'Sync now starts a fresh protected update',
     'Reconnect only the account that needs attention',
     'personal and work or school accounts stay separate',
-    'Data creates a local backup',
+    'Data creates the local backup',
   ]) {
     await page.getByText(new RegExp(copy, 'i')).waitFor()
   }

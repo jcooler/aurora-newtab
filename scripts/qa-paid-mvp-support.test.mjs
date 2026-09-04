@@ -111,3 +111,9 @@ test('registers the exact support QA entry point', () => {
   const pkg = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
   assert.equal(pkg.scripts['qa:paid-mvp-support'], 'node scripts/qa-paid-mvp-support.mjs')
 })
+
+test('waits for the approved data portability Help copy', () => {
+  const source = readFileSync(resolve(repoRoot, 'scripts/qa-paid-mvp-support.mjs'), 'utf8')
+  assert.match(source, /Data creates the local backup/)
+  assert.doesNotMatch(source, /Data creates a local backup/)
+})
