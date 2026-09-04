@@ -131,6 +131,17 @@ test('invokes npm through its JavaScript CLI on Windows-safe child process bound
   )
 })
 
+test('passes exact mode to every specialist gate from the exact orchestrator', () => {
+  assert.equal(typeof stabilization.gateNpmInvocation, 'function')
+  assert.deepEqual(
+    stabilization.gateNpmInvocation({ command: 'qa:free-baseline' }, 'C:/node/npm-cli.js'),
+    {
+      executable: process.execPath,
+      args: ['C:/node/npm-cli.js', 'run', 'qa:free-baseline', '--', '--exact'],
+    },
+  )
+})
+
 test('accepts only a provenance-bound, redacted evidence index', () => {
   const commands = PAID_MVP_GATES.map(({ command }) => command)
   const index = {

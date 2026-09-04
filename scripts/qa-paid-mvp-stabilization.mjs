@@ -128,8 +128,12 @@ export function npmInvocation(args, npmExecPath = process.env.npm_execpath) {
   return { executable: process.execPath, args: [npmExecPath, ...args] }
 }
 
+export function gateNpmInvocation(gate, npmExecPath = process.env.npm_execpath) {
+  return npmInvocation(['run', gate.command, '--', '--exact'], npmExecPath)
+}
+
 function runGate(repoRoot, gate) {
-  const invocation = npmInvocation(['run', gate.command, ...(gate.exact ? ['--', '--exact'] : [])])
+  const invocation = gateNpmInvocation(gate)
   execFileSync(invocation.executable, invocation.args, {
     cwd: repoRoot,
     stdio: 'inherit',
