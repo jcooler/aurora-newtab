@@ -223,7 +223,7 @@ async function currentGeometry(page, state) {
       const rect = element.getBoundingClientRect()
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
     }
-    const root = document.querySelector('[role="dialog"][aria-modal="true"]')
+    const root = document.querySelector('[role="dialog"][aria-modal="true"]:not([data-settings-scroll-owner="document"])')
       ?? document.querySelector(captureState === 'touch-recovery'
         ? '[role="region"][aria-label="Recovery copies"]'
         : '[role="region"][aria-label="Your data"]')
