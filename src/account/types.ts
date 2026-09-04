@@ -75,6 +75,19 @@ export interface AccountSnapshot {
   }[]
 }
 
+import type { AccountDataExportSourceV1 } from './dataExport'
+
+export type AccountDataExportOutcome =
+  | { readonly status: 'ready'; readonly value: AccountDataExportSourceV1 }
+  | {
+      readonly status:
+        | 'authentication_required'
+        | 'verification_required'
+        | 'offline'
+        | 'rate_limited'
+        | 'data_unavailable'
+    }
+
 export type SyncActionOutcome =
   | { status: 'completed' }
   | {
@@ -102,6 +115,7 @@ export interface AccountActions {
   openPlans(plan: BillingPlan): Promise<BillingActionOutcome>
   openBilling(): Promise<BillingActionOutcome>
   refreshBilling(): Promise<BillingRefreshOutcome>
+  prepareAccountDataExport(): Promise<AccountDataExportOutcome>
   deleteVault(): Promise<SyncActionOutcome>
   deleteAccount(): Promise<SyncActionOutcome>
 }

@@ -7,6 +7,7 @@ export interface ProductionAccountServiceDescriptor {
   encryptedSyncEnabled: boolean
   googleCalendarEnabled: boolean
   microsoftCalendarEnabled: boolean
+  accountDataExportEnabled: boolean
 }
 
 interface ProductionEnvironment {
@@ -34,6 +35,9 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
   // The bounded PM-P7 Entra and hosted activation gate is verified. Public
   // OAuth publication and real-provider owner QA remain separate gates.
   microsoftCalendarEnabled: true,
+  // The code and local boundary are reviewable, but production remains off
+  // until the separately approved migration and Edge deployment gate.
+  accountDataExportEnabled: false,
 })
 
 export function readProductionAccountServiceConfig(
@@ -52,6 +56,7 @@ export function readProductionAccountServiceConfig(
     || typeof descriptor.encryptedSyncEnabled !== 'boolean'
     || typeof descriptor.googleCalendarEnabled !== 'boolean'
     || typeof descriptor.microsoftCalendarEnabled !== 'boolean'
+    || typeof descriptor.accountDataExportEnabled !== 'boolean'
     || trustedEntries.length < 1
     || trustedEntries.length > 4
     || trustedEntries.some(([keyId, spki]) => !keyIdPattern.test(keyId)
@@ -67,5 +72,6 @@ export function readProductionAccountServiceConfig(
     encryptedSyncEnabled: descriptor.encryptedSyncEnabled,
     googleCalendarEnabled: descriptor.googleCalendarEnabled,
     microsoftCalendarEnabled: descriptor.microsoftCalendarEnabled,
+    accountDataExportEnabled: descriptor.accountDataExportEnabled,
   })
 }

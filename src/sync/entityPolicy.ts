@@ -306,6 +306,15 @@ function assertValidEntity(value: unknown): asserts value is SyncEntityV1 {
   }
 }
 
+export function isValidSyncEntity(value: unknown): value is SyncEntityV1 {
+  try {
+    assertValidEntity(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function entity(entityType: SyncEntityType, entityId: string, value: unknown): SyncEntityV1 {
   const projected = { schemaVersion: 1 as const, entityType, entityId, value: structuredClone(value) }
   assertValidEntity(projected)

@@ -15,6 +15,10 @@ import {
 } from './sessionStorage'
 import type { AccountSessionStore, StoredAccountSessionV1 } from './sessionStorage'
 import type { AccountActions, AccountSnapshot, VerifiedEntitlementLease } from './types'
+import {
+  createAccountDataExportGateway,
+  type AccountDataExportGatewayDependencies,
+} from './dataExportGateway'
 import { createSyncGateway, type SyncGatewayDependencies } from '../sync/gateway'
 import {
   createProviderGateway,
@@ -93,6 +97,10 @@ export interface SupabaseAccountClientDependencies {
     | 'identity'
     | 'requestMicrosoftOrigin'
     | 'removeMicrosoftOrigin'
+  >
+  accountExport?: Pick<
+    AccountDataExportGatewayDependencies,
+    'enabled' | 'origin' | 'allowedOrigins' | 'fetch' | 'timeoutMs' | 'crypto'
   >
   verifyLease(
     envelope: unknown,
@@ -339,6 +347,17 @@ export function createSupabaseAccountClient(
       })
     : null
 
+  const accountDataExportGateway = dependencies.accountExport
+    ? createAccountDataExportGateway({
+        ...dependencies.accountExport,
+        getAccessToken: async (accountId) => {
+          if (current.mode !== 'signed_in' || current.accountId !== accountId) return null
+          return (await billingSession())?.accessToken ?? null
+        },
+        invalidateAuthentication: async () => { await clearAuthority() },
+      })
+    : null
+
   const configuredProviderGateways: Partial<Record<ProviderId, ProviderGateway>> = {}
   if (dependencies.provider) {
     configuredProviderGateways.google_calendar = createProviderGateway({
@@ -440,11 +459,24 @@ export function createSupabaseAccountClient(
       if (snapshot.mode !== 'signed_in') return { status: 'authentication_required' as const }
       return lastHydrationFresh ? { status: 'refreshed' as const } : { status: 'unavailable' as const }
     },
+    async prepareAccountDataExport() {
+      if (!accountDataExportGateway || dependencies.accountExport?.enabled !== true) {
+        return { status: 'data_unavailable' as const }
+      }
+      if (current.mode !== 'signed_in' || current.accountId === null) {
+        return { status: 'authentication_required' as const }
+      }
+      const result = await accountDataExportGateway.prepare({ accountId: current.accountId })
+      return result.ok
+        ? { status: 'ready' as const, value: result.value }
+        : { status: result.kind }
+    },
     deleteVault: () => unavailableSync(false),
     deleteAccount: () => unavailableSync(false),
   })
 
   return Object.freeze({
+    accountDataExportEnabled: dependencies.accountExport?.enabled === true,
     getSnapshot,
     subscribe(listener: (snapshot: AccountSnapshot) => void) {
       listeners.add(listener)
@@ -617,6 +649,13 @@ export function createConfiguredSupabaseAccountClient(config: AccountServiceConf
       },
       requestMicrosoftOrigin: ensureMicrosoftGraphOrigin,
       removeMicrosoftOrigin: removeMicrosoftGraphOrigin,
+    },
+    accountExport: {
+      origin: config.supabaseUrl,
+      allowedOrigins: [config.supabaseUrl],
+      enabled: config.accountDataExportEnabled,
+      fetch: globalThis.fetch.bind(globalThis),
+      crypto: globalThis.crypto,
     },
     verifyLease: (envelope, expectedAccountId, at) => verifyEntitlementLeaseV1(
       envelope as never,

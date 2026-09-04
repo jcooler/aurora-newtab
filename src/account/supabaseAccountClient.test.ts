@@ -6,6 +6,7 @@ import type { StoredAccountSessionV1 } from './sessionStorage'
 import type { VerifiedEntitlementLease } from './types'
 
 const now = Date.UTC(2026, 8, 1, 14, 0, 0)
+const exportAccountId = '43000000-0000-4000-8000-000000000001'
 const session: StoredAccountSessionV1 = {
   version: 1,
   accessToken: 'access-token',
@@ -81,6 +82,54 @@ function dependencies(initialSession: StoredAccountSessionV1 | null = session) {
   return { deps, stored: () => stored }
 }
 
+function accountExportResponse() {
+  return new Response(JSON.stringify({
+    version: 1,
+    account: {
+      accountId: exportAccountId,
+      email: 'alex@example.test',
+      displayName: 'Alex Morgan',
+      createdAt: now - 10_000,
+      identityCreatedAt: now - 9_000,
+      identityUpdatedAt: now - 8_000,
+    },
+    connectedAccounts: [],
+    subscription: {
+      state: 'complimentary', plan: null, currentPeriodStart: null,
+      currentPeriodEnd: null, courtesyEnd: null, cancelAtPeriodEnd: false,
+      createdAt: null, updatedAt: null,
+    },
+    entitlement: { capabilities: ['encrypted_sync'], grantSources: ['complimentary_owner'], expiresAt: null },
+    devices: [],
+    vault: { status: 'not_created', vaultVersion: 0, storedBytes: 0, records: [] },
+    dataKey: null,
+  }), {
+    headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },
+  })
+}
+
+function enableAccountExport(value: ReturnType<typeof dependencies>) {
+  value.deps.api.getAccountSnapshot = vi.fn(async () => ({
+    ok: true as const,
+    value: {
+      accountId: exportAccountId,
+      email: 'alex@example.test',
+      displayName: 'Alex Morgan',
+      subscription: { state: 'complimentary' as const },
+    },
+  }))
+  value.deps.verifyLease = vi.fn(async () => ({ ...lease, accountId: exportAccountId }))
+  const exportFetch = vi.fn(async () => accountExportResponse()) as typeof fetch
+  value.deps.accountExport = {
+    enabled: true,
+    origin: 'http://127.0.0.1:54321',
+    allowedOrigins: ['http://127.0.0.1:54321'],
+    fetch: exportFetch,
+    crypto: globalThis.crypto,
+  }
+  return exportFetch
+}
+
 describe('readAccountServiceConfig', () => {
   const valid = {
     MODE: 'account-local',
@@ -101,6 +150,7 @@ describe('readAccountServiceConfig', () => {
       encryptedSyncEnabled: true,
       googleCalendarEnabled: true,
       microsoftCalendarEnabled: true,
+      accountDataExportEnabled: true,
     })
   })
 
@@ -459,6 +509,51 @@ describe('Supabase AccountClient', () => {
 
     expect(value.deps.googleAuth.reauthenticate).toHaveBeenCalledOnce()
     expect(value.deps.googleAuth.begin).not.toHaveBeenCalled()
+  })
+
+  it('keeps account export disabled and request-free when the feature dependency is absent', async () => {
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+    await expect(client.actions.prepareAccountDataExport())
+      .resolves.toEqual({ status: 'data_unavailable' })
+    expect(client.accountDataExportEnabled).toBe(false)
+  })
+
+  it('uses the current account-bound session only after explicit fresh reauthentication', async () => {
+    const exportFetch = enableAccountExport(value)
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+    expect(exportFetch).not.toHaveBeenCalled()
+
+    await expect(client.actions.beginSignIn()).resolves.toEqual({ ok: true })
+    await expect(client.actions.prepareAccountDataExport()).resolves.toMatchObject({
+      status: 'ready', value: { account: { accountId: exportAccountId } },
+    })
+    expect(client.accountDataExportEnabled).toBe(true)
+    expect(value.deps.googleAuth.reauthenticate).toHaveBeenCalledOnce()
+    expect(exportFetch).toHaveBeenCalledOnce()
+    expect(exportFetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:54321/functions/v1/account-export',
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: 'Bearer access-token' }),
+        body: JSON.stringify({ accountId: exportAccountId }),
+      }),
+    )
+  })
+
+  it('clears account authority when the export service rejects its session', async () => {
+    const exportFetch = enableAccountExport(value)
+    vi.mocked(exportFetch).mockResolvedValue(new Response(
+      JSON.stringify({ error: 'authentication_required' }),
+      { status: 401, headers: { 'cache-control': 'no-store', 'content-type': 'application/json' } },
+    ))
+    const client = createSupabaseAccountClient(value.deps)
+    await client.getSnapshot()
+
+    await expect(client.actions.prepareAccountDataExport())
+      .resolves.toEqual({ status: 'authentication_required' })
+    expect(value.deps.sessionStore.clear).toHaveBeenCalled()
+    await expect(client.getSnapshot()).resolves.toEqual(expect.objectContaining({ mode: 'local' }))
   })
 
   it('refreshes an expiring session inside one named Web Lock before validation', async () => {

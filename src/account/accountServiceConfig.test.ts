@@ -15,6 +15,7 @@ const productionDescriptor = Object.freeze({
   encryptedSyncEnabled: false,
   googleCalendarEnabled: false,
   microsoftCalendarEnabled: false,
+  accountDataExportEnabled: false,
 })
 
 describe('readAccountServiceConfig', () => {
@@ -34,6 +35,11 @@ describe('readAccountServiceConfig', () => {
       .toMatchObject({ microsoftCalendarEnabled: true })
   })
 
+  it('keeps production account export disabled until its separate hosted gate', () => {
+    expect(readProductionAccountServiceConfig({ MODE: 'production' }, productionAccountServiceConfig))
+      .toMatchObject({ accountDataExportEnabled: false })
+  })
+
   it.each([
     ['http origin', { ...productionDescriptor, supabaseUrl: 'http://ovlobmvxtryitupxwylg.supabase.co' }],
     ['localhost', { ...productionDescriptor, supabaseUrl: 'http://127.0.0.1:54321' }],
@@ -44,6 +50,8 @@ describe('readAccountServiceConfig', () => {
     ['missing trusted key', { ...productionDescriptor, trustedLeaseKeys: {} }],
     ['missing Microsoft flag', (({ microsoftCalendarEnabled: _flag, ...descriptor }) => descriptor)(productionDescriptor)],
     ['malformed Microsoft flag', { ...productionDescriptor, microsoftCalendarEnabled: 'yes' }],
+    ['missing account export flag', (({ accountDataExportEnabled: _flag, ...descriptor }) => descriptor)(productionDescriptor)],
+    ['malformed account export flag', { ...productionDescriptor, accountDataExportEnabled: 'yes' }],
   ])('rejects production %s', (_name, descriptor) => {
     expect(readProductionAccountServiceConfig(
       { MODE: 'production' },
@@ -64,6 +72,7 @@ describe('readAccountServiceConfig', () => {
       encryptedSyncEnabled: true,
       googleCalendarEnabled: true,
       microsoftCalendarEnabled: true,
+      accountDataExportEnabled: true,
     })
   })
 

@@ -5,6 +5,7 @@ import {
   applySyncEntity,
   classifyAuroraKey,
   EXCLUDED_AURORA_KEYS,
+  isValidSyncEntity,
   projectSyncEntities,
   removeSyncEntity,
   SYNCED_AURORA_KEYS,
@@ -63,6 +64,12 @@ function fixture(): AuroraData {
 }
 
 describe('deny-by-default sync entity policy', () => {
+  it('exposes a side-effect-free entity guard for readable export validation', () => {
+    const notes = projectSyncEntities(fixture()).find((entity) => entity.entityType === 'notes')
+    expect(isValidSyncEntity(notes)).toBe(true)
+    expect(isValidSyncEntity({ ...notes, value: { providerToken: 'secret' } })).toBe(false)
+  })
+
   it('classifies every current AuroraData key exactly once', () => {
     const expected = Object.keys(defaults()).sort()
     const classified = [...SYNCED_AURORA_KEYS, ...EXCLUDED_AURORA_KEYS].sort()

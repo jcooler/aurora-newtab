@@ -36,6 +36,7 @@ describe('createAccountClient', () => {
     vi.stubGlobal('open', openSpy)
 
     const client = await loadClient('production')
+    expect(client.accountDataExportEnabled).toBe(false)
     const snapshot = await client.getSnapshot()
 
     expect(snapshot).toEqual({
@@ -79,6 +80,7 @@ describe('createAccountClient', () => {
     expect(await client.actions.openPlans('monthly')).toEqual({ status: 'authentication_required' })
     expect(await client.actions.openBilling()).toEqual({ status: 'authentication_required' })
     expect(await client.actions.refreshBilling()).toEqual({ status: 'authentication_required' })
+    expect(await client.actions.prepareAccountDataExport()).toEqual({ status: 'data_unavailable' })
     await client.actions.deleteVault()
     await client.actions.deleteAccount()
 
@@ -89,6 +91,12 @@ describe('createAccountClient', () => {
 
   it('loads deterministic preview states by semantic query name', async () => {
     const client = await loadClient('preview', '?accountState=device-limit')
+
+    expect(client.accountDataExportEnabled).toBe(true)
+    await expect(client.actions.prepareAccountDataExport()).resolves.toMatchObject({
+      status: 'ready',
+      value: { account: { accountId: '43000000-0000-4000-8000-000000000001' } },
+    })
 
     await expect(client.getSnapshot()).resolves.toEqual(
       expect.objectContaining({
@@ -149,6 +157,7 @@ describe('createAccountClient', () => {
     })
 
     const client = await loadClient('account-local')
+    expect(client.accountDataExportEnabled).toBe(true)
     expect(await client.actions.beginSignIn()).toEqual({ ok: false, code: 'cancelled' })
   })
 })

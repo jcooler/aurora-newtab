@@ -26,6 +26,7 @@ function actions(): AccountActions {
     openPlans: vi.fn(async () => ({ status: 'opened' as const })),
     openBilling: vi.fn(async () => ({ status: 'opened' as const })),
     refreshBilling: vi.fn(async () => ({ status: 'refreshed' as const })),
+    prepareAccountDataExport: vi.fn(async () => ({ status: 'data_unavailable' as const })),
     deleteVault: vi.fn(async () => ({ status: 'completed' as const })),
     deleteAccount: vi.fn(async () => ({ status: 'completed' as const })),
   }

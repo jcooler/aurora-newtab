@@ -4,6 +4,7 @@ import { createPreviewMicrosoftCalendarGateway } from '../providers/microsoftGat
 import { createBillingSummary } from './billing'
 import type { BillingPlan } from './billing'
 import type { AccountActions, AccountSnapshot, PremiumCapability } from './types'
+import type { AccountDataExportSourceV1 } from './dataExport'
 import { localAccountSnapshot } from './localAccountClient'
 
 export const TAB_TWO_PREVIEW_ACCOUNT_FIXTURE = 'TAB_TWO_PREVIEW_ACCOUNT_FIXTURE'
@@ -130,7 +131,69 @@ function requestedState(): PreviewAccountState {
 async function noOp(): Promise<void> {}
 async function completedSync() { return { status: 'completed' as const } }
 
-const previewActions: AccountActions = Object.freeze({
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value)
+    for (const child of Object.values(value)) deepFreeze(child)
+  }
+  return value
+}
+
+const previewExportDeviceIds = [
+  'AAECAwQFBgcICQoLDA0ODw',
+  'AQEBAQEBAQEBAQEBAQEBAQ',
+  'AgICAgICAgICAgICAgICAg',
+  'AwMDAwMDAwMDAwMDAwMDAw',
+  'BAQEBAQEBAQEBAQEBAQEBA',
+] as const
+
+function previewAccountData(snapshot: AccountSnapshot): AccountDataExportSourceV1 | null {
+  if (snapshot.mode !== 'signed_in' || snapshot.accountId === null || snapshot.email === null) return null
+  return deepFreeze({
+    account: {
+      accountId: snapshot.accountId,
+      email: snapshot.email,
+      displayName: snapshot.displayName,
+      createdAt: 1_700_000_000_000,
+      identityCreatedAt: 1_700_000_001_000,
+      identityUpdatedAt: 1_777_500_000_000,
+    },
+    connectedAccounts: [],
+    subscription: {
+      state: snapshot.billing.state,
+      plan: snapshot.billing.plan,
+      currentPeriodStart: null,
+      currentPeriodEnd: snapshot.billing.currentPeriodEnd,
+      courtesyEnd: snapshot.billing.courtesyEnd,
+      cancelAtPeriodEnd: snapshot.billing.cancelAtPeriodEnd,
+      createdAt: null,
+      updatedAt: null,
+    },
+    entitlement: {
+      capabilities: [...(snapshot.lease?.capabilities ?? [])],
+      grantSources: ['complimentary_owner'],
+      expiresAt: snapshot.lease?.expiresAt ?? null,
+    },
+    devices: snapshot.devices.map((device, index) => ({
+      deviceId: previewExportDeviceIds[index] ?? previewExportDeviceIds[0],
+      friendlyName: device.name,
+      state: device.revoked ? 'revoked' as const : 'active' as const,
+      lastSeenAt: device.lastSyncAt ?? 1_777_500_000_000,
+      createdAt: (device.lastSyncAt ?? 1_777_500_000_000) - 86_400_000,
+      updatedAt: device.lastSyncAt ?? 1_777_500_000_000,
+      revokedAt: device.revoked ? device.lastSyncAt : null,
+    })),
+    syncedData: {
+      status: 'empty',
+      vaultVersion: 0,
+      storedBytes: 0,
+      records: [],
+    },
+  })
+}
+
+function createPreviewActions(snapshot: AccountSnapshot): AccountActions {
+  return Object.freeze({
   async beginSignIn() { return { ok: true as const } },
   signOut: noOp,
   enableSync: completedSync,
@@ -153,9 +216,16 @@ const previewActions: AccountActions = Object.freeze({
     return { status: 'opened' as const }
   },
   async refreshBilling() { return { status: 'refreshed' as const } },
+  async prepareAccountDataExport() {
+    const value = previewAccountData(snapshot)
+    return value
+      ? { status: 'ready' as const, value }
+      : { status: 'authentication_required' as const }
+  },
   deleteVault: completedSync,
   deleteAccount: completedSync,
-})
+  })
+}
 
 export function createPreviewAccountClient(): AccountClient {
   const snapshot = snapshotFor(requestedState())
@@ -164,9 +234,10 @@ export function createPreviewAccountClient(): AccountClient {
     'two-account', Date.UTC(2026, 8, 3, 15, 0, 0),
   )
   return Object.freeze({
+    accountDataExportEnabled: true,
     async getSnapshot() { return snapshot },
     subscribe() { return () => {} },
-    actions: previewActions,
+    actions: createPreviewActions(snapshot),
     syncGateway: null,
     providerGateways: Object.freeze({
       google_calendar: providerGateway,

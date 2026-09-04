@@ -5,6 +5,7 @@ export interface AccountServiceConfig {
   encryptedSyncEnabled: boolean
   googleCalendarEnabled: boolean
   microsoftCalendarEnabled: boolean
+  accountDataExportEnabled: boolean
 }
 
 interface AccountServiceEnvironment {
@@ -62,5 +63,6 @@ export function readAccountServiceConfig(
     encryptedSyncEnabled: true,
     googleCalendarEnabled: true,
     microsoftCalendarEnabled: true,
+    accountDataExportEnabled: true,
   })
 }

@@ -38,11 +38,13 @@ const localActions: AccountActions = Object.freeze({
   async openPlans(_plan: BillingPlan) { return { status: 'not_configured' as const } },
   async openBilling() { return { status: 'not_configured' as const } },
   async refreshBilling() { return { status: 'authentication_required' as const } },
+  async prepareAccountDataExport() { return { status: 'data_unavailable' as const } },
   deleteVault: unavailableSync,
   deleteAccount: unavailableSync,
 })
 
 export const localAccountClient: AccountClient = Object.freeze({
+  accountDataExportEnabled: false,
   async getSnapshot() {
     return localAccountSnapshot
   },
