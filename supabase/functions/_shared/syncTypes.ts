@@ -60,6 +60,7 @@ export type SyncRateLimitAction =
   | 'revoke'
   | 'delete_vault'
   | 'delete_account'
+  | 'export_account'
 
 export interface SyncRepository {
   findAccountForAuthUser(authUserId: string): Promise<SyncAccount | null>

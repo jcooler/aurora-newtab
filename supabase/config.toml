@@ -58,6 +58,9 @@ verify_jwt = true
 [functions.account-delete]
 verify_jwt = true
 
+[functions.account-export]
+verify_jwt = true
+
 [functions.google-calendar-oauth-start]
 verify_jwt = true
 

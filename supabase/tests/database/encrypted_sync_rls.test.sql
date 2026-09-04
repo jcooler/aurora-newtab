@@ -39,6 +39,18 @@ select has_function('public', 'tab_two_sync_compact_tombstones',
   array['uuid', 'timestamp with time zone'], 'service tombstone compaction RPC exists');
 select has_function('public', 'tab_two_sync_delete_vault',
   array['uuid', 'text', 'text', 'timestamp with time zone'], 'service vault deletion RPC exists');
+select has_function('public', 'tab_two_account_data_export',
+  array['uuid', 'timestamp with time zone'], 'service account data export RPC exists');
+select has_function('public', 'tab_two_record_account_export_event',
+  array['uuid', 'text', 'integer', 'integer', 'timestamp with time zone'],
+  'service account export audit RPC exists');
+select function_privs_are(
+  'public', 'tab_two_account_data_export', array['uuid', 'timestamp with time zone'],
+  'service_role', array['EXECUTE'], 'account export RPC is service role only');
+select function_privs_are(
+  'public', 'tab_two_record_account_export_event',
+  array['uuid', 'text', 'integer', 'integer', 'timestamp with time zone'],
+  'service_role', array['EXECUTE'], 'account export audit RPC is service role only');
 
 insert into public.tab_two_accounts (id) values
   ('43000000-0000-4000-8000-000000000001'),
@@ -53,6 +65,64 @@ values
    array['encrypted_sync']::private.premium_capability[], '2026-09-02 12:00:00+00'),
   ('43000000-0000-4000-8000-000000000003', 'complimentary_owner',
    array['encrypted_sync']::private.premium_capability[], '2026-09-02 12:00:00+00');
+
+insert into auth.users (
+  instance_id, id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values
+  ('00000000-0000-0000-0000-000000000000', '34000000-0000-4000-8000-000000000011',
+   'authenticated', 'authenticated', 'export-one@example.test',
+   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+   '2026-09-02 12:00:00+00', '2026-09-02 12:00:00+00'),
+  ('00000000-0000-0000-0000-000000000000', '34000000-0000-4000-8000-000000000012',
+   'authenticated', 'authenticated', 'export-two@example.test',
+   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+   '2026-09-02 12:00:00+00', '2026-09-02 12:00:00+00');
+
+insert into public.tab_two_identities (
+  id, account_id, auth_user_id, provider, provider_subject, email, display_name,
+  created_at, updated_at
+) values
+  ('45000000-0000-4000-8000-000000000001', '43000000-0000-4000-8000-000000000001',
+   '34000000-0000-4000-8000-000000000011', 'google', 'export-subject-one',
+   'export-one@example.test', 'Export One', '2026-09-02 12:01:00+00', '2026-09-02 12:02:00+00'),
+  ('45000000-0000-4000-8000-000000000002', '43000000-0000-4000-8000-000000000002',
+   '34000000-0000-4000-8000-000000000012', 'google', 'export-subject-two',
+   'export-two@example.test', null, '2026-09-02 12:01:00+00', '2026-09-02 12:01:00+00');
+
+insert into private.provider_connections (
+  id, account_id, provider, provider_subject, email, display_name, status,
+  granted_scopes, token_key_version, refresh_token_nonce,
+  refresh_token_ciphertext, refresh_token_fingerprint, created_at, updated_at
+) values (
+  '46000000-0000-4000-8000-000000000001',
+  '43000000-0000-4000-8000-000000000001',
+  'google_calendar', 'provider-secret-subject', 'calendar@example.test', 'Calendar One', 'active',
+  array[
+    'openid',
+    'email',
+    'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+    'https://www.googleapis.com/auth/calendar.events.readonly'
+  ]::text[],
+  1, repeat('N', 16), repeat('C', 64), repeat('F', 43),
+  '2026-09-02 12:03:00+00', '2026-09-02 12:04:00+00'
+);
+
+insert into private.stripe_customers (account_id, customer_id, created_at, updated_at)
+values (
+  '43000000-0000-4000-8000-000000000001', 'cus_export_secret',
+  '2026-09-02 12:00:00+00', '2026-09-02 12:00:00+00'
+);
+insert into private.billing_subscriptions (
+  account_id, customer_id, subscription_id, plan, state,
+  current_period_start, current_period_end, courtesy_end, cancel_at_period_end,
+  authoritative_event_created, authoritative_event_priority, authoritative_event_id,
+  outcome_code, created_at, updated_at
+) values (
+  '43000000-0000-4000-8000-000000000001', 'cus_export_secret', 'sub_export_secret',
+  'annual', 'active', '2026-09-01 00:00:00+00', '2027-09-01 00:00:00+00', null, false,
+  1788264000, 50, 'evt_export_secret', 'customer_subscription_updated',
+  '2026-09-01 00:00:00+00', '2026-09-02 12:00:00+00'
+);
 
 set local role anon;
 select throws_ok('select * from private.sync_vaults', '42501', null,
@@ -71,6 +141,14 @@ select throws_ok(
   $$select public.tab_two_consume_sync_rate_limit(
     '43000000-0000-4000-8000-000000000001', 'pull', repeat('A', 43), now())$$,
   '42501', null, 'anonymous clients cannot consume sync rate limits');
+select throws_ok(
+  $$select public.tab_two_account_data_export(
+    '43000000-0000-4000-8000-000000000001', now())$$,
+  '42501', null, 'anonymous clients cannot export account data');
+select throws_ok(
+  $$select public.tab_two_record_account_export_event(
+    '43000000-0000-4000-8000-000000000001', 'success', 0, 0, now())$$,
+  '42501', null, 'anonymous clients cannot record export audits');
 
 reset role;
 set local role authenticated;
@@ -86,6 +164,14 @@ select throws_ok(
   $$select * from public.tab_two_sync_pull_records(
     '43000000-0000-4000-8000-000000000001', 'AAAAAAAAAAAAAAAAAAAAAA', 0, 0, 100)$$,
   '42501', null, 'authenticated clients cannot execute sync RPCs');
+select throws_ok(
+  $$select public.tab_two_account_data_export(
+    '43000000-0000-4000-8000-000000000001', now())$$,
+  '42501', null, 'authenticated clients cannot export account data directly');
+select throws_ok(
+  $$select public.tab_two_record_account_export_event(
+    '43000000-0000-4000-8000-000000000001', 'success', 0, 0, now())$$,
+  '42501', null, 'authenticated clients cannot record export audits');
 
 reset role;
 set local role service_role;
@@ -114,6 +200,31 @@ select ok(public.tab_two_consume_sync_rate_limit(
   '43000000-0000-4000-8000-000000000001', 'delete_vault', repeat('Z', 43),
   '2026-09-03 14:00:01+00'),
   'a completed one-day window resets both scopes');
+
+select ok((select bool_and(public.tab_two_consume_sync_rate_limit(
+  '43000000-0000-4000-8000-000000000003', 'export_account',
+  lpad(iteration::text, 43, 'E'), '2026-09-02 15:00:00+00'))
+  from generate_series(1, 3) iteration),
+  'three account exports enter the one-hour account window');
+select isnt(public.tab_two_consume_sync_rate_limit(
+  '43000000-0000-4000-8000-000000000003', 'export_account', repeat('X', 43),
+  '2026-09-02 15:00:01+00'), true,
+  'the fourth account export is rejected by the account limit');
+select ok(public.tab_two_consume_sync_rate_limit(
+  '43000000-0000-4000-8000-000000000003', 'export_account', repeat('X', 43),
+  '2026-09-02 16:00:01+00'),
+  'a completed one-hour export window resets both scopes');
+select ok((select bool_and(public.tab_two_consume_sync_rate_limit(
+  case when iteration % 2 = 0
+    then '43000000-0000-4000-8000-000000000001'::uuid
+    else '43000000-0000-4000-8000-000000000002'::uuid end,
+  'export_account', repeat('Y', 43), '2026-09-02 17:00:00+00'))
+  from generate_series(1, 3) iteration),
+  'three account exports enter one shared IP window across accounts');
+select isnt(public.tab_two_consume_sync_rate_limit(
+  '43000000-0000-4000-8000-000000000001', 'export_account', repeat('Y', 43),
+  '2026-09-02 17:00:01+00'), true,
+  'the fourth cross-account export is rejected by the IP limit');
 
 select results_eq(
   $$select device_id, state, acknowledged_vault_version
@@ -232,6 +343,77 @@ select is((select outcome #>> '{0,vaultVersion}' from first_mutation_result), '1
 select is((select expires_at - created_at from private.sync_mutation_receipts
   where idempotency_id = '53000000-0000-4000-8000-000000000001'), interval '30 days',
   'the idempotency receipt expires after the bounded retention window');
+
+create temporary table account_export_snapshot as
+select public.tab_two_account_data_export(
+  '43000000-0000-4000-8000-000000000001', '2026-09-02 14:06:00+00'
+) as value;
+
+select results_eq(
+  $$select jsonb_object_keys(value) from account_export_snapshot order by 1$$,
+  $$values ('account'::text), ('connectedAccounts'::text), ('devices'::text),
+           ('entitlement'::text), ('subscription'::text), ('vault'::text)$$,
+  'the service snapshot has only the six approved top-level keys');
+select is((select value #>> '{account,accountId}' from account_export_snapshot),
+  '43000000-0000-4000-8000-000000000001',
+  'the export contains the exact requested account');
+select is((select value #>> '{account,email}' from account_export_snapshot),
+  'export-one@example.test', 'the export includes readable account identity metadata');
+select is((select value #>> '{connectedAccounts,0,connectionId}' from account_export_snapshot),
+  '46000000-0000-4000-8000-000000000001',
+  'the export contains current provider connection metadata');
+select is((select value #>> '{subscription,state}' from account_export_snapshot),
+  'active', 'the export reports the current customer-visible subscription state');
+select is((select value #>> '{subscription,plan}' from account_export_snapshot),
+  'annual', 'the export includes the customer-visible plan without Stripe IDs');
+select is((select value #>> '{vault,status}' from account_export_snapshot),
+  'available', 'a vault with a current record is available');
+select is((select value #>> '{vault,wrappedDataKey}' from account_export_snapshot),
+  repeat('A', 54), 'the private response contains the wrapped key for Edge unwrapping');
+select is((select value #>> '{vault,records,0,entityType}' from account_export_snapshot),
+  'notes', 'current encrypted records are deterministically included');
+select ok(position('provider-secret-subject' in (select value::text from account_export_snapshot)) = 0,
+  'provider subjects are excluded from the export snapshot');
+select ok(position('refresh_token_' in (select value::text from account_export_snapshot)) = 0,
+  'provider token envelopes are excluded from the export snapshot');
+select ok(position('customerId' in (select value::text from account_export_snapshot)) = 0,
+  'Stripe customer identifiers are excluded from the export snapshot');
+select ok(position('subscriptionId' in (select value::text from account_export_snapshot)) = 0,
+  'Stripe subscription identifiers are excluded from the export snapshot');
+select ok(position('cus_export_secret' in (select value::text from account_export_snapshot)) = 0,
+  'Stripe customer values are excluded from the export snapshot');
+select ok(position('sub_export_secret' in (select value::text from account_export_snapshot)) = 0,
+  'Stripe subscription values are excluded from the export snapshot');
+select ok(position('requestDigest' in (select value::text from account_export_snapshot)) = 0,
+  'mutation receipts are excluded from the export snapshot');
+
+select is(public.tab_two_account_data_export(
+  '43000000-0000-4000-8000-000000000002', '2026-09-02 14:06:00+00'
+) #>> '{vault,status}', 'not_created', 'an account without a vault gets a bounded empty state');
+select is(jsonb_array_length(public.tab_two_account_data_export(
+  '43000000-0000-4000-8000-000000000002', '2026-09-02 14:06:00+00'
+) #> '{vault,records}'), 0, 'the no-vault snapshot contains no records');
+select is(public.tab_two_account_data_export(
+  '43000000-0000-4000-8000-000000000002', '2026-09-02 14:06:00+00'
+) #> '{vault,wrappedDataKey}', 'null'::jsonb, 'the no-vault snapshot contains no key');
+select is(public.tab_two_account_data_export(
+  '43000000-0000-4000-8000-000000000099', '2026-09-02 14:06:00+00'
+), null::jsonb, 'an unknown account returns no snapshot');
+
+select lives_ok($$select public.tab_two_record_account_export_event(
+  '43000000-0000-4000-8000-000000000001', 'success', 1, 2048,
+  '2026-09-02 14:06:00+00')$$, 'a bounded export audit can be recorded');
+select is((select details from private.sync_audit_events
+  where account_id = '43000000-0000-4000-8000-000000000001'
+    and event_type = 'account_export'),
+  '{"outcome":"success","recordCount":1,"byteCount":2048}'::jsonb,
+  'the export audit stores only outcome and size metadata');
+select throws_ok($$select public.tab_two_record_account_export_event(
+  '43000000-0000-4000-8000-000000000001', 'raw_key_failed', 1, 0, now())$$,
+  '22023', 'account_export_audit_invalid', 'unknown audit outcomes fail closed');
+select throws_ok($$select public.tab_two_record_account_export_event(
+  '43000000-0000-4000-8000-000000000001', 'success', -1, 0, now())$$,
+  '22023', 'account_export_audit_invalid', 'negative audit counts fail closed');
 
 select is(
   public.tab_two_sync_apply_mutations(
