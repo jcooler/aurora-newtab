@@ -320,7 +320,7 @@ function CalendarAgenda({
             />
             <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
               <span className="min-w-0 truncate text-fg">{item.title}</span>
-              <span data-calendar-source-label className="min-w-0 truncate text-[10px] text-fg-muted">{item.sourceLabel}</span>
+              <span data-calendar-source-label className="min-w-0 truncate text-[11px] text-fg-muted">{item.sourceLabel}</span>
             </span>
             <time className="shrink-0 text-xs text-fg-muted">{agendaWhen(item, timeZone)}</time>
           </li>

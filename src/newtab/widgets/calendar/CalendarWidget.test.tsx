@@ -227,7 +227,9 @@ describe('CalendarWidget', () => {
       for (let index = 0; index < 16; index += 1) await Promise.resolve()
     })
     expect(screen.getByText('Microsoft planning')).toBeTruthy()
-    expect(screen.getByText('Work · alex@contoso.example')).toBeTruthy()
+    const sourceLabel = screen.getByText('Work · alex@contoso.example')
+    expect(sourceLabel).toBeTruthy()
+    expect(sourceLabel.className).toContain('text-[11px]')
     const dot = screen.getByText('Microsoft planning').closest('li')?.querySelector<HTMLElement>(
       '[data-calendar-color="#0078d4"]',
     )
