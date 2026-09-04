@@ -264,9 +264,19 @@ async function geometry(page) {
         && tabRect.right <= drawerRect.right + 0.5
         && !horizontalOverflow),
       viewportEscapes: controls
-        .filter((item) => item.left < -0.5
-          || item.right > innerWidth + 0.5
-          || (activeDialog && (item.top < -0.5 || item.bottom > innerHeight + 0.5)))
+        .filter((item) => {
+          const element = candidates.find((candidate, index) => (
+            (candidate.getAttribute('aria-label') || candidate.textContent?.trim() || candidate.id || `control-${index}`) === item.id
+          ))
+          const intentionallyClippedTab = Boolean(
+            element?.getAttribute('role') === 'tab'
+              && element.closest('[role="tablist"]') === tablist
+              && tablist.scrollWidth > tablist.clientWidth,
+          )
+          return !intentionallyClippedTab && (item.left < -0.5
+            || item.right > innerWidth + 0.5
+            || (activeDialog && (item.top < -0.5 || item.bottom > innerHeight + 0.5)))
+        })
         .map((item) => item.id),
       overlapPairs,
       scrollOwners: [...document.querySelectorAll('[data-settings-scroll-owner="document"]')].filter(visible).length,
@@ -279,6 +289,7 @@ async function geometry(page) {
 
 async function capture(page, viewport, id, output, judgments, evidence, repoRoot) {
   const path = resolve(output, `${id}.png`)
+  await page.mouse.move(0, 0)
   await page.screenshot({ path })
   const metadata = await sharp(path).metadata()
   evidence.screenshots.push({
