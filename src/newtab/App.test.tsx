@@ -1207,8 +1207,10 @@ describe('App Canvas composition', () => {
     await renderApp()
 
     const notes = await screen.findByRole('button', { name: 'Notes' })
-    notes.focus()
-    fireEvent.click(notes)
+    await act(async () => {
+      notes.focus()
+      fireEvent.click(notes)
+    })
     const sheet = await screen.findByRole('dialog', { name: 'Notes' })
 
     expect(document.documentElement.dataset.stageProfile).toBeUndefined()
@@ -1216,9 +1218,10 @@ describe('App Canvas composition', () => {
     expect(sheet.parentElement).toBe(document.body)
     expect(document.querySelectorAll('[data-canvas-tool-panel]')).toHaveLength(1)
 
-    fireEvent.keyDown(document, { key: 'Escape' })
-    await act(async () => {})
-    expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' })
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull())
     expect(document.activeElement).toBe(notes)
   })
 
