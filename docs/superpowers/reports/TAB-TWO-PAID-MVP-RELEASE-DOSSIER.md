@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-03<br>
 **Branch:** `feat/aurora-2-observatory`<br>
-**Runtime and automated-evidence source:** `c4b600cde3bd76c4a40a8edafb5ff6d233c8d5f8`<br>
+**Runtime and automated-evidence source:** `87647558a6d362de80a5d7249e5570e5dde230ff`<br>
 **Verdict:** **OWNER QA PENDING - NOT AUTHORIZED FOR RELEASE**
 
 ## Decision summary
@@ -25,24 +25,25 @@ code, advertising promise, or launch dependency was created for any of them.
 
 | Item | Exact evidence |
 |---|---|
-| Runtime and composed QA source | `c4b600cde3bd76c4a40a8edafb5ff6d233c8d5f8` |
+| Runtime and composed QA source | `87647558a6d362de80a5d7249e5570e5dde230ff` |
 | Final production provenance | `dist/build-provenance.json` contains the same full commit |
-| Provenance-file SHA-256 | `76C9FD2522AC64F97121F1191788F2A456E40F0665AF502E1693BDD0F4A66569` |
+| Provenance-file SHA-256 | `0CEADC343860748124B049682465D7BF31B7024CB6CD1B8D0D2804D5EFF42F7B` |
 | Production manifest SHA-256 | `887E3C6A1D8B09EE0524FF8458C796CD8062EE10C5AB64715EA2A14BC81FF989` |
-| PM-P9 evidence index | `artifacts/qa-paid-mvp-stabilization/c4b600cde3bd76c4a40a8edafb5ff6d233c8d5f8/evidence.json` |
-| Evidence-index SHA-256 | `EA25022C722F4AAF4D3BEC5042DDB1D5A7AAE74A2560483DDD4830A1BDD50CE1` |
-| Pre-dossier repository state | local `c4b600cde3bd76c4a40a8edafb5ff6d233c8d5f8`; upstream and remote `00778b1f72cce1293881c0600c86b521243c3be7` |
+| PM-P9 evidence index | `artifacts/qa-paid-mvp-stabilization/87647558a6d362de80a5d7249e5570e5dde230ff/evidence.json` |
+| Evidence-index SHA-256 | `401F2D6A8B8BB687CA76B38148C4DF6EE08D967CE21A9121D7404A1E0A9EF6F5` |
+| Pre-dossier repository state | local `87647558a6d362de80a5d7249e5570e5dde230ff`; upstream and remote `00778b1f72cce1293881c0600c86b521243c3be7` |
 
 The dossier checkpoint is the commit containing this file. It changes only
 documentation and ledgers, so it cannot self-record its own Git object id. The
 handoff must prove that final local HEAD, configured upstream, and
 `origin/feat/aurora-2-observatory` are identical. Runtime evidence remains bound
-to `c4b600cde3bd76c4a40a8edafb5ff6d233c8d5f8`.
+to `87647558a6d362de80a5d7249e5570e5dde230ff`.
 
-The only `src` change after the last original-resolution product checkpoint is
-test-only `src/newtab/App.test.tsx` scheduling cleanup. There is no non-test
-`src` or `public` diff between `e8a4dcfd44eb550385376c979251139a17eb8b52`
-and the runtime candidate.
+The final bounded review found one Important UX defect: the customer-facing
+support action resolved to an unavailable public destination. Runtime source
+`87647558a6d362de80a5d7249e5570e5dde230ff` removes that dead action and shows
+an honest prelaunch private-support notice. Its seven fresh Help captures were
+inspected at original resolution before the complete matrix replay passed.
 
 ## Automated verification
 
@@ -50,7 +51,7 @@ The exact composed result is `AUTOMATED_PASS_OWNER_QA_PENDING`.
 
 | Gate | Result |
 |---|---|
-| Full Vitest suite | 274 files and 4,352 tests passed at the exact runtime source |
+| Full Vitest suite | 274 files and 4,353 tests passed at the exact runtime source |
 | PM-P9 registry | 38 widgets, 17 connectors, 19 flow families, and 6 explicit manual ceilings |
 | Specialist replay | 11 automated entries passed; real production account authentication is `DEFERRED_OWNER_QA` by design |
 | Local database | 311 pgTAP tests passed; database lint reported no schema errors |
@@ -74,7 +75,7 @@ secret value or private credential was present.
 ## Installed-extension evidence
 
 The exact PM-P9 replay retained 108 original-resolution PNGs totaling
-78,868,060 bytes:
+78,825,639 bytes:
 
 | Evidence owner | PNGs |
 |---|---:|
