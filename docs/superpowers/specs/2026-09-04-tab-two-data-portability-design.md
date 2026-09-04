@@ -1,12 +1,14 @@
 # Tab Two Account & Sync Data Portability Design
 
-**Status:** Draft for owner approval
+**Status:** Owner-approved design
 
 **Date:** 2026-09-04
 
 **Product:** Tab Two
 
 **Scope:** Important paid-MVP follow-up identified by PM-P9
+
+**Owner approval:** 2026-09-04
 
 ## Decision summary
 
