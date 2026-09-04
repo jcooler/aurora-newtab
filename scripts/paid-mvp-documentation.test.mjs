@@ -37,6 +37,8 @@ test('terms disclose provider boundaries, deletion consequences, and support lev
   assert.match(files.terms, /Google Calendar and Microsoft Calendar/)
   assert.match(files.terms, /best-effort/i)
   assert.match(files.terms, /does\s+not erase local data/i)
+  assert.match(files.terms, /monitored private support channel.*before launch/is)
+  assert.doesNotMatch(files.terms, /github\.com\/jcooler\/tab-two-support\/issues/i)
 })
 
 test('threat model and final owner checklist match the implemented support boundary', () => {

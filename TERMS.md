@@ -109,6 +109,6 @@ provide it.
 
 ## Contact
 
-Questions about these terms can be submitted through the project's public issue
-tracker: [github.com/jcooler/tab-two-support/issues](https://github.com/jcooler/tab-two-support/issues).
-Do not attach a diagnostic report or personal information to a public issue.
+A monitored private support channel and terms-contact route will be published
+before launch. Until then, do not send or post diagnostic reports or personal
+information through a public issue.

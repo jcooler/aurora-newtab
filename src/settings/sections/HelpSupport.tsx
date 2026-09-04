@@ -25,8 +25,6 @@ const BILLING_STATUS: Readonly<Record<AccountSnapshot['billing']['state'], strin
   complimentary: 'Complimentary subscription',
 }
 
-const SUPPORT_URL = 'https://github.com/jcooler/tab-two-support/issues'
-
 function accountStatus(account: AccountSnapshot): string {
   return account.mode === 'local' ? 'Local mode' : 'Signed in'
 }
@@ -238,17 +236,14 @@ export function HelpSupportView({
         <p className="max-w-[34rem] text-sm leading-relaxed text-fg-muted">
           Tab Two is independently developed and maintained. Self-service guidance is available here, and product assistance is best-effort without guaranteed response times.
         </p>
-        <a
-          href={SUPPORT_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-accent hover:text-accent/80 focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          Open the public support board
-        </a>
-        <p className="text-xs leading-relaxed text-fg-muted">
-          Do not attach a diagnostic report or personal information to a public issue.
-        </p>
+        <div className="mt-3 max-w-[34rem] border-l-2 border-accent/70 pl-3">
+          <p className="text-sm leading-relaxed text-fg">
+            A monitored private support channel will be available before launch.
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-fg-muted">
+            Until then, use the guidance here and keep diagnostic reports and personal information private.
+          </p>
+        </div>
       </Section>
 
       {report ? <DiagnosticDialog report={report} download={download} onClose={closeReport} /> : null}

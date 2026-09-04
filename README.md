@@ -490,8 +490,8 @@ Settings → **Help** shows the current account, billing, and encrypted-sync sta
 alongside focused recovery guidance. Its local diagnostic report is assembled
 on your device from a fixed, non-identifying status schema, shown to you for
 review, and downloaded only when you choose. Tab Two never uploads or sends it
-automatically. Do not post a diagnostic report or personal information on the
-public support board. Product assistance is best-effort and has no guaranteed
+automatically. Do not post a diagnostic report or personal information publicly.
+Product assistance is best-effort and has no guaranteed
 response time.
 
 If Tab Two is useful to you, there's also a quiet "☕ Buy me a coffee" link in

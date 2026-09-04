@@ -106,6 +106,13 @@ describe('Help and troubleshooting', () => {
     expect(screen.getByText(/Data creates a local backup/i)).toBeTruthy()
   })
 
+  it('does not send customers to an unavailable public support destination', () => {
+    render(<HelpSupportView account={account()} sync={sync()} />)
+
+    expect(screen.queryByRole('link', { name: 'Open the public support board' })).toBeNull()
+    expect(screen.getByText(/A monitored private support channel will be available before launch/i)).toBeTruthy()
+  })
+
   it('requires review before download and never reads storage or sends a request', () => {
     const download = vi.fn()
     const fetch = vi.fn()

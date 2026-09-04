@@ -82,7 +82,7 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Expand every recovery topic by keyboard and pointer, confirm the copy matches the state it describes, and verify focus remains visible.
 - Create a diagnostic report and review every field before download. Confirm it contains only product/version and aggregate account, billing, and sync-health states, with no names, email addresses, identifiers, tokens, URLs, content, provider payloads, storage values, requests, or logs.
 - Cancel once and confirm focus returns to Create diagnostic report. Then download once and confirm Tab Two never sends the report automatically.
-- Confirm the public support-board warning is clear. Do not attach the report or personal information to a public issue.
+- Confirm the prelaunch support notice has no dead or public submission action. After a monitored private support channel is approved and configured, confirm its final customer route separately. Never post a diagnostic report or personal information publicly.
 
 ## Safety boundaries
 
