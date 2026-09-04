@@ -26,7 +26,7 @@ export const PROGRESS_INTERACTIONS = Object.freeze([
   'reset',
   'reorder',
   'delete',
-  'habit-bridge',
+  'habit-management',
   'reload-persistence',
   'cross-tab-freshness',
   'stale-control-safety',
@@ -555,10 +555,12 @@ async function exerciseSettings(page, context, evidence, highestPhoto, ledgers) 
   stored = await waitForStorage(page, ['habits'], ({ habits }) => habits[0]?.log.includes(day), 'Habit completion')
   await page.getByRole('button', { name: 'Reopen Stretch' }).click()
   stored = await waitForStorage(page, ['habits'], ({ habits }) => habits[0]?.log.length === 0, 'Habit reopen')
-  await page.getByRole('button', { name: 'Manage habits' }).click()
-  await page.waitForFunction(() => document.activeElement?.getAttribute('data-settings-anchor') === 'habits')
-  assert.equal(await page.getByRole('tab', { name: 'Widgets' }).getAttribute('aria-selected'), 'true')
-  evidence.interactions['habit-bridge'] = true
+  await page.getByRole('button', { name: 'Edit Stretch' }).click()
+  await page.getByRole('textbox', { name: 'Habit name' }).fill('Morning stretch')
+  await page.getByRole('button', { name: 'Save' }).click()
+  stored = await waitForStorage(page, ['habits'], ({ habits }) => habits[0]?.name === 'Morning stretch', 'Habit rename')
+  assert.equal(await page.getByRole('tab', { name: 'Progress' }).getAttribute('aria-selected'), 'true')
+  evidence.interactions['habit-management'] = true
 
   const ownershipState = await readStorage(page, ['progressGoals', 'habits'])
   await page.evaluate(async ({ day }) => {

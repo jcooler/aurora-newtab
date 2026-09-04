@@ -108,7 +108,7 @@ test('declares every approved Progress interaction as an executable acceptance s
     'reset',
     'reorder',
     'delete',
-    'habit-bridge',
+    'habit-management',
     'reload-persistence',
     'cross-tab-freshness',
     'stale-control-safety',
