@@ -1,11 +1,13 @@
 # Aurora 2 Status
 
-**Updated:** 2026-09-03<br>
+**Updated:** 2026-09-04<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Tab Two V2 product and premium architecture<br>
-**Last verified packet:** `PM-P9 paid MVP automated stabilization candidate` - exact source/build evidence, complete widget/connector/flow registry, installed-extension specialist replay, private Help and redacted diagnostics, and release dossier at runtime source `87647558a6d362de80a5d7249e5570e5dde230ff`<br>
-**Current packet:** PM-P9 automated stabilization is complete and owner QA is pending. The candidate is not authorized for release. Fitness remains outside the paid-MVP launch scope; Fitbit, WHOOP, Polar, and MyFitnessPal remain research-only future candidates. Important export controls, monitored private support, real-provider and physical-device witnesses, provider production verification, Supabase Pro, live Stripe, merge, packaging, release, provider publication, and every Chrome Web Store action remain separately gated.
+**Last verified packet:** `Tab Two data portability local implementation` - fresh-authenticated readable account export, request-free local conflict-recovery download, exact installed-extension evidence, and full paid-MVP stabilization at runtime source `7173960095132c19ea03c4992cb23bd54a080b17`<br>
+**Current packet:** Data portability is `LOCAL AUTOMATED PASS, HOSTED ACTIVATION AND OWNER QA PENDING`. The prior PM-P9 export-control blocker is locally implemented but remains a launch blocker until the separate hosted gate and cumulative owner QA pass. Monitored private support, real-provider and physical-device witnesses, provider production verification, Supabase Pro, live Stripe, merge, packaging, release, provider publication, and every Chrome Web Store action remain separately gated.
+
+- **Data portability follow-up (2026-09-04, LOCAL AUTOMATED PASS; HOSTED ACTIVATION AND OWNER QA PENDING):** Added a readable version 1 account-data download after confirmation and fresh Google verification, plus a separate request-free version 1 download for one local conflict recovery. The service contract is account-bound, three-per-hour rate limited, service-role-only, snapshot-consistent, and bounded to a 2 KiB request and 4 MiB response. The backend returns encrypted records plus an ephemeral key but never decrypts a record or receives synced plaintext; the extension validates and decrypts only in memory and excludes keys, ciphertext, nonces, credentials, sessions, payment identifiers, provider caches, private URLs, images, audits, and logs from the customer file. Source `7173960095132c19ea03c4992cb23bd54a080b17` passed 279 files / 4,420 tests, 348 pgTAP tests, TypeScript, exact production and preview builds, five inspected original-resolution portability captures, and the complete composed paid-MVP gate with only owner-assisted production authentication deferred. Production remains `accountDataExportEnabled: false`; migration 00900 and `account-export` were not hosted. Report: `docs/superpowers/reports/TAB-TWO-DATA-PORTABILITY-QA.md`; cumulative checklist: `docs/superpowers/reports/TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md`.
 
 - **PM-P9 full-product stabilization (2026-09-03, AUTOMATED PASS; OWNER QA PENDING):** Removed deferred fitness from current launch presentation while retaining historical wire compatibility, added a local allowlist-only diagnostic domain and permanent Help surface, reconciled customer documentation, and composed the existing exact specialist gates into one evidence index. A bounded review found and closed one Important dead support-destination defect with focused RED/GREEN coverage and fresh visual inspection. Runtime source `87647558a6d362de80a5d7249e5570e5dde230ff` passed 274 files / 4,353 tests and the exact installed-extension matrix across 38 widgets, 17 connectors, 19 flow families, and six honest manual ceilings. The retained 108 PNGs total 78,825,639 bytes; ledgers contain 15 expected fixture requests, 18 allowed writes, and zero console errors, page errors, or failed requests. Real account authentication is intentionally deferred to the owner's cumulative checklist. Customer export controls for account metadata, the encrypted vault, and a local conflict backup remain an Important product gap. Dossier: `docs/superpowers/reports/TAB-TWO-PAID-MVP-RELEASE-DOSSIER.md`; cumulative checklist: `docs/superpowers/reports/TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md`.
 
@@ -544,9 +546,9 @@
 
 ## Continuous remaining-work protocol
 
-- **Packet:** PM-P9 automated stabilization complete; owner QA pending
-- **Plans:** `02-research/2026-09-03-tab-two-fitness-provider-options.md`; `docs/superpowers/plans/2026-09-01-tab-two-paid-mvp-stabilization.md`
-- **State:** Exact automated evidence is green, but the candidate is not release-ready. Complete the single cumulative owner checklist and the separate support, export, provider-verification, paid-infrastructure, merge, package, publication, rollout, and Store gates. Fitness remains a separately approved future track with Fitbit first for commercial clarification, WHOOP and Polar next, and MyFitnessPal treated as a nutrition expansion.
+- **Packet:** Data portability local implementation complete; hosted activation and owner QA pending
+- **Plans:** `docs/superpowers/plans/2026-09-04-tab-two-data-portability.md`; `docs/superpowers/plans/2026-09-01-tab-two-paid-mvp-stabilization.md`
+- **State:** Exact local automated evidence is green, but the candidate is not release-ready. Complete the separately approved data-portability hosted gate, then the single cumulative owner checklist and the support, provider-verification, paid-infrastructure, merge, package, publication, rollout, and Store gates. Fitness remains a separately approved future track with Fitbit first for commercial clarification, WHOOP and Polar next, and MyFitnessPal treated as a nutrition expansion.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one written packet envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
@@ -558,7 +560,7 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next packet: PM-P9 cumulative owner QA and separate launch-blocker disposition; fitness remains deferred research and is not a launch dependency
+Next packet: separately gated data-portability hosted activation, then PM-P9 cumulative owner QA and remaining launch-blocker disposition; fitness remains deferred research and is not a launch dependency
 Verified PM-P2 local runtime source checkpoint: b3555b0f47245a31ea8878c562b708ed8935430c
 Production Google/session diagnostic source: 35a0853c093d78dec5cb1a387380f5e602c5fb83
 Hosted lease hydration repair source: a6be8691717a657ac6486711282940671673e0af
@@ -570,7 +572,8 @@ PM-P7 stabilized developer gate source: c4dd03625c50d0e0cf7c7cb8f34dcc5e0e3e9efc
 PM-P7 installed-extension evidence source: 6087d131a3fbb641d392d8a123ea87fa707c3d5f
 PM-P7 hosted activation source: 191eb88629a5f750d2e8bd8fe338aaeec8299138
 PM-P9 runtime and automated-evidence source: 87647558a6d362de80a5d7249e5570e5dde230ff
-Expected next action: execute the one cumulative owner QA checklist, then disposition the documented external launch blockers through separate approvals.
-Execution: PM-P9 automated stabilization passed and owner QA remains pending. Stop before any fitness provider authority, production permission or secret, Supabase Pro, provider publication, merge, release, package, live Stripe, or Store mutation without the applicable gate.
+Data portability local runtime and automated-evidence source: 7173960095132c19ea03c4992cb23bd54a080b17
+Expected next action: present the exact data-portability hosted activation gate for owner approval; after hosted proof, execute the one cumulative owner QA checklist and disposition the remaining external launch blockers through separate approvals.
+Execution: Data portability is locally implemented and automated stabilization passed. Hosted activation and owner QA remain pending. Stop before migration 00900, `account-export` deployment, the production export flag, any fitness provider authority, production permission or secret, Supabase Pro, provider publication, merge, release, package, live Stripe, or Store mutation without the applicable gate.
 Hard stop: no Chrome Web Store upload, edit/save, submission, publication, distribution, or rollout without contemporaneous explicit approval.
 ```
