@@ -223,14 +223,16 @@ async function currentGeometry(page) {
       const rect = element.getBoundingClientRect()
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
     }
-    const rects = [...document.querySelectorAll('button, [role="dialog"]')].filter(visible).map((element, index) => {
+    const root = document.querySelector('[role="dialog"][aria-modal="true"]')
+      ?? document.querySelector('[role="tabpanel"][aria-label="Account & Sync"]')
+    const rects = root ? [root, ...root.querySelectorAll('button')].filter(visible).map((element, index) => {
       const rect = element.getBoundingClientRect()
       return {
         id: element.getAttribute('aria-label') || element.textContent?.trim() || `element-${index}`,
         left: rect.left,
         right: rect.right,
       }
-    })
+    }) : []
     return {
       viewportWidth: innerWidth,
       documentWidth: document.documentElement.scrollWidth,
