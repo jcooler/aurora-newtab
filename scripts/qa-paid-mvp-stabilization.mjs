@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -8,9 +8,9 @@ import { assertExactBuildTrackedStatus } from './build-contracts.mjs'
 
 export const PAID_MVP_GATES = Object.freeze([
   Object.freeze({ command: 'qa:free-baseline', buildMode: 'production', evidence: (sha) => `artifacts/qa-free-baseline/${sha}/evidence.json` }),
-  Object.freeze({ command: 'qa:widget-redesign-production', buildMode: 'preview', evidence: () => 'docs/superpowers/catalog/widget-redesign/production/evidence.json' }),
-  Object.freeze({ command: 'qa:canvas-polish', evidence: () => 'docs/superpowers/qa/canvas-polish/acceptance/evidence.json' }),
-  Object.freeze({ command: 'qa:tab-two-v2-connectors', evidence: () => 'docs/superpowers/qa/tab-two-v2-connectors/acceptance/evidence.json' }),
+  Object.freeze({ command: 'qa:widget-redesign-production', buildMode: 'preview', trackedOutputRoot: 'docs/superpowers/catalog/widget-redesign/production', evidence: () => 'docs/superpowers/catalog/widget-redesign/production/evidence.json' }),
+  Object.freeze({ command: 'qa:canvas-polish', trackedOutputRoot: 'docs/superpowers/qa/canvas-polish/acceptance', evidence: () => 'docs/superpowers/qa/canvas-polish/acceptance/evidence.json' }),
+  Object.freeze({ command: 'qa:tab-two-v2-connectors', trackedOutputRoot: 'docs/superpowers/qa/tab-two-v2-connectors/acceptance', evidence: () => 'docs/superpowers/qa/tab-two-v2-connectors/acceptance/evidence.json' }),
   Object.freeze({ command: 'qa:tab-two-v2-progress', evidence: (sha) => `artifacts/qa-tab-two-v2-progress/${sha}/evidence.json` }),
   Object.freeze({ command: 'qa:account-auth-production', buildMode: 'production', ownerAssisted: true, evidence: (sha) => `artifacts/qa-account-auth-production/${sha}/evidence.json` }),
   Object.freeze({ command: 'qa:stripe-billing', sourceContract: true, evidence: () => null }),
@@ -138,6 +138,29 @@ export function buildArgsForGate(gate) {
   return null
 }
 
+export function retainedEvidencePath(gate, sourceCommit) {
+  if (!gate.trackedOutputRoot) return gate.evidence(sourceCommit)
+  const directory = gate.command.replaceAll(':', '-')
+  return `artifacts/qa-paid-mvp-stabilization/${sourceCommit}/specialists/${directory}/evidence.json`
+}
+
+function retainTrackedOutput(repoRoot, gate, sourceCommit) {
+  if (!gate.trackedOutputRoot) return
+  const source = resolve(repoRoot, gate.trackedOutputRoot)
+  const evidencePath = retainedEvidencePath(gate, sourceCommit)
+  const destination = resolve(repoRoot, evidencePath, '..')
+  mkdirSync(destination, { recursive: true })
+  cpSync(source, destination, { recursive: true, force: true })
+}
+
+function restoreTrackedOutput(repoRoot, gate) {
+  if (!gate.trackedOutputRoot) return
+  execFileSync('git', ['restore', '--source=HEAD', '--', gate.trackedOutputRoot], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  })
+}
+
 function prepareGateBuild(repoRoot, gate) {
   const args = buildArgsForGate(gate)
   if (args === null) return
@@ -194,14 +217,20 @@ export async function runPaidMvpStabilization(args = process.argv.slice(2)) {
       }
       if (gate.ownerAssisted) process.stdout.write(`${gate.command}: owner-assisted browser checkpoint starting\n`)
       prepareGateBuild(repoRoot, gate)
-      runGate(repoRoot, gate)
-      const relativeEvidence = gate.evidence(sourceCommit)
       let evidence = {}
-      if (relativeEvidence !== null) {
-        const absoluteEvidence = resolve(repoRoot, relativeEvidence)
-        assert(existsSync(absoluteEvidence), `${gate.command} did not produce its evidence JSON`)
-        evidence = JSON.parse(readFileSync(absoluteEvidence, 'utf8'))
-        assert.equal(evidenceResult(evidence), 'PASS', `${gate.command} evidence is not PASS`)
+      let relativeEvidence = null
+      try {
+        runGate(repoRoot, gate)
+        retainTrackedOutput(repoRoot, gate, sourceCommit)
+        relativeEvidence = retainedEvidencePath(gate, sourceCommit)
+        if (relativeEvidence !== null) {
+          const absoluteEvidence = resolve(repoRoot, relativeEvidence)
+          assert(existsSync(absoluteEvidence), `${gate.command} did not produce its evidence JSON`)
+          evidence = JSON.parse(readFileSync(absoluteEvidence, 'utf8'))
+          assert.equal(evidenceResult(evidence), 'PASS', `${gate.command} evidence is not PASS`)
+        }
+      } finally {
+        restoreTrackedOutput(repoRoot, gate)
       }
       index.entries.push({
         command: gate.command,

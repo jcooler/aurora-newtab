@@ -163,6 +163,21 @@ test('prepares each specialist with the build mode its fixtures require', () => 
   )
 })
 
+test('retains tracked specialist evidence under the exact untracked PM-P9 artifact', () => {
+  assert.equal(typeof stabilization.retainedEvidencePath, 'function')
+  const widgetGate = PAID_MVP_GATES.find(({ command }) => command === 'qa:widget-redesign-production')
+  const freeGate = PAID_MVP_GATES.find(({ command }) => command === 'qa:free-baseline')
+
+  assert.equal(
+    stabilization.retainedEvidencePath(widgetGate, 'abc123'),
+    'artifacts/qa-paid-mvp-stabilization/abc123/specialists/qa-widget-redesign-production/evidence.json',
+  )
+  assert.equal(
+    stabilization.retainedEvidencePath(freeGate, 'abc123'),
+    'artifacts/qa-free-baseline/abc123/evidence.json',
+  )
+})
+
 test('accepts only a provenance-bound, redacted evidence index', () => {
   const commands = PAID_MVP_GATES.map(({ command }) => command)
   const index = {
