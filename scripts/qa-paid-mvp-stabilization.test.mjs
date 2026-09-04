@@ -1,0 +1,128 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import test from 'node:test'
+
+import {
+  PAID_MVP_CONNECTOR_MATRIX,
+  PAID_MVP_FLOW_MATRIX,
+  PAID_MVP_MANUAL_CEILINGS,
+  PAID_MVP_WIDGET_MATRIX,
+} from './paid-mvp-qa-matrix.mjs'
+import {
+  PAID_MVP_GATES,
+  assertPaidMvpEvidenceIndex,
+  requireExact,
+} from './qa-paid-mvp-stabilization.mjs'
+
+const repoRoot = resolve(import.meta.dirname, '..')
+
+function literalIds(source, startMarker, endMarker) {
+  const start = source.indexOf(startMarker)
+  const end = source.indexOf(endMarker, start)
+  assert(start >= 0 && end > start, `could not parse registry between ${startMarker} and ${endMarker}`)
+  return [...source.slice(start, end).matchAll(/\bid:\s*'([^']+)'/gu)].map((match) => match[1]).sort()
+}
+
+function connectorIds(source) {
+  const start = source.indexOf('export const CONNECTOR_IDS = [')
+  const end = source.indexOf('] as const', start)
+  assert(start >= 0 && end > start, 'could not parse CONNECTOR_IDS')
+  return [...source.slice(start, end).matchAll(/'([^']+)'/gu)].map((match) => match[1]).sort()
+}
+
+function assertClassified(entries, label) {
+  const allowed = new Set(['automated', 'manual-ceiling', 'not-applicable'])
+  for (const entry of entries) {
+    assert(allowed.has(entry.disposition), `${label} ${entry.id} has an invalid disposition`)
+    assert.equal(typeof entry.evidence, 'string', `${label} ${entry.id} lacks an evidence owner`)
+    assert(entry.evidence.length > 0, `${label} ${entry.id} has a blank evidence owner`)
+    assert.equal(typeof entry.reason, 'string', `${label} ${entry.id} lacks a reason`)
+    assert(entry.reason.length > 0, `${label} ${entry.id} has a blank reason`)
+  }
+}
+
+test('keeps the paid MVP widget and connector matrices in exact registry parity', () => {
+  const widgetSource = readFileSync(resolve(repoRoot, 'src/newtab/widgetRegistry.ts'), 'utf8')
+  const connectorSource = readFileSync(resolve(repoRoot, 'src/services/connectors/types.ts'), 'utf8')
+  const registryWidgetIds = literalIds(widgetSource, 'const SOURCES:', '] as const')
+  const registryConnectorIds = connectorIds(connectorSource)
+  assert.deepEqual(PAID_MVP_WIDGET_MATRIX.map(({ id }) => id).sort(), registryWidgetIds)
+  assert.deepEqual(PAID_MVP_CONNECTOR_MATRIX.map(({ id }) => id).sort(), registryConnectorIds)
+})
+
+test('classifies every presentation and state with executable evidence or an honest boundary', () => {
+  for (const row of [...PAID_MVP_WIDGET_MATRIX, ...PAID_MVP_CONNECTOR_MATRIX]) {
+    assert(row.presentations.length > 0, `${row.id} has no presentation coverage`)
+    assert(row.states.some((state) => state.id === 'ready' && state.disposition === 'automated'), `${row.id} lacks ready-state coverage`)
+    assertClassified(row.presentations, `${row.id} presentation`)
+    assertClassified(row.states, `${row.id} state`)
+  }
+})
+
+test('owns every required paid MVP interaction family', () => {
+  const required = [
+    'drag-drop', 'keyboard', 'touch', 'named-layouts', 'stacks', 'docks', 'persistence',
+    'account', 'billing', 'sync', 'metrics', 'google-calendar', 'microsoft-calendar',
+    'quota', 'conflicts', 'deletion', 'backup', 'help', 'diagnostics',
+  ]
+  assert.deepEqual(PAID_MVP_FLOW_MATRIX.map(({ id }) => id), required)
+  assertClassified(PAID_MVP_FLOW_MATRIX, 'flow')
+})
+
+test('keeps hardware, native, provider, and assistive-technology claims manual', () => {
+  assert.deepEqual(PAID_MVP_MANUAL_CEILINGS.map(({ id }) => id), [
+    'native-permission-prompts',
+    'real-provider-consent-revocation',
+    'assistive-technology-speech',
+    'physical-touch-trackpad',
+    'mixed-dpi-hardware',
+    'macbook-behavior',
+  ])
+  assertClassified(PAID_MVP_MANUAL_CEILINGS, 'manual ceiling')
+  assert(PAID_MVP_MANUAL_CEILINGS.every(({ disposition }) => disposition === 'manual-ceiling'))
+})
+
+test('pins the approved specialist command order and exact entry point', () => {
+  assert.deepEqual(PAID_MVP_GATES.map(({ command }) => command), [
+    'qa:free-baseline',
+    'qa:widget-redesign-production',
+    'qa:canvas-polish',
+    'qa:tab-two-v2-connectors',
+    'qa:tab-two-v2-progress',
+    'qa:account-auth-production',
+    'qa:stripe-billing',
+    'qa:account-sync-shell',
+    'qa:tab-two-metrics',
+    'qa:google-calendar',
+    'qa:microsoft-calendar',
+    'qa:paid-mvp-support',
+  ])
+  const pkg = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
+  assert.equal(pkg.scripts['qa:paid-mvp-stabilization'], 'node scripts/qa-paid-mvp-stabilization.mjs')
+  assert.throws(() => requireExact([]), /requires --exact/)
+  assert.doesNotThrow(() => requireExact(['--exact']))
+})
+
+test('accepts only a provenance-bound, redacted evidence index', () => {
+  const commands = PAID_MVP_GATES.map(({ command }) => command)
+  const index = {
+    schemaVersion: 1,
+    sourceCommit: 'abc123',
+    buildCommit: 'abc123',
+    result: 'PASS',
+    entries: commands.map((command) => ({
+      command,
+      result: 'PASS',
+      sourceCommit: 'abc123',
+      buildCommit: 'abc123',
+      evidencePath: command === 'qa:stripe-billing' ? null : `artifacts/${command}/evidence.json`,
+      screenshotCount: 2,
+      ledgerTotals: { requests: 0, storageWrites: 0, consoleErrors: 0, pageErrors: 0, failedRequests: 0 },
+    })),
+  }
+  assert.doesNotThrow(() => assertPaidMvpEvidenceIndex(index))
+  assert.throws(() => assertPaidMvpEvidenceIndex({ ...index, accessToken: 'secret' }), /forbidden/i)
+  assert.throws(() => assertPaidMvpEvidenceIndex({ ...index, buildCommit: 'different' }), /provenance/i)
+  assert.throws(() => assertPaidMvpEvidenceIndex({ ...index, entries: index.entries.slice(1) }), /command list/i)
+})
