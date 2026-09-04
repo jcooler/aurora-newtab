@@ -122,9 +122,15 @@ function evidenceBuildCommit(evidence, fallback) {
     ?? fallback
 }
 
+export function npmInvocation(args, npmExecPath = process.env.npm_execpath) {
+  assert.equal(typeof npmExecPath, 'string', 'npm JavaScript CLI path is unavailable')
+  assert(npmExecPath.length > 0, 'npm JavaScript CLI path is unavailable')
+  return { executable: process.execPath, args: [npmExecPath, ...args] }
+}
+
 function runGate(repoRoot, gate) {
-  const executable = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-  execFileSync(executable, ['run', gate.command, ...(gate.exact ? ['--', '--exact'] : [])], {
+  const invocation = npmInvocation(['run', gate.command, ...(gate.exact ? ['--', '--exact'] : [])])
+  execFileSync(invocation.executable, invocation.args, {
     cwd: repoRoot,
     stdio: 'inherit',
   })

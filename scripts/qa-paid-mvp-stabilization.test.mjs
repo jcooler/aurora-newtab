@@ -120,6 +120,17 @@ test('defers owner-assisted browser work unless the caller opts in explicitly', 
   assert(ownerPlan.every(({ disposition }) => disposition === 'RUN'))
 })
 
+test('invokes npm through its JavaScript CLI on Windows-safe child process boundaries', () => {
+  assert.equal(typeof stabilization.npmInvocation, 'function')
+  assert.deepEqual(
+    stabilization.npmInvocation(['run', 'qa:free-baseline'], 'C:/node/npm-cli.js'),
+    {
+      executable: process.execPath,
+      args: ['C:/node/npm-cli.js', 'run', 'qa:free-baseline'],
+    },
+  )
+})
+
 test('accepts only a provenance-bound, redacted evidence index', () => {
   const commands = PAID_MVP_GATES.map(({ command }) => command)
   const index = {
