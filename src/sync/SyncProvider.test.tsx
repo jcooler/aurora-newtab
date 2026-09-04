@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AccountProvider } from '../account/AccountContext'
+import { AccountProvider, useAccount } from '../account/AccountContext'
 import type { AccountClient } from '../account/client'
 import { localAccountClient } from '../account/localAccountClient'
 import type { AccountSnapshot } from '../account/types'
@@ -73,6 +73,20 @@ function client(value: AccountSnapshot, syncGateway: SyncGateway): AccountClient
 function Probe() {
   const { state } = useSync()
   return <output>{state.enabled ? state.phase : 'disabled'}</output>
+}
+
+function RecoveryExportProbe({ recoveryId, receive }: { recoveryId: string; receive: (value: unknown) => void }) {
+  const { actions } = useSync()
+  const { snapshot } = useAccount()
+  return (
+    <button
+      type="button"
+      disabled={snapshot.mode !== 'signed_in'}
+      onClick={() => void actions.prepareRecoveryExport(recoveryId).then(receive)}
+    >
+      Prepare recovery
+    </button>
+  )
 }
 
 afterEach(() => {
@@ -386,7 +400,54 @@ describe('SyncProvider lifecycle ownership', () => {
     expect(api.pull).not.toHaveBeenCalled()
   })
 
-  it('publishes only safe recovery metadata and lets the UI discard the local recovery copy', async () => {
+  it('prepares an immutable recovery export from local storage without network or storage writes', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    const driver = memoryDriver(defaults() as unknown as Record<string, unknown>)
+    const local = createSyncLocalStateStore(driver, driver.authority)
+    await local.ensureDevice(accountId, 'Primary')
+    const created = await appendConflictBackup({ driver, authority: driver.authority }, accountId, {
+      schemaVersion: 1,
+      entityType: 'notes',
+      entityId: 'singleton',
+      value: { text: 'private local recovery text', updatedAt: 1 },
+    }, 2, Date.parse('2026-09-04T11:00:00.000Z'))
+    const stored = await local.readConflictBackups(accountId)
+    const api = gateway()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const writeSpy = vi.spyOn(driver, 'write')
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-04T12:00:00.000Z'))
+    const receive = vi.fn()
+
+    render(
+      <StorageProvider storage={{} as AuroraStorage} syncRuntime={{ driver, authority: driver.authority }}>
+        <AccountProvider client={client(snapshot(), api)}>
+          <SyncProvider><RecoveryExportProbe recoveryId={created.id} receive={receive} /></SyncProvider>
+        </AccountProvider>
+      </StorageProvider>,
+    )
+    writeSpy.mockClear()
+    const prepareButton = screen.getByRole('button', { name: 'Prepare recovery' })
+    await waitFor(() => expect(prepareButton.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(prepareButton)
+
+    await waitFor(() => expect(receive).toHaveBeenCalledOnce())
+    const result = receive.mock.calls[0]![0]
+    expect(result).toMatchObject({
+      status: 'ready',
+      value: {
+        kind: 'sync-conflict-recovery',
+        exportedAt: '2026-09-04T12:00:00.000Z',
+        recovery: { id: created.id, entity: { value: { text: 'private local recovery text' } } },
+      },
+    })
+    expect(Object.isFrozen(result.value)).toBe(true)
+    expect(await local.readConflictBackups(accountId)).toEqual(stored)
+    expect(writeSpy).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    for (const operation of Object.values(api)) expect(operation).not.toHaveBeenCalled()
+  })
+
+  it('publishes only safe recovery metadata and lets the UI download or discard the local recovery copy', async () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     const driver = memoryDriver(defaults() as unknown as Record<string, unknown>)
     const local = createSyncLocalStateStore(driver, driver.authority)
@@ -412,6 +473,19 @@ describe('SyncProvider lifecycle ownership', () => {
     )
     const recoveries = await screen.findByRole('region', { name: 'Recovery copies' })
     expect(recoveries.textContent).not.toContain('private local recovery text')
+    const rowActions = within(recoveries).getAllByRole('button').map((button) => button.textContent)
+    expect(rowActions).toEqual(['Restore', 'Download copy', 'Discard'])
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const createObjectURL = vi.fn(() => 'blob:recovery-copy')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+    fireEvent.click(within(recoveries).getByRole('button', { name: 'Download copy' }))
+    expect((await within(recoveries).findByRole('status')).textContent).toBe('Recovery copy downloaded.')
+    expect(click).toHaveBeenCalledOnce()
+    expect(createObjectURL).toHaveBeenCalledOnce()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:recovery-copy')
+    expect(await local.readConflictBackups(accountId)).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Recovery copies' })).toBeNull())
     await expect(local.readConflictBackups(accountId)).resolves.toEqual([])

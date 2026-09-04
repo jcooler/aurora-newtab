@@ -149,6 +149,55 @@
   font-size: 12px;
   line-height: 1.45;
 }
+.account-data-export-row {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.5rem 0;
+}
+.account-data-export-action {
+  flex: 0 0 auto;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 10.75rem;
+}
+.account-sync-recovery-row {
+  display: flex;
+  min-height: 4rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+}
+.account-sync-recovery-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.account-sync-recovery-download {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.account-sync-recovery-download > button {
+  justify-content: center;
+  gap: 0.4rem;
+}
+.account-sync-recovery-message {
+  max-width: 11rem;
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.account-sync-recovery-message--error {
+  color: rgb(248 113 113);
+}
 .account-sync-device-list {
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);
@@ -184,6 +233,19 @@
   text-transform: uppercase;
 }
 @media (max-width: 560px) {
+  .account-data-export-row,
+  .account-sync-recovery-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .account-data-export-action {
+    align-self: flex-start;
+  }
+  .account-sync-recovery-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
   .account-sync-facts {
     grid-template-columns: 1fr;
     gap: 0.75rem;

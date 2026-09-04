@@ -127,6 +127,18 @@ describe('createAccountClient', () => {
     )
   })
 
+  it('keeps portability preview seams deterministic and isolated from production clients', async () => {
+    const recovery = await loadClient('preview', '?accountState=recovery')
+    expect(recovery.syncGateway).not.toBeNull()
+    await expect(recovery.getSnapshot()).resolves.toMatchObject({
+      mode: 'signed_in',
+      accountId: '43000000-0000-4000-8000-000000000001',
+    })
+
+    const failure = await loadClient('preview', '?accountState=active&accountExportState=failure')
+    await expect(failure.actions.prepareAccountDataExport()).resolves.toEqual({ status: 'data_unavailable' })
+  })
+
   it('fails closed to Local when account-local configuration is incomplete', async () => {
     const fetchSpy = vi.fn()
     const storageGet = vi.fn()

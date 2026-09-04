@@ -6,6 +6,8 @@ import type { BillingPlan } from './billing'
 import type { AccountActions, AccountSnapshot, PremiumCapability } from './types'
 import type { AccountDataExportSourceV1 } from './dataExport'
 import { localAccountSnapshot } from './localAccountClient'
+import { generateDataKey } from '../sync/crypto'
+import type { SyncGateway, SyncGatewaySummary } from '../sync/gateway'
 
 export const TAB_TWO_PREVIEW_ACCOUNT_FIXTURE = 'TAB_TWO_PREVIEW_ACCOUNT_FIXTURE'
 const PREVIEW_ACCOUNT_ID = '43000000-0000-4000-8000-000000000001'
@@ -19,6 +21,7 @@ export type PreviewAccountState =
   | 'syncing'
   | 'offline'
   | 'needs-attention'
+  | 'recovery'
 
 const capabilities: readonly PremiumCapability[] = [
   'encrypted_sync',
@@ -107,6 +110,8 @@ function snapshotFor(state: PreviewAccountState): AccountSnapshot {
         sync: Object.freeze({ enabled: true, phase: 'needs_attention', lastSuccessAt: 1_777_413_600_000, usedBytes: 421_888, quotaBytes: 2_097_152 as const }),
         devices: Object.freeze(previewDevices.slice(0, 2)),
       })
+    case 'recovery':
+      return signedSnapshot(state)
   }
 }
 
@@ -119,6 +124,7 @@ const previewStates = new Set<PreviewAccountState>([
   'syncing',
   'offline',
   'needs-attention',
+  'recovery',
 ])
 
 function requestedState(): PreviewAccountState {
@@ -130,6 +136,46 @@ function requestedState(): PreviewAccountState {
 
 async function noOp(): Promise<void> {}
 async function completedSync() { return { status: 'completed' as const } }
+
+function previewSyncSummary(deviceId: string, friendlyName = 'Desktop'): SyncGatewaySummary {
+  return {
+    vaultVersion: 0,
+    usedBytes: 0,
+    currentDeviceId: deviceId,
+    devices: [{ id: deviceId, name: friendlyName, lastSyncAt: 1_778_000_000_000, current: true, revoked: false }],
+  }
+}
+
+function createPreviewSyncGateway(): SyncGateway {
+  let currentDeviceId: string = previewExportDeviceIds[0]
+  let currentDeviceName = 'Desktop'
+  const summary = () => previewSyncSummary(currentDeviceId, currentDeviceName)
+  return {
+    async bootstrap(input) {
+      currentDeviceId = input.deviceId
+      currentDeviceName = input.friendlyName
+      return { ok: true, value: { dataKey: await generateDataKey(), summary: summary() } }
+    },
+    async pull() { return { ok: true, value: { records: [], nextCursor: null, vaultVersion: 0 } } },
+    async push(input) {
+      return { ok: true, value: input.mutations.map((mutation, index) => ({
+        status: 'accepted' as const,
+        entityType: mutation.record.entityType,
+        entityId: mutation.record.entityId,
+        revision: mutation.record.revision,
+        vaultVersion: index + 1,
+      })) }
+    },
+    async deactivateDevice() { return { ok: true, value: summary() } },
+    async renameDevice(input) {
+      currentDeviceName = input.friendlyName
+      return { ok: true, value: summary() }
+    },
+    async revokeDevice() { return { ok: true, value: summary() } },
+    async deleteVault() { return { ok: true, value: undefined } },
+    async deleteAccount() { return { ok: true, value: undefined } },
+  }
+}
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -217,6 +263,11 @@ function createPreviewActions(snapshot: AccountSnapshot): AccountActions {
   },
   async refreshBilling() { return { status: 'refreshed' as const } },
   async prepareAccountDataExport() {
+    const fixtureState = new URLSearchParams(globalThis.location?.search ?? '').get('accountExportState')
+    if (fixtureState === 'preparing') {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 500))
+    }
+    if (fixtureState === 'failure') return { status: 'data_unavailable' as const }
     const value = previewAccountData(snapshot)
     return value
       ? { status: 'ready' as const, value }
@@ -228,7 +279,8 @@ function createPreviewActions(snapshot: AccountSnapshot): AccountActions {
 }
 
 export function createPreviewAccountClient(): AccountClient {
-  const snapshot = snapshotFor(requestedState())
+  const state = requestedState()
+  const snapshot = snapshotFor(state)
   const providerGateway = createPreviewProviderGateway('two-account', Date.UTC(2026, 8, 3, 15, 0, 0))
   const microsoftProviderGateway = createPreviewMicrosoftCalendarGateway(
     'two-account', Date.UTC(2026, 8, 3, 15, 0, 0),
@@ -238,7 +290,7 @@ export function createPreviewAccountClient(): AccountClient {
     async getSnapshot() { return snapshot },
     subscribe() { return () => {} },
     actions: createPreviewActions(snapshot),
-    syncGateway: null,
+    syncGateway: state === 'recovery' ? createPreviewSyncGateway() : null,
     providerGateways: Object.freeze({
       google_calendar: providerGateway,
       microsoft_calendar: microsoftProviderGateway,

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccountProvider } from '../../account/AccountContext'
 import type { AccountClient } from '../../account/client'
 import type { AccountActions, AccountSnapshot } from '../../account/types'
-import AccountSync from './AccountSync'
+import AccountSync, { RecoveryDownloadAction } from './AccountSync'
 
 afterEach(() => {
   cleanup()
@@ -59,8 +59,9 @@ function signedSnapshot(overrides: Partial<AccountSnapshot> = {}): AccountSnapsh
   }
 }
 
-function renderAccount(snapshot: AccountSnapshot, suppliedActions = actions()) {
+function renderAccount(snapshot: AccountSnapshot, suppliedActions = actions(), accountDataExportEnabled?: boolean) {
   const client: AccountClient = {
+    accountDataExportEnabled,
     getSnapshot: async () => snapshot,
     subscribe: () => () => {},
     actions: suppliedActions,
@@ -95,6 +96,43 @@ function renderLiveAccount(snapshot: AccountSnapshot, suppliedActions = actions(
 }
 
 describe('AccountSync', () => {
+  it('mounts the flat account download section only when the client enables it', async () => {
+    const disabledView = renderAccount(signedSnapshot())
+    expect(await screen.findByRole('heading', { name: 'Alex Morgan' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Your data' })).toBeNull()
+    cleanup()
+
+    renderAccount(signedSnapshot(), disabledView, true)
+    const data = await screen.findByRole('region', { name: 'Your data' })
+    expect(within(data).getByRole('button', { name: 'Download account data' })).toBeTruthy()
+    expect(within(data).getByText(/readable JSON copy/i)).toBeTruthy()
+  })
+
+  it('keeps recovery download progress and failure scoped to its own row', async () => {
+    const prepare = vi.fn(async () => ({ status: 'data_unavailable' as const }))
+    const download = vi.fn()
+    render(
+      <div>
+        <div data-testid="first-recovery">
+          <RecoveryDownloadAction recoveryId="recovery-1" prepare={prepare} download={download} />
+        </div>
+        <div data-testid="second-recovery">
+          <RecoveryDownloadAction recoveryId="recovery-2" prepare={prepare} download={download} />
+        </div>
+      </div>,
+    )
+
+    const first = screen.getByTestId('first-recovery')
+    const second = screen.getByTestId('second-recovery')
+    fireEvent.click(within(first).getByRole('button', { name: 'Download copy' }))
+    expect(await within(first).findByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(within(first).getByRole('alert').textContent).toBe('Tab Two could not prepare this copy. Nothing was changed.')
+    expect(within(second).getByRole('button', { name: 'Download copy' })).toBeTruthy()
+    expect(within(second).queryByRole('alert')).toBeNull()
+    expect(prepare).toHaveBeenCalledWith('recovery-1')
+    expect(download).not.toHaveBeenCalled()
+  })
+
   it('keeps Local mode optional and associates unavailable sign-in feedback with its action', async () => {
     const localActions = actions()
     vi.mocked(localActions.beginSignIn).mockResolvedValue({ ok: false, code: 'not_configured' })

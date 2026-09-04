@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { useAccount } from '../../account/AccountContext'
 import { billingPlanCopy } from '../../account/billing'
 import type { BillingActionOutcome, BillingPlan, BillingSummary } from '../../account/billing'
+import { downloadJsonFile } from '../../account/dataExport'
 import type { AccountActions, SyncActionOutcome, SyncPhase } from '../../account/types'
 import { AssertiveAlert, PoliteStatus } from '../../components/StateFeedback'
 import { useDialogEscape } from '../../lib/dialogStack'
@@ -11,7 +12,12 @@ import { useFocusTrap } from '../../lib/hooks/useFocusTrap'
 import Section from '../Section'
 import Switch from '../Switch'
 import { btnDanger, btnPrimary, btnQuiet, control, label } from './shared'
-import { useSync } from '../../sync/SyncProvider'
+import {
+  conflictRecoveryFilename,
+  serializeConflictRecoveryExport,
+} from '../../sync/recoveryExport'
+import { useSync, type SyncRecoveryExportOutcome } from '../../sync/SyncProvider'
+import AccountDataExport from './AccountDataExport'
 
 const SIGN_IN_STATUS_ID = 'account-sign-in-status'
 const DEVICE_LIMIT_ID = 'account-device-limit'
@@ -151,6 +157,66 @@ function SyncDisclosure() {
         </section>
       </div>
     </Section>
+  )
+}
+
+export function RecoveryDownloadAction({
+  recoveryId,
+  prepare,
+  download = (serialized, filename) => downloadJsonFile(serialized, filename),
+}: {
+  recoveryId: string
+  prepare: (backupId: string) => Promise<SyncRecoveryExportOutcome>
+  download?: (serialized: string, filename: string) => void
+}) {
+  const [phase, setPhase] = useState<'idle' | 'preparing' | 'success' | 'failure'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const pending = useRef(false)
+
+  async function prepareDownload() {
+    if (pending.current) return
+    pending.current = true
+    setPhase('preparing')
+    setError(null)
+    try {
+      const outcome = await prepare(recoveryId)
+      if (outcome.status !== 'ready') {
+        setPhase('failure')
+        setError(outcome.status === 'recovery_not_found'
+          ? 'This recovery copy is no longer available.'
+          : 'Tab Two could not prepare this copy. Nothing was changed.')
+        return
+      }
+      const exportedAt = Date.parse(outcome.value.exportedAt)
+      download(
+        serializeConflictRecoveryExport(outcome.value),
+        conflictRecoveryFilename(outcome.value.recovery, exportedAt),
+      )
+      setPhase('success')
+    } catch {
+      setPhase('failure')
+      setError('Tab Two could not save this copy. Nothing was changed.')
+    } finally {
+      pending.current = false
+    }
+  }
+
+  const preparing = phase === 'preparing'
+  return (
+    <div className="account-sync-recovery-download">
+      <button
+        type="button"
+        disabled={preparing}
+        aria-busy={preparing ? 'true' : undefined}
+        className={`${phase === 'failure' ? btnPrimary : btnQuiet} disabled:cursor-not-allowed disabled:opacity-55`}
+        onClick={() => void prepareDownload()}
+      >
+        {preparing ? <span aria-hidden="true" className="account-sync-status__spinner" /> : null}
+        {preparing ? 'Preparing…' : phase === 'failure' ? 'Try again' : 'Download copy'}
+      </button>
+      {phase === 'success' ? <PoliteStatus className="account-sync-recovery-message">Recovery copy downloaded.</PoliteStatus> : null}
+      <AssertiveAlert className="account-sync-recovery-message account-sync-recovery-message--error">{error}</AssertiveAlert>
+    </div>
   )
 }
 
@@ -559,6 +625,7 @@ export default function AccountSync() {
         renameDevice: (deviceId: string, friendlyName: string) => actions.renameDevice(deviceId, friendlyName),
         revokeDevice: (deviceId: string) => actions.revokeDevice(deviceId),
         restoreRecovery: (backupId: string) => actions.restoreConflictBackup(backupId),
+        prepareRecoveryExport: async () => ({ status: 'data_unavailable' as const }),
         discardRecovery: (backupId: string) => actions.discardConflictBackup(backupId),
         deleteVault: () => actions.deleteVault(),
         deleteAccount: () => actions.deleteAccount(),
@@ -631,6 +698,14 @@ export default function AccountSync() {
 
       <BillingPlans billing={snapshot.billing} pending={billingPending} error={billingError} onChoose={(plan) => void choosePlan(plan)} />
 
+      {snapshot.accountId ? (
+        <AccountDataExport
+          accountId={snapshot.accountId}
+          enabled={client.accountDataExportEnabled === true}
+          actions={actions}
+        />
+      ) : null}
+
       <Section title="Encrypted sync">
         <div className="flex min-h-9 items-center justify-between gap-4">
           <div>
@@ -700,13 +775,17 @@ export default function AccountSync() {
           <p className="mb-3 text-xs text-fg-muted">A local edit was preserved before Tab Two adopted a newer verified copy.</p>
           <ul className="divide-y divide-hairline" aria-label="Recoverable local copies">
             {syncState.recoveries.map((recovery) => (
-              <li key={recovery.id} className="flex min-h-14 items-center justify-between gap-3 py-2 max-[420px]:items-start">
+              <li key={recovery.id} className="account-sync-recovery-row">
                 <div className="min-w-0">
                   <p className="truncate text-sm text-fg">{recovery.entityType.replaceAll('_', ' ')}</p>
                   <p className="text-xs text-fg-muted">Saved {new Date(recovery.createdAt).toLocaleString()}</p>
                 </div>
-                <div className="flex shrink-0 gap-2">
+                <div className="account-sync-recovery-actions">
                   <button type="button" className={btnPrimary} onClick={() => void runSyncAction(() => syncOperations.restoreRecovery(recovery.id))}>Restore</button>
+                  <RecoveryDownloadAction
+                    recoveryId={recovery.id}
+                    prepare={syncOperations.prepareRecoveryExport}
+                  />
                   <button type="button" className={btnQuiet} onClick={() => void runSyncAction(() => syncOperations.discardRecovery(recovery.id))}>Discard</button>
                 </div>
               </li>

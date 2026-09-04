@@ -13,6 +13,7 @@ import type { SyncActionOutcome, SyncPhase } from '../account/types'
 import { useSyncStorageRuntime } from '../lib/storage/context'
 import { createCoordinatorStorage, createSyncCoordinator, retryDelay, type SyncCoordinator } from './coordinator'
 import { deleteConflictBackup, restoreConflictBackup } from './conflictBackups'
+import { createConflictRecoveryExportV1, type SyncConflictRecoveryExportV1 } from './recoveryExport'
 import {
   createSyncLocalStateStore,
   emptyConflictBackups,
@@ -56,10 +57,15 @@ export interface SyncViewActions {
   renameDevice(deviceId: string, friendlyName: string): Promise<SyncActionOutcome>
   revokeDevice(deviceId: string): Promise<SyncActionOutcome>
   restoreRecovery(backupId: string): Promise<SyncActionOutcome>
+  prepareRecoveryExport(backupId: string): Promise<SyncRecoveryExportOutcome>
   discardRecovery(backupId: string): Promise<SyncActionOutcome>
   deleteVault(): Promise<SyncActionOutcome>
   deleteAccount(): Promise<SyncActionOutcome>
 }
+
+export type SyncRecoveryExportOutcome =
+  | { readonly status: 'ready'; readonly value: SyncConflictRecoveryExportV1 }
+  | { readonly status: 'recovery_not_found' | 'data_unavailable' }
 
 interface SyncContextValue {
   state: SyncViewState
@@ -78,6 +84,7 @@ const disabledState: SyncViewState = Object.freeze({
 })
 
 const unavailable = async (): Promise<SyncActionOutcome> => ({ status: 'needs_attention' })
+const unavailableRecoveryExport = async (): Promise<SyncRecoveryExportOutcome> => ({ status: 'data_unavailable' })
 
 function localDeviceSummary(device: SyncDeviceStateV1): SyncViewState['devices'][number] {
   return {
@@ -109,6 +116,7 @@ const SyncContext = createContext<SyncContextValue>({
     renameDevice: unavailable,
     revokeDevice: unavailable,
     restoreRecovery: unavailable,
+    prepareRecoveryExport: unavailableRecoveryExport,
     discardRecovery: unavailable,
     deleteVault: unavailable,
     deleteAccount: unavailable,
@@ -439,6 +447,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [accountId, entitled, localStore, runtime])
 
+  const prepareRecoveryExport = useCallback(async (backupId: string): Promise<SyncRecoveryExportOutcome> => {
+    if (!accountId || !localStore) return { status: 'data_unavailable' }
+    try {
+      const backup = (await localStore.readConflictBackups(accountId)).find((item) => item.id === backupId)
+      if (!backup) return { status: 'recovery_not_found' }
+      return { status: 'ready', value: createConflictRecoveryExportV1(accountId, backup, Date.now()) }
+    } catch {
+      return { status: 'data_unavailable' }
+    }
+  }, [accountId, localStore])
+
   const discardRecovery = useCallback(async (backupId: string): Promise<SyncActionOutcome> => {
     if (!accountId) return { status: 'authentication_required' }
     if (!runtime) return { status: 'needs_attention' }
@@ -497,6 +516,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     renameDevice,
     revokeDevice,
     restoreRecovery,
+    prepareRecoveryExport,
     discardRecovery,
     deleteVault,
     deleteAccount,
@@ -507,6 +527,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     discardRecovery,
     enable,
     renameDevice,
+    prepareRecoveryExport,
     restoreRecovery,
     revokeDevice,
     syncNow,
