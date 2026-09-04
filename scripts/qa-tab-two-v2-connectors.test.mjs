@@ -4,6 +4,7 @@ import test from 'node:test'
 import { resolve } from 'node:path'
 
 import {
+  CALENDAR_CATEGORY_LABELS,
   assertBuildCommit,
   assertExpectedRequests,
   assertSingleColumnGrid,
@@ -13,6 +14,15 @@ import {
 } from './qa-tab-two-v2-connectors.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
+
+test('pins the complete paid MVP Calendar category inventory', () => {
+  assert.deepEqual(CALENDAR_CATEGORY_LABELS, [
+    'Calendar',
+    'Google Calendar',
+    'Microsoft Calendar',
+    'Todoist',
+  ])
+})
 
 test('requires exact production provenance', () => {
   assert.throws(() => requireExact([]), /requires --exact/)
