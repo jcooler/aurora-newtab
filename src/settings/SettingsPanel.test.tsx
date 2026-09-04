@@ -260,7 +260,7 @@ async function renderPanel(
  *  so a test whose section moved off the default General tab clicks its tab
  *  first. Purely mechanical: nothing else about any pre-existing test below
  *  changed. */
-function openTab(name: 'General' | 'Progress' | 'Widgets' | 'Connectors' | 'Data' | 'Account & Sync') {
+function openTab(name: 'General' | 'Progress' | 'Widgets' | 'Connectors' | 'Data' | 'Account & Sync' | 'Help') {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
 
@@ -348,6 +348,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
       'Connectors',
       'Data',
       'Account & Sync',
+      'Help',
     ])
     expect(attr(screen.getByRole('tab', { name: 'General' }), 'aria-selected')).toBe('true')
 
@@ -391,6 +392,22 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
 
     await screen.findByText('Google sign-in is not configured in this build.')
     await screen.findByText('Billing is not configured in this build.')
+    expect(write).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('keeps Help permanently available without a storage write or backend request', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    const write = vi.spyOn(driver, 'write')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    await renderPanel(storage)
+    write.mockClear()
+    fetchSpy.mockClear()
+
+    openTab('Help')
+    expect(screen.getByRole('heading', { name: 'Keep Tab Two working' })).toBeTruthy()
     expect(write).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })

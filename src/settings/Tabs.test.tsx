@@ -107,7 +107,7 @@ describe('Tabs (ARIA tabs pattern)', () => {
     expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
   })
 
-  it('keeps both compact and six-tab sets in one bounded horizontal row', () => {
+  it('keeps compact and seven-tab sets in one horizontally reachable row', () => {
     const { rerender } = render(<Host />)
     const assertNarrowRow = (expected: number) => {
       expect(tablist().className).not.toContain('max-[420px]:grid')
@@ -116,8 +116,7 @@ describe('Tabs (ARIA tabs pattern)', () => {
       for (const item of screen.getAllByRole('tab')) {
         expect(item.className.split(/\s+/)).toContain('min-h-9')
         expect(item.className.split(/\s+/)).toContain('min-w-9')
-        expect(item.className).toContain('max-[420px]:flex-1')
-        expect(item.className).toContain('max-[420px]:min-w-0')
+        expect(item.className).toContain('shrink-0')
       }
     }
 
@@ -129,6 +128,7 @@ describe('Tabs (ARIA tabs pattern)', () => {
           { id: 'progress' as Id, label: 'Progress' },
           { id: 'connectors' as Id, label: 'Connectors' },
           { id: 'account' as Id, label: 'Account & Sync' },
+          { id: 'help' as Id, label: 'Help' },
         ]}
         active="general"
         onChange={() => {}}
@@ -136,7 +136,9 @@ describe('Tabs (ARIA tabs pattern)', () => {
         <p>general content</p>
       </Tabs>,
     )
-    assertNarrowRow(6)
+    assertNarrowRow(7)
+    expect(tablist().className).toContain('overflow-x-auto')
+    expect(tablist().className).toContain('min-[900px]:overflow-visible')
   })
 
   it('uses an 11rem roomy rail and a bounded readable content measure', () => {

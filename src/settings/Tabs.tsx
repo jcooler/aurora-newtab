@@ -95,7 +95,7 @@ export default function Tabs<T extends string>({
         aria-orientation={roomy ? 'vertical' : 'horizontal'}
         ref={listRef}
         onKeyDown={onKeyDown}
-        className="flex gap-1 border-b border-panel-border min-[900px]:sticky min-[900px]:top-0 min-[900px]:flex-col min-[900px]:border-r min-[900px]:border-b-0 min-[900px]:pr-3"
+        className="flex gap-1 overflow-x-auto overscroll-x-contain border-b border-panel-border min-[900px]:sticky min-[900px]:top-0 min-[900px]:flex-col min-[900px]:overflow-visible min-[900px]:border-r min-[900px]:border-b-0 min-[900px]:pr-3"
       >
         {tabs.map((t) => {
           const selected = t.id === active
@@ -118,7 +118,7 @@ export default function Tabs<T extends string>({
               // preflight sets `button { cursor: default }` — the inverted
               // affordance already fixed on the weather chip and the bookmarks
               // chips, and these are the drawer's primary navigation.
-              className={`-mb-px min-h-9 min-w-9 cursor-pointer border-b-2 px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-w-0 max-[420px]:flex-1 max-[420px]:px-1 max-[420px]:text-xs min-[900px]:mb-0 min-[900px]:w-full min-[900px]:border-b-0 min-[900px]:border-l-2 min-[900px]:text-left ${
+              className={`-mb-px min-h-9 min-w-9 shrink-0 cursor-pointer border-b-2 px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-accent max-[420px]:px-2.5 max-[420px]:text-xs min-[900px]:mb-0 min-[900px]:w-full min-[900px]:border-b-0 min-[900px]:border-l-2 min-[900px]:text-left ${
                 selected
                   ? 'border-accent text-fg'
                   : 'border-transparent text-fg-muted hover:text-fg'
