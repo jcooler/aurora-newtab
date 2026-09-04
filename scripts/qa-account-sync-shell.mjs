@@ -241,13 +241,24 @@ async function geometry(page) {
         }
       }
     }
+    const tablist = document.querySelector('[role="tablist"][aria-label="Settings sections"]')
     return {
       horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
         || document.body.scrollWidth > document.documentElement.clientWidth + 1,
       viewportEscapes: controls
-        .filter((item) => item.left < -0.5
-          || item.right > innerWidth + 0.5
-          || (activeDialog && (item.top < -0.5 || item.bottom > innerHeight + 0.5)))
+        .filter((item) => {
+          const element = candidates.find((candidate, index) => (
+            (candidate.getAttribute('aria-label') || candidate.textContent?.trim() || candidate.id || `control-${index}`) === item.id
+          ))
+          const intentionallyClippedTab = Boolean(
+            element?.getAttribute('role') === 'tab'
+              && element.closest('[role="tablist"]') === tablist
+              && tablist.scrollWidth > tablist.clientWidth,
+          )
+          return !intentionallyClippedTab && (item.left < -0.5
+            || item.right > innerWidth + 0.5
+            || (activeDialog && (item.top < -0.5 || item.bottom > innerHeight + 0.5)))
+        })
         .map((item) => item.id),
       overlapPairs,
       scrollOwners: [...document.querySelectorAll('[data-settings-scroll-owner="document"]')].filter(visible).length,
