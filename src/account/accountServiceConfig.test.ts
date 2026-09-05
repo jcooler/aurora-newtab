@@ -35,9 +35,9 @@ describe('readAccountServiceConfig', () => {
       .toMatchObject({ microsoftCalendarEnabled: true })
   })
 
-  it('keeps production account export disabled until its separate hosted gate', () => {
+  it('enables production account export after its approved hosted proof', () => {
     expect(readProductionAccountServiceConfig({ MODE: 'production' }, productionAccountServiceConfig))
-      .toMatchObject({ accountDataExportEnabled: false })
+      .toMatchObject({ accountDataExportEnabled: true })
   })
 
   it.each([

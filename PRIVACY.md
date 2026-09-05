@@ -234,8 +234,8 @@ raw provider caches, uploaded images, logs, and audit records.
 A recovery-copy download is created only from the selected account-bound copy
 already held by this installation. It makes no server request and does not
 restore, discard, or otherwise change that copy. Tab Two does not import account-data or recovery-copy files.
-The production account-data control remains disabled until its separately approved hosted activation and proof are
-complete.
+The production account-data control was enabled after separately approved hosted activation and proof.
+Every download still requires an explicit action and fresh Google verification.
 
 The Help tab's diagnostic report is assembled locally from a fixed set of app
 version, account-state, billing-state, and aggregate sync-health fields. It is

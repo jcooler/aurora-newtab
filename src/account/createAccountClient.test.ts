@@ -36,7 +36,7 @@ describe('createAccountClient', () => {
     vi.stubGlobal('open', openSpy)
 
     const client = await loadClient('production')
-    expect(client.accountDataExportEnabled).toBe(false)
+    expect(client.accountDataExportEnabled).toBe(true)
     const snapshot = await client.getSnapshot()
 
     expect(snapshot).toEqual({
@@ -80,7 +80,7 @@ describe('createAccountClient', () => {
     expect(await client.actions.openPlans('monthly')).toEqual({ status: 'authentication_required' })
     expect(await client.actions.openBilling()).toEqual({ status: 'authentication_required' })
     expect(await client.actions.refreshBilling()).toEqual({ status: 'authentication_required' })
-    expect(await client.actions.prepareAccountDataExport()).toEqual({ status: 'data_unavailable' })
+    expect(await client.actions.prepareAccountDataExport()).toEqual({ status: 'authentication_required' })
     await client.actions.deleteVault()
     await client.actions.deleteAccount()
 

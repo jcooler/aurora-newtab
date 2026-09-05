@@ -37,7 +37,7 @@ export const productionAccountServiceConfig: ProductionAccountServiceDescriptor 
   microsoftCalendarEnabled: true,
   // The code and local boundary are reviewable, but production remains off
   // until the separately approved migration and Edge deployment gate.
-  accountDataExportEnabled: false,
+  accountDataExportEnabled: true,
 })
 
 export function readProductionAccountServiceConfig(

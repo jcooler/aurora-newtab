@@ -60,7 +60,7 @@ test('customer docs distinguish every data download without overstating hosted a
   assert.match(files.privacy, /account-data export requires fresh Google verification/i)
   assert.match(files.privacy, /encrypted sync records are decrypted on this device.*never returned as server plaintext/is)
   assert.match(files.privacy, /passwords, sign-in sessions, payment identifiers, provider tokens, encryption keys/i)
-  assert.match(files.privacy, /production account-data control remains disabled until.*hosted activation/is)
+  assert.match(files.privacy, /production account-data control was enabled after.*hosted activation and proof/is)
   assert.match(files.privacy, /does not import account-data or recovery-copy files/i)
 
   assert.match(files.help, /Data creates the local backup used to restore this installation/)

@@ -394,7 +394,8 @@ async function run() {
     const production = await launchInstalled(resolve(temporary, 'profile-production'), productionDist, desktop, evidence, 'production')
     contexts.push(production.context)
     await openAccountSettings(production.page)
-    assert.equal(await production.page.getByRole('region', { name: 'Your data' }).count(), 0, 'production account export activated before hosted gate')
+    assert.equal(await production.page.getByRole('region', { name: 'Your data' }).count(), 0, 'signed-out production must not expose an account-data export')
+    evidence.interactions.productionSignedOutExportHidden = true
     evidence.execution.production = 'installed-extension'
     await production.context.close()
     contexts.pop()
