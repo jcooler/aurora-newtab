@@ -1,7 +1,7 @@
 # Tab Two Paid MVP Deferred Owner QA
 
-**Updated:** 2026-09-03<br>
-**State:** Deferred by owner request until implementation reaches its final manual-QA handoff<br>
+**Updated:** 2026-09-05<br>
+**State:** Ready for cumulative owner QA of production candidate `5f2417f268aa4faea83c5dd225b7073d63cf2061`; hosted Task 7 and automated stabilization passed
 
 This is the one cumulative owner checklist. Automated tests and installed-extension harnesses continue during development; the owner should not execute these items packet by packet.
 
@@ -86,7 +86,7 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 
 ## Data portability
 
-- In the final production build after separately approved hosted activation, open Settings > Account & Sync and choose Download account data. Confirm fresh Google verification is required before the server-held snapshot is requested.
+- In the final production build after the approved and verified Task 7 activation, open Settings > Account & Sync and choose Download account data. Confirm fresh Google verification is required before the server-held snapshot is requested.
 - Cancel the verification flow once and confirm focus returns to Download account data with no request or file. Then complete verification and confirm exactly one readable JSON file downloads.
 - Confirm the account-data file contains the expected account, connected-account, subscription, entitlement, device, and decrypted synced-record fields. Confirm it contains no passwords, sign-in sessions, payment identifiers, provider tokens, encryption keys, raw provider caches, uploaded images, logs, or audit records, and that there is no server plaintext version of encrypted sync records.
 - With a conflict recovery copy present, download it before restore or discard. Confirm the local JSON contains only that account-bound recovery copy, makes no server request, and does not restore, discard, or otherwise change the copy.

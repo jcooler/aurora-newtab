@@ -1,11 +1,29 @@
 # Tab Two Data Portability QA
 
-**Date:** 2026-09-04<br>
+**Date:** 2026-09-05<br>
 **Branch:** `feat/aurora-2-observatory`<br>
-**Runtime and automated-evidence source:** `7173960095132c19ea03c4992cb23bd54a080b17`<br>
-**Result:** **LOCAL AUTOMATED PASS, HOSTED ACTIVATION AND OWNER QA PENDING**
+**Runtime and automated-evidence source:** `5f2417f268aa4faea83c5dd225b7073d63cf2061`<br>
+**Result:** **HOSTED PASS; AUTOMATED_PASS_OWNER_QA_PENDING**
 
-## Delivered local boundary
+## Task 7 hosted activation and current verification
+
+Task 7 hosted activation passed after explicit owner approval on 2026-09-05. Only migration 00900 and the account-export function were deployed. Three export POSTs proved populated export (200), cross-account denial (403), and real stale-authentication denial (401); one existing sync-bootstrap invocation provisioned only the synthetic encryption key. Hosted snapshots and service privileges, transaction-rolled-back account/IP rate limits, and client replay checks cover the remaining boundaries without extra export POSTs. Two synthetic accounts, two encrypted records including one tombstone, two provider metadata rows, and all associated state were removed; IP rate rows were restored and supplemental Auth audit/session/refresh/identity counts are zero. Rollback actually undeployed account-export (GET 404), proved disabled-client zero requests, retained migration 00900, and restored the same JWT-verified bundle. All other function metadata stayed unchanged. Production accountDataExportEnabled was set true only after this proof and cleanup.
+
+- Hosted evidence: `artifacts/qa-data-portability-hosted/4c61c621af2045a74a3bec76920c01ac6b046474/mtohabqx/evidence.json`; supplemental `auth-cleanup-verification.json` in the same directory.
+- 19 checks passed. Export responses were 200 / 2,307 bytes, 403 / 29 bytes, and 401 / 41 bytes. The existing synthetic-key bootstrap returned 324 bytes and was not redeployed. No other export POST was made, including during rollback.
+- No-vault/no-device/no-entitlement and service-role execution boundaries were checked in the hosted database. The successful HTTP export independently proves no entitlement or active device is required. Rate-policy assertions run inside a rolled-back synthetic transaction; they do not create extra export traffic.
+- Missing/wrong key, altered ciphertext, foreign-record identity, prohibited fields, and declared/actual response-size rejection were checked by the production client using replayed hosted data. These are client checks, not additional live endpoint requests. The in-memory readable file was 2,766 bytes; it was not written to an artifact.
+- Cleanup proved zero accounts, identities, grants, provider connections, vaults, account keys, devices, records, account rate rows, sync audit rows, Auth users, Auth identities, sessions, refresh records, and Auth audit rows. IP rate rows were restored to their prior state.
+- Rollback removed the function and observed GET 404, exercised the disabled client with zero requests, retained migration 00900, and redeployed the same JWT-verified version 1 bundle. Other function metadata was unchanged. No prior migration was reversed.
+- Fresh affected verification: 160 client/UI cases across the final runs, 73 Edge cases, 31 documentation/QA tests, TypeScript, and exact production/preview builds. The first client run exposed an outdated disabled-export assertion; the failed file was corrected and passed all six cases. No production contract was weakened.
+- Composed gate: all 12 automated specialists passed at `5f2417f268aa4faea83c5dd225b7073d63cf2061`; only production account authentication is deferred. Ledger totals: {"requests":16,"storageWrites":18,"consoleErrors":0,"pageErrors":0,"failedRequests":0}. Evidence: `artifacts/qa-paid-mvp-stabilization/5f2417f268aa4faea83c5dd225b7073d63cf2061/evidence.json`.
+- The original composed invocation paused on missing screenshot judgments. New captures were inspected, their original evidence contracts validated, and the remaining exact specialist matrix resumed without rerendering completed candidate evidence. The final index passed the repository composed-gate validator. The existing large-chunk build advisory remains. The historical whole-repository and local pgTAP results below were preserved rather than rerun for this activation.
+
+## Retained local implementation evidence (2026-09-04)
+
+The following local implementation results and captures belong to source `7173960095132c19ea03c4992cb23bd54a080b17`. The Task 7 record above supersedes their pre-activation status.
+
+### Delivered local boundary
 
 - Account & Sync has one calm `Your data` section for a readable account-data download. The action requires a confirmation and fresh Google verification before any account-export request starts.
 - The service contract is account-bound, limited to three attempts per account and privacy-preserving IP fingerprint per hour, requires authentication no more than five minutes old, accepts a maximum 2 KiB request, and rejects a response larger than 4 MiB.
@@ -14,7 +32,7 @@
 - The extension strictly validates the response, decrypts and authenticates each record in memory, reapplies the closed sync entity policy, removes tombstone values, builds one immutable version 1 readable object, and excludes every raw or wrapped key, nonce, ciphertext, token, session, provider subject, payment identifier, provider cache or response, private URL, image, audit row, and log from the downloaded file.
 - Conflict-recovery download is a separate local-only version 1 file for exactly one account-bound recovery copy. It performs no network request, storage write, restore, or discard action.
 - The existing Settings > Data backup remains the only importable installation backup. Account-data and conflict-recovery files are not presented as restorable backups.
-- No dependency or Chrome permission was added. Production retains `accountDataExportEnabled: false`; preview and account-local modes alone expose deterministic authority.
+- No dependency or Chrome permission was added. At the local closeout, production retained `accountDataExportEnabled: false`; Task 7 above records its later approved activation. Preview and account-local modes retain deterministic authority.
 
 ## Download contracts
 
@@ -75,12 +93,12 @@ Final restored production artifacts are source-bound to `7173960095132c19ea03c49
 
 ## Remaining owner QA
 
-The cumulative checklist in `TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md` remains authoritative. Its new portability checks require the final production build after separately approved hosted activation: cancel and complete fresh Google verification, inspect exactly one readable account file, verify required and prohibited fields, download one real local conflict recovery without changing it, and prove Settings > Data rejects account-data and recovery files as backups.
+The cumulative checklist in `TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md` remains authoritative. With Task 7 hosted activation verified, its portability checks use the final production candidate: cancel and complete fresh Google verification, inspect exactly one readable account file, verify required and prohibited fields, download one real local conflict recovery without changing it, and prove Settings > Data rejects account-data and recovery files as backups.
 
 The six existing honest ceilings also remain manual: native permission prompts, real provider consent and revocation, assistive-technology speech and interaction, physical touch and trackpad behavior, mixed-DPI hardware, and MacBook behavior.
 
-## Hosted activation and rollback boundary
+## Pre-activation boundary (historical, 2026-09-04)
 
-No hosted action was authorized or performed. Migration `20260904000900_account_data_export.sql` is not applied, `account-export` is not deployed, no production secret or permission changed, and the production descriptor remains disabled. No merge, package, release, live Stripe action, provider publication, rollout, or Chrome Web Store action occurred.
+At the September 4 local closeout, hosted activation was not authorized: migration 00900 and account-export were unhosted and the production descriptor was disabled. The approved September 5 Task 7 execution above supersedes that status. Merge, package, release, live Stripe, provider publication, rollout, and Chrome Web Store authority remain closed.
 
-The safe pre-activation state is the current rollback: keep `accountDataExportEnabled` false. A later separately approved gate must apply only migration 00900, deploy only `account-export`, use existing secret names without exposing values, run only bounded synthetic records, verify cleanup and limits, and enable the production descriptor only after hosted proof. If that proof fails, keep or restore the descriptor to false and remove only the new function; do not alter local product data, encrypted vault contents, billing grants, provider authorities, or existing migrations.
+The exercised rollback is to disable accountDataExportEnabled and undeploy only account-export. Migration 00900 remains applied; any database correction must be a separately scoped forward migration. Do not alter local product data, customer vault contents, billing grants, provider authorities, or earlier migration history. The current approved state has the proven function restored and production export enabled.

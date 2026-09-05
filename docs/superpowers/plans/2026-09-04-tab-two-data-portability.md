@@ -24,7 +24,7 @@
 - Add no runtime dependency and no Chrome permission, including no `downloads` permission.
 - Production account export stays disabled until the separately approved hosted activation gate. Preview and account-local modes may enable deterministic/local authority.
 - Owner hands-on QA remains deferred to the cumulative final checklist. Automated unit, integration, database, build, scan, and installed-extension QA continue normally.
-- Do not deploy, merge, package, release, publish, roll out, modify the Chrome Web Store, enable live Stripe, buy infrastructure, or mutate provider authority in this plan.
+- Hosted mutations are limited to the separately approved Task 7 gate below. Do not merge, package, release, publish, roll out, modify the Chrome Web Store, enable live Stripe, buy infrastructure, or mutate provider authority in this plan.
 - Use literal `&` in prose and headings. Do not use em or en dashes.
 
 ## Design direction
@@ -764,7 +764,7 @@ protected original and protected untracked paths remain intact.
 
 ### Task 7: Separate hosted sandbox activation gate
 
-Do not execute this task under the current approval.
+The owner explicitly approved this exact twelve-item gate on 2026-09-05. Hosted execution, cleanup, exercised rollback, production activation, and composed stabilization are now verified; cumulative owner QA remains pending.
 
 After local implementation and review are green, present one exact owner gate
 that names:
@@ -792,3 +792,16 @@ After explicit owner approval, execute only that list, retain redacted hosted
 evidence, enable the production descriptor, rerun the affected and composed
 gates, update the QA report, commit, push, and leave owner manual QA in the
 cumulative final checklist.
+
+
+### Task 7 execution record (2026-09-05)
+
+- [x] Explicit owner approval of all twelve items.
+- [x] Only migration 00900 and account-export deployed; existing configuration names consumed without revealing values.
+- [x] Bounded synthetic hosted proof, three total export POSTs, complete cleanup, and supplemental zero-residual Auth verification.
+- [x] Actual function undeploy (404), disabled-client zero-request proof, forward-only migration boundary, and restoration of the same bundle.
+- [x] Production descriptor enabled only after hosted proof and cleanup.
+- [x] Affected contracts, TypeScript, exact builds, and complete composed stabilization at `5f2417f268aa4faea83c5dd225b7073d63cf2061`.
+- [x] QA report, status, roadmap, decision, and cumulative owner checklist reconciled.
+
+Hosted evidence: `artifacts/qa-data-portability-hosted/4c61c621af2045a74a3bec76920c01ac6b046474/mtohabqx/evidence.json`. Composed evidence: `artifacts/qa-paid-mvp-stabilization/5f2417f268aa4faea83c5dd225b7073d63cf2061/evidence.json`. Tasks 1 through 6 were preserved. Owner QA, monitored support, providers, infrastructure, live Stripe, merge, packaging, release, rollout, OAuth publication, and Chrome Web Store actions remain separate. Fitness remains on hold.
