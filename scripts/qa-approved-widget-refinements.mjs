@@ -105,6 +105,12 @@ try {
         await chrome.storage.local.set(data)
       }, { initial, id, tier, state, ids, sentry, sentryScope: snapshotScope('sentry', sentry.config), otd, otdScope: snapshotScope('onThisDay', { enabled: true }, '2026-08-23'), history })
       await page.goto(`${base}?accountState=active`)
+      if (state === 'empty' && ['worldClocks', 'countdown'].includes(id)) {
+        await page.locator('[data-canvas-surface]').waitFor()
+        assert.equal(await page.locator(`[data-stack-active="true"] [data-tier-frame="${tier}"]`).count(), 0)
+        evidence.interactions.push(`${id} ${tier}: existing empty configuration stays absent`)
+        continue
+      }
       const frame = page.locator(`[data-stack-active="true"] [data-tier-frame="${tier}"]`).first()
       await frame.waitFor()
       await page.evaluate(() => document.fonts.ready)

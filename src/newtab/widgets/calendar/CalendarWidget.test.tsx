@@ -311,6 +311,17 @@ describe('CalendarWidget', () => {
     expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Agenda', selected: true }))
   })
 
+  it('preserves the inclusive date span of a multi-day all-day event in its accessible context', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [ev('Company offsite', new Date(2026, 7, 6).getTime(), new Date(2026, 7, 9).getTime(), 0, undefined, true)] })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+    const label = screen.getByText('Company offsite').closest('li')!.getAttribute('aria-label')
+    expect(label).toContain('Aug 6')
+    expect(label).toContain('Aug 8')
+    expect(label).not.toContain('Aug 9')
+    expect(label).toContain('All day')
+  })
+
   it('Standard Month uses a short heading, natural row count, and faded adjacent-month dates', async () => {
     const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
     const holidayConfig = { enabled: true, countryCode: 'US' } as const

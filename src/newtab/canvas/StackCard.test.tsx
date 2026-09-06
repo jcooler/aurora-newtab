@@ -67,6 +67,17 @@ describe('StackCard', () => {
     ])
   })
 
+  it('places the visible resting shelf inside the viewport before any pointer interaction', () => {
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return (this.hasAttribute('data-stack-card')
+        ? { left: 100, right: 420, top: 580, bottom: 780, width: 320, height: 200 }
+        : { left: 180, right: 332, top: 786, bottom: 822, width: 152, height: 36 }) as DOMRect
+    })
+    const { card } = setup()
+    expect(within(card).getByRole('toolbar', { name: 'Stack navigation' }).dataset.stackShelfPlacement).toBe('above')
+  })
+
   it('moves the navigation shelf above a stack when it would leave the viewport below', () => {
     vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800)
     const { card } = setup()

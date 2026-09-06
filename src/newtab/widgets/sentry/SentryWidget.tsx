@@ -75,7 +75,9 @@ function SentryInner({
     `${issues.length} unresolved`,
     topTrending?.shortId ?? null,
   ]
-  const rowLimit = presentation === 'retained-error' ? canvasSize === 'compact' ? 0 : 1 : SENTRY_FRAME_ROWS[canvasSize]
+  const longTitles = issues.slice(0, SENTRY_FRAME_ROWS[canvasSize]).some((issue) => issue.title.length > 56)
+  const readableRows = longTitles && canvasSize !== 'compact' ? SENTRY_FRAME_ROWS[canvasSize] - 1 : SENTRY_FRAME_ROWS[canvasSize]
+  const rowLimit = presentation === 'retained-error' ? canvasSize === 'compact' ? 0 : 1 : readableRows
   const visible = (canvasSize === 'compact' && topTrending ? [topTrending] : issues).slice(0, Math.min(rowLimit, sentryItemLimit(config)))
   const detailRows = issues.slice(0, Math.min(3, sentryItemLimit(config)))
 
@@ -125,10 +127,10 @@ function SentryInner({
             </strong>
             <span className="text-xs text-fg-muted">{critical} critical</span>
             {canvasSize === 'compact' && strongest && topTrending ? (
-              <>
+              <span className="sr-only">
                 <span className="text-xs font-medium text-fg-muted">{levelLabel(strongest.level)}</span>
                 <span className="text-xs font-medium text-fg-muted">{topTrending.shortId}</span>
-              </>
+              </span>
             ) : null}
           </div>
           {visible.length > 0 ? (

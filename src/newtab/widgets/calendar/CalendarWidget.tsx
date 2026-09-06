@@ -328,7 +328,9 @@ function CalendarAgenda({
         const previous = visible[index - 1]
         const showDay = tier !== 'compact' && (!previous || (previous.dateKey < todayKey ? todayKey : previous.dateKey) !== dayKey)
         const when = item.allDay ? 'All day' : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone }).format(item.start)
-        const fullWhen = item.allDay ? `${agendaWhen(item, timeZone)} · All day` : `${agendaWhen(item, timeZone)} – ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone }).format(item.end)}`
+        const lastDay = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone }).format(item.end - 1)
+        const spansDays = calendarDayDifference(item.start, item.end - 1, timeZone) > 0
+        const fullWhen = item.allDay ? `${agendaWhen(item, timeZone)}${spansDays ? ` – ${lastDay}` : ''} · All day` : `${agendaWhen(item, timeZone)} – ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone }).format(item.end)}`
         return (
           <li key={`${item.authority}-${item.sourceId}-${item.kind === 'event' ? item.eventId : item.dateKey}`} aria-label={`${item.title} · ${fullWhen} · ${item.sourceLabel}`} className="min-w-0">
             {showDay ? <p className="calendar-agenda-day">{dayKey === todayKey ? 'Today · ' : ''}{shortCalendarDate(dayKey)}</p> : null}

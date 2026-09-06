@@ -186,6 +186,13 @@ describe('SentryWidget', () => {
     expect(screen.getByRole('button', { name: 'Refresh Sentry' })).toBeTruthy()
   })
 
+  it.each([['standard', 1], ['full', 2]] as const)('reserves readable room for long issue titles at %s', async (canvasSize, count) => {
+    const issues = Array.from({ length: 5 }, (_, index) => ({ ...issue(index), title: `TypeError: Unable to complete checkout while refreshing the subscription summary ${index}` }))
+    mount(await seededStorage(CONNECTED, { issues }), { canvasSize })
+    await screen.findByText(issues[0].title)
+    expect(screen.getAllByRole('listitem')).toHaveLength(count)
+  })
+
   it('retains stale rows while a failed refresh reports the saved-data state', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     mount(await seededStorage(CONNECTED, { issues: [issue(0)] }, NOW - 10 * 60_000), { canvasSize: 'standard' })

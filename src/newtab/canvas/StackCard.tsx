@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { CanvasSize } from '../../lib/layout/canvasTypes'
 import type { BlockId } from '../../lib/layout/types'
 import TierFrame from '../widgets/shared/TierFrame'
@@ -81,6 +81,7 @@ export default function StackCard({
   const pointer = useRef<{ id: number; x: number; captured: boolean } | null>(null)
   const suppressReleaseClick = useRef(false)
   const shelfRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
   const [shelfPlacement, setShelfPlacement] = useState<'above' | 'below'>('below')
   const [shelfShift, setShelfShift] = useState(0)
   const faceIndex = Math.max(0, members.findIndex((member) => member.id === facing))
@@ -120,12 +121,21 @@ export default function StackCard({
     setShelfShift(Math.round((clampedLeft - centeredLeft) * 100) / 100)
   }
 
+  // The shelf is visible at rest, so fit it before paint as well as on interaction.
+  useLayoutEffect(() => {
+    const place = () => { if (cardRef.current) placeShelf(cardRef.current) }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  })
+
   return (
     <div
       role="group"
       aria-roledescription="widget stack"
       aria-label={`${face?.label ?? 'Widget'}, ${faceIndex + 1} of ${members.length}`}
       data-stack-card={id}
+      ref={cardRef}
       className={`stack-card${editing ? ' stack-card--editing' : ''}`}
       tabIndex={editing ? -1 : 0}
       onPointerEnter={(event) => { placeShelf(event.currentTarget) }}

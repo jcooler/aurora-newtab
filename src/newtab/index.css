@@ -375,7 +375,7 @@
 }
 .weather-current-composition { display:flex; min-width:0; align-items:center; gap:9px; }
 .weather-current-composition > svg { flex:none; margin-left:auto; }
-.weather-current-composition [data-weather-current] { flex:none; font-size:38px; letter-spacing:-.045em; }
+.tier-frame .weather-current-composition [data-weather-current] { flex:none; font-size:38px; letter-spacing:-.045em; }
 .weather-current-description { display:flex; flex:1; min-width:0; flex-direction:column; gap:3px; }
 .weather-condition-label { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow-wrap:anywhere; font-size:12px; line-height:1.25; }
 .weather-daily-range { display:block; color:var(--tier-frame-muted); font-size:11px; line-height:1.25; }

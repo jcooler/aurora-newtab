@@ -31,6 +31,13 @@ const CONTRIBUTIONS_112_DAYS: Contributions = {
 }
 
 describe('ContributionGraph tier composition', () => {
+  it('separates month labels when a trailing year begins just before a month boundary', () => {
+    const days = Array.from({ length: 365 }, (_, index) => ({ date: new Date(Date.UTC(2025, 7, 24 + index)).toISOString().slice(0, 10), count: 1 }))
+    const { container } = render(<ContributionGraph contributions={{ total: 365, days }} tier="full" trailingDays={365} fitWidth />)
+    const positions = [...container.querySelectorAll<HTMLElement>('[data-contribution-months] span')].map((node) => Number.parseFloat(node.style.left))
+    expect(positions.length).toBeGreaterThan(8)
+    for (let index = 1; index < positions.length; index++) expect(positions[index] - positions[index - 1]).toBeGreaterThan(7)
+  })
   it('limits the displayed days and totals to the same trailing interval', () => {
     const { container } = render(<ContributionGraph contributions={CONTRIBUTIONS} tier="compact" trailingDays={3} fitWidth />)
     expect(screen.getByRole('img', { name: 'Contribution activity over the last 3 days' })).toBeTruthy()

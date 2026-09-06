@@ -58,6 +58,10 @@ export default function ContributionGraph({
   const width = columns * columnWidth + (columns - 1) * gap
   const pitch = columnWidth + gap
   const dayCount = cells.filter(Boolean).length
+  const visibleMonthTicks = fitWidth ? monthTicks.filter((m) => m.col <= columns - 4).reduce<typeof monthTicks>((visible, tick) => {
+    if (visible.length === 0 || tick.col - visible[visible.length - 1].col >= 4) visible.push(tick)
+    return visible
+  }, []) : monthTicks
 
   return (
     <div data-contribution-composition data-contribution-tier={tier} data-contribution-fit={fitWidth || undefined} className={fitWidth ? 'w-full min-w-0' : 'mx-auto w-fit max-w-full'}>
@@ -93,7 +97,7 @@ export default function ContributionGraph({
       {/* Quiet mono month ticks, absolutely positioned at each labelled column. */}
       {showMonthTicks && (
         <div data-contribution-months className="relative mt-1.5" style={{ width: fitWidth ? '100%' : width, height: 12 }} aria-hidden>
-          {monthTicks.filter((m) => !fitWidth || m.col <= columns - 4).map((m) => (
+          {visibleMonthTicks.map((m) => (
             <span
               key={m.col}
               className="absolute font-mono text-[11px] uppercase tracking-wide text-fg-muted/55"
