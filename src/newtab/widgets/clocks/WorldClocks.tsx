@@ -1,7 +1,7 @@
 import { useNow } from '../../../lib/hooks/useNow'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import type { Settings, WorldClock } from '../../../lib/storage/schema'
-import { zoneTime } from '../../../lib/worldTime'
+import { zoneContext, zoneTime } from '../../../lib/worldTime'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import type { WidgetPresentationMode } from '../../widgetRenderers'
 import TierFrame from '../shared/TierFrame'
@@ -54,11 +54,12 @@ function WorldClocksInner({
     const limit = canvasSize === 'compact' ? 1 : canvasSize === 'standard' ? 3 : 5
     return (
       <TierFrame label="World clocks" tier={canvasSize} state="ready" className={`core-world-clocks-stack core-world-clocks-stack--${canvasSize}`}>
+        <h2 className="text-[13px] font-semibold">World clocks</h2>
         <div className="core-world-clocks-stack__rows">
           {worldClocks.slice(0, limit).map((clock) => (
             <div key={`${clock.zone}:${clock.label}`} data-testid="world-clock-row" className="core-world-clock-row">
-              <span><strong>{clock.label}</strong><small>{clock.zone}</small></span>
-              <b className="tabular-nums">{zoneTime(clock.zone, settings.use24Hour, now)}</b>
+              <span><strong title={clock.label}>{clock.label}</strong><small title={clock.zone}>{zoneContext(clock.zone, now)}</small></span>
+              <b className="tabular-nums" aria-label={`${clock.label}, ${clock.zone}, ${zoneTime(clock.zone, settings.use24Hour, now)}`}>{zoneTime(clock.zone, settings.use24Hour, now)}</b>
             </div>
           ))}
         </div>

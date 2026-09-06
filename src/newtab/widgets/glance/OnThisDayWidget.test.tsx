@@ -90,14 +90,14 @@ describe('OnThisDayWidget', () => {
     expect(provider.getAttribute('href')).toBe('https://en.wikipedia.org/wiki/August_22')
   })
 
-  it('authors Standard with exactly three dated events and one provider destination', async () => {
+  it('authors Standard with one featured event, one secondary event, and a provider destination', async () => {
     mount(await seededStorage(), { canvasSize: 'standard' })
-    await screen.findByText('Historical event 2')
+    await screen.findByText('Historical event 1')
 
     const standard = frame('standard')
     expectAuthoredFrame(standard)
-    expect(within(standard).getAllByRole('listitem')).toHaveLength(3)
-    expect(within(standard).getByText('1967')).toBeTruthy()
+    expect(within(standard).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(standard).getByText('1968')).toBeTruthy()
     expect(within(standard).queryByText('Historical event 3')).toBeNull()
     expect(within(standard).getAllByRole('link', { name: 'Read more on Wikipedia' })).toHaveLength(1)
   })
@@ -144,8 +144,8 @@ describe('OnThisDayWidget', () => {
     const standard = frame('standard')
     expect(within(standard).getAllByRole('heading', { name: 'On This Day' })).toHaveLength(1)
     expect(within(standard).getAllByText('August 22')).toHaveLength(1)
-    expect(within(standard).getAllByRole('listitem')).toHaveLength(3)
-    expect(within(standard).getAllByText(/^19\d{2}$/).map((node) => node.textContent)).toEqual(['1969', '1968', '1967'])
+    expect(within(standard).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(standard).getAllByText(/^19\d{2}$/).map((node) => node.textContent)).toEqual(['1969', '1968'])
   })
 
   it('opens the same contextual rows from one dense Docked line', async () => {

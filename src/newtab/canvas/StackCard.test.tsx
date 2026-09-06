@@ -277,7 +277,7 @@ describe('StackCard', () => {
     expect(indexCss).toMatch(/\.stack-card__members\s*\{[^}]*display:\s*grid;[^}]*place-items:\s*center;/)
     expect(indexCss).toMatch(/\.stack-card__member\s*\{[^}]*grid-area:\s*1\s*\/\s*1;/)
     expect(indexCss).toMatch(/\.stack-card__member\[data-stack-active="false"\]\s*\{[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/)
-    expect(indexCss).toMatch(/\.stack-card__shelf\s*\{[^}]*position:\s*absolute;[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
+    expect(indexCss).toMatch(/\.stack-card__shelf\s*\{[^}]*position:\s*absolute;[^}]*opacity:\s*1;[^}]*visibility:\s*visible;[^}]*pointer-events:\s*auto;/s)
     expect(indexCss).toMatch(/\.stack-card__shelf--editing\s*\{[^}]*opacity:\s*0\.96;[^}]*visibility:\s*visible;[^}]*pointer-events:\s*auto;/s)
     expect(indexCss).toMatch(/\.stack-card:focus-visible\s*\{[^}]*outline:/)
     const outer = indexCss.match(/\.stack-card\s*\{[^}]*\}/)?.[0] ?? ''
@@ -286,8 +286,8 @@ describe('StackCard', () => {
     expect(indexCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*\.stack-card/s)
   })
 
-  it('keeps the navigation shelf hidden and non-interactive until the stack is hovered or focused', () => {
-    expect(indexCss).toMatch(/\.stack-card__shelf\s*\{[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
+  it('keeps quiet page dots available while revealing arrows on hover or focus', () => {
+    expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s)
     expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__shelf,\s*\.stack-card:focus-within \.stack-card__shelf,[\s\S]*?opacity:\s*0\.96;[^}]*visibility:\s*visible;[^}]*pointer-events:\s*auto;/s)
   })
 
@@ -295,7 +295,7 @@ describe('StackCard', () => {
     expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
     expect(indexCss).toMatch(/\.stack-card__dot\s*\{[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
     expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__shelf,[\s\S]*?pointer-events:\s*auto;/)
-    expect(indexCss).toMatch(/\.stack-card__dot::before\s*\{[^}]*inset:\s*15px;/s)
+    expect(indexCss).toMatch(/\.stack-card__dot::before\s*\{[^}]*width:\s*4px;[^}]*height:\s*4px;/s)
   })
 
   it('prevents a horizontal stack swipe from starting native text selection', () => {

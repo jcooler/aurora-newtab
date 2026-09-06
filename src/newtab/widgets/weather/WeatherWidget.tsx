@@ -243,12 +243,8 @@ export default function WeatherWidget({
   const dailyContext = range
     ? `High ${displayTemp(range.hiC, settings.units)} · Low ${displayTempWithUnit(range.loC, settings.units)}`
     : null
-  const trendSignal = [callout, dailyContext].filter(Boolean).join(' ') || null
-  const summarySlots = slots.slice(0, 4)
-  const peakRain = hours.reduce(
-    (best, point) => (best === null || point.precipProb > best.precipProb ? point : best),
-    null as (typeof hours)[number] | null,
-  )
+  const trendSignal = callout ?? (hours.length === 0 ? 'Hourly forecast unavailable.' : null)
+  const summarySlots = slots.slice(0, 6)
   const environment = snapshot?.environment
   const environmentAqi = environment?.status === 'available' && environment.usAqi !== null
     ? aqiReading(environment.usAqi)
@@ -568,143 +564,47 @@ export default function WeatherWidget({
             data-weather-summary-size={summarySize}
             className="weather-summary weather-tier-summary flex h-full w-full cursor-pointer flex-col px-4 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
-            {summarySize === 'full' ? (
-              <span data-weather-kicker="" data-canvas-type-role="metadata" className="uppercase tracking-[0.1em] text-fg-muted">
-                Current conditions
+            <span data-weather-summary-heading="" className="flex min-w-0 items-center justify-between gap-2">
+              <strong title={snapshot.locationLabel} className="min-w-0 truncate text-[13px] font-semibold">{snapshot.locationLabel}</strong>
+              <span data-weather-disclosure="" className="flex shrink-0 items-center gap-1 text-[11px] text-accent">{summarySize !== 'compact' ? 'Details' : null}<Chevron expanded={expanded} /></span>
+            </span>
+            <span data-weather-summary-row="current" className="weather-current-composition">
+              <span data-weather-current="" data-canvas-type-role="body" className="font-display font-light leading-none tabular-nums">
+                {displayTemp(snapshot.current.tempC, settings.units)}<span data-canvas-type-role="metadata" className="text-[0.7em] text-fg-muted">{unitLetter(settings.units)}</span>
               </span>
-            ) : null}
-            <span data-weather-summary-row="current" className="flex w-full items-center gap-3">
-              <WeatherIcon
-                icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon}
-                size={summarySize === 'compact' ? 28 : summarySize === 'full' ? 48 : 36}
-              />
-              {/* font-display (Space Grotesk) is the page's own headline face
-                  — the clock and greeting already speak it. Borrowing it for
-                  the one number this widget exists to report ties the card to
-                  the page instead of styling it like a generic tooltip. */}
-              <span data-weather-current="" data-canvas-type-role="body" className="font-display text-[2rem] font-light leading-none tabular-nums">
-                {displayTemp(snapshot.current.tempC, settings.units)}
-                {/* Jon: "adding F or C to the card would be nice." Same
-                    two-span idiom as the expanded grid's own end slots below
-                    (~line 384): bright digits as the leading text node, the
-                    scale letter smaller (0.7em) and quieter (text-fg-muted)
-                    as a child span. The two pieces still concatenate to
-                    exactly `displayTempWithUnit` — one derivation, styled
-                    apart — never a second string for the same value. */}
-                <span data-canvas-type-role="metadata" className="align-baseline text-[0.7em] text-fg-muted">
-                  {unitLetter(settings.units)}
-                </span>
+              <span className="weather-current-description">
+                <span data-weather-condition-location="" data-canvas-type-role="body" title={describeCode(snapshot.current.code).label + ' - ' + snapshot.locationLabel} aria-label={describeCode(snapshot.current.code).label + ' - ' + snapshot.locationLabel} className="weather-condition-label">{describeCode(snapshot.current.code).label}</span>
+                {summarySize !== 'compact' ? <span data-weather-daily-context="" aria-label={dailyContext ?? 'Daily forecast unavailable'} className="weather-daily-range">{dailyContext ?? 'High / low unavailable'}</span> : null}
               </span>
-              {/* ONE LINE, always. `truncate` is white-space:nowrap plus an
-                  ellipsis, so this can shorten but can never become two
-                  lines — which is what used to strand the chevron beside a
-                  three-line block of text at ~500px. The width cap above is
-                  what makes the ellipsis a rare event rather than the normal
-                  state; this is the guarantee that holds even when a long
-                  condition meets a long city ("Thunderstorm · San Francisco"),
-                  and `title` is where the rest of it goes when it does. */}
-              <span
-                data-weather-condition-location=""
-                data-canvas-type-role="body"
-                title={`${describeCode(snapshot.current.code).label} - ${snapshot.locationLabel}`}
-                aria-label={`${describeCode(snapshot.current.code).label} - ${snapshot.locationLabel}`}
-                className="min-w-0 flex-1 truncate text-fg-muted"
-              >
-                {describeCode(snapshot.current.code).label} - {snapshot.locationLabel}
-              </span>
-              <span data-weather-disclosure=""><Chevron expanded={expanded} /></span>
+              <WeatherIcon icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon} size={summarySize === 'compact' ? 30 : 38} />
             </span>
             {summarySize === 'compact' && urgentAlert ? (
-              <span data-weather-alert-badge="" data-canvas-type-role="body" className="truncate text-sm font-medium text-red-300">
-                {urgentAlert.event}
-              </span>
+              <span data-weather-alert-badge="" data-canvas-type-role="body" className="weather-forecast-copy text-red-300">{urgentAlert.event}</span>
             ) : summarySize === 'compact' ? (
-              <span data-weather-freshness="" data-canvas-type-role="metadata" className="truncate text-fg-muted" style={{ fontSize: 12 }}>
-                {freshnessLabel(snapshot.fetchedAt)}
-              </span>
+              <span data-weather-freshness="" data-canvas-type-role="metadata" className="truncate text-[11px] text-fg-muted">{freshnessLabel(snapshot.fetchedAt)}</span>
             ) : highestAlert ? (
-              <span data-weather-alert-line="" data-canvas-type-role="body" className="truncate text-sm font-medium text-red-300">
-                {highestAlert.severity} · {highestAlert.event}
-              </span>
+              <span data-weather-alert-line="" data-canvas-type-role="body" className="weather-forecast-copy text-red-300">{highestAlert.severity} · {highestAlert.event}</span>
+            ) : trendSignal ? (
+              <span data-weather-summary-row="trend" data-weather-summary-trend="" data-panel-accent-text="" data-canvas-type-role="body" className="weather-forecast-copy text-accent">{trendSignal}</span>
             ) : null}
-            {summarySize === 'standard' && trendSignal ? (
-              <span data-weather-summary-row="trend" data-weather-summary-trend="" data-weather-daily-context="" data-panel-accent-text="" data-canvas-type-role="body" className="truncate text-accent">
-                {trendSignal}
-              </span>
-            ) : null}
-            {summarySize !== 'compact' ? (
-              <dl data-weather-summary-row="metrics" data-weather-summary-metrics="" className="grid grid-cols-3 gap-x-3 border-t border-panel-border pt-2">
-                <div>
-                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Feels</dt>
-                  <dd data-canvas-type-role="body" className="tabular-nums">{displayTemp(snapshot.current.feelsLikeC, settings.units)}</dd>
-                </div>
-                <div>
-                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Wind</dt>
-                  <dd data-canvas-type-role="body" className="tabular-nums">{displayWind(snapshot.current.windKmh, settings.units)}</dd>
-                </div>
-                <div>
-                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Humidity</dt>
-                  <dd data-canvas-type-role="body" className="tabular-nums">{snapshot.current.humidity}%</dd>
-                </div>
-              </dl>
-            ) : null}
-            {summarySize === 'full' && summarySlots.length > 0 ? (
-              <div data-testid="weather-summary-hourly" data-weather-summary-row="hourly" data-weather-summary-hourly="" className="grid grid-cols-4 gap-1 border-t border-panel-border pt-2">
-                {summarySlots.map((slot) => (
-                  <span key={slot.index} className="min-w-0 text-center">
-                    <span data-canvas-type-role="metadata" className="block truncate text-fg-muted">
-                      {slot.now ? 'Now' : compactHour(slot.point.time, settings.use24Hour)}
-                    </span>
-                    <span data-canvas-type-role="body" className="block tabular-nums">
-                      {displayTemp(slot.point.tempC, settings.units)}
-                    </span>
-                    <WeatherIcon
-                      icon={describeCode(slot.point.code, slot.point.isDay ?? true).icon}
-                      size={16}
-                    />
-                  </span>
-                ))}
+            {summarySize === 'full' ? summarySlots.length > 0 ? (
+              <div data-testid="weather-summary-hourly" data-weather-summary-row="hourly" data-weather-summary-hourly="" className="grid grid-cols-6 gap-2 border-t border-panel-border pt-2">
+                {summarySlots.map((slot) => <span key={slot.index} className="min-w-0 text-center">
+                  <span data-canvas-type-role="metadata" className="block truncate text-fg-muted">{slot.now ? 'Now' : compactHour(slot.point.time, settings.use24Hour)}</span>
+                  <WeatherIcon icon={describeCode(slot.point.code, slot.point.isDay ?? true).icon} size={18} />
+                  <span data-canvas-type-role="body" className="block tabular-nums">{displayTemp(slot.point.tempC, settings.units)}</span>
+                </span>)}
               </div>
-            ) : null}
-            {summarySize === 'full' ? (
-              <dl data-weather-full-context="" className="weather-summary-full-context grid grid-cols-6 gap-2 border-t border-panel-border pt-2">
-                <div>
-                  <dt>Air</dt>
-                  <dd>{environmentAqi ? `${environmentAqi.value} ${environmentAqi.category}` : 'Unavailable'}</dd>
-                </div>
-                <div>
-                  <dt>UV</dt>
-                  <dd>{environmentUv ? `${environmentUv.value} ${environmentUv.category}` : 'Unavailable'}</dd>
-                </div>
-                <div>
-                  <dt>Pollen</dt>
-                  <dd>{environmentPollen?.kind === 'reading'
-                    ? `${environmentPollen.label} ${environmentPollen.grainsPerCubicMeter}`
-                    : environmentPollen?.kind === 'clear'
-                      ? 'None'
-                      : 'Unavailable'}</dd>
-                </div>
-                <div>
-                  <dt>Rain</dt>
-                  <dd>{peakRain && peakRain.precipProb >= PRECIP_FLOOR
-                    ? `${peakRain.precipProb}% ${compactHour(peakRain.time, settings.use24Hour)}`
-                    : 'None'}</dd>
-                </div>
-                <div>
-                  <dt>Sun</dt>
-                  <dd>{snapshot.sunriseISO && snapshot.sunsetISO
-                    ? `${clockTime(snapshot.sunriseISO, settings.use24Hour)}-${clockTime(snapshot.sunsetISO, settings.use24Hour)}`
-                    : 'Unavailable'}</dd>
-                </div>
-                <div
-                  data-weather-daily-context=""
-                  aria-label={dailyContext ?? 'Daily forecast unavailable'}
-                >
-                  <dt>Daily</dt>
-                  <dd title={dailyContext ?? undefined}>{range
-                    ? `${displayTemp(range.hiC, settings.units)} / ${displayTempWithUnit(range.loC, settings.units)}`
-                    : 'Unavailable'}</dd>
-                </div>
+            ) : <span className="text-[11px] text-fg-muted">Current conditions remain available.</span> : null}
+            {summarySize !== 'compact' ? (
+              <dl data-weather-summary-row="metrics" data-weather-summary-metrics="" data-weather-full-context={summarySize === 'full' ? '' : undefined} className={'weather-summary-full-context grid ' + (summarySize === 'full' ? 'grid-cols-5' : 'grid-cols-3') + ' gap-x-3 border-t border-panel-border pt-2'}>
+                <div><dt data-canvas-type-role="metadata">Feels</dt><dd data-canvas-type-role="body">{displayTemp(snapshot.current.feelsLikeC, settings.units)}</dd></div>
+                <div><dt data-canvas-type-role="metadata">Wind</dt><dd data-canvas-type-role="body">{displayWind(snapshot.current.windKmh, settings.units)}</dd></div>
+                <div><dt data-canvas-type-role="metadata">Humidity</dt><dd data-canvas-type-role="body">{snapshot.current.humidity}%</dd></div>
+                {summarySize === 'full' ? <>
+                  <div><dt>Air</dt><dd title={environmentAqi ? environmentAqi.value + ' ' + environmentAqi.category : undefined}>{environmentAqi ? environmentAqi.value + ' · ' + environmentAqi.category : 'Unavailable'}</dd></div>
+                  <div><dt>UV</dt><dd title={environmentUv ? environmentUv.value + ' ' + environmentUv.category : undefined}>{environmentUv ? environmentUv.value + ' · ' + environmentUv.category : 'Unavailable'}</dd></div>
+                </> : null}
               </dl>
             ) : null}
             {frameState === 'partial' ? (

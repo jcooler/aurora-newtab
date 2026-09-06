@@ -91,7 +91,7 @@ function OnThisDayInner({
     : canvasSize === 'full'
       ? events.slice(0, 3)
       : canvasSize === 'standard'
-        ? events.slice(0, 3)
+        ? events.slice(0, 2)
         : events.slice(0, 1)
   const dateLabel = new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric' }).format(localDay.now)
   const monthLabel = new Intl.DateTimeFormat('en', { month: 'long' }).format(localDay.now)
@@ -99,7 +99,7 @@ function OnThisDayInner({
   const hasMoreContext = data !== null && (canvasSize === 'full'
     ? data.events.length > 3 || data.births.length > 1 || data.deaths.length > 1
     : canvasSize === 'standard'
-      ? data.events.length > 3 || data.births.length > 0 || data.deaths.length > 0
+      ? data.events.length > 2 || data.births.length > 0 || data.deaths.length > 0
       : data.events.length > 1 || data.births.length > 0 || data.deaths.length > 0)
   const dataBearing = presentation === 'ready' || presentation === 'stale' || presentation === 'retained-error'
   const frameState: WidgetPresentationState = presentation === 'retained-error'
@@ -125,8 +125,9 @@ function OnThisDayInner({
         >
           <EventList
             events={visible}
-            clamp={canvasSize === 'compact' || canvasSize === 'full' ? 2 : 1}
+            clamp={2}
             framed
+            featured
           />
           {canvasSize === 'full' && data ? (
             <div className="on-this-day-tier-sections">
@@ -134,7 +135,7 @@ function OnThisDayInner({
               <EventSection title="Died" events={data.deaths.slice(0, 1)} clamp={2} framed />
             </div>
           ) : null}
-          {hasMoreContext ? <ProviderDestination href={providerHref} /> : null}
+          <ProviderDestination href={providerHref} more={hasMoreContext} />
         </GlanceResourceBody>
       </div>
     </TierFrame>
@@ -176,10 +177,12 @@ function EventList({
   events,
   clamp,
   framed = false,
+  featured = false,
 }: {
   events: readonly OnThisDayEvent[]
   clamp?: 1 | 2
   framed?: boolean
+  featured?: boolean
 }) {
   if (events.length === 0) return null
   const clampClass = clamp === 1
@@ -188,7 +191,7 @@ function EventList({
       ? 'overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]'
       : ''
   return (
-    <ul className={framed ? 'on-this-day-tier-list' : 'flex flex-col gap-2'}>
+    <ul className={framed ? `on-this-day-tier-list ${featured ? 'on-this-day-tier-list--featured' : ''}` : 'flex flex-col gap-2'}>
       {events.map((event) => (
         <li key={`${event.year}-${event.text}`} className={`group flex min-w-0 items-start ${framed ? 'on-this-day-tier-item' : 'gap-3'}`}>
           <span className="w-12 shrink-0 text-xs font-semibold tabular-nums text-accent">{event.year}</span>
@@ -216,7 +219,7 @@ function EventList({
   )
 }
 
-function ProviderDestination({ href }: { href: string }) {
+function ProviderDestination({ href, more }: { href: string; more: boolean }) {
   return (
     <a
       href={href}
@@ -224,7 +227,7 @@ function ProviderDestination({ href }: { href: string }) {
       rel="noopener noreferrer"
       className="on-this-day-tier-provider min-h-9"
     >
-      Read more on Wikipedia
+      {more ? 'Read more on Wikipedia' : 'From Wikipedia'}
     </a>
   )
 }

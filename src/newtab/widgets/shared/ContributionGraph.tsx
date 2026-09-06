@@ -39,28 +39,37 @@ export default function ContributionGraph({
   tier,
   showMonthTicks = true,
   showSummary = true,
+  trailingDays,
+  fitWidth = false,
 }: {
   contributions: Contributions
   tier: CanvasSize
   showMonthTicks?: boolean
   showSummary?: boolean
+  trailingDays?: number
+  fitWidth?: boolean
 }) {
-  const { columnWidth, rowHeight, gap } = CONTRIBUTION_GRAPH_GEOMETRY[tier]
-  const { cells, columns, monthTicks, streak } = buildContributionGrid(contributions.days)
+  const { columnWidth, rowHeight: fixedRowHeight, gap: fixedGap } = CONTRIBUTION_GRAPH_GEOMETRY[tier]
+  const rowHeight = fitWidth ? tier === 'compact' ? 7 : tier === 'standard' ? 6 : 8 : fixedRowHeight
+  const gap = fitWidth ? 3 : fixedGap
+  const days = trailingDays ? contributions.days.slice(-trailingDays) : contributions.days
+  const total = trailingDays ? days.reduce((sum, day) => sum + day.count, 0) : contributions.total
+  const { cells, columns, monthTicks, streak } = buildContributionGrid(days)
   const width = columns * columnWidth + (columns - 1) * gap
   const pitch = columnWidth + gap
   const dayCount = cells.filter(Boolean).length
 
   return (
-    <div data-contribution-composition data-contribution-tier={tier} className="mx-auto w-fit max-w-full">
+    <div data-contribution-composition data-contribution-tier={tier} data-contribution-fit={fitWidth || undefined} className={fitWidth ? 'w-full min-w-0' : 'mx-auto w-fit max-w-full'}>
       <div
         role="img"
         aria-label={`Contribution activity over the last ${dayCount} days`}
         className="grid grid-flow-col"
         style={{
-          width,
+          width: fitWidth ? '100%' : width,
           gridTemplateRows: `repeat(7, ${rowHeight}px)`,
-          gridAutoColumns: `${columnWidth}px`,
+          gridAutoColumns: fitWidth ? undefined : `${columnWidth}px`,
+          gridTemplateColumns: fitWidth ? `repeat(${columns}, minmax(0, 1fr))` : undefined,
           gap: `${gap}px`,
         }}
       >
@@ -70,9 +79,9 @@ export default function ContributionGraph({
             title={c ? `${c.count} contribution${c.count === 1 ? '' : 's'} · ${c.date}` : undefined}
             className="rounded-[3px]"
             style={{
-              width: columnWidth,
+              width: fitWidth ? '100%' : columnWidth,
               height: rowHeight,
-              background: c ? LEVEL_BG[c.level] : 'transparent',
+              background: c ? fitWidth ? c.level === 0 ? 'var(--control-bg)' : `color-mix(in srgb, var(--accent) ${[0, 25, 45, 70, 100][c.level]}%, transparent)` : LEVEL_BG[c.level] : 'transparent',
               // Inset hairline on filled cells — the board's quiet edge that keeps
               // the darkest levels legible against the panel.
               boxShadow: c ? 'inset 0 0 0 1px rgba(245,245,244,0.04)' : undefined,
@@ -83,12 +92,12 @@ export default function ContributionGraph({
 
       {/* Quiet mono month ticks, absolutely positioned at each labelled column. */}
       {showMonthTicks && (
-        <div data-contribution-months className="relative mt-1.5" style={{ width, height: 12 }} aria-hidden>
-          {monthTicks.map((m) => (
+        <div data-contribution-months className="relative mt-1.5" style={{ width: fitWidth ? '100%' : width, height: 12 }} aria-hidden>
+          {monthTicks.filter((m) => !fitWidth || m.col <= columns - 4).map((m) => (
             <span
               key={m.col}
               className="absolute font-mono text-[11px] uppercase tracking-wide text-fg-muted/55"
-              style={{ left: m.col * pitch }}
+              style={{ left: fitWidth ? `${m.col / columns * 100}%` : m.col * pitch }}
             >
               {m.text}
             </span>
@@ -100,7 +109,7 @@ export default function ContributionGraph({
           accent point. "contributions", not the board's "commits". */}
       {showSummary ? (
         <p data-contribution-summary className="mt-2 text-xs text-fg-muted">
-          <span className="font-semibold tabular-nums text-fg">{contributions.total}</span> contributions
+          <span className="font-semibold tabular-nums text-fg">{total}</span> contributions
           <span aria-hidden className="mx-1.5 text-fg-muted/40">
             ·
           </span>

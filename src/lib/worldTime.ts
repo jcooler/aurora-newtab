@@ -1,3 +1,18 @@
+import { resolvedLocalTimeZone, zoneOffsetAt } from './dates'
+
+/** Framed clock context uses the offsets at this instant, including differing DST dates. */
+export function zoneContext(zone: string, now: Date, localZone = resolvedLocalTimeZone(), locale?: string): string {
+  try {
+    const weekday = new Intl.DateTimeFormat(locale, { timeZone: zone, weekday: 'short' }).format(now)
+    const hours = (zoneOffsetAt(now.getTime(), zone) - zoneOffsetAt(now.getTime(), localZone)) / 3_600_000
+    if (hours === 0) return `${weekday} · Same time`
+    const amount = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(Math.abs(hours))
+    return `${weekday} · ${amount} ${Math.abs(hours) === 1 ? 'hour' : 'hours'} ${hours > 0 ? 'ahead' : 'behind'}`
+  } catch {
+    return 'Timezone unavailable'
+  }
+}
+
 /** Formats `now` in `zone` as `H:MM AM/PM` (12-hour) or `HH:MM` (24-hour).
  *  An unrecognized IANA zone throws inside Intl — caught and reported as
  *  '—' rather than crashing the widget that renders it. */

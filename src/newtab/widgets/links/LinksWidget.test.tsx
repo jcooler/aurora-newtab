@@ -119,7 +119,7 @@ describe('LinksWidget add editor', () => {
     }
   })
 
-  it('renders six Standard stack links in two readable columns with destination copy', async () => {
+  it('keeps all six Standard destinations reachable by their saved labels', async () => {
     const base = defaults()
     const links = ['Mail', 'Calendar', 'Drive', 'Aurora', 'GitHub', 'Home'].map((title, index) => ({
       id: `link-${index}`,
@@ -139,7 +139,7 @@ describe('LinksWidget add editor', () => {
     const frame = await screen.findByRole('region', { name: 'Quick links' })
     expect(frame.dataset.linksLayout).toBe('2x3')
     expect(screen.getAllByTestId('quick-link-copy')).toHaveLength(6)
-    expect(screen.getByText('mail.example.com')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Mail' }).getAttribute('href')).toBe('https://mail.example.com/0')
   })
 
   it('keeps links beyond the Standard six-item budget reachable without growing the frame', async () => {

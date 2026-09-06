@@ -40,10 +40,6 @@ export default function LinkTile({
     }
   }
   if (presentation === 'stack') {
-    const parsed = new URL(link.url)
-    const domain = parsed.hostname.replace(/^www\./, '')
-    const pathLabel = parsed.pathname.split('/').filter(Boolean).at(-1) ?? ''
-    const destination = pathLabel && !/^\d+$/.test(pathLabel) ? pathLabel.replace(/[-_]+/g, ' ') : domain
     return (
       <div
         draggable
@@ -53,14 +49,11 @@ export default function LinkTile({
         onDragEnd={onDragEnd}
         className="core-quick-link group"
       >
-        <a href={link.url} aria-label={link.title} onKeyDown={handleReorder} title={link.title}>
-          <b aria-hidden>{link.title.charAt(0).toUpperCase()}</b>
-          {canvasSize === 'standard' ? (
+        <a href={link.url} aria-label={link.title} onKeyDown={handleReorder} title={link.title} data-quick-link-size={canvasSize}>
+          <b aria-hidden>{iconFailed ? link.title.charAt(0).toUpperCase() : <img src={faviconUrl(link.url)} alt="" width={20} height={20} onError={() => setIconFailed(true)} />}</b>
             <span data-testid="quick-link-copy" className="core-quick-link__copy">
               <strong>{link.title}</strong>
-              <small>{destination}</small>
             </span>
-          ) : null}
         </a>
         <button
           type="button"

@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { countdownPhrase, daysUntil, zoneTime } from './worldTime'
+import { countdownPhrase, daysUntil, zoneTime, zoneContext } from './worldTime'
+
+describe('world clock relative context', () => {
+  it.each([
+    ['Asia/Tokyo', '2026-09-05T14:42:00Z', 'Sat · 13 hours ahead'],
+    ['Australia/Adelaide', '2026-09-05T14:42:00Z', 'Sun · 13.5 hours ahead'],
+    ['Europe/London', '2026-03-15T12:00:00Z', 'Sun · 4 hours ahead'],
+    ['Europe/London', '2026-04-01T12:00:00Z', 'Wed · 5 hours ahead'],
+    ['America/Los_Angeles', '2026-09-05T14:42:00Z', 'Sat · 3 hours behind'],
+    ['America/New_York', '2026-09-05T14:42:00Z', 'Sat · Same time'],
+  ])('uses the current offsets and local weekday for %s at %s', (zone, instant, expected) => {
+    expect(zoneContext(zone, new Date(instant), 'America/New_York', 'en-US')).toBe(expected)
+  })
+  it('handles an invalid zone without crashing the clock list', () => {
+    expect(zoneContext('Invalid/Zone', new Date('2026-09-05T14:42:00Z'), 'America/New_York')).toBe('Timezone unavailable')
+  })
+})
 
 describe('zoneTime', () => {
   // Fixed instant: 2026-07-26T15:00:00Z. UTC has no offset; Tokyo (UTC+9, no

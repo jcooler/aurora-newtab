@@ -215,14 +215,11 @@ describe('WeatherWidget collapsed chip', () => {
 
     const full = frame('full')
     expect(within(full).getByTestId('weather-summary-hourly')).toBeTruthy()
-    expect(full.querySelectorAll('[data-weather-summary-hourly] > span')).toHaveLength(4)
+    expect(full.querySelectorAll('[data-weather-summary-hourly] > span')).toHaveLength(6)
     expect(full.querySelector('[data-weather-daily-context]')?.getAttribute('aria-label')).toMatch(/High .*Low/)
     const context = full.querySelector('[data-weather-full-context]')!
     expect(context.textContent).toContain('Air')
     expect(context.textContent).toContain('UV')
-    expect(context.textContent).toContain('Pollen')
-    expect(context.textContent).toContain('Rain')
-    expect(context.textContent).toContain('Sun')
     expect(full.textContent).toContain('Wind')
     expectFlatFrame(full)
   })
@@ -260,7 +257,8 @@ describe('WeatherWidget collapsed chip', () => {
     await renderWidget({ stageVariant: 'compact' })
     const summary = document.querySelector('[data-weather-summary-size="compact"]')!
     expect(summary.querySelector('[data-weather-current]')).toBeTruthy()
-    expect(summary.querySelector('[data-weather-condition-location]')?.textContent).toBe('Partly cloudy - New York')
+    expect(summary.querySelector('[data-weather-condition-location]')?.textContent).toBe('Partly cloudy')
+    expect(summary.querySelector('[data-weather-condition-location]')?.getAttribute('aria-label')).toBe('Partly cloudy - New York')
     expect(summary.querySelector('[data-weather-disclosure]')).toBeTruthy()
     expect(summary.querySelector('[data-weather-freshness]')?.textContent).toMatch(/^Updated (just now|\d+[mh] ago)$/)
     expect(summary.querySelector('[data-weather-summary-trend]')).toBeNull()
@@ -292,7 +290,7 @@ describe('WeatherWidget collapsed chip', () => {
   // the picked render.
   it('labels the big temperature with its unit letter (metric → °C)', async () => {
     await renderWidget() // default settings are metric
-    const big = toggle().querySelector('span.font-display.text-\\[2rem\\]')!
+    const big = toggle().querySelector('[data-weather-current]')!
     expect(big.firstChild!.textContent).toBe('21°')
     const letter = big.querySelector('span')!
     expect(letter.textContent).toBe('C')
@@ -314,7 +312,7 @@ describe('WeatherWidget collapsed chip', () => {
       </StorageProvider>,
     )
     await act(async () => {})
-    const big = toggle().querySelector('span.font-display.text-\\[2rem\\]')!
+    const big = toggle().querySelector('[data-weather-current]')!
     expect(big.firstChild!.textContent).toBe('70°') // 21°C → 70°F
     const letter = big.querySelector('span')!
     expect(letter.textContent).toBe('F')
@@ -342,17 +340,14 @@ describe('WeatherWidget collapsed chip', () => {
     fetchSpy.mockRestore()
   })
 
-  it('keeps a long condition and location on one line with accessible full hyphenated text', async () => {
+  it('keeps the complete condition and location accessible when their visible labels are separated', async () => {
     const label = 'The Extremely Long Metropolitan District of New York'
     await renderWidget({ location: { ...NEW_YORK, label }, snapshot: makeSnapshot({ locationLabel: label }) })
     const full = `Partly cloudy - ${label}`
     const summary = screen.getByTitle(full)
-    expect(summary.textContent).toBe(full)
+    expect(summary.textContent).toBe('Partly cloudy')
     expect(summary.getAttribute('aria-label')).toBe(full)
-    // `truncate` is white-space:nowrap + ellipsis + overflow:hidden: the
-    // line can shorten but can never become two lines, so the chevron
-    // beside it can never be orphaned.
-    expect(summary.classList.contains('truncate')).toBe(true)
+    expect(screen.getByTitle(label).textContent).toBe(label)
   })
 
   it.each([
@@ -625,7 +620,7 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     expect(tempOf(cells[1]!).textContent).toBe('22°')
     // Header range: High unlettered, Low lettered (full-size — that treatment
     // is faithful and stays).
-    const range = screen.getByText(/^High/)
+    const range = within(screen.getByRole('dialog', { name: 'Weather details' })).getByText(/^High/)
     expect(range.textContent).toContain('High 31°')
     expect(range.textContent).toContain('Low 20°C')
     expect(range.textContent).not.toContain('High 31°C')
@@ -653,7 +648,7 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     expect(first.querySelector('span')!.className).toContain('text-fg-muted')
     expect(first.textContent).toBe('68°F')
     expect(tempOf(cells[5]!).textContent).toBe('86°F')
-    const range = screen.getByText(/^High/)
+    const range = within(screen.getByRole('dialog', { name: 'Weather details' })).getByText(/^High/)
     expect(range.textContent).toContain('Low 68°F')
   })
 

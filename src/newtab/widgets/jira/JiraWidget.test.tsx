@@ -82,7 +82,7 @@ describe('JiraWidget', () => {
   })
 
   it.each([
-    ['compact', 0],
+    ['compact', 1],
     ['standard', 2],
     ['full', 3],
   ] as const)('uses the exact %s frame and bounds prioritized named rows to %i', async (tier, rowCount) => {

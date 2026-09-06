@@ -130,7 +130,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { g
   // gate shape.
   const graph =
     views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
-  const fullGraphStats = tier === 'full' && graph
+  const fullGraphStats = !framed && tier === 'full' && graph
     ? { total: graph.total, streak: buildContributionGrid(graph.days).streak }
     : null
 
@@ -263,7 +263,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { g
       tier={tier}
       state={resourceFrameState(state, showEmpty)}
       data-canvas-size={tier}
-      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
+      className={`${tier === 'compact' ? 'p-3' : 'p-4'} github-refined text-fg`}
     >
       <div className="mb-1.5 dense:mb-1 flex items-center gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
@@ -273,7 +273,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { g
             <span aria-hidden className="mx-1.5 text-fg-muted/40">·</span>
             <span className="font-semibold tabular-nums text-accent">{fullGraphStats.streak}</span> day streak
           </p>
-        ) : <span className="flex-1" />}
+        ) : graph && framed ? <span className="ml-auto text-[11px] text-fg-muted">Last {Math.min(graph.days.length, tier === 'compact' ? 84 : tier === 'standard' ? 182 : 365)} days</span> : <span className="flex-1" />}
         {/* Unread chip renders ONLY when the notifications view is on AND the
             count is known AND positive (Controller ruling 2, compounded with the
             view gate): null (endpoint unavailable) hides it; 0 (all caught up)
@@ -316,8 +316,10 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { g
           <ContributionGraph
             contributions={graph}
             tier={tier}
+            fitWidth={framed}
+            trailingDays={framed ? tier === 'compact' ? 84 : tier === 'standard' ? 182 : 365 : undefined}
             showMonthTicks={tier === 'full'}
-            showSummary={tier !== 'full'}
+            showSummary={framed || tier !== 'full'}
           />
         </div>
       )}
@@ -325,17 +327,17 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { g
       {tier === 'full' && (prs.length > 0 || issues.length > 0) ? (
         <div
           data-github-row-families="parallel"
-          className={`${graph ? 'mt-1.5 border-t border-panel-border pt-1.5' : ''} grid ${prs.length > 0 && issues.length > 0 ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}
+          className={`${graph ? 'mt-2 border-t border-panel-border pt-2' : ''} grid grid-cols-1 gap-2`}
         >
           {prs.length > 0 ? (
             <div className="min-w-0">
-              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Pull requests</p>
+              <p className="sr-only">Pull requests</p>
               <ul data-work-pulse-rows>{prs.map((item) => <ItemRow key={item.url} item={item} />)}</ul>
             </div>
           ) : null}
           {issues.length > 0 ? (
             <div className="min-w-0">
-              <p className="mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Issues</p>
+              <p className="sr-only">Issues</p>
               <ul data-work-pulse-rows>{issues.map((item) => <ItemRow key={item.url} item={item} />)}</ul>
             </div>
           ) : null}
@@ -377,10 +379,10 @@ function ItemRow({ item }: { item: GithubItem }) {
         title={item.title}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        {item.repo && <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.repo}</span>}
-        <span className="block truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="block truncate text-[13px] font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>
+        {item.repo && <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-[11px] text-fg-muted">{item.repo}</span>}
       </a>
     </li>
   )

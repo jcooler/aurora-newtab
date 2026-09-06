@@ -6,7 +6,8 @@ import { readLocalDay } from '../../../lib/hooks/useLocalDay'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import { useMetrics, type MetricsContextValue } from '../../../metrics/MetricsProvider'
 import { summarizeMetrics } from '../../../metrics/history'
-import type { DailyMetricSummary, MetricRange, MetricSummary } from '../../../metrics/types'
+import type { MetricRange, MetricSummary } from '../../../metrics/types'
+import { activeDayCount, activityIntervals } from './activityIntervals'
 import DockLine from '../shared/DockLine'
 import TierFrame from '../shared/TierFrame'
 
@@ -16,19 +17,6 @@ function shiftDay(key: string, days: number): string {
   const [year, month, day] = key.split('-').map(Number)
   const date = new Date(Date.UTC(year, month - 1, day + days))
   return `${date.getUTCFullYear().toString().padStart(4, '0')}-${(date.getUTCMonth() + 1).toString().padStart(2, '0')}-${date.getUTCDate().toString().padStart(2, '0')}`
-}
-
-function activeCategories(day: DailyMetricSummary): number {
-  return Number(day.habits.completed > 0 || day.habits.tracked > 0)
-    + Number(day.focus.sessions > 0 || day.focus.minutes > 0)
-    + Number(day.tasks.completed > 0 || day.tasks.carriedForward > 0)
-    + Number(day.calendar.events > 0 || day.calendar.busyMinutes > 0)
-    + Number(Object.values(day.development).some((value) => value > 0))
-    + Number(day.fitness.activities > 0 || day.fitness.durationMinutes > 0 || day.fitness.distanceMeters > 0)
-}
-
-function activeDayCount(summary: MetricSummary): number {
-  return summary.days.filter((day) => activeCategories(day) > 0).length
 }
 
 function formatDuration(minutes: number): string {
@@ -58,55 +46,36 @@ function categoryDelta(current: number, previous: number, suffix = ''): string {
   return `${delta > 0 ? '+' : ''}${delta}${suffix}`
 }
 
-function condensedLevels(days: readonly DailyMetricSummary[], limit: number): number[] {
-  if (days.length <= limit) return days.map(activeCategories)
-  const size = Math.ceil(days.length / limit)
-  const levels: number[] = []
-  for (let index = 0; index < days.length; index += size) {
-    const slice = days.slice(index, index + size)
-    levels.push(Math.max(...slice.map(activeCategories)))
-  }
-  return levels
+function chartDate(key: string, year = false): string {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', ...(year ? { year: 'numeric' as const } : {}), timeZone: 'UTC' }).format(new Date(`${key}T12:00:00Z`))
 }
 
-function ActivityRhythm({ summary, bars = false, compact = false }: { summary: MetricSummary; bars?: boolean; compact?: boolean }) {
+function ActivityRhythm({ summary, compact = false }: { summary: MetricSummary; compact?: boolean }) {
+  const [detail, setDetail] = useState<string | null>(null)
   const active = activeDayCount(summary)
-  const levels = condensedLevels(summary.days, compact ? 7 : bars ? 20 : 24)
-  if (compact || bars) {
+  const intervals = activityIntervals(summary)
+  const label = `${active} active days in the last ${summary.days.length} days`
+  const maximum = Math.max(1, ...intervals.map((interval) => interval.dayCount))
+  if (compact) {
     return (
-      <div
-        className={`metrics-bars ${compact ? 'metrics-bars--compact' : ''}`}
-        role="img"
-        aria-label={`${active} active days in the last ${summary.days.length} days`}
-      >
-        {levels.map((level, index) => (
-          <i
-            key={index}
-            data-today={index === levels.length - 1 ? 'true' : undefined}
-            style={{ '--metrics-level': `${Math.max(8, Math.round(level / 6 * 100))}%` } as CSSProperties}
-          />
-        ))}
+      <div className="metrics-day-markers" role="img" aria-label={label}>
+        {intervals.map((interval) => <span key={interval.start} title={`${chartDate(interval.start)}: ${interval.activeDays ? 'Active' : 'No recorded activity'}`}><i data-active={interval.activeDays > 0} /><small>{new Intl.DateTimeFormat(undefined, { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(`${interval.start}T12:00:00Z`))}</small></span>)}
       </div>
     )
   }
-
-  const width = 252
-  const height = 94
-  const xStep = (width - 8) / Math.max(1, levels.length - 1)
-  const points = levels.map((level, index) => ({
-    x: 4 + index * xStep,
-    y: height - 8 - Math.max(0, Math.min(6, level)) / 6 * (height - 16),
-  }))
-  const line = points.map(({ x, y }, index) => `${index === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`).join(' ')
-  const area = `${line} L${points.at(-1)!.x.toFixed(2)} ${height - 8} L${points[0]!.x.toFixed(2)} ${height - 8} Z`
-  const last = points.at(-1)!
   return (
-    <svg className="metrics-rhythm-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${active} active days in the last ${summary.days.length} days`}>
-      <path className="metrics-chart-grid" d="M4 21 H248 M4 47 H248 M4 73 H248" />
-      <path className="metrics-chart-area" d={area} />
-      <path className="metrics-chart-line" d={line} />
-      <circle className="metrics-chart-last" cx={last.x} cy={last.y} r="3.25" />
-    </svg>
+    <div className="metrics-interval-chart" role="group" aria-label={label}>
+      <div className="metrics-interval-scale" aria-hidden><span>{maximum}</span><span>0</span></div>
+      <div className="metrics-interval-bars">
+        {intervals.map((interval) => {
+          const dates = interval.start === interval.end ? chartDate(interval.start, summary.range === '365d') : `${chartDate(interval.start, summary.range === '365d')} – ${chartDate(interval.end, summary.range === '365d')}`
+          const copy = `${dates}: ${interval.activeDays} active days out of ${interval.dayCount}`
+          return <button key={interval.start} type="button" aria-label={copy} onFocus={() => setDetail(copy)} onBlur={() => setDetail(null)} onMouseEnter={() => setDetail(copy)} onMouseLeave={() => setDetail(null)} onClick={() => setDetail(copy)} onKeyDown={(event) => { if (event.key === 'Escape') setDetail(null) }} style={{ '--metrics-level': `${interval.activeDays / maximum * 100}%` } as CSSProperties}><i aria-hidden /></button>
+        })}
+      </div>
+      <div className="metrics-axis-copy"><span>{chartDate(summary.start, summary.range === '365d')}</span><span>{chartDate(summary.end, summary.range === '365d')}</span></div>
+      {detail ? <div className="metrics-chart-detail" role="status">{detail}</div> : null}
+    </div>
   )
 }
 
@@ -177,9 +146,10 @@ function StandardMetrics({ summary, previous, previousAvailable, onOpenMetrics }
     <>
       <header className="metrics-standard-header"><strong>Metrics</strong>{onOpenMetrics ? <button type="button" onClick={onOpenMetrics}>View history</button> : null}</header>
       <div className="metrics-standard-summary">
-        <div><b>{active}</b><span>{' active days'}</span>{previousAvailable ? <small>{comparisonCopy(delta)}</small> : null}</div>
-        <ActivityRhythm summary={summary} bars />
+        <div><b>{active}</b><span>{' active days'}</span><small>Last 30 days</small>{previousAvailable ? <small title={comparisonCopy(delta)}>{comparisonCopy(delta)}</small> : null}</div>
+        <ActivityRhythm summary={summary} />
       </div>
+      <p className="metrics-interval-description">Active days per 5-day interval</p>
       <div className="metrics-standard-support" aria-label="Thirty day summary">
         <span><small>Focus</small><b>{formatDuration(summary.totals.focus.minutes)}</b></span>
         <span><small>Tasks</small><b>{summary.totals.tasks.completed} done</b></span>
@@ -241,8 +211,8 @@ function ExpandedMetrics({
       <div className="metrics-expanded-content">
         <div className="metrics-trend-region">
           <div className="metrics-trend-summary"><div><b>{active}</b><span>active days</span></div>{previousAvailable ? <small>{comparisonCopy(delta)}</small> : null}</div>
-          <ActivityRhythm summary={summary} />
-          <div className="metrics-axis-copy"><span>{summary.start.slice(5).replace('-', '/')}</span><span>Today</span></div>
+          <ActivityRhythm key={range} summary={summary} />
+          <p className="metrics-interval-description">Active days per {activityIntervals(summary)[0]?.dayCount ?? 1}-day interval. Last interval: {activityIntervals(summary).at(-1)?.dayCount ?? 1} days.</p>
           {notice && onRetry ? <div className="metrics-collection-notice" role="status"><span>{notice}</span><button type="button" onClick={onRetry}>Try again</button></div> : null}
         </div>
         <div className="metrics-category-list" aria-label="Metric categories">

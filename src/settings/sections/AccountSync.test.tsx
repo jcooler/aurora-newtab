@@ -205,6 +205,17 @@ describe('AccountSync', () => {
     expect(signedActions.signOut).toHaveBeenCalledOnce()
   })
 
+  it('leads a subscriber with billing management and reveals plan comparison only on request', async () => {
+    renderAccount(signedSnapshot())
+    const manage = await screen.findByRole('button', { name: 'Manage billing' })
+    expect(manage.closest('.account-sync-intro')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Choose monthly' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Compare available plans' }))
+    expect(screen.getByRole('button', { name: 'Choose monthly' }).hasAttribute('disabled')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Compare available plans' }))
+    expect(screen.queryByRole('button', { name: 'Choose monthly' })).toBeNull()
+  })
+
   it('uses calm automatic status copy for offline local edits and recoverable attention', async () => {
     const live = renderLiveAccount(signedSnapshot({
       sync: {
@@ -497,6 +508,7 @@ describe('AccountSync', () => {
 
   it('prevents a second Checkout while an existing subscription is active', async () => {
     const signedActions = renderAccount(signedSnapshot())
+    fireEvent.click(await screen.findByRole('button', { name: 'Compare available plans' }))
 
     expect((await screen.findByRole('button', { name: 'Choose monthly' })).hasAttribute('disabled')).toBe(true)
     expect(screen.getByRole('button', { name: 'Choose annual' }).hasAttribute('disabled')).toBe(true)

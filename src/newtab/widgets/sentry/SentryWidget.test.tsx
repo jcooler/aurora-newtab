@@ -102,13 +102,13 @@ describe('SentryWidget', () => {
     expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()
   })
 
-  it('renders a useful Compact glance and no issue rows', async () => {
+  it('renders a useful Compact glance with the top trending issue title', async () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'compact' })
     expect(await screen.findByText('2 unresolved')).toBeTruthy()
     expect(screen.getByText('1 critical')).toBeTruthy()
     expect(screen.getByText('Fatal')).toBeTruthy()
     expect(screen.getByText('WEB-0')).toBeTruthy()
-    expect(screen.queryByText('Checkout failure 0')).toBeNull()
+    expect(screen.getByText('Checkout failure 0')).toBeTruthy()
   })
 
   it('shows strongest level and top trending short ID as independent Compact facts', async () => {
@@ -127,11 +127,11 @@ describe('SentryWidget', () => {
   it('renders named Standard issue context and safe provider links', async () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'standard' })
     const title = await screen.findByText('Checkout failure 0')
-    expect(screen.getByText('Web · WEB-0')).toBeTruthy()
-    expect(screen.getByText('4 events in 24h · rising')).toBeTruthy()
+    expect(title.closest('li')?.textContent).toContain('Web · WEB-0')
+    expect(title.closest('a')?.getAttribute('aria-label')).toContain('4 events in 24h · rising')
     expect(title.closest('li')?.textContent).toContain('Fatal')
     expect(title.closest('li')?.textContent).toContain('3 users')
-    expect(title.closest('li')?.textContent).toContain('Last seen')
+    expect(title.closest('a')?.getAttribute('aria-label')).toContain('Last seen')
     const link = title.closest('a') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('https://us.sentry.io/issues/0/')
     expect(link.getAttribute('target')).toBe('_blank')
@@ -144,22 +144,22 @@ describe('SentryWidget', () => {
     const secondTitle = await screen.findByText('Checkout failure 1')
     expect(secondTitle.closest('li')?.textContent).toContain('Error')
     expect(secondTitle.closest('li')?.textContent).toContain('4 users')
-    expect(secondTitle.closest('li')?.textContent).toContain('Last seen')
+    expect(secondTitle.closest('a')?.getAttribute('aria-label')).toContain('Last seen')
     const list = secondTitle.closest('ul')
     expect(list?.className).toContain('mt-2')
     expect(list?.className).toContain('gap-1')
   })
 
-  it('bounds Full to two rich issue rows without an internal scroll owner', async () => {
+  it('bounds Full to three readable issues with complete accessible diagnostic context', async () => {
     const data = { issues: Array.from({ length: 25 }, (_, index) => issue(index)) }
     mount(await seededStorage({ ...CONNECTED, itemLimit: 10 }, data), { canvasSize: 'full' })
     expect(await screen.findByText('Checkout failure 1')).toBeTruthy()
-    expect(screen.queryByText('Checkout failure 2')).toBeNull()
+    expect(screen.getByText('Checkout failure 2')).toBeTruthy()
     expect(screen.queryByText('Checkout failure 24')).toBeNull()
-    const lead = screen.getByText('Checkout failure 0').closest('li')
-    expect(lead?.textContent).toContain('First seen')
-    expect(lead?.textContent).toContain('Priority high')
-    expect(lead?.textContent).toContain('Regression')
+    const lead = screen.getByText('Checkout failure 0').closest('a')
+    expect(lead?.getAttribute('aria-label')).toContain('First seen')
+    expect(lead?.getAttribute('aria-label')).toContain('Priority high')
+    expect(lead?.getAttribute('aria-label')).toContain('Regression')
     const frame = screen.getByRole('region', { name: 'Sentry' })
     expect(frame.getAttribute('data-tier-frame')).toBe('full')
     expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()

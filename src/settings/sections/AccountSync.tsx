@@ -472,6 +472,7 @@ export default function AccountSync() {
   const [signInStatus, setSignInStatus] = useState<string | null>(null)
   const [billingPending, setBillingPending] = useState(false)
   const [billingError, setBillingError] = useState<string | null>(null)
+  const [showPlanComparison, setShowPlanComparison] = useState(false)
   const [destructiveTarget, setDestructiveTarget] = useState<DestructiveTarget | null>(null)
   const [deviceNameTarget, setDeviceNameTarget] = useState<null | { mode: 'enable' | 'rename'; deviceId?: string; initialName: string }>(null)
   const [syncActionError, setSyncActionError] = useState<SyncActionError | null>(null)
@@ -679,6 +680,7 @@ export default function AccountSync() {
     }
   }
 
+  const managedSubscription = ['active', 'past_due', 'canceling'].includes(snapshot.billing.state)
   return (
     <>
       <Section className="account-sync-intro">
@@ -688,23 +690,26 @@ export default function AccountSync() {
         </h2>
         {snapshot.email && snapshot.displayName ? <p className="mt-1 text-sm text-fg-muted">{snapshot.email}</p> : null}
         <p className="mt-3 text-sm text-fg">{subscriptionLabels[snapshot.billing.state]}</p>
+        {managedSubscription ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline px-4 py-3">
+          <div>
+            {snapshot.billing.plan ? <strong className="text-sm font-semibold">Tab Two {snapshot.billing.plan === 'monthly' ? 'Monthly' : 'Annual'}</strong> : null}
+            {snapshot.billing.state === 'active' && !snapshot.billing.cancelAtPeriodEnd && snapshot.billing.currentPeriodEnd !== null ? <p className="mt-1 text-xs text-fg-muted">Renews {new Date(snapshot.billing.currentPeriodEnd).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}.</p> : null}
+          </div>
+          <button type="button" disabled={billingPending} onClick={() => void manageBilling()} className={billingButton}>Manage billing</button>
+        </div> : null}
         {snapshot.billing.state === 'past_due' && snapshot.billing.courtesyEnd !== null ? (
           <p className="mt-1 text-xs text-amber-300">Courtesy access ends {new Date(snapshot.billing.courtesyEnd).toLocaleDateString()}.</p>
         ) : null}
         {snapshot.billing.state === 'canceling' && snapshot.billing.currentPeriodEnd !== null ? (
           <p className="mt-1 text-xs text-fg-muted">Access continues through {new Date(snapshot.billing.currentPeriodEnd).toLocaleDateString()}.</p>
         ) : null}
+        {managedSubscription ? <>
+          <AssertiveAlert className="mt-2 block text-xs text-red-400">{billingError}</AssertiveAlert>
+          <button type="button" aria-expanded={showPlanComparison} aria-controls="account-plan-comparison" onClick={() => setShowPlanComparison((open) => !open)} className="mt-3 min-h-9 rounded-md text-xs text-accent focus-visible:outline-2 focus-visible:outline-accent">Compare available plans <span aria-hidden>{showPlanComparison ? '−' : '+'}</span></button>
+        </> : null}
       </Section>
 
-      <BillingPlans billing={snapshot.billing} pending={billingPending} error={billingError} onChoose={(plan) => void choosePlan(plan)} />
-
-      {snapshot.accountId ? (
-        <AccountDataExport
-          accountId={snapshot.accountId}
-          enabled={client.accountDataExportEnabled === true}
-          actions={actions}
-        />
-      ) : null}
+      {managedSubscription ? <div id="account-plan-comparison" hidden={!showPlanComparison}><BillingPlans billing={snapshot.billing} pending={billingPending} error={null} onChoose={(plan) => void choosePlan(plan)} /></div> : <BillingPlans billing={snapshot.billing} pending={billingPending} error={billingError} onChoose={(plan) => void choosePlan(plan)} />}
 
       <Section title="Encrypted sync">
         <div className="flex min-h-9 items-center justify-between gap-4">
@@ -769,6 +774,14 @@ export default function AccountSync() {
       </Section>
 
       <SyncDisclosure />
+
+      {snapshot.accountId ? (
+        <AccountDataExport
+          accountId={snapshot.accountId}
+          enabled={client.accountDataExportEnabled === true}
+          actions={actions}
+        />
+      ) : null}
 
       {syncState.recoveries.length > 0 ? (
         <Section title="Recovery copies">
@@ -843,7 +856,7 @@ export default function AccountSync() {
 
       <Section title="Account actions">
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={billingPending} onClick={() => void manageBilling()} className={billingButton}>Manage billing</button>
+          {!managedSubscription ? <button type="button" disabled={billingPending} onClick={() => void manageBilling()} className={billingButton}>Manage billing</button> : null}
           <button type="button" onClick={() => void actions.signOut()} className={btnQuiet}>Sign out</button>
         </div>
         <div className="mt-5 border-t border-hairline pt-5">

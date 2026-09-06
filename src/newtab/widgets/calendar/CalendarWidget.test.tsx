@@ -285,6 +285,32 @@ describe('CalendarWidget', () => {
     expect(screen.getByText('Eye Exam').closest('li')?.querySelector('[data-calendar-color="fuchsia"]')).toBeTruthy()
   })
 
+  it('keeps complete event context while displaying short times and explicit all-day labels', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_ALL_DAY] })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+    const timed = screen.getByText('Standup').closest('li')!
+    expect(timed.querySelector('time')?.textContent).toMatch(/^11:00(?:\s?AM)?$/)
+    expect(timed.getAttribute('aria-label')).toContain('Standup')
+    expect(timed.getAttribute('aria-label')).toContain('Aug 7')
+    expect(screen.getByText('Company Holiday').closest('li')?.querySelector('time')?.textContent).toBe('All day')
+  })
+
+  it('switches Calendar views with arrow keys and keeps focus on the selected tab', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
+    mountUnified(storage, 'standard')
+    await act(async () => {})
+    const agenda = screen.getByRole('tab', { name: 'Agenda' })
+    agenda.focus()
+    fireEvent.keyDown(agenda, { key: 'ArrowRight' })
+    await act(async () => {})
+    const month = screen.getByRole('tab', { name: 'Month', selected: true })
+    expect(document.activeElement).toBe(month)
+    fireEvent.keyDown(month, { key: 'ArrowLeft' })
+    await act(async () => {})
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Agenda', selected: true }))
+  })
+
   it('Standard Month uses a short heading, natural row count, and faded adjacent-month dates', async () => {
     const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
     const holidayConfig = { enabled: true, countryCode: 'US' } as const
@@ -500,7 +526,7 @@ describe('CalendarWidget', () => {
     expect(within(frame).getByRole('table').querySelectorAll('[data-calendar-cell]')).toHaveLength(42)
   })
 
-  it('vertically balances the Full month and agenda regions', async () => {
+  it('retains the six-week month beside the Full agenda', async () => {
     const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
     await storage.set('calendarPreferences', {
       work: { defaultView: 'agenda', includePublicHolidays: false },
@@ -509,7 +535,7 @@ describe('CalendarWidget', () => {
     await act(async () => {})
     const frame = screen.getByRole('region', { name: 'Calendar' })
     const composition = frame.querySelector('[data-calendar-full-composition]')!
-    expect(composition.className).toContain('items-center')
+    expect(composition).toBeTruthy()
     expect(within(frame).getByTestId('calendar-full-month')).toBeTruthy()
     expect(within(frame).getByTestId('calendar-full-agenda')).toBeTruthy()
     expect(within(frame).getByRole('table').querySelectorAll('[data-calendar-cell]')).toHaveLength(42)

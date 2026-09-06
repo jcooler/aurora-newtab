@@ -107,6 +107,18 @@ describe('Metrics widget approved states', () => {
     expect(screen.queryByText('Fitness')).toBeNull()
   })
 
+  it('exposes exact interval counts on focus and dismisses chart detail with Escape', () => {
+    render(<MetricsWidgetView canvasSize="full" today="2026-09-02" metrics={metrics()} syncPhase="up_to_date" />)
+    const chart = screen.getByRole('group', { name: '3 active days in the last 30 days' })
+    const bars = within(chart).getAllByRole('button')
+    expect(bars).toHaveLength(6)
+    expect(bars.at(-1)!.getAttribute('aria-label')).toContain('2 active days out of 5')
+    fireEvent.focus(bars.at(-1)!)
+    expect(screen.getByRole('status').textContent).toContain('2 active days out of 5')
+    fireEvent.keyDown(bars.at(-1)!, { key: 'Escape' })
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
   it('keeps retained history visible when entitlement expires or sync is offline', () => {
     const { rerender } = render(<MetricsWidgetView canvasSize="full" today="2026-09-02" metrics={metrics({ entitled: false })} syncPhase="up_to_date" />)
     expect(screen.getByText('History paused')).toBeTruthy()

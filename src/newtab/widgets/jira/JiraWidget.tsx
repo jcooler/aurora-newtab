@@ -192,12 +192,12 @@ function JiraInner({
   const allIssues = views.assigned ? (data.issues ?? []) : []
   const allDueSoon = views.dueSoon ? (data.dueSoon ?? []) : []
   const issues = framed
-    ? compact ? [] : allIssues.slice(0, standard ? 2 : allDueSoon.length > 0 ? 2 : MAX_ISSUES)
+    ? allIssues.slice(0, compact ? 1 : standard ? 2 : allDueSoon.length > 0 ? 2 : MAX_ISSUES)
     : canvasSize !== 'compact' ? allIssues.slice(0, canvasSize === 'standard' ? 2 : MAX_ISSUES) : []
   const dueSoon = framed
-    ? compact || (standard && allIssues.length > 0)
+    ? (compact || standard) && allIssues.length > 0
       ? []
-      : allDueSoon.slice(0, tier === 'full' && issues.length > 0 ? 1 : MAX_DUE_SOON)
+      : allDueSoon.slice(0, compact || (tier === 'full' && issues.length > 0) ? 1 : MAX_DUE_SOON)
     : canvasSize !== 'compact' && (canvasSize !== 'standard' || allIssues.length === 0)
       ? allDueSoon.slice(0, MAX_DUE_SOON)
       : []
@@ -318,7 +318,7 @@ function JiraInner({
       tier={tier}
       state={resourceFrameState(state, showEmpty)}
       data-canvas-size={tier}
-      className={`${tier === 'compact' ? 'p-2' : 'p-3'} text-fg`}
+      className={`${tier === 'compact' ? 'p-3' : 'p-4'} jira-refined text-fg`}
     >
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">Jira</h2>
@@ -385,11 +385,10 @@ function ItemRow({ item }: { item: JiraIssue }) {
         title={item.summary}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted font-medium">{prefix}</span>
-        <span data-work-pulse-detail className="block truncate text-xs text-fg-muted">{item.status}</span>
-        <span className="block truncate text-sm text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="jira-issue-title block text-[13px] font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.summary}
         </span>
+        <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-[11px] text-fg-muted"><span>{prefix}</span> · <span>{item.status}</span></span>
       </a>
     </li>
   )

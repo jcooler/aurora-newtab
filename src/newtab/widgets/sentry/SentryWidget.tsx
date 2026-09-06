@@ -14,9 +14,9 @@ import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/Wor
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
 const SENTRY_FRAME_ROWS: Readonly<Record<CanvasSize, number>> = {
-  compact: 0,
+  compact: 1,
   standard: 2,
-  full: 2,
+  full: 3,
 }
 
 function connectedSentry(config: ConnectorConfig | undefined): SentryConfig | null {
@@ -75,7 +75,8 @@ function SentryInner({
     `${issues.length} unresolved`,
     topTrending?.shortId ?? null,
   ]
-  const visible = issues.slice(0, Math.min(SENTRY_FRAME_ROWS[canvasSize], sentryItemLimit(config)))
+  const rowLimit = presentation === 'retained-error' ? canvasSize === 'compact' ? 0 : 1 : SENTRY_FRAME_ROWS[canvasSize]
+  const visible = (canvasSize === 'compact' && topTrending ? [topTrending] : issues).slice(0, Math.min(rowLimit, sentryItemLimit(config)))
   const detailRows = issues.slice(0, Math.min(3, sentryItemLimit(config)))
 
   const retry = () => {
@@ -136,6 +137,7 @@ function SentryInner({
               className={canvasSize === 'standard' ? 'mt-2' : 'mt-3'}
               dense={canvasSize === 'standard'}
               full={canvasSize === 'full'}
+              framed
             />
           ) : null}
         </>
@@ -173,30 +175,43 @@ function IssueList({
   className = '',
   dense = false,
   full = false,
+  framed = false,
 }: {
   issues: readonly SentryIssue[]
   className?: string
   dense?: boolean
   full?: boolean
+  framed?: boolean
 }) {
   return (
     <ul className={`flex flex-col ${dense ? 'gap-1' : 'gap-2'} ${className}`}>
       {issues.map((issue) => (
         <li key={issue.id}>
-          <IssueRow issue={issue} full={full} />
+          <IssueRow issue={issue} full={full} framed={framed} />
         </li>
       ))}
     </ul>
   )
 }
 
-function IssueRow({ issue, full = false }: { issue: SentryIssue; full?: boolean }) {
+function IssueRow({ issue, full = false, framed = false }: { issue: SentryIssue; full?: boolean; framed?: boolean }) {
   const standardFacts = [levelLabel(issue.level), `${issue.userCount} users`, seenLabel('Last seen', issue.lastSeen)]
   const fullFacts = [
     seenLabel('First seen', issue.firstSeen),
     issue.priority ? `Priority ${issue.priority}` : null,
     issue.isRegression ? 'Regression' : null,
   ]
+  if (framed) {
+    const details = [issue.title, issue.project.name, issue.shortId, `${issue.events24h} events in 24h`, issue.trend, ...standardFacts, ...fullFacts].filter(Boolean).join(' · ')
+    const content = <>
+      <span className="sentry-issue-title">{issue.title}</span>
+      <span className="sentry-issue-impact">{issue.userCount} users · {issue.events24h} events in 24h</span>
+      <span className="sentry-issue-context">{issue.project.name} · {issue.shortId} · {levelLabel(issue.level)}{issue.isRegression ? ' · Regression' : ''}</span>
+    </>
+    return issue.permalink
+      ? <a href={issue.permalink} target="_blank" rel="noopener noreferrer" title={details} aria-label={details} className="sentry-issue-row">{content}</a>
+      : <div title={details} aria-label={details} className="sentry-issue-row">{content}</div>
+  }
   const content = (
     <>
       <span className="min-w-0 flex-1">

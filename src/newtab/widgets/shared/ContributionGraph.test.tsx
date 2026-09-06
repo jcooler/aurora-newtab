@@ -31,6 +31,14 @@ const CONTRIBUTIONS_112_DAYS: Contributions = {
 }
 
 describe('ContributionGraph tier composition', () => {
+  it('limits the displayed days and totals to the same trailing interval', () => {
+    const { container } = render(<ContributionGraph contributions={CONTRIBUTIONS} tier="compact" trailingDays={3} fitWidth />)
+    expect(screen.getByRole('img', { name: 'Contribution activity over the last 3 days' })).toBeTruthy()
+    expect(container.querySelectorAll('[role="img"] [title]')).toHaveLength(3)
+    expect(container.querySelector('[data-contribution-summary]')?.textContent).toContain('21 contributions')
+    expect(screen.queryByTitle('1 contribution · 2026-01-25')).toBeNull()
+    expect(screen.getByTitle('8 contributions · 2026-02-01')).toBeTruthy()
+  })
   it.each([
     ['compact', '10px', '7px', '1px'],
     ['standard', '16px', '10px', '1px'],

@@ -64,7 +64,7 @@ function zonedParts(nowMs: number, timeZone: string): ZonedParts {
   }
 }
 
-function zoneOffsetAt(nowMs: number, timeZone: string): number {
+export function zoneOffsetAt(nowMs: number, timeZone: string): number {
   const wholeSecond = Math.trunc(nowMs / 1000) * 1000
   const parts = zonedParts(wholeSecond, timeZone)
   return wallAsUtc(parts) - wholeSecond

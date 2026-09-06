@@ -51,13 +51,12 @@ function PopulatedCountdownLine({ countdowns, canvasSize, presentation, docked }
   }
 
   if (presentation === 'stack') {
-    const value = nearest.days === 0 ? 'Today' : `${nearest.days} ${nearest.days === 1 ? 'day' : 'days'}`
     return (
       <TierFrame label="Countdown" tier={canvasSize} state="ready" className={`core-countdown-stack core-countdown-stack--${canvasSize}`}>
         <div className="core-countdown-stack__face">
-          <strong data-testid="countdown-value">{value}</strong>
-          <span>{nearest.name}</span>
-          {canvasSize === 'standard' ? <small>{nearest.date}</small> : null}
+          <strong data-testid="countdown-value">{nearest.days === 0 ? 'Today' : <>{nearest.days}<small> {nearest.days === 1 ? 'day' : 'days'}</small></>}</strong>
+          <span title={nearest.name}>{nearest.name}</span>
+          <small><time dateTime={nearest.date}>{new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${nearest.date}T12:00:00Z`))}</time></small>
         </div>
       </TierFrame>
     )

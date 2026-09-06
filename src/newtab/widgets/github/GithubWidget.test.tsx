@@ -88,19 +88,17 @@ describe('GithubWidget', () => {
   })
 
   it.each([
-    ['compact', '10px', '7px', false],
-    ['standard', '16px', '10px', false],
-    ['full', '23px', '17px', true],
-  ] as const)('uses the centered %s contribution geometry', async (tier, width, height, showsMonths) => {
+    ['compact', false],
+    ['standard', false],
+    ['full', true],
+  ] as const)('retains contribution data and selected month metadata in %s', async (tier, showsMonths) => {
     const config = {
       ...CONNECTED,
       views: { commitGraph: true, pulls: true, issues: true, notifications: true },
     }
     mount(await seededStorage(config, DATA_WITH_GRAPH), tier)
     const graph = await screen.findByRole('img', { name: /contribution activity/i })
-    expect(graph.style.gridAutoColumns).toBe(width)
-    expect(graph.style.gridTemplateRows).toBe(`repeat(7, ${height})`)
-    expect(graph.closest('[data-contribution-composition]')?.className).toContain('mx-auto')
+    expect(graph.querySelectorAll('[title]')).toHaveLength(CONTRIB.days.length)
     expect(document.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
   })
 
@@ -114,12 +112,10 @@ describe('GithubWidget', () => {
     mount(await seededStorage(config, DATA_WITH_GRAPH), 'full')
     const fullFrame = await readyFrame()
     expect(fullFrame.querySelectorAll('[data-work-pulse-rows] li')).toHaveLength(2)
-    const graphSummary = fullFrame.querySelector<HTMLElement>('[data-contribution-header-summary]')
+    const graphSummary = fullFrame.querySelector<HTMLElement>('[data-contribution-summary]')
     expect(graphSummary?.textContent).toContain('contributions')
     expect(graphSummary?.textContent).toContain('day streak')
-    expect(fullFrame.querySelector('[data-contribution-summary]')).toBeNull()
     const rowGroup = fullFrame.querySelector<HTMLElement>('[data-github-row-families="parallel"]')
-    expect(rowGroup?.className).toContain('grid-cols-2')
     expect(rowGroup?.querySelectorAll('ul')).toHaveLength(2)
     expect(screen.getByText('Fix the flaky login test').className).not.toContain('dense:text-xs')
     expect(screen.getByText('Crash on cold start')).toBeTruthy()

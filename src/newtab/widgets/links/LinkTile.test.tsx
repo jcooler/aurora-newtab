@@ -46,7 +46,7 @@ describe('LinkTile navigation', () => {
     expect(container.querySelector('img')).toBeNull()
   })
 
-  it('uses a meaningful path label as readable Standard stack destination copy', () => {
+  it('keeps the saved destination URL and favicon behind its readable Standard label', () => {
     render(
       <LinkTile
         link={{ id: 'mail', title: 'Mail', url: 'https://mail.example.com/inbox' }}
@@ -61,7 +61,8 @@ describe('LinkTile navigation', () => {
         onDragEnd={vi.fn()}
       />,
     )
-    expect(screen.getByText('inbox')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Mail' }).getAttribute('href')).toBe('https://mail.example.com/inbox')
+    expect(screen.getByRole('link', { name: 'Mail' }).querySelector('img')?.getAttribute('src')).toBe('favicon:https://mail.example.com/inbox')
     expect(screen.queryByText('mail.example.com')).toBeNull()
   })
 
