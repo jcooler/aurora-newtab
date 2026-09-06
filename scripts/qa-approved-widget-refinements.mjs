@@ -87,7 +87,7 @@ try {
           data.weatherCache.locationLabel = 'San Francisco International Airport'
           data.location.label = 'San Francisco International Airport'
         }
-        if (state === 'empty') {
+        if (state === 'empty' || state === 'locked') {
           snapshots.ics.data.events = []; snapshots.github.data.prs = []; snapshots.github.data.issues = []; snapshots.github.data.notifications = 0
           snapshots.github.data.contributions = { total: 0, days: [] }
           snapshots.jira.data = { issues: [], counts: {}, dueSoon: [] }; snapshots.sentry.data.issues = []
@@ -116,6 +116,7 @@ try {
       const frame = page.locator(`[data-stack-active="true"] [data-tier-frame="${tier}"]`).first()
       await frame.waitFor()
       if (id === 'metrics' && state === 'empty') await page.locator('[data-stack-active="true"] .metrics-empty').waitFor()
+      if (id === 'metrics' && state === 'locked') await page.locator('[data-stack-active="true"] .metrics-locked').waitFor()
       await page.evaluate(() => document.fonts.ready)
       await capture(`${id}-${tier}-${state}`, frame)
       if (state === 'normal' && id === 'ics' && tier === 'standard') {
