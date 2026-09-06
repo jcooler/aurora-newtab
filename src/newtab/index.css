@@ -3728,4 +3728,9 @@ a.aurora-attention-panel__title:focus-visible {
 .sentry-issue-context { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; line-height:1.3; color:var(--tier-frame-muted); }
 [data-work-widget][aria-label="Sentry"] .sentry-issue-row:hover .sentry-issue-title { color:var(--accent); }
 [data-work-widget][aria-label="Sentry"][data-tier-frame="compact"] .sentry-issue-context { display:none; }
-[data-work-widget][aria-label="Sentry"][data-tier-frame="full"] ul { margin-top:10px; }
+[data-work-widget][aria-label="Sentry"][data-tier-frame="full"] ul { margin-top:8px; gap:4px; }
+[data-work-widget][aria-label="Sentry"][data-tier-frame="standard"] > header { padding-top:8px; min-height:28px; }
+[data-work-widget][aria-label="Sentry"][data-tier-frame="standard"] > div { padding-top:6px; padding-bottom:10px; }
+[data-work-widget][aria-label="Sentry"][data-tier-frame="standard"] ul { margin-top:6px; }
+[data-work-widget][aria-label="Sentry"][data-tier-frame="standard"] .sentry-issue-title { font-size:12px; line-height:1.2; }
+[data-work-widget][aria-label="Sentry"][data-tier-frame="standard"] :is(.sentry-issue-impact,.sentry-issue-context) { line-height:1.2; }

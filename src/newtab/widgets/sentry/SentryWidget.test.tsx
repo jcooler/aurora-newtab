@@ -186,7 +186,7 @@ describe('SentryWidget', () => {
     expect(screen.getByRole('button', { name: 'Refresh Sentry' })).toBeTruthy()
   })
 
-  it.each([['standard', 1], ['full', 2]] as const)('reserves readable room for long issue titles at %s', async (canvasSize, count) => {
+  it.each([['standard', 2], ['full', 3]] as const)('retains the approved work rows with long issue titles at %s', async (canvasSize, count) => {
     const issues = Array.from({ length: 5 }, (_, index) => ({ ...issue(index), title: `TypeError: Unable to complete checkout while refreshing the subscription summary ${index}` }))
     mount(await seededStorage(CONNECTED, { issues }), { canvasSize })
     await screen.findByText(issues[0].title)

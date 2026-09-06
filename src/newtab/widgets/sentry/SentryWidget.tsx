@@ -75,9 +75,7 @@ function SentryInner({
     `${issues.length} unresolved`,
     topTrending?.shortId ?? null,
   ]
-  const longTitles = issues.slice(0, SENTRY_FRAME_ROWS[canvasSize]).some((issue) => issue.title.length > 56)
-  const readableRows = longTitles && canvasSize !== 'compact' ? SENTRY_FRAME_ROWS[canvasSize] - 1 : SENTRY_FRAME_ROWS[canvasSize]
-  const rowLimit = presentation === 'retained-error' ? canvasSize === 'compact' ? 0 : 1 : readableRows
+  const rowLimit = presentation === 'retained-error' ? canvasSize === 'compact' ? 0 : 1 : SENTRY_FRAME_ROWS[canvasSize]
   const visible = (canvasSize === 'compact' && topTrending ? [topTrending] : issues).slice(0, Math.min(rowLimit, sentryItemLimit(config)))
   const detailRows = issues.slice(0, Math.min(3, sentryItemLimit(config)))
 

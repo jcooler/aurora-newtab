@@ -22,7 +22,7 @@ const tiers = Object.fromEntries(['ics', 'weather', 'metrics', 'github', 'jira',
 const evidence = { commit, result: 'RUNNING', output, captures: [], failures: [], requests: [], consoleErrors: [], pageErrors: [], interactions: [] }
 const only = process.argv.find((arg) => arg.startsWith('--widgets='))?.slice(10).split(',')
 const context = await chromium.launchPersistentContext(mkdtempSync(resolve(tmpdir(), 'tab-two-refinements-')), {
-  channel: 'chromium', headless: true, viewport: { width: 1408, height: 445 }, deviceScaleFactor: 1,
+  channel: 'chromium', headless: !process.argv.includes('--headed'), hasTouch: process.argv.includes('--touch'), viewport: { width: 1408, height: 445 }, deviceScaleFactor: 1,
   timezoneId: 'America/New_York', args: [`--disable-extensions-except=${resolve('dist')}`, `--load-extension=${resolve('dist')}`],
 })
 await context.route(/^https?:\/\//, async (route) => {
@@ -72,7 +72,7 @@ try {
         snapshots.onThisDay = { fetchedAt: Date.now(), scope: otdScope, data: otd }
         data.connectors.sentry = sentry.config
         data.connectors.onThisDay = { enabled: true }
-        data.worldClocks = ['America/New_York', 'Europe/London', 'Asia/Tokyo', 'Australia/Adelaide'].map((zone, i) => ({ zone, label: ['New York', 'London', 'Tokyo', 'Adelaide'][i] }))
+        data.worldClocks = ['America/New_York', 'Europe/London', 'Asia/Tokyo', 'Australia/Adelaide', 'Asia/Kolkata'].map((zone, i) => ({ zone, label: ['New York', 'London', 'Tokyo', 'Adelaide', 'Kolkata'][i] }))
         data.countdowns = [{ id: 'launch', name: 'Tab Two launch', date: '2026-09-07' }]
         data.links = ['Mail', 'Calendar', 'Drive', 'Design', 'GitHub', 'Home'].map((title) => ({ id: title, title, url: `https://example.invalid/${title}` }))
         data.metricsHistory = history
@@ -105,7 +105,7 @@ try {
         await chrome.storage.local.set(data)
       }, { initial, id, tier, state, ids, sentry, sentryScope: snapshotScope('sentry', sentry.config), otd, otdScope: snapshotScope('onThisDay', { enabled: true }, '2026-08-23'), history })
       await page.goto(`${base}?accountState=active`)
-      if (state === 'empty' && ['worldClocks', 'countdown'].includes(id)) {
+      if (state === 'empty' && id === 'worldClocks') {
         await page.locator('[data-canvas-surface]').waitFor()
         assert.equal(await page.locator(`[data-stack-active="true"] [data-tier-frame="${tier}"]`).count(), 0)
         evidence.interactions.push(`${id} ${tier}: existing empty configuration stays absent`)
@@ -119,6 +119,11 @@ try {
         await frame.getByRole('tab', { name: 'Month' }).click()
         await frame.locator('[role="tab"][aria-selected="true"]').filter({ hasText: 'Month' }).waitFor()
         await capture('ics-standard-month', frame)
+        for (const [steps, rows] of [[1, 5], [5, 4]]) {
+          for (let step = 0; step < steps; step++) await frame.getByRole('button', { name: 'Previous month' }).click()
+          assert.equal(await frame.locator('[data-calendar-cell]').count(), rows * 7)
+          await capture(`ics-standard-${rows}-weeks`, frame)
+        }
         await frame.getByRole('tab', { name: 'Month' }).press('ArrowLeft')
         await frame.locator('[role="tab"][aria-selected="true"]').filter({ hasText: 'Agenda' }).waitFor()
         evidence.interactions.push('Calendar native pointer and keyboard view selection')
@@ -135,11 +140,16 @@ try {
     }
     console.log(`Captured ${id}`)
   }
-  if (!only) {
+  if (!only || only.includes('countdown')) {
     const stack = page.locator('[data-stack-card="refinements-stack"]')
     await stack.focus(); await stack.press('ArrowRight')
     await page.locator('[data-stack-member="notes"][data-stack-active="true"]').waitFor()
     await stack.getByRole('button', { name: 'Previous widget' }).click()
+    if (process.argv.includes('--touch')) {
+      await stack.getByRole('button', { name: 'Next widget' }).tap()
+      await page.locator('[data-stack-member="notes"][data-stack-active="true"]').waitFor()
+      evidence.interactions.push('Native touch stack navigation')
+    }
     evidence.interactions.push('Stack keyboard and pointer preserve facing navigation')
     await page.locator('.settings-gear').click()
     await page.getByRole('tab', { name: 'Account & Sync' }).click()
