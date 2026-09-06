@@ -57,7 +57,7 @@ try {
   await page.goto('chrome://newtab/')
   await page.locator('[data-canvas-surface]').waitFor()
   await seedInformationFirstFixtures(page, { contributionDayCount: 365 })
-  const base = page.url().split('?')[0], manifest = new URL('manifest.json', base).href
+  const base = page.url().split('?')[0], manifest = new URL('/manifest.json', base).href
   const sentry = workFixtures().sentry
   const history = createMetricsHistoryFixture('2026-08-23')
   const initial = await page.evaluate(() => chrome.storage.local.get(null))
