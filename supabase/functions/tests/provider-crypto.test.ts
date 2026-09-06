@@ -81,7 +81,7 @@ describe('provider secret encryption', () => {
       .rejects.toThrow('provider_secret_invalid')
     await expect(crypto.decryptSecret({
       ...envelope,
-      ciphertext: `${envelope.ciphertext.slice(0, -1)}A`,
+      ciphertext: `${envelope.ciphertext[0] === 'A' ? 'B' : 'A'}${envelope.ciphertext.slice(1)}`,
     }, connectionContext)).rejects.toThrow('provider_secret_invalid')
     await expect(crypto.decryptSecret({
       ...envelope,

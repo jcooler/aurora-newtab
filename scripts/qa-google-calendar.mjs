@@ -572,8 +572,10 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
   await page.reload({ waitUntil: 'domcontentloaded' })
   const calendar = page.getByRole('region', { name: 'Calendar' })
   await calendar.waitFor()
-  assert.equal(await calendar.locator('.calendar-readable-agenda > li').count(), 3, 'Full agenda must keep its approved three readable rows')
   const day = calendar.getByRole('button', { name: /, 4 items$/u })
+  // The frame mounts before asynchronous provider snapshots are composed.
+  await day.waitFor()
+  assert.equal(await calendar.locator('.calendar-readable-agenda > li').count(), 3, 'Full agenda must keep its approved three readable rows')
   await day.click()
   const context = page.getByRole('tooltip')
   for (const value of ['Product review', 'Family dinner', 'Work planning', 'Local appointment']) {
