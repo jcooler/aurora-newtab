@@ -5,6 +5,10 @@
 **Runtime and automated-evidence source:** `5f2417f268aa4faea83c5dd225b7073d63cf2061`<br>
 **Result:** **HOSTED PASS; AUTOMATED_PASS_OWNER_QA_PENDING**
 
+## Approved UI refinement regression follow-up (2026-09-05)
+
+Final exact source `86a963fb1626e416c02afe0653559e54f2787710` preserves enabled production account export and the prior Task 7 hosted evidence below. The approved subscriber presentation now orders membership, encrypted sync, and Your data while retaining verification, export, recovery, and deletion handlers. The portability specialist and all 12 automated composed specialists passed; production authentication remains in the cumulative owner checklist. No hosted deployment, migration, synthetic service traffic, secret, or permission change occurred in this UI packet. See [the widget refinement QA report](TAB-TWO-APPROVED-WIDGET-REFINEMENTS-QA.md) for current runtime provenance and verification.
+
 ## Task 7 hosted activation and current verification
 
 Task 7 hosted activation passed after explicit owner approval on 2026-09-05. Only migration 00900 and the account-export function were deployed. Three export POSTs proved populated export (200), cross-account denial (403), and real stale-authentication denial (401); one existing sync-bootstrap invocation provisioned only the synthetic encryption key. Hosted snapshots and service privileges, transaction-rolled-back account/IP rate limits, and client replay checks cover the remaining boundaries without extra export POSTs. Two synthetic accounts, two encrypted records including one tombstone, two provider metadata rows, and all associated state were removed; IP rate rows were restored and supplemental Auth audit/session/refresh/identity counts are zero. Rollback actually undeployed account-export (GET 404), proved disabled-client zero requests, retained migration 00900, and restored the same JWT-verified bundle. All other function metadata stayed unchanged. Production accountDataExportEnabled was set true only after this proof and cleanup.

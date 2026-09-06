@@ -1,7 +1,7 @@
 # Tab Two Paid MVP Deferred Owner QA
 
 **Updated:** 2026-09-05<br>
-**State:** Ready for cumulative owner QA of production candidate `5f2417f268aa4faea83c5dd225b7073d63cf2061`; hosted Task 7 and automated stabilization passed
+**State:** Ready for cumulative owner QA of production candidate `86a963fb1626e416c02afe0653559e54f2787710`; approved widget refinements, prior hosted Task 7, and final automated stabilization passed
 
 This is the one cumulative owner checklist. Automated tests and installed-extension harnesses continue during development; the owner should not execute these items packet by packet.
 
@@ -67,6 +67,17 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Repeat connect, account-add, reconnect, and remove paths in stable Chrome to confirm the native Microsoft popup opens, closes, and restores focus reliably.
 - Verify keyboard-only operation, visible focus, and spoken labels for consent, picker, account rows, reconnect, and disconnect with the owner's real assistive-technology setup.
 - Smoke test the final unpacked build on the owner's MacBook, including popup behavior, picker scrolling, source colors, and Calendar full, docked, and stacked presentations.
+
+## Approved widget refinements
+
+- In your saved layouts, inspect the ten approved widgets at every size you use, including a 1408 × 445 short window and your normal wallpaper/themes. Confirm titles, primary values, and controls are readable and no content overlaps. Changing the viewport must not choose another named layout or move saved placements.
+- In Calendar, switch Standard between Agenda and Month by pointer and keyboard. Inspect four-, five-, and six-week months, long titles, all-day/multi-day events, and several accounts on one day. Full must keep the complete month beside its agenda; open a date to see every composed event and its source.
+- In Weather, inspect temperature, high/low, a long forecast, Full hourly slots, alerts, and existing environmental details. Confirm last known data remains understandable when offline.
+- In Metrics, switch all four ranges. Confirm the headline and chart both show active days, multiple activity categories on one day count once, and keyboard focus exposes exact interval dates/counts. Inspect retained history and the smaller empty/error/locked presentations where available without deleting real history to create fixtures.
+- In GitHub, Jira, Sentry, and On This Day, confirm titles and primary data make good use of the chosen size, work/source links retain their destination, and long content remains readable. Check your real repository history in each framed size.
+- Inspect six Quick Links, five World Clocks, and the nearest Countdown where those configurations apply. Confirm favicons/labels, weekday and relative offsets, localized dates, paging/editing, and the intrinsic free-canvas presentations remain correct.
+- Operate a stack by pointer, keyboard, and your normal touch/touchpad controls. Confirm the quiet dots remain discoverable, arrows appear when needed, selection persists, and no automatic switching occurs.
+- As a subscriber, confirm Account & Sync leads with membership and Manage billing. Open and close Compare plans by keyboard, then use the existing encrypted-sync and account-data controls in the cumulative checks below. Confirm focus and scroll position remain usable in a short window.
 
 ## Final device and accessibility ceilings
 
