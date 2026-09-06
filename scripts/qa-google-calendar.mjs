@@ -572,9 +572,15 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot, setDi
   await page.reload({ waitUntil: 'domcontentloaded' })
   const calendar = page.getByRole('region', { name: 'Calendar' })
   await calendar.waitFor()
+  assert.equal(await calendar.locator('.calendar-readable-agenda > li').count(), 3, 'Full agenda must keep its approved three readable rows')
+  const day = calendar.getByRole('button', { name: /, 4 items$/u })
+  await day.click()
+  const context = page.getByRole('tooltip')
   for (const value of ['Product review', 'Family dinner', 'Work planning', 'Local appointment']) {
-    await calendar.getByText(value, { exact: false }).first().waitFor()
+    await context.getByText(value, { exact: true }).waitFor()
   }
+  await day.press('Escape')
+  await page.mouse.move(0, 0)
   evidence.interactions['calendar-composed'] = true
   evidence.interactions['calendar-full'] = true
   const metrics = await page.evaluate(() => chrome.storage.local.get('metricsHistory'))

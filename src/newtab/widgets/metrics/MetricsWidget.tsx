@@ -93,7 +93,7 @@ function Locked({ tier, onOpenMetrics }: { tier: 'compact' | 'standard' | 'full'
     <TierFrame label="Metrics" tier={tier} state="permission-required" className="metrics-frame metrics-state-frame metrics-locked">
       <div className="metrics-state-kicker"><span className="metrics-pulse-mark" aria-hidden><i /><i /><i /><i /><i /></span><span>Private metrics</span></div>
       <h2>See the rhythm behind your days.</h2>
-      <p>Understand focus, habits, tasks, and more without syncing raw activity.</p>
+      <p>{tier === 'compact' ? 'Keep a private activity history.' : 'Understand focus, habits, tasks, and more without syncing raw activity.'}</p>
       {onOpenMetrics ? <button type="button" onClick={onOpenMetrics}>See premium plans <span aria-hidden>→</span></button> : null}
     </TierFrame>
   )

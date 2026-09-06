@@ -656,9 +656,15 @@ async function exerciseDesktop(page, viewport, output, evidence, repoRoot) {
   await page.reload({ waitUntil: 'domcontentloaded' })
   const calendar = page.getByRole('region', { name: 'Calendar' })
   await calendar.waitFor()
+  assert.equal(await calendar.locator('.calendar-readable-agenda > li').count(), 3, 'Full agenda must keep its approved three readable rows')
+  const day = calendar.getByRole('button', { name: /, 5 items$/u })
+  await day.click()
+  const context = page.getByRole('tooltip')
   for (const value of ['Personal planning', 'Family dinner', 'Project review', 'Google focus', 'Local appointment']) {
-    await calendar.getByText(value, { exact: false }).first().waitFor()
+    await context.getByText(value, { exact: true }).waitFor()
   }
+  await day.press('Escape')
+  await page.mouse.move(0, 0)
   await capture(page, viewport, 'composed-calendar-full', output, evidence, repoRoot, { state: 'composed-calendar-full' })
 
   await seedMicrosoftState(page, { includeIcs: true, placement: 'stack', tier: 'compact' })

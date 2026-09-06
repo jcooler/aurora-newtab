@@ -64,7 +64,7 @@ try {
   const otd = { dateKey: '08-23', events: Array.from({ length: 8 }, (_, i) => ({ year: 1901 + i, text: `Synthetic history example ${i + 1}: a new public library opens its doors to the community.`, url: 'https://en.wikipedia.org/wiki/Library' })), births: [], deaths: [] }
   for (const [id, supported] of Object.entries(tiers)) {
     if (only && !only.includes(id)) continue
-    for (const tier of supported) for (const state of ['normal', 'long', 'empty', 'light', 'blue']) {
+    for (const tier of supported) for (const state of (process.argv.includes('--metrics-states') ? ['empty', 'loading', 'error', 'locked', 'retained'] : process.argv.includes('--empty-only') ? ['empty'] : ['normal', 'long', 'empty', 'light', 'blue'])) {
       await page.goto(manifest)
       await page.evaluate(async ({ initial, id, tier, state, ids, sentry, sentryScope, otd, otdScope, history }) => {
         const data = structuredClone(initial), snapshots = data.connectorSnapshots
@@ -93,6 +93,7 @@ try {
           snapshots.jira.data = { issues: [], counts: {}, dueSoon: [] }; snapshots.sentry.data.issues = []
           snapshots.onThisDay.data.events = []; data.links = []; data.worldClocks = []; data.countdowns = []; data.metricsHistory.buckets = []
           data.weatherCache.hourly = []
+          if (id === 'metrics') { data.connectorSnapshots = {}; data.connectors = {}; data.todoLists = []; data.habits = [] }
         }
         const widgets = Object.fromEntries(ids.map((key) => [key, { kind: 'hidden' }]))
         delete widgets[id]; delete widgets.notes
@@ -104,7 +105,8 @@ try {
         data.photoPrefs = { ...data.photoPrefs, mode: 'gradient' }
         await chrome.storage.local.set(data)
       }, { initial, id, tier, state, ids, sentry, sentryScope: snapshotScope('sentry', sentry.config), otd, otdScope: snapshotScope('onThisDay', { enabled: true }, '2026-08-23'), history })
-      await page.goto(`${base}?accountState=active`)
+      const accountState = state === 'locked' ? 'signed-in' : state === 'retained' ? 'offline' : 'active'
+      await page.goto(`${base}?accountState=${accountState}${['loading', 'error'].includes(state) ? `&metricsState=${state}` : ''}`)
       if (state === 'empty' && id === 'worldClocks') {
         await page.locator('[data-canvas-surface]').waitFor()
         assert.equal(await page.locator(`[data-stack-active="true"] [data-tier-frame="${tier}"]`).count(), 0)
@@ -113,6 +115,7 @@ try {
       }
       const frame = page.locator(`[data-stack-active="true"] [data-tier-frame="${tier}"]`).first()
       await frame.waitFor()
+      if (id === 'metrics' && state === 'empty') await page.locator('[data-stack-active="true"] .metrics-empty').waitFor()
       await page.evaluate(() => document.fonts.ready)
       await capture(`${id}-${tier}-${state}`, frame)
       if (state === 'normal' && id === 'ics' && tier === 'standard') {

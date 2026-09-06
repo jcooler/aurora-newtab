@@ -843,6 +843,15 @@
 .metrics-loading-rhythm i:nth-child(3) { height: 18px; }
 .metrics-loading-rhythm i:nth-child(4) { height: 32px; }
 .metrics-loading-rhythm i:nth-child(5) { height: 22px; }
+.metrics-frame--compact.metrics-state-frame { padding:10px 12px; }
+.metrics-frame--compact.metrics-state-frame h2 { flex:none; font-size:15px; line-height:1.2; }
+.metrics-frame--compact.metrics-state-frame p { flex:none; margin-top:4px; line-height:1.3; }
+.metrics-frame--compact.metrics-empty h2 { margin-top:6px; }
+.metrics-frame--compact .metrics-empty-rhythm,
+.metrics-frame--compact.metrics-locked .metrics-state-kicker { display:none; }
+.metrics-frame--compact .metrics-loading-rhythm { flex:none; height:26px; margin-bottom:8px; }
+.metrics-frame--compact.metrics-locked > button,
+.metrics-frame--compact.metrics-waiting > button { flex:none; min-height:30px; }
 @keyframes metrics-loading-pulse {
   from { opacity: 0.45; }
   to { opacity: 1; }
