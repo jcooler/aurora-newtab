@@ -111,9 +111,10 @@ try {
       await capture(`${id}-${tier}-${state}`, frame)
       if (state === 'normal' && id === 'ics' && tier === 'standard') {
         await frame.getByRole('tab', { name: 'Month' }).click()
+        await frame.locator('[role="tab"][aria-selected="true"]').filter({ hasText: 'Month' }).waitFor()
         await capture('ics-standard-month', frame)
         await frame.getByRole('tab', { name: 'Month' }).press('ArrowLeft')
-        assert.equal(await frame.getByRole('tab', { name: 'Agenda' }).getAttribute('aria-selected'), 'true')
+        await frame.locator('[role="tab"][aria-selected="true"]').filter({ hasText: 'Agenda' }).waitFor()
         evidence.interactions.push('Calendar native pointer and keyboard view selection')
       }
       if (state === 'normal' && id === 'metrics' && tier === 'full') {
