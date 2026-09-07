@@ -168,7 +168,7 @@ function ReadingListDetail({
   )
 
   return (
-    <div className={mode === 'full' ? 'space-y-2' : 'space-y-3'}>
+    <div data-reading-list-detail={mode} className={mode === 'full' ? 'space-y-2' : 'space-y-3'}>
       {mode === 'full' ? (
         <div data-reading-list-sections="stacked" className="grid gap-2">
           {sections}

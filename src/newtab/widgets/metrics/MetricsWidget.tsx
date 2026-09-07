@@ -146,7 +146,7 @@ function StandardMetrics({ summary, previous, previousAvailable, onOpenMetrics }
     <>
       <header className="metrics-standard-header"><strong>Metrics</strong>{onOpenMetrics ? <button type="button" onClick={onOpenMetrics}>View history</button> : null}</header>
       <div className="metrics-standard-summary">
-        <div><b>{active}</b><span>{' active days'}</span><small>Last 30 days</small>{previousAvailable ? <small title={comparisonCopy(delta)}>{comparisonCopy(delta)}</small> : null}</div>
+        <div><b>{active}</b><span>{' active days'}</span><small>Last 30 days</small>{previousAvailable ? <small title={comparisonCopy(delta)} aria-label={comparisonCopy(delta)}>{delta === 0 ? 'No change' : `${delta > 0 ? '+' : ''}${delta} vs prior period`}</small> : null}</div>
         <ActivityRhythm summary={summary} />
       </div>
       <p className="metrics-interval-description">Active days per 5-day interval</p>
