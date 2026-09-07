@@ -84,7 +84,7 @@ describe('MonthCalWidget', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders the current month\'s matrix (May 2026) with the today cell ringed', async () => {
+  it('renders the current month\'s matrix (May 2026) with the today cell marked as today', async () => {
     const { container } = await renderWithMonthCal()
     expect(intervalSpy).not.toHaveBeenCalled()
     expect(screen.getByText('May 2026')).toBeTruthy()
@@ -93,7 +93,7 @@ describe('MonthCalWidget', () => {
 
     const today = cell(container, TODAY_KEY)
     expect(today).toBeTruthy()
-    expect(today!.querySelector('span')!.className).toContain('ring-accent')
+    expect(today!.querySelector('span')!.className).toContain('month-today')
     expect(today!.closest('tr')?.hasAttribute('data-current-week')).toBe(true)
     expect(container.querySelectorAll('tr[data-current-week]')).toHaveLength(1)
   })
@@ -128,18 +128,18 @@ describe('MonthCalWidget', () => {
 
   it('moves the today identity into June after restoration across midnight', async () => {
     const { container } = await renderWithMonthCal()
-    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).toContain('ring-accent')
+    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).toContain('month-today')
 
     vi.setSystemTime(new Date(2026, 5, 1, 0, 0, 1))
     act(() => window.dispatchEvent(new Event('focus')))
 
-    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).not.toContain('ring-accent')
+    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).not.toContain('month-today')
     expect(screen.getByRole('button', { name: 'Back to today' })).toBeTruthy()
     act(() => screen.getByRole('button', { name: 'Back to today' }).click())
     expect(screen.getByText('June 2026')).toBeTruthy()
   })
 
-  it('out-of-month leading/trailing cells are styled muted and never ringed', async () => {
+  it('out-of-month leading/trailing cells are styled muted and never marked as today', async () => {
     const { container } = await renderWithMonthCal()
     const leadingApril30 = cell(container, '2026-04-30') // leads in from April
     const trailingJune1 = cell(container, '2026-06-01') // trails into June
@@ -149,8 +149,8 @@ describe('MonthCalWidget', () => {
     expect(trailingJune1!.querySelector('span')!.className).toContain('text-fg-muted/50')
     expect(inMonthMay1!.querySelector('span')!.className).not.toContain('text-fg-muted/50')
 
-    expect(leadingApril30!.querySelector('span')!.className).not.toContain('ring-accent')
-    expect(trailingJune1!.querySelector('span')!.className).not.toContain('ring-accent')
+    expect(leadingApril30!.querySelector('span')!.className).not.toContain('month-today')
+    expect(trailingJune1!.querySelector('span')!.className).not.toContain('month-today')
   })
 
   it('the Today button is absent (not just hidden) while viewing the current month', async () => {
@@ -170,9 +170,9 @@ describe('MonthCalWidget', () => {
 
     expect(screen.getByText('April 2026')).toBeTruthy()
     expect(screen.queryByText('May 2026')).toBeNull()
-    // April also has a 15th — but it must NOT be ringed; only the CURRENT
+    // April also has a 15th — but it must NOT be marked as today; only the CURRENT
     // month's today cell ever is.
-    expect(container.querySelectorAll('.ring-accent')).toHaveLength(0)
+    expect(container.querySelectorAll('.month-today')).toHaveLength(0)
     expect(cell(container, '2026-04-15')).toBeTruthy()
 
     const todayBtn = screen.getByRole('button', { name: 'Back to today' })
@@ -198,7 +198,7 @@ describe('MonthCalWidget', () => {
 
     expect(screen.getByText('May 2026')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Back to today' })).toBeNull()
-    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).toContain('ring-accent')
+    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).toContain('month-today')
   })
 
   it('Next month navigates forward (May -> June)', async () => {

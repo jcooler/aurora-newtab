@@ -41,7 +41,7 @@ beforeEach(() => {
 describe('TabGroupsWidget', () => {
   it.each([
     ['compact', 0],
-    ['standard', 2],
+    ['standard', 3],
     ['full', 4],
   ] as const)('%s keeps 25 browser groups inside its exact frame with bounded native actions', (canvasSize, visibleRows) => {
     const colors = ['blue', 'cyan', 'green', 'grey', 'orange', 'pink', 'purple', 'red', 'yellow'] as const
@@ -110,9 +110,9 @@ describe('TabGroupsWidget', () => {
     expect(screen.queryByRole('button', { name: /^Focus Work window,/ })).toBeNull()
   })
 
-  it('Standard caps at two and shows real color, window, shared, and collapsed metadata', () => {
+  it('Standard shows three groups with real color, window, shared, and collapsed metadata', () => {
     render(<TabGroupsWidget canvasSize="standard" />)
-    expect(screen.getAllByRole('button', { name: /^Focus / })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /^Focus / })).toHaveLength(3)
     expect(screen.queryByText('Sixth group')).toBeNull()
     expect(screen.getByText(/Window 1 · Collapsed · Shared/)).toBeTruthy()
     const pink = screen.getByTestId('tab-group-color-2')
@@ -134,7 +134,7 @@ describe('TabGroupsWidget', () => {
     const firstWindow = screen.getByRole('heading', { name: 'Window 1' }).parentElement
     const secondWindow = screen.getByRole('heading', { name: 'Window 2' }).parentElement
     expect(firstWindow?.parentElement).toBe(secondWindow?.parentElement)
-    expect(firstWindow?.parentElement?.className).toContain('grid-cols-2')
+    expect(firstWindow?.parentElement?.className).not.toContain('grid-cols-2')
   })
 
   it('Docked opens the same group actions', async () => {

@@ -87,7 +87,7 @@ describe('TierFrame', () => {
     expect(frame).toMatch(/background:\s*var\(--panel-solid\)\s*;/)
     expect(frame).toMatch(/color:\s*var\(--fg\)\s*;/)
     expect(frame).toMatch(/--tier-frame-muted:\s*var\(--fg-muted\)\s*;/)
-    expect(frame).toMatch(/--tier-frame-accent:\s*var\(--panel-accent\)\s*;/)
+    expect(frame).toMatch(/--tier-frame-accent:\s*var\(--widget-accent, var\(--panel-accent\)\)\s*;/)
     expect(frame).toMatch(/--accent:\s*var\(--tier-frame-accent\)\s*;/)
     expect(frame).toMatch(/box-shadow:\s*0 10px 15px -3px rgb\(0 0 0 \/ 0\.25\), 0 4px 6px -4px rgb\(0 0 0 \/ 0\.25\)\s*;/)
     expect(frame).not.toMatch(/overflow-y:\s*(auto|scroll)\s*;/)

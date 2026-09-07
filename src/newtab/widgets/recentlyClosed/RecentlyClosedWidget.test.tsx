@@ -37,7 +37,7 @@ beforeEach(() => {
 describe('RecentlyClosedWidget', () => {
   it.each([
     ['compact', 0],
-    ['standard', 2],
+    ['standard', 3],
     ['full', 4],
   ] as const)('%s keeps 25 restorable sessions inside its exact frame with distinct bounded rows', (canvasSize, visibleRows) => {
     const items = Array.from({ length: 25 }, (_, index) => ({
@@ -77,10 +77,10 @@ describe('RecentlyClosedWidget', () => {
     expect(screen.queryByRole('button', { name: /Restore Closed tab/ })).toBeNull()
   })
 
-  it('Standard caps the actionable reverse-time list at two rows', () => {
+  it('Standard shows three actionable sessions in reverse time order', () => {
     render(<RecentlyClosedWidget canvasSize="standard" />)
-    expect(screen.getAllByRole('button', { name: /^Restore / })).toHaveLength(2)
-    expect(screen.getAllByText('Closed tab')).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: /^Restore / })).toHaveLength(3)
+    expect(screen.getAllByText('Closed tab')).toHaveLength(2)
     expect(screen.getByText(/Window · 4 tabs/)).toBeTruthy()
   })
 
@@ -90,12 +90,12 @@ describe('RecentlyClosedWidget', () => {
       .map((button) => button.getAttribute('aria-label'))
     expect(new Set(restoreNames).size).toBe(restoreNames.length)
     expect(restoreNames.every((name) => /(?:just now|\d+[mhd] ago)/.test(name ?? ''))).toBe(true)
-    expect(restoreNames.every((name) => /item \d+ of 2/.test(name ?? ''))).toBe(true)
+    expect(restoreNames.every((name) => /item \d+ of 3/.test(name ?? ''))).toBe(true)
 
     const rowNames = screen.getAllByRole('article').map((row) => row.getAttribute('aria-label'))
     expect(new Set(rowNames).size).toBe(rowNames.length)
     expect(rowNames.every((name) => /(?:Tab|Window)/.test(name ?? ''))).toBe(true)
-    expect(rowNames.every((name) => /item \d+ of 2/.test(name ?? ''))).toBe(true)
+    expect(rowNames.every((name) => /item \d+ of 3/.test(name ?? ''))).toBe(true)
   })
 
   it('Full groups a bounded useful subset into Tabs and Windows', () => {
@@ -112,7 +112,7 @@ describe('RecentlyClosedWidget', () => {
     const tabs = screen.getByRole('heading', { name: 'Tabs' }).parentElement
     const windows = screen.getByRole('heading', { name: 'Windows' }).parentElement
     expect(tabs?.parentElement).toBe(windows?.parentElement)
-    expect(tabs?.parentElement?.className).toContain('grid-cols-2')
+    expect(tabs?.parentElement?.className).not.toContain('grid-cols-2')
   })
 
   it('Docked count and latest sessions-only type open the same restore detail', async () => {

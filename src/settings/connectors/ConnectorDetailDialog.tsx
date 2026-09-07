@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { useRef, type ReactNode } from 'react'
+import { useRef, type CSSProperties, type ReactNode } from 'react'
 import { useDialogEscape } from '../../lib/dialogStack'
 import { useFocusTrap } from '../../lib/hooks/useFocusTrap'
 import type { ConnectorCardMode } from './connectorCardState'
@@ -16,6 +16,7 @@ export default function ConnectorDetailDialog({
   label,
   mode,
   experience,
+  accent,
   onClose,
   children,
 }: {
@@ -23,6 +24,7 @@ export default function ConnectorDetailDialog({
   label: string
   mode: ConnectorCardMode
   experience: ConnectorExperience
+  accent?: string
   onClose(): void
   children: ReactNode
 }) {
@@ -47,6 +49,7 @@ export default function ConnectorDetailDialog({
         aria-modal="true"
         aria-label={name}
         data-connector-detail-dialog=""
+        style={accent ? { '--accent': accent } as CSSProperties : undefined}
         className="relative my-auto w-full max-w-[52rem] overflow-hidden rounded-3xl border border-panel-border bg-panel-solid text-fg shadow-2xl shadow-black/60 max-[520px]:mb-0 max-[520px]:max-h-[calc(100dvh-3rem)] max-[520px]:overflow-y-auto max-[520px]:rounded-b-none"
       >
         <button

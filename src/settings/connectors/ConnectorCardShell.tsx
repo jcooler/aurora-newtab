@@ -1,4 +1,5 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef, type CSSProperties, type ReactNode } from 'react'
+import { WIDGET_ACCENTS } from '../../theme/widgetAccents'
 import type { ConnectorId } from '../../services/connectors/types'
 import Switch from '../Switch'
 import type { ConnectorCardMode, ConnectorCardPresentation } from './connectorCardState'
@@ -29,6 +30,8 @@ export default function ConnectorCardShell({
   children?: ReactNode
 }) {
   const actionRef = useRef<HTMLButtonElement>(null)
+  const accentId = id === 'googleCalendar' || id === 'microsoftCalendar' ? 'ics' : id
+  const accent = `var(--widget-accent-${accentId}, ${WIDGET_ACCENTS[accentId]})`
   const active = activeMode !== null
   const stateTone = presentation.state === 'configured-visible'
     ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300'
@@ -39,6 +42,7 @@ export default function ConnectorCardShell({
   return (
     <article
       data-connector-card={id}
+      style={{ '--accent': accent } as CSSProperties}
       data-settings-anchor={id}
       tabIndex={-1}
       data-connector-state={presentation.state}
@@ -109,6 +113,7 @@ export default function ConnectorCardShell({
 
       {active && children ? (
         <ConnectorDetailDialog
+          accent={accent}
           open
           label={label}
           mode={activeMode}

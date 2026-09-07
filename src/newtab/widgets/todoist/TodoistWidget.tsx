@@ -23,7 +23,7 @@ import { workPresentationState, workRowClass } from '../work/workPresentation'
 const TODOIST_FRAME_ROWS: Readonly<Record<CanvasSize, number>> = {
   compact: 0,
   standard: 2,
-  full: 2,
+  full: 3,
 }
 
 function connectedTodoist(config: ConnectorConfig | undefined): TodoistConfig | null {
@@ -214,13 +214,13 @@ function TaskGroups({
     { bucket: 'upcoming', label: 'Upcoming' },
   ]
   return (
-    <div className="mt-3 space-y-4">
+    <div className="mt-3 space-y-2">
       {groups.map(({ bucket, label }) => {
         const matches = tasks.filter((task) => task.bucket === bucket)
         return matches.length > 0 ? (
           <section key={bucket} aria-label={`${label} Todoist tasks`}>
             <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{label}</h3>
-            <TaskList tasks={matches} projects={projects} onComplete={onComplete} />
+            <TaskList tasks={matches} projects={projects} onComplete={onComplete} twoLine />
           </section>
         ) : null
       })}

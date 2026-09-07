@@ -1,21 +1,11 @@
-// src/newtab/widgets/shared/ContributionGraph.tsx — the contribution heatmap +
-// month ticks + stat line, rendered from a Contributions slice. Adapts the
-// design board's Heatmap/StatLine (house tokens, A-face geometry: cell 13, gap
-// 3) with one pre-ruled content-accuracy deviation from the board — the word is
-// "contributions", never "commits" (the data is GitHub's contribution calendar,
-// not a commit count), in the stat line AND every cell's hover title. Lives in
-// widgets/shared (Task 73) — github was the first connector to use it, but the
-// component itself is connector-agnostic (any Contributions-shaped slice).
+// Square contribution cells with a palette independent of connector fetch settings.
+// Every displayed range uses its own days, total, and streak.
 import type { Contributions } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import { buildContributionGrid } from './contributionGrid'
 import { GRAPH_PALETTES, type GraphColor } from '../../../lib/widgetAppearance'
 
-// Level → cell background. Pinned by the board: an rgba ramp over Aurora's
-// sky-blue accent (rgb 125 211 252) so the card reads as Aurora's own sky, NOT
-// GitHub green; level 0 is a faint fg-derived empty cell. These are literal
-// style values (not house token classes) because the ramp itself is the spec —
-// the render Jon picked is these exact alphas.
+// Fixed maximum cell sizes keep seven rows inside every supported frame.
 export const CONTRIBUTION_GRAPH_GEOMETRY = Object.freeze({
   compact: Object.freeze({ columnWidth: 7, rowHeight: 7, gap: 2 }),
   standard: Object.freeze({ columnWidth: 9, rowHeight: 9, gap: 2 }),
@@ -80,7 +70,7 @@ export default function ContributionGraph({
               width: fitWidth ? '100%' : columnWidth,
               height: fitWidth ? undefined : rowHeight,
               aspectRatio: '1 / 1',
-              background: c ? c.level === 0 ? 'var(--control-bg)' : `color-mix(in srgb, ${GRAPH_PALETTES[color]} ${[0, 25, 45, 70, 100][c.level]}%, transparent)` : 'transparent',
+              background: c ? c.level === 0 ? 'var(--control-bg)' : `color-mix(in srgb, var(--graph-palette-${color}, ${GRAPH_PALETTES[color]}) ${[0, 25, 45, 70, 100][c.level]}%, transparent)` : 'transparent',
               // Inset hairline on filled cells — the board's quiet edge that keeps
               // the darkest levels legible against the panel.
               boxShadow: c ? 'inset 0 0 0 1px rgba(245,245,244,0.04)' : undefined,

@@ -301,15 +301,15 @@ const sectionHasTier = (tier: string) => {
 
 describe('GitlabWidget — composed card (wave 2)', () => {
   it.each([
-    ['compact', '10px', '7px', false],
-    ['standard', '16px', '10px', false],
-    ['full', '23px', '17px', true],
-  ] as const)('uses the centered %s contribution geometry', async (tier, width, height, showsMonths) => {
+    ['compact', false],
+    ['standard', false],
+    ['full', true],
+  ] as const)('fits square %s contribution cells within the frame', async (tier, showsMonths) => {
     mount(await seededMulti(ALL_ON, FULL_DATA), tier)
     const graph = await screen.findByRole('img', { name: /contribution activity/i })
-    expect(graph.style.gridAutoColumns).toBe(width)
-    expect(graph.style.gridTemplateRows).toBe(`repeat(7, ${height})`)
-    expect(graph.closest('[data-contribution-composition]')?.className).toContain('mx-auto')
+    expect(graph.style.gridTemplateColumns).toContain('minmax(0, 1fr)')
+    expect(graph.style.gridTemplateRows).toBe('repeat(7, auto)')
+    expect((graph.firstElementChild as HTMLElement).style.aspectRatio).toBe('1 / 1')
     expect(document.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
   })
 
@@ -337,11 +337,11 @@ describe('GitlabWidget — composed card (wave 2)', () => {
     const header = frame.querySelector('header')
     expect(header).not.toBeNull()
     if (!header) return
-    expect(header.textContent).toContain('87 contributions')
+    expect(header.textContent).toContain('7 contributions')
     expect(header.textContent).toContain('3 day streak')
 
     const graph = within(frame).getByRole('img', { name: /contribution activity/i })
-    expect(graph.style.gridAutoColumns).toBe('23px')
+    expect(graph.style.gridTemplateRows).toBe('repeat(7, auto)')
     expect(frame.querySelector('[data-contribution-months]')).toBeTruthy()
 
     const queues = within(frame).getByRole('group', { name: 'GitLab merge request queues' })

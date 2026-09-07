@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBrowserResource } from '../../../lib/hooks/useBrowserResource'
 import {
@@ -27,6 +27,7 @@ const ITEMS = [
 ]
 
 const refresh = vi.fn().mockResolvedValue(undefined)
+const openActions = (title: string) => fireEvent.click(screen.getByRole('button', { name: new RegExp(`^Actions for ${title},`) }))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -39,8 +40,8 @@ beforeEach(() => {
 describe('ReadingListWidget', () => {
   it.each([
     ['compact', 0],
-    ['standard', 1],
-    ['full', 2],
+    ['standard', 3],
+    ['full', 4],
   ] as const)('%s keeps a 25-record queue inside its exact frame with a bounded useful subset', (canvasSize, visibleRows) => {
     const items = Array.from({ length: 25 }, (_, index) => ({
       url: `https://reading.example/item-${index + 1}`,
@@ -111,6 +112,7 @@ describe('ReadingListWidget', () => {
     expect(open.getAttribute('href')).toBe('https://news.example/launch')
     expect(open.getAttribute('target')).toBe('_blank')
     expect(open.getAttribute('rel')).toBe('noopener noreferrer')
+    openActions('Launch notes')
     expect(screen.getByRole('button', { name: /^Mark Launch notes,.* read$/ })).toBeTruthy()
   })
 
@@ -119,10 +121,11 @@ describe('ReadingListWidget', () => {
     expect(screen.getByRole('heading', { name: 'Unread' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Recently read' })).toBeTruthy()
     expect(screen.getByText('Aurora story')).toBeTruthy()
+    openActions('Aurora story')
     expect(screen.getByRole('button', { name: /^Mark Aurora story,.* unread$/ })).toBeTruthy()
   })
 
-  it('Full places one unread and one recently read row side by side above the remaining-count footer', () => {
+  it('Full uses its width for three unread and one recently read row above the remaining-count footer', () => {
     const items = Array.from({ length: 25 }, (_, index) => ({
       url: `https://reading.example/item-${index + 1}`,
       title: `Saved page ${index + 1}`,
@@ -139,13 +142,13 @@ describe('ReadingListWidget', () => {
     render(<ReadingListWidget canvasSize="full" />)
 
     const frame = screen.getByRole('region', { name: 'Reading List' })
-    const sections = frame.querySelector<HTMLElement>('[data-reading-list-sections="parallel"]')
+    const sections = frame.querySelector<HTMLElement>('[data-reading-list-sections="stacked"]')
     const footer = frame.querySelector<HTMLElement>('[data-reading-list-footer]')
     expect(sections).not.toBeNull()
-    expect(sections?.className).toContain('grid-cols-2')
+    expect(sections?.className).not.toContain('grid-cols-2')
     expect(sections?.querySelectorAll('section')).toHaveLength(2)
-    expect(sections?.querySelectorAll('article')).toHaveLength(2)
-    expect(footer?.textContent).toBe('23 more in Chrome Reading List')
+    expect(sections?.querySelectorAll('article')).toHaveLength(4)
+    expect(footer?.textContent).toBe('21 more in Chrome Reading List')
     expect(frame.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
   })
 
@@ -161,6 +164,7 @@ describe('ReadingListWidget', () => {
 
   it('marks an item read then refreshes from Chrome before announcing success', async () => {
     render(<ReadingListWidget canvasSize="standard" />)
+    openActions('Launch notes')
     await act(async () => { screen.getByRole('button', { name: /^Mark Launch notes,.* read$/ }).click() })
     expect(setReadingListReadState).toHaveBeenCalledWith('https://news.example/launch', true)
     expect(refresh).toHaveBeenCalledTimes(1)
@@ -169,6 +173,7 @@ describe('ReadingListWidget', () => {
 
   it('requires a second inline confirmation before Remove', async () => {
     render(<ReadingListWidget canvasSize="standard" />)
+    openActions('Launch notes')
     await act(async () => { screen.getByRole('button', { name: /^Remove Launch notes,/ }).click() })
     expect(removeReadingListEntry).not.toHaveBeenCalled()
     await act(async () => { screen.getByRole('button', { name: /^Confirm remove Launch notes,/ }).click() })

@@ -15,8 +15,8 @@ import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/Wor
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
 const LINEAR_FRAME_ROWS: Readonly<Record<CanvasSize, number>> = {
-  compact: 0,
-  standard: 2,
+  compact: 1,
+  standard: 3,
   full: 3,
 }
 

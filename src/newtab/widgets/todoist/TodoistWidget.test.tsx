@@ -110,15 +110,15 @@ describe('TodoistWidget', () => {
     expect(link.getAttribute('target')).toBe('_blank')
   })
 
-  it('bounds Full to two due rows without a card scroll owner and keeps named Docked detail', async () => {
+  it('bounds Full to three due rows without a card scroll owner and keeps named Docked detail', async () => {
     const fullTasks = [task(0, 'overdue'), task(1, 'today'), ...Array.from({ length: 23 }, (_, index) => task(index + 2, 'upcoming'))]
     const full = mount(await seededStorage(CONNECTED, { ...DATA, tasks: fullTasks }), { canvasSize: 'full' })
     expect(await screen.findByText('Ship Aurora 1')).toBeTruthy()
-    expect(screen.queryByText('Ship Aurora 2')).toBeNull()
+    expect(screen.getByText('Ship Aurora 2')).toBeTruthy()
     expect(screen.queryByText('Ship Aurora 24')).toBeNull()
     expect(screen.getByRole('heading', { name: 'Overdue' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'Upcoming' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Upcoming' })).toBeTruthy()
     const frame = screen.getByRole('region', { name: 'Todoist' })
     expect(frame.getAttribute('data-tier-frame')).toBe('full')
     expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()

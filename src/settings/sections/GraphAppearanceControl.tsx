@@ -26,7 +26,7 @@ export default function GraphAppearanceControl({ connector, storage }: { connect
         </select>
       </div>
       <div aria-hidden className="mt-2 flex gap-1">
-        {[20, 40, 60, 80, 100].map(level => <span key={level} className="size-3 rounded-[1px]" style={{ background: GRAPH_PALETTES[color], opacity: level / 100 }} />)}
+        {[20, 40, 60, 80, 100].map(level => <span key={level} className="size-3 rounded-[1px]" style={{ background: `var(--graph-palette-${color}, ${GRAPH_PALETTES[color]})`, opacity: level / 100 }} />)}
       </div>
       {error ? <p role="alert" className="mt-2 text-xs text-fg">Could not save the color. Please try again.</p> : null}
     </div>

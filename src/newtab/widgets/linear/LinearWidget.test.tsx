@@ -75,12 +75,12 @@ describe('LinearWidget', () => {
     expect(frame.querySelector('[data-work-widget-scroll]')).toBeNull()
   })
 
-  it('renders Compact assigned and due facts without rows', async () => {
+  it('renders Compact assigned and due facts with the first actionable issue', async () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'compact' })
     expect(await screen.findByText('2 assigned')).toBeTruthy()
     expect(screen.getByText('1 due soon')).toBeTruthy()
     expect(screen.getByText('AUR-0')).toBeTruthy()
-    expect(screen.queryByText('Build Aurora 0')).toBeNull()
+    expect(screen.getByRole('link', { name: /Build Aurora 0/ })).toBeTruthy()
   })
 
   it('chooses the nearest due date instead of the first provider-ordered due issue', async () => {

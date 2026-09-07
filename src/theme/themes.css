@@ -1,6 +1,6 @@
 /* One surface (Task 60). The three-theme system (aurora/glass/mono, each a
    [data-theme] block) collapsed into this single :root token set: the former
-   Aurora theme's type + accent, with the former Mono theme's neutral near-black
+   Aurora theme's type + accent, with the approved dark mineral
    panel color as the default. settings.panelColor re-tints --panel-solid/--panel
    at runtime (src/theme/index.ts's applyPanelColor + src/lib/color.ts), deriving
    --fg/--fg-muted and the color-scheme flip from the pick's luminance so any

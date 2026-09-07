@@ -119,7 +119,7 @@ function TabGroupDetail({
       ? fullWindowOrdinals.flatMap((windowOrdinal) => (
         groups.filter((group) => group.windowOrdinal === windowOrdinal).slice(0, 2)
       ))
-      : groups.slice(0, 2)
+      : groups.slice(0, 3)
   const sections = mode !== 'standard'
     ? [...new Set(visible.map((group) => group.windowOrdinal))].map((windowOrdinal) => ({
       title: `Window ${windowOrdinal}`,
@@ -144,7 +144,7 @@ function TabGroupDetail({
   }
 
   return (
-    <div className={mode === 'full' ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
+    <div className={mode === 'full' ? 'grid gap-2' : 'space-y-3'}>
       {sections.map((section) => (
         <section key={section.title ?? 'groups'} className="space-y-1">
           {section.title ? <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{section.title}</h3> : null}
@@ -193,9 +193,9 @@ function TabGroupDetail({
         </section>
       ))}
       {mode !== 'detail' && hiddenCount > 0 ? (
-        <p className={mode === 'full' ? 'col-span-2 text-[11px] text-fg-muted' : 'text-[11px] text-fg-muted'}>{hiddenCount} more Chrome tab groups</p>
+        <p className="text-[11px] text-fg-muted">{hiddenCount} more Chrome tab groups</p>
       ) : null}
-      {announcement ? <p role="status" className={mode === 'full' ? 'col-span-2 text-xs text-fg-muted' : 'text-xs text-fg-muted'}>{announcement}</p> : null}
+      {announcement ? <p role="status" className="text-xs text-fg-muted">{announcement}</p> : null}
     </div>
   )
 }

@@ -235,7 +235,7 @@ function GitlabInner({
   const graphWrap = soleForgeCard ? 'hidden taller:block' : 'hidden grand:block'
   const renderGraph = graph !== null && (framed || !githubGraphEnabled)
   const fullGraphStats = tier === 'full' && graph
-    ? { total: graph.total, streak: buildContributionGrid(graph.days).streak }
+    ? { total: framed ? graph.days.slice(-365).reduce((sum, day) => sum + day.count, 0) : graph.total, streak: buildContributionGrid(framed ? graph.days.slice(-365) : graph.days).streak }
     : null
   // A data-bearing graph WITHHELD for github's — the falsifiable cross-card
   // state the harness probes (`data-yield="github"` on the section).
