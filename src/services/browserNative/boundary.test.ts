@@ -10,6 +10,15 @@ afterEach(() => {
 })
 
 describe('browserNativeBoundary', () => {
+  it('observes a namespace made available by an optional grant without replacing the page boundary', () => {
+    const native: { readingList?: object } = {}
+    vi.stubGlobal('chrome', native)
+    const boundary = browserNativeBoundary()
+    expect(boundary.readingList).toBeUndefined()
+    native.readingList = { query: vi.fn() }
+    expect(browserNativeBoundary()).toBe(boundary)
+    expect(boundary.readingList).toBe(native.readingList)
+  })
   it('uses the five exact Chrome namespaces without exposing tabs or history', () => {
     const readingList = { query: vi.fn() }
     const sessions = { getRecentlyClosed: vi.fn() }

@@ -118,12 +118,17 @@ export function useBrowserResource<T>({
     }
   }, [clearRetry, identity, permission])
 
+  const canSubscribe = state.status === 'ready' || state.status === 'error'
   useEffect(() => {
+    if (!canSubscribe) return
     const onFeatureChange = () => {
       automaticRetriesRef.current = 0
       void refresh()
     }
-    const removeFeatureListener = subscribeRef.current(onFeatureChange)
+    return subscribeRef.current(onFeatureChange)
+  }, [canSubscribe, permission, refresh])
+
+  useEffect(() => {
     const removePermissionListener = subscribePermission(permission, (held) => {
       generationRef.current += 1
       clearRetry()
@@ -143,7 +148,6 @@ export function useBrowserResource<T>({
     document.addEventListener('visibilitychange', onVisibility)
     void refresh()
     return () => {
-      removeFeatureListener()
       removePermissionListener()
       document.removeEventListener('visibilitychange', onVisibility)
     }

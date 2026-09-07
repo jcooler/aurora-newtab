@@ -3016,6 +3016,8 @@ a.aurora-attention-panel__title:focus-visible {
   z-index: 40;
 }
 
+/* Framed widgets own their internal layout in both free and stack modes.
+   Legacy direct-child adjustments apply only to the remaining unframed faces. */
 /* Compact registry variants must honor the planner-owned inline size. The
    legacy Weather chip and Quote figure both sized themselves against the
    viewport, which let their painted/hit-test areas escape into the adjacent
@@ -3024,33 +3026,33 @@ a.aurora-attention-panel__title:focus-visible {
   width: 100%;
   max-width: 100%;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > button {
   padding-inline: 4px;
   padding-block: 4px;
   gap: 2px;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > button > span {
   gap: 4px;
   flex-wrap: wrap;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3) {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > button > span > span:nth-child(3) {
   order: 2;
   flex-basis: 100%;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > svg:first-child {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > button > span > svg:first-child {
   width: 20px;
   height: 20px;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > button > span > span:nth-child(2) {
   font-size: 20px;
 }
 /* Batch-1 owner review: the compact chip's F/C scale letter was "a smidge
    too large" at its inherited 0.7em (14px of the 20px digits). Pin it to
    the documented 12px metadata floor instead. */
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) > span {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > button > span > span:nth-child(2) > span {
   font-size: 12px;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span:not(:first-child) {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > button > span:not(:first-child) {
   /* A collapsed rain callout and stale-status line are both meaningful, so
      retain them in compact rather than hiding either. Keep each line local
      to the allocated card and trim only text that exceeds its inline track. */
@@ -3062,17 +3064,17 @@ a.aurora-attention-panel__title:focus-visible {
   font-size: 10px;
   line-height: 12px;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div,
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > div,
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > div > div {
   max-width: 100%;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > div > div {
   flex-direction: column;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) > div {
   padding: 4px;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) > div > div > div {
   flex-direction: column;
 }
 .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] [data-location-label="full"] {
@@ -3087,13 +3089,13 @@ a.aurora-attention-panel__title:focus-visible {
   width: 100%;
   max-width: 100%;
 }
-.canvas-item[data-block-id="weather"].z-30 > section {
+.canvas-item[data-block-id="weather"].z-30 > section:not(.tier-frame) {
   max-width: none;
 }
 
 .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame),
-.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div,
-.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > div,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section:not(.tier-frame) > div > div {
   width: 100%;
   max-width: 100%;
 }
@@ -3104,18 +3106,18 @@ a.aurora-attention-panel__title:focus-visible {
 }
 @media (min-height: 201px) {
   .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]),
-  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div,
-  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div {
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) > div,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) > div > div {
     width: 100%;
     max-width: 100%;
   }
-  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) input,
-  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) button,
-  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) [role="listbox"] {
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) input,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) button,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) [role="listbox"] {
     width: 100%;
     max-width: 100%;
   }
-  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) div {
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) div {
     max-width: 100%;
   }
 
@@ -3180,16 +3182,16 @@ a.aurora-attention-panel__title:focus-visible {
 /* Calendar's compact glance is the next event. The longer agenda remains the
    standard/expanded variant; a live Join affordance wraps below the summary
    instead of painting into the next grid cell. */
-.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section:not(.tier-frame) {
   padding: 8px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section > p {
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section:not(.tier-frame) > p {
   flex-wrap: wrap;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section > ul {
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section:not(.tier-frame) > ul {
   display: none;
 }
-.canvas-item[data-canvas-size="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section {
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section:not(.tier-frame) {
   padding: 8px;
   font-size: 11px;
   line-height: 14px;
@@ -3288,14 +3290,14 @@ a.aurora-attention-panel__title:focus-visible {
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
-) > section {
+) > section:not(.tier-frame) {
   padding: 8px;
 }
 .canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
-) > section > div:first-child {
+) > section:not(.tier-frame) > div:first-child {
   margin-bottom: 4px;
   min-width: 0;
   gap: 2px;
@@ -3304,12 +3306,12 @@ a.aurora-attention-panel__title:focus-visible {
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
-) > section > div:first-child > h2 {
+) > section:not(.tier-frame) > div:first-child > h2 {
   min-width: 0;
   font-size: 11px;
   line-height: 14px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="github"] > section > div:first-child > span.text-xs {
+.canvas-item[data-canvas-size="compact"][data-block-id="github"] > section:not(.tier-frame) > div:first-child > span.text-xs {
   /* The notification fact is short and essential; do not turn "4 unread"
      into an unexplained "4 u…" while the compact graph uses the lower row. */
   max-width: none;
@@ -3318,7 +3320,7 @@ a.aurora-attention-panel__title:focus-visible {
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
-) > section > div:first-child > span {
+) > section:not(.tier-frame) > div:first-child > span {
   min-width: 0;
   max-width: 28px;
   overflow: hidden;
@@ -3341,9 +3343,9 @@ a.aurora-attention-panel__title:focus-visible {
 ) section li a > span:first-child:not(:last-child) {
   display: none;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="github"] > section > ul ~ ul,
-.canvas-item[data-canvas-size="compact"][data-block-id="gitlab"] > section > ul ~ div:not(:has([role="img"])),
-.canvas-item[data-canvas-size="compact"][data-block-id="jira"] > section > ul ~ div {
+.canvas-item[data-canvas-size="compact"][data-block-id="github"] > section:not(.tier-frame) > ul ~ ul,
+.canvas-item[data-canvas-size="compact"][data-block-id="gitlab"] > section:not(.tier-frame) > ul ~ div:not(:has([role="img"])),
+.canvas-item[data-canvas-size="compact"][data-block-id="jira"] > section:not(.tier-frame) > ul ~ div {
   /* One compact action row is kept directly usable. Additional enabled
      sections remain available in standard/expanded variants instead of
      increasing the frozen one-track card's paint footprint. */
@@ -3357,7 +3359,7 @@ a.aurora-attention-panel__title:focus-visible {
   margin-top: 4px;
   padding-top: 4px;
 }
-.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section > div.hidden:has([role="img"]) {
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section:not(.tier-frame) > div.hidden:has([role="img"]) {
   /* Rows-bearing and quiet compositions place the same legacy height tier on
      the inner graph wrapper. Compact keeps the heatmap and its stat summary
      inside that visible wrapper. */
@@ -3373,7 +3375,7 @@ a.aurora-attention-panel__title:focus-visible {
   line-height: 14px;
 }
 
-.canvas-item[data-canvas-size="compact"][data-block-id="rss"] > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="rss"] > section:not(.tier-frame) {
   padding: 8px;
 }
 .canvas-item[data-canvas-size="compact"][data-block-id="rss"] li:nth-child(n + 3),
@@ -3385,18 +3387,18 @@ a.aurora-attention-panel__title:focus-visible {
      standard/expanded card retains the complete capped deployment list. */
   display: none;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section:not(.tier-frame) {
   /* The legacy fixed-rail tier hid the entire connector below 995px. The
      Adaptive Stage has already allocated a compact BoardItem here, so expose
      its status summary and deployment action inside that owned footprint. */
   display: block;
   padding: 8px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > h2,
-.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > p {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section:not(.tier-frame) > h2,
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section:not(.tier-frame) > p {
   margin-bottom: 4px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > p {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section:not(.tier-frame) > p {
   overflow-wrap: anywhere;
   font-size: 11px;
   line-height: 14px;
@@ -3416,13 +3418,13 @@ a.aurora-attention-panel__title:focus-visible {
    the buttons therefore keep the W2 target floor without escaping the frozen
    footprint. Passive entity chips yield only in the very narrow Board cells,
    while the full chip/action composition remains available in wider variants. */
-.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section:not(.tier-frame) > div {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(36px, 1fr));
   gap: 0;
   margin-top: 0;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section > div > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section:not(.tier-frame) > div > div {
   min-width: 0;
 }
 .canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] button[aria-label^="Run "] {
@@ -3511,7 +3513,7 @@ a.aurora-attention-panel__title:focus-visible {
 }
 
 @media (max-width: 320px) and (max-height: 200px) {
-  .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+  .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:not(.tier-frame):has(input[aria-label="Search for a city"]) > div {
     padding-inline: 48px;
   }
 

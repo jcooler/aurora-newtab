@@ -146,8 +146,8 @@
 [data-block-id="habits"] [data-habits-grid] button > span:first-child { border-radius: 3px; width: 9px; height: 9px; }
 
 /* Free typography follows photo ink. Stack typography follows panel ink. */
-[data-block-id="worldClocks"]:not([data-stack-member]) .tier-frame[data-tier-frame],
-[data-block-id="countdown"]:not([data-stack-member]) .tier-frame[data-tier-frame] {
+.canvas-item[data-block-id="worldClocks"]:not([data-stack-member]):not([data-canvas-object-id^="stack:"]) .tier-frame[data-tier-frame],
+.canvas-item[data-block-id="countdown"]:not([data-stack-member]):not([data-canvas-object-id^="stack:"]) .tier-frame[data-tier-frame] {
   background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none;
   --fg: var(--canvas-fg); --fg-muted: var(--canvas-fg-muted);
   --tier-frame-muted: var(--canvas-fg-muted); --tier-frame-accent: var(--canvas-fg);
@@ -187,6 +187,13 @@
 .canvas-item[data-block-id="quote"][data-canvas-size="compact"]:not([data-stack-member]) [data-quote-copy] { font-size: 14px; }
 .canvas-item[data-block-id="quote"]:not([data-stack-member]) figcaption { margin-top: 8px; font-size: 11px; letter-spacing: .035em; }
 .clock-face [data-canvas-type-role="clock"] { font-weight: 400; letter-spacing: -.045em; }
+
+/* The compact weather face has one fixed budget in free and stacked cards. */
+.aurora-canvas .tier-frame--compact .weather-tier-summary { padding: 8px 12px; gap: 4px; }
+.aurora-canvas .tier-frame--compact .weather-current-composition { min-height: 0; }
+.aurora-canvas .tier-frame--compact [data-weather-current] { line-height: 1; }
+.aurora-canvas .tier-frame--compact .weather-condition-label { font-size: 12px; line-height: 15px; }
+.aurora-canvas .tier-frame--compact [data-weather-freshness] { font-size: 11px; line-height: 14px; }
 [data-block-id="metrics"] .metrics-compact-score b, [data-block-id="metrics"] .metrics-standard-summary b,
 [data-block-id="metrics"] .metrics-trend-summary b { color: var(--tier-frame-accent); }
 [data-block-id="onThisDay"] .on-this-day-tier-item > :first-child { color: var(--tier-frame-accent); }

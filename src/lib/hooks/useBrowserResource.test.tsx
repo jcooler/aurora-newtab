@@ -63,9 +63,11 @@ describe('useBrowserResource', () => {
   it('reports permission-required without touching the feature API', async () => {
     vi.mocked(hasPermission).mockResolvedValue(false)
     const load = vi.fn().mockResolvedValue(['forbidden'])
-    render(<Probe load={load} />)
+    const subscribe = vi.fn(() => () => undefined)
+    render(<Probe load={load} subscribe={subscribe} />)
     expect(await screen.findByText('permission-required')).toBeTruthy()
     expect(load).not.toHaveBeenCalled()
+    expect(subscribe).not.toHaveBeenCalled()
   })
 
   it('deduplicates one in-flight query per identity across mounted consumers', async () => {

@@ -18,12 +18,15 @@ type BrowserNativeBoundary = {
 let initializedBoundary: BrowserNativeBoundary | null = null
 
 function chromeBoundary(): BrowserNativeBoundary {
+  const native = chrome
   return {
-    readingList: chrome.readingList,
-    sessions: chrome.sessions,
-    downloads: chrome.downloads,
-    tabGroups: chrome.tabGroups,
-    windows: chrome.windows,
+    // Chrome exposes optional namespaces after their grant. Keep the boundary
+    // identity stable while observing grant/revocation on the same Chrome object.
+    get readingList() { return native.readingList },
+    get sessions() { return native.sessions },
+    get downloads() { return native.downloads },
+    get tabGroups() { return native.tabGroups },
+    get windows() { return native.windows },
   }
 }
 

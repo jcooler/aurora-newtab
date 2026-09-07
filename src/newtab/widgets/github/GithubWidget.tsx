@@ -274,7 +274,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime, graph
             <span aria-hidden className="mx-1.5 text-fg-muted/40">·</span>
             <span className="font-semibold tabular-nums text-accent">{fullGraphStats.streak}</span> day streak
           </p>
-        ) : graph && framed && tier !== 'compact' ? <span className="ml-auto text-[11px] text-fg-muted">Last {Math.min(graph.days.length, tier === 'standard' ? 182 : 365)} days</span> : <span className="flex-1" />}
+        ) : graph && framed && tier !== 'compact' ? <span className="ml-auto text-[11px] text-fg-muted">{graph.days.length < (tier === 'standard' ? 182 : 365) ? `${graph.days.length} days available` : `Last ${tier === 'standard' ? 182 : 365} days`}</span> : <span className="flex-1" />}
         {/* Unread chip renders ONLY when the notifications view is on AND the
             count is known AND positive (Controller ruling 2, compounded with the
             view gate): null (endpoint unavailable) hides it; 0 (all caught up)
