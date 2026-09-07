@@ -195,3 +195,17 @@
 [data-block-id] .dock-line::before { content: ''; width: 4px; height: 4px; flex-shrink: 0; border-radius: 50%; background: var(--widget-accent, currentColor); }
 
 @media (prefers-reduced-motion: reduce) { .tier-frame { transition: none; } }
+
+/* A narrow browser can constrain a manually placed Full card below its
+   authored width. Retain its complete content and typography in that same
+   footprint; never switch the saved tier or move neighboring widgets. */
+@media (max-width: 483px) {
+  .tier-frame--full { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--tier-frame-muted) transparent; }
+  .tier-frame--full > :not(.sr-only) { flex-shrink: 0; min-height: min-content; }
+  .tier-frame--full > [data-calendar-full-composition] { min-height: 250px; }
+  .tier-frame--full > .weather-tier-summary { height: auto; min-height: 280px; }
+  .core-world-clocks-stack--full .core-world-clocks-stack__rows { flex: none; align-content: start; }
+  .core-world-clocks-stack--full .core-world-clock-row { min-height: 43px; }
+  .metrics-frame--full .metrics-expanded-content { flex: none; }
+  .metrics-frame--full .metrics-category-list { margin-top: 0; }
+}
