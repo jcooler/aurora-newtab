@@ -11,6 +11,7 @@ export interface GridCell {
   count: number
   level: 0 | 1 | 2 | 3 | 4
   date: string // yyyy-mm-dd, for the hover title
+  unavailable?: true
 }
 
 export interface MonthTick {
@@ -41,7 +42,7 @@ function weekdayOf(dateISO: string): number {
   return new Date(y, m - 1, d).getDay()
 }
 
-export function buildContributionGrid(days: ContributionDay[]): {
+export function buildContributionGrid(days: ContributionDay[], trailingDays?: number): {
   cells: (GridCell | null)[]
   columns: number
   monthTicks: MonthTick[]
@@ -49,14 +50,27 @@ export function buildContributionGrid(days: ContributionDay[]): {
 } {
   if (days.length === 0) return { cells: [], columns: 0, monthTicks: [], streak: 0 }
 
+  // Keep the selected calendar window stable while an older/partial cache is
+  // refreshed. Missing dates are explicitly unavailable, never zero activity.
+  let calendarDays: Array<ContributionDay & { unavailable?: true }> = days
+  if (trailingDays) {
+    const known = new Map(days.map(day => [day.date, day]))
+    const [year, month, day] = days[days.length - 1].date.split('-').map(Number)
+    calendarDays = Array.from({ length: trailingDays }, (_, index) => {
+      const date = new Date(year, month - 1, day - trailingDays + index + 1)
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+      return known.get(key) ?? { date: key, count: 0, unavailable: true }
+    })
+  }
+
   // Column-major grid: front-pad so column 0 aligns to the first day's real
   // weekday (row 0 = Sunday), then tail-pad up to whole 7-cell week columns.
   // Pad cells are null — rendered blank, exactly like GitHub's partial first and
   // last weeks.
-  const frontPad = weekdayOf(days[0].date)
+  const frontPad = weekdayOf(calendarDays[0].date)
   const cells: (GridCell | null)[] = []
   for (let i = 0; i < frontPad; i++) cells.push(null)
-  for (const day of days) cells.push({ count: day.count, level: levelFor(day.count), date: day.date })
+  for (const day of calendarDays) cells.push({ count: day.count, level: levelFor(day.count), date: day.date, ...(day.unavailable ? { unavailable: true as const } : {}) })
   while (cells.length % 7 !== 0) cells.push(null)
   const columns = cells.length / 7
 

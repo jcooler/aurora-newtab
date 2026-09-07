@@ -98,7 +98,7 @@ describe('GithubWidget', () => {
     }
     mount(await seededStorage(config, DATA_WITH_GRAPH), tier)
     const graph = await screen.findByRole('img', { name: /contribution activity/i })
-    expect(graph.querySelectorAll('[title]')).toHaveLength(CONTRIB.days.length)
+    expect(graph.querySelectorAll('[title]:not([data-contribution-unknown])')).toHaveLength(CONTRIB.days.length)
     expect(document.querySelector('[data-contribution-months]') !== null).toBe(showsMonths)
   })
 
@@ -119,6 +119,13 @@ describe('GithubWidget', () => {
     expect(rowGroup?.querySelectorAll('ul')).toHaveLength(2)
     expect(screen.getByText('Fix the flaky login test').className).not.toContain('dense:text-xs')
     expect(screen.getByText('Crash on cold start')).toBeTruthy()
+  })
+
+  it('keeps a quiet Compact graph free of a colliding empty work row', async () => {
+    const config={...CONNECTED,views:{commitGraph:true,pulls:true,issues:true,notifications:true}}
+    mount(await seededStorage(config,{...DATA_WITH_GRAPH,prs:[],issues:[],notifications:0}),'compact')
+    await screen.findByRole('img',{name:/contribution activity/i})
+    expect(screen.queryByText('No PRs waiting on you 🎉')).toBeNull()
   })
 
   it('Compact shows the graph with contributions and streak, matching GitLab compact (batch-2 owner review)', async () => {

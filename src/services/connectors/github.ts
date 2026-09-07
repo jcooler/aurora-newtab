@@ -167,7 +167,7 @@ async function fetchNotificationsSection(
 }
 
 const GRAPHQL_PATH = '/graphql'
-const CONTRIB_DAYS = 112 // 16 weeks — the card-width crop the board pinned
+const CONTRIB_DAYS = 365 // Full uses a year; smaller cards select their own trailing interval.
 
 const CONTRIB_QUERY = `query($from: DateTime!, $to: DateTime!) {
   viewer { contributionsCollection(from: $from, to: $to) {

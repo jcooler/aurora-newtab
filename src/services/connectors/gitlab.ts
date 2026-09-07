@@ -38,10 +38,10 @@ const TODOS_PATH = '/api/v4/todos?per_page=20'
  *  uncapped-but-bounded here; the widget renders the "+" at this threshold. */
 const TODOS_PER_PAGE = 20
 
-/** The activity graph's window: 112 days (16 weeks), the same crop github.ts's
+/** The activity graph's window: 365 days, the same range github.ts's
  *  contributions calendar uses (CONTRIB_DAYS), so the two connectors' graphs
  *  render at the same width. */
-const CALENDAR_DAYS = 112
+const CALENDAR_DAYS = 365
 
 /** WAVE-2 DEFAULT (see GitlabConfig's `views` comment in types.ts): an absent
  *  `views` reproduces today's card exactly — the two sections that already
@@ -229,7 +229,7 @@ function parseCalendar(body: unknown): Record<string, number> | null {
   return map
 }
 
-/** Shapes a validated calendar map into `Contributions` over the 112-day
+/** Shapes a validated calendar map into `Contributions` over the 365-day
  *  window ending today: EVERY day in the window is present (ascending,
  *  zero-filled from the map), and `total` sums only the WINDOW's counts — map
  *  entries older than the window are dropped (never looked up), mirroring

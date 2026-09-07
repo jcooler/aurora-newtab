@@ -282,13 +282,13 @@ const emptyCalendarBody = {
 }
 
 describe('fetchGithub — contributions section (GraphQL)', () => {
-  it('flattens weeks into ascending days within the 112-day window, dropping GitHub\'s earlier padding', async () => {
+  it('flattens weeks into ascending days within the 365-day window, dropping GitHub\'s earlier padding', async () => {
     vi.useFakeTimers()
     try {
       const now = new Date(2024, 2, 15, 12, 0, 0)
       vi.setSystemTime(now)
-      const windowStart = daysAgo(now, 111) // exactly the window's first day — kept
-      const padded = daysAgo(now, 115) // before the window — GitHub's padding, dropped
+      const windowStart = daysAgo(now, 364) // exactly the window's first day — kept
+      const padded = daysAgo(now, 368) // before the window — GitHub's padding, dropped
       const today = daysAgo(now, 0)
 
       const fetchFn = router({

@@ -60,10 +60,7 @@
 .tier-frame :is(button, a):focus-visible { outline-offset: 2px; }
 .tier-frame[data-tier-surface="none"] { box-shadow: none; }
 
-/* Color changes the identity and data accents, never a saved panel color. */
-:root:not([data-custom-panel]) .tier-frame[data-tier-surface="card"] {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--widget-accent, #b6c9bd) 4%, transparent), transparent 70%), var(--panel-solid);
-}
+/* All default card surfaces use the original neutral near-black panel token. */
 .tier-frame[data-browser-widget] > header, .tier-frame[data-work-widget] > header,
 .tier-frame[data-ha-content-variant] > header {
   min-height: 35px; padding: 10px 14px 4px; border-bottom: 0; gap: 8px;
@@ -173,7 +170,6 @@
 [data-block-id="focus"] [data-focus-footprint] > p { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
 [data-block-id="focus"] [data-focus-footprint] .group > button { opacity: .65; }
 [data-block-id="focus"] [data-focus-footprint] .group > button:hover { opacity: 1; }
-[data-block-id="bookmarks"] svg { color: var(--widget-accent); }
 [data-block-id="notes"] [data-tier-frame] { border-top: 2px solid var(--widget-accent); }
 [data-notes-presentation] > button > span:first-child > strong { color: var(--tier-frame-accent); }
 [data-tasks-presentation] > button strong { color: var(--tier-frame-accent); }

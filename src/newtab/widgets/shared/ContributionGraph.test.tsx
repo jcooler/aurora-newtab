@@ -31,6 +31,16 @@ const CONTRIBUTIONS_112_DAYS: Contributions = {
 }
 
 describe('ContributionGraph tier composition', () => {
+  it('reserves the displayed year for an older cache without inventing zero contributions', () => {
+    const {container}=render(<ContributionGraph contributions={CONTRIBUTIONS_112_DAYS} tier="full" trailingDays={365} fitWidth />)
+    const graph=screen.getByRole('img', {name:/contribution activity/i})
+    expect(graph.querySelectorAll('[data-contribution-unknown]')).toHaveLength(253)
+    expect(graph.querySelectorAll('[title]:not([data-contribution-unknown])')).toHaveLength(112)
+    expect(screen.getAllByTitle(/No activity data available/)).toHaveLength(253)
+    expect(graph.getAttribute('aria-label')).toContain('112 days available')
+    expect(container.querySelector('[data-contribution-summary]')!.textContent).toContain('221 contributions')
+  })
+
   it('changes appearance without changing the displayed days, count, or titles', () => {
     const { container, rerender } = render(<ContributionGraph contributions={CONTRIBUTIONS} tier="standard" fitWidth color="blue" />)
     const titles = [...container.querySelectorAll('[title]')].map(node => node.getAttribute('title'))

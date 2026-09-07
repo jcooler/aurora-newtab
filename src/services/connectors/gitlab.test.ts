@@ -342,15 +342,15 @@ describe('fetchGitlab — review-asks section (reviewer_username, parseMrs)', ()
 })
 
 describe('fetchGitlab — activity graph (calendar.json on the web root)', () => {
-  it('shapes a 200 date->count map into a zero-filled, ascending, 112-day window; total = window sum', async () => {
+  it('shapes a 200 date->count map into a zero-filled, ascending, 365-day window; total = window sum', async () => {
     vi.useFakeTimers()
     try {
       const now = new Date(2026, 7, 10, 12, 0, 0) // 2026-08-10 local
       vi.setSystemTime(now)
       const today = daysAgo(now, 0)
       const inWindow = daysAgo(now, 5)
-      const windowStart = daysAgo(now, 111)
-      const outside = daysAgo(now, 200) // older than the 112-day window — dropped
+      const windowStart = daysAgo(now, 364)
+      const outside = daysAgo(now, 400) // older than the 365-day window — dropped
 
       const fetchFn = router({
         mrs: fakeResponse({ status: 200, body: [] }),
@@ -365,10 +365,10 @@ describe('fetchGitlab — activity graph (calendar.json on the web root)', () =>
 
       const contrib = data.contributions
       expect(contrib).not.toBeNull()
-      // EVERY day present, ascending, exactly the 112-day window.
-      expect(contrib?.days).toHaveLength(112)
+      // EVERY day present, ascending, exactly the 365-day window.
+      expect(contrib?.days).toHaveLength(365)
       expect(contrib?.days[0]?.date).toBe(windowStart)
-      expect(contrib?.days[111]?.date).toBe(today)
+      expect(contrib?.days[364]?.date).toBe(today)
       // The window's own counts land; absent dates are zero-filled.
       expect(contrib?.days[0]?.count).toBe(4) // windowStart
       expect(contrib?.days.find((d) => d.date === inWindow)?.count).toBe(3)
@@ -394,7 +394,7 @@ describe('fetchGitlab — activity graph (calendar.json on the web root)', () =>
     })
     const views = { ...DEFAULT_GITLAB_VIEWS, activityGraph: true }
     const data = await fetchGitlab('https://gitlab.com', 't', 'jon', views, prev, fetchFn as unknown as typeof fetch)
-    expect(data.contributions?.days).toHaveLength(112)
+    expect(data.contributions?.days).toHaveLength(365)
     expect(data.contributions?.total).toBe(0)
   })
 

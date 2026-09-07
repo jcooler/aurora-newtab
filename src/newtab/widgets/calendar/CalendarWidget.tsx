@@ -371,8 +371,8 @@ function CalendarMonth({ items, holidays, todayKey, weekStart, timeZone, viewCon
   const monthKey = `${view.getFullYear()}-${String(view.getMonth() + 1).padStart(2, '0')}`
   const monthHolidays = holidays.filter((holiday) => holiday.date.startsWith(`${monthKey}-`))
   const rowHeight = roomy ? 26 : monthHolidays.length > 0
-    ? rowCount === 4 ? 28 : rowCount === 5 ? 24 : 20
-    : rowCount === 4 ? 32 : rowCount === 5 ? 28 : 24
+    ? rowCount === 4 ? 28 : rowCount === 5 ? 22 : 19
+    : rowCount === 4 ? 33 : rowCount === 5 ? 27 : 22
   const weekdays = calendarMonthCells(new Date(2026, 1, 1), weekStart, locale)
     .slice(0, 7)
     .map((cell) => new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(new Date(`${cell.key}T12:00:00`)))
@@ -408,7 +408,7 @@ function CalendarMonth({ items, holidays, todayKey, weekStart, timeZone, viewCon
   const step = (delta: number) => setView((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
   return (
     <div className="min-h-0" style={{ '--calendar-cell-height': `${rowHeight}px`, '--calendar-day-size': `${rowHeight <= 20 ? 16 : 20}px` } as CSSProperties} data-calendar-density={roomy ? 'roomy' : 'standard'} data-calendar-row-count={rowCount}>
-      <div className="flex h-6 items-center justify-between gap-1.5">
+      <div data-calendar-month-header className="flex min-h-8 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-0.5">
           <button type="button" aria-label="Previous month" onClick={() => step(-1)} className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">‹</button>
           <span className="min-w-0 truncate text-sm font-semibold text-fg">{shortLabel}</span>
@@ -416,7 +416,7 @@ function CalendarMonth({ items, holidays, todayKey, weekStart, timeZone, viewCon
         </div>
         {viewControl}
       </div>
-      <table aria-label={label} className="mt-0.5 w-full table-fixed border-collapse text-center">
+      <table aria-label={label} className="mt-1 w-full table-fixed border-collapse text-center">
         <thead><tr>{weekdays.map((day, index) => <th key={`${day}-${index}`} scope="col" className="pb-px text-[11px] font-medium leading-none text-fg-muted">{day}</th>)}</tr></thead>
         <tbody>
           {Array.from({ length: rowCount }, (_, row) => (

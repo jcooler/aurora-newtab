@@ -28,8 +28,8 @@ describe('themes.css — one surface (Task 60)', () => {
     expect(css).not.toMatch(/\[data-theme=/)
   })
 
-  it('uses the approved dark mineral default surface without changing custom colors', () => {
-    expect(rootBlock()).toMatch(/--panel-solid:\s*rgb\(30 39 36 \/ 0\.96\);/)
+  it('uses the original neutral near-black default surface without changing custom colors', () => {
+    expect(rootBlock()).toMatch(/--panel-solid:\s*rgb\(10 10 10 \/ 0\.92\);/)
   })
 
   it("adopts Mono's --panel (40%) and transparent --panel-border", () => {

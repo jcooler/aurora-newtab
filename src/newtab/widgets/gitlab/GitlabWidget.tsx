@@ -504,7 +504,7 @@ function GitlabInner({
         </div>
       )}
 
-      {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>No MRs assigned to you.</p>}
+      {showEmpty && !(framed && renderGraph && tier === 'compact') && <p data-work-pulse-rows className={`${framed && renderGraph ? 'mt-3 border-t border-panel-border pt-2' : ''} text-sm text-fg-muted${emptyLineTier}`}>No MRs assigned to you.</p>}
     </TierFrame>
   )
 }

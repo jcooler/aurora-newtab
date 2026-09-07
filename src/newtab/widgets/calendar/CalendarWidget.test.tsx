@@ -355,7 +355,7 @@ describe('CalendarWidget', () => {
     expect(table.querySelectorAll('tbody tr')).toHaveLength(5)
     expect(table.querySelectorAll('[data-calendar-cell]')).toHaveLength(35)
     expect(table.closest('[data-calendar-row-count]')?.getAttribute('data-calendar-row-count')).toBe('5')
-    expect((table.querySelector('tbody tr') as HTMLTableRowElement).style.height).toBe('24px')
+    expect((table.querySelector('tbody tr') as HTMLTableRowElement).style.height).toBe('22px')
     expect(table.querySelectorAll('[data-calendar-day-number]')).toHaveLength(35)
     expect(table.querySelector('[data-cell-key="2026-08-30"]')?.textContent).toBe('30')
     expect(table.querySelector('[data-cell-key="2026-10-03"]')?.textContent).toBe('3')
@@ -364,7 +364,7 @@ describe('CalendarWidget', () => {
     expect(table.querySelector('[data-cell-key="2026-09-07"]')?.textContent).toBe('7')
   })
 
-  it('spends the empty lower frame space on 24px rows in a six-row month without a holiday summary', async () => {
+  it('reserves room for the view switch with 22px rows in a six-row month without a holiday summary', async () => {
     const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT] })
     await storage.set('calendarPreferences', { work: { defaultView: 'month', includePublicHolidays: false } })
     mountUnified(storage, 'standard')
@@ -373,7 +373,7 @@ describe('CalendarWidget', () => {
     const table = screen.getByRole('table', { name: /August 2026/ })
     expect(table.querySelectorAll('tbody tr')).toHaveLength(6)
     expect(table.closest('[data-calendar-row-count]')?.getAttribute('data-calendar-row-count')).toBe('6')
-    expect((table.querySelector('tbody tr') as HTMLTableRowElement).style.height).toBe('24px')
+    expect((table.querySelector('tbody tr') as HTMLTableRowElement).style.height).toBe('22px')
   })
 
   it('keeps an empty holiday month silent and shows the selected month holiday from the holiday snapshot', async () => {

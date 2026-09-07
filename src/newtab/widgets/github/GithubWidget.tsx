@@ -362,7 +362,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime, graph
         </ul>
       )}
 
-      {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>No PRs waiting on you 🎉</p>}
+      {showEmpty && !(framed && graph && tier === 'compact') && <p data-work-pulse-rows className={`${framed && graph ? 'mt-3 border-t border-panel-border pt-2' : ''} text-sm text-fg-muted${emptyLineTier}`}>No PRs waiting on you 🎉</p>}
     </TierFrame>
   )
 }
