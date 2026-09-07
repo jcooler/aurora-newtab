@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
@@ -407,7 +407,7 @@ function CalendarMonth({ items, holidays, todayKey, weekStart, timeZone, viewCon
   }
   const step = (delta: number) => setView((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1))
   return (
-    <div className="min-h-0" data-calendar-density={roomy ? 'roomy' : 'standard'} data-calendar-row-count={rowCount}>
+    <div className="min-h-0" style={{ '--calendar-cell-height': `${rowHeight}px`, '--calendar-day-size': `${rowHeight <= 20 ? 16 : 20}px` } as CSSProperties} data-calendar-density={roomy ? 'roomy' : 'standard'} data-calendar-row-count={rowCount}>
       <div className="flex h-6 items-center justify-between gap-1.5">
         <div className="flex min-w-0 items-center gap-0.5">
           <button type="button" aria-label="Previous month" onClick={() => step(-1)} className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">‹</button>
@@ -428,13 +428,13 @@ function CalendarMonth({ items, holidays, todayKey, weekStart, timeZone, viewCon
                       label={`${shortCalendarDate(cell.key)}, ${contextRows.get(cell.key)!.length} ${contextRows.get(cell.key)!.length === 1 ? 'item' : 'items'}`}
                       heading={longCalendarDate(cell.key)}
                       rows={contextRows.get(cell.key)!}
-                      className={`relative mx-auto flex h-full flex-col items-center justify-start rounded-md leading-none ${roomy ? 'w-7 pt-[3px] text-xs' : 'w-6 pt-[2px] text-[11px]'} ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} ${cell.key === todayKey ? 'ring-1 ring-accent' : ''} hover:bg-panel-border focus-visible:outline-2 focus-visible:outline-accent`}
+                      className={`calendar-date-cell ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} hover:bg-panel-border focus-visible:outline-2 focus-visible:outline-accent`}
                     >
-                      <span data-calendar-day-number="">{cell.day}</span>
+                      <span data-calendar-day-number="" aria-current={cell.key === todayKey ? 'date' : undefined}>{cell.day}</span>
                       <span
                         aria-hidden
                         data-calendar-occupancy-markers=""
-                        className={`mt-1 flex h-[3px] items-center gap-0.5 ${cell.inMonth ? '' : 'opacity-50'}`}
+                        className={`flex h-[3px] items-center gap-0.5 ${cell.inMonth ? '' : 'opacity-50'}`}
                       >
                         {calendarMarkerColors(contextRows.get(cell.key)!).map((color) => (
                           <span
@@ -448,8 +448,9 @@ function CalendarMonth({ items, holidays, todayKey, weekStart, timeZone, viewCon
                       </span>
                     </CalendarContextPopover>
                   ) : (
-                    <span className={`relative mx-auto flex h-full flex-col items-center justify-start rounded-md leading-none ${roomy ? 'w-7 pt-[3px] text-xs' : 'w-6 pt-[2px] text-[11px]'} ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'} ${cell.key === todayKey ? 'ring-1 ring-accent' : ''}`}>
-                      <span data-calendar-day-number="">{cell.day}</span>
+                    <span className={`calendar-date-cell ${cell.inMonth ? 'text-fg' : 'text-fg-muted/40'}`}>
+                      <span data-calendar-day-number="" aria-current={cell.key === todayKey ? 'date' : undefined}>{cell.day}</span>
+                      <span aria-hidden className="h-[3px]" />
                     </span>
                   )}
                 </td>

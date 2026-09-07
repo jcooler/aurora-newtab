@@ -6,6 +6,7 @@ import { DEFAULT_JIRA_VIEWS } from '../../../services/connectors/jira'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig, JiraConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import type { GraphColor } from '../../../lib/widgetAppearance'
 import { buildContributionGrid } from '../shared/contributionGrid'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
@@ -160,6 +161,7 @@ export default function GitlabWidget({ canvasSize, docked }: { canvasSize?: Canv
       jiraDueSoonEnabled={jiraDueSoonEnabled}
       canvasSize={canvasSize}
       docked={docked}
+      graphColor={settings.graphColors?.gitlab ?? 'orange'}
       runtime={attentionRuntimeScope(
         settings.briefingEnabled === true,
         settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
@@ -181,6 +183,7 @@ function GitlabInner({
   canvasSize,
   docked,
   runtime,
+  graphColor,
 }: {
   gitlab: GitlabConfig
   token: string
@@ -194,6 +197,7 @@ function GitlabInner({
   canvasSize?: CanvasSize
   docked?: boolean
   runtime: AttentionRuntimeScope
+  graphColor: GraphColor
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so a per-section failure
@@ -443,6 +447,9 @@ function GitlabInner({
         >
           <ContributionGraph
             contributions={graph}
+            color={graphColor}
+            fitWidth={framed}
+            trailingDays={framed ? tier === 'compact' ? 84 : tier === 'standard' ? 182 : 365 : undefined}
             tier={tier}
             showMonthTicks={tier === 'full'}
             showSummary={tier !== 'full'}

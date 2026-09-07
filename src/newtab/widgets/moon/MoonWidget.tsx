@@ -39,10 +39,16 @@ function MoonInner({
   if (docked) return <DockLine label="Moon phase" facts={[line]} />
 
   return (
-    <TierFrame label="Moon phase" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready" className="justify-center gap-2 p-4">
-      <span aria-hidden className="text-4xl leading-none">{phase.glyph}</span>
-      <strong className="text-sm font-semibold">{phase.name}</strong>
-      <span className="text-[11px] text-fg-muted">{illumination}% illuminated</span>
+    <TierFrame label="Moon phase" tier={canvasSize === 'compact' ? canvasSize : 'compact'} state="ready" className="moon-frame">
+      <h2>Moon phase</h2>
+      <div className="moon-composition">
+        <svg viewBox="0 0 64 64" aria-hidden style={{ transform: (phase.fraction > 0.5) !== (location.lat < 0) ? 'scaleX(-1)' : undefined }}>
+          <circle cx="32" cy="32" r="24" fill="currentColor" opacity=".12" />
+          <path d={`M32 8 A24 24 0 0 1 32 56 A${Math.max(.01, Math.abs(Math.cos(2 * Math.PI * phase.fraction)) * 24)} 24 0 0 ${illumination >= 50 ? 1 : 0} 32 8Z`} fill="currentColor" />
+        </svg>
+        <div><strong>{phase.name}</strong><span>{illumination}% illuminated</span></div>
+      </div>
+      <p>{location.label}</p>
     </TierFrame>
   )
 }

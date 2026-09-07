@@ -5,7 +5,7 @@ import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../serv
 import type { RefreshPreferences } from '../../services/refreshPolicy'
 import type { MetricsHistoryV1 } from '../../metrics/types'
 
-export const CURRENT_VERSION = 24
+export const CURRENT_VERSION = 25
 
 export const FLOW_AMBIENCE_VALUES = ['off', 'creek', 'rain', 'ocean', 'forest'] as const
 export type FlowAmbience = typeof FLOW_AMBIENCE_VALUES[number]
@@ -121,6 +121,8 @@ export interface Settings {
   photoClockColor: string | null
   photoGreetingColor: string | null
   photoQuoteColor: string | null
+  /** Presentation only: excluded from connector identity and fetch scope. */
+  graphColors?: import('../widgetAppearance').GraphColors
   units: 'metric' | 'imperial'
   muted: boolean
   /** Ambient audio used only while the persisted Flow timer is running. */
@@ -431,6 +433,7 @@ export function defaults(): AuroraData {
       photoClockColor: null,
       photoGreetingColor: null,
       photoQuoteColor: null,
+      graphColors: { github: 'blue', gitlab: 'orange' },
       units: 'metric',
       muted: false,
       flowAmbience: 'off',

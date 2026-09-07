@@ -274,7 +274,7 @@ describe('HomeAssistantWidget — chip copy', () => {
     expect(line.getAttribute('data-dock-line')).toBe('')
     // The dense line replaces the dashboard entirely — no other chips, no
     // action buttons.
-    expect(screen.queryByText('Porch light on')).toBeNull()
+    expect(screen.queryByLabelText('Porch light on')).toBeNull()
     expect(screen.queryByRole('button')).toBeNull()
   })
 
@@ -282,8 +282,8 @@ describe('HomeAssistantWidget — chip copy', () => {
     const storage = await seededStorage(CONNECTED, { entities: [KITCHEN, PORCH] })
     mount(storage)
 
-    expect(await screen.findByText('Kitchen 21.5°C')).toBeTruthy()
-    expect(screen.getByText('Porch light on')).toBeTruthy()
+    expect(await screen.findByLabelText('Kitchen 21.5°C')).toBeTruthy()
+    expect(screen.getByLabelText('Porch light on')).toBeTruthy()
   })
 
   it('chips render as <ul> of <li> pills inside the section', async () => {
@@ -330,13 +330,13 @@ describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ru
       },
     })
     mount(storage)
-    expect(await screen.findByText('Kitchen 21.5°C')).toBeTruthy()
+    expect(await screen.findByLabelText('Kitchen 21.5°C')).toBeTruthy()
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
 
     await act(async () => {
       await storage.set('connectors', { homeassistant: configB })
     })
-    await waitFor(() => expect(screen.queryByText('Kitchen 21.5°C')).toBeNull())
+    await waitFor(() => expect(screen.queryByLabelText('Kitchen 21.5°C')).toBeNull())
     expect(screen.getByRole('region', { name: 'Home Assistant' }).getAttribute('data-tier-frame-state')).toBe('loading')
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(2))
 
@@ -349,8 +349,8 @@ describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ru
       await Promise.resolve()
     })
 
-    expect(screen.queryByText('Kitchen 21.5°C')).toBeNull()
-    expect(screen.getByText('Kitchen 22.0°C')).toBeTruthy()
+    expect(screen.queryByLabelText('Kitchen 21.5°C')).toBeNull()
+    expect(screen.getByLabelText('Kitchen 22.0°C')).toBeTruthy()
     const stored = (await storage.get('connectorSnapshots')).homeassistant
     expect(stored?.scope).toBe(await connectorSnapshotScope('homeassistant', configB))
     expect(stored?.data).toEqual({ entities: [kitchenB] })
@@ -417,7 +417,7 @@ describe('HomeAssistantWidget — DOM contract', () => {
     const config = { ...CONNECTED, entities, actions }
     const storage = await seededStorage(config, { entities: states })
     const view = mount(storage, 'compact')
-    await screen.findByText('Room 1 20°C')
+    await screen.findByLabelText('Room 1 20°C')
     expect(document.querySelectorAll('section[aria-label="Home Assistant"] li')).toHaveLength(2)
     expect(screen.queryByRole('button', { name: /Run Mode/ })).toBeNull()
 

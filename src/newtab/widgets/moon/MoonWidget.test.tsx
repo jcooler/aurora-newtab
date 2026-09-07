@@ -107,12 +107,12 @@ describe('MoonWidget', () => {
     const phase = moonPhase(MOON_DATE, false) // London: lat > 0, northern
     const section = container.querySelector('section[aria-label="Moon phase"]')!
     const illumination = Math.round(((1 - Math.cos(2 * Math.PI * phase.fraction)) / 2) * 100)
-    expect(section.textContent).toContain(phase.glyph)
+    expect(section.querySelector('svg')?.style.transform).toBe(phase.fraction > 0.5 ? 'scaleX(-1)' : '')
     expect(section.textContent).toContain(phase.name)
     expect(section.textContent).toContain(`${illumination}% illuminated`)
   })
 
-  it('a southern-latitude location mirrors the glyph but keeps the name', async () => {
+  it('a southern-latitude location mirrors the moon illustration but keeps the phase name', async () => {
     const northern = moonPhase(MOON_DATE, false)
     const southern = moonPhase(MOON_DATE, true)
     expect(southern.name).toBe(northern.name) // sanity: names never differ by hemisphere
@@ -121,7 +121,7 @@ describe('MoonWidget', () => {
     const { container } = await renderWithMoon({ location: SYDNEY })
     const section = container.querySelector('section[aria-label="Moon phase"]')!
     const illumination = Math.round(((1 - Math.cos(2 * Math.PI * southern.fraction)) / 2) * 100)
-    expect(section.textContent).toContain(southern.glyph)
+    expect(section.querySelector('svg')?.style.transform).toBe(southern.fraction > 0.5 ? '' : 'scaleX(-1)')
     expect(section.textContent).toContain(southern.name)
     expect(section.textContent).toContain(`${illumination}% illuminated`)
   })

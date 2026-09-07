@@ -292,7 +292,7 @@
   background: var(--panel-solid);
   color: var(--fg);
   --tier-frame-muted: var(--fg-muted);
-  --tier-frame-accent: var(--panel-accent);
+  --tier-frame-accent: var(--widget-accent, var(--panel-accent));
   --accent: var(--tier-frame-accent);
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.25);
   transition: box-shadow 120ms ease;
@@ -306,6 +306,31 @@
 .tier-frame > * {
   min-width: 0;
   min-height: 0;
+}
+.calendar-date-cell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 3px;
+  justify-items: center;
+  align-items: center;
+  width: 28px;
+  height: var(--calendar-cell-height);
+  margin-inline: auto;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-date-cell [data-calendar-day-number] {
+  display: grid;
+  place-items: center;
+  width: var(--calendar-day-size);
+  height: var(--calendar-day-size);
+  border-radius: 50%;
+}
+.calendar-date-cell [aria-current="date"] {
+  background: var(--widget-accent, var(--accent));
+  color: var(--panel-solid);
+  font-weight: 700;
 }
 .weather-tier-summary {
   justify-content: space-between;

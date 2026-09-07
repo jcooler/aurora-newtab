@@ -489,7 +489,7 @@ describe('CalendarWidget', () => {
     const number = date.querySelector('[data-calendar-day-number]')
     const markerLane = date.querySelector('[data-calendar-occupancy-markers]')
     expect(number?.nextElementSibling).toBe(markerLane)
-    expect(markerLane?.className).toContain('mt-1')
+    expect(date.className).toContain('calendar-date-cell')
     expect(markerLane?.className).not.toContain('absolute')
     expect(markers.map((marker) => marker.getAttribute('data-calendar-color'))).toEqual(['accent', 'sky', 'fuchsia'])
     expect(markers.every((marker) => marker.parentElement?.hasAttribute('data-calendar-occupancy-markers'))).toBe(true)

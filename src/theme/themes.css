@@ -41,7 +41,7 @@
   --panel-border: transparent;
   /* Floating surfaces (popovers/panels/dialogs) need more opacity than --panel
      for legibility over a photo background — Mono's flat near-black at 92%. */
-  --panel-solid: rgb(10 10 10 / 0.92);
+  --panel-solid: rgb(30 39 36 / 0.96);
   /* The photo legibility wash (CanvasLegibilityLayer). FIXED neutral — it
      dims the photograph and must NEVER follow settings.panelColor: a red
      widget pick used to flood the whole image with red gradient washes

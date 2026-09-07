@@ -9,7 +9,7 @@ it('forces each new storage authority through an explicit sync classification de
 })
 
 it('schema v24 keeps aggregate history nullable, Metrics off, and provider configs absent by default', () => {
-  expect(CURRENT_VERSION).toBe(24)
+  expect(CURRENT_VERSION).toBe(25)
   expect(defaults().metricsHistory).toBeNull()
   expect(defaults().settings.widgets.metrics).toBe(false)
   expect(defaults().connectors).not.toHaveProperty('googleCalendar')

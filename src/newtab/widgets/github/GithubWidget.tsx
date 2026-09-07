@@ -3,6 +3,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchGithub, resolveGithubViews, type GithubData, type GithubItem } from '../../../services/connectors/github'
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import type { GraphColor } from '../../../lib/widgetAppearance'
 import { buildContributionGrid } from '../shared/contributionGrid'
 import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
@@ -93,10 +94,10 @@ export default function GithubWidget({ canvasSize, docked }: { canvasSize?: Canv
     settings.briefingEnabled === true,
     settings.briefingSources ?? DEFAULT_BRIEFING_SOURCES,
   )
-  return <GithubInner github={github} forgeSiblings={forgeSiblings} canvasSize={canvasSize} docked={docked} runtime={runtime} />
+  return <GithubInner github={github} forgeSiblings={forgeSiblings} canvasSize={canvasSize} docked={docked} runtime={runtime} graphColor={settings.graphColors?.github ?? 'blue'} />
 }
 
-function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { github: GithubConfig; forgeSiblings: number; canvasSize?: CanvasSize; docked?: boolean; runtime: AttentionRuntimeScope }) {
+function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime, graphColor }: { github: GithubConfig; forgeSiblings: number; canvasSize?: CanvasSize; docked?: boolean; runtime: AttentionRuntimeScope; graphColor: GraphColor }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately and
   // refreshes once per mount, carrying `prev` so ETag 304s keep each section.
   // The user's resolved views gate the fetch (a section turned off never issues
@@ -315,6 +316,7 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked, runtime }: { g
         <div data-work-pulse-detail className={innerGraphClass}>
           <ContributionGraph
             contributions={graph}
+            color={graphColor}
             tier={tier}
             fitWidth={framed}
             trailingDays={framed ? tier === 'compact' ? 84 : tier === 'standard' ? 182 : 365 : undefined}

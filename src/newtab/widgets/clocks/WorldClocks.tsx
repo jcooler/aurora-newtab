@@ -51,7 +51,7 @@ function WorldClocksInner({
     )
   }
   if (presentation === 'stack') {
-    const limit = canvasSize === 'compact' ? 1 : canvasSize === 'standard' ? 3 : 5
+    const limit = canvasSize === 'compact' ? 2 : canvasSize === 'standard' ? 3 : 5
     return (
       <TierFrame label="World clocks" tier={canvasSize} state="ready" className={`core-world-clocks-stack core-world-clocks-stack--${canvasSize}`}>
         <h2 className="text-[13px] font-semibold">World clocks</h2>

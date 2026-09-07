@@ -1,5 +1,6 @@
 import { isPanelColor } from '../lib/color'
 import { isPlainObject } from '../lib/object'
+import { isGraphColors } from '../lib/widgetAppearance'
 import { validProgressGoals } from '../lib/progress'
 import { isSafeQuickLinkUrl } from '../lib/quickLinkUrl'
 import { cleanStoredLayout } from '../lib/layout/canvasTypes'
@@ -127,9 +128,9 @@ function validSettings(value: unknown): value is AuroraData['settings'] {
   const allowed = [
     'name', 'use24Hour', 'briefingEnabled', 'briefingSources', 'panelColor', 'widgetTextColor', 'photoTextColor',
     'photoClockColor', 'photoGreetingColor', 'photoQuoteColor', 'units', 'muted', 'flowAmbience', 'flowVolume',
-    'layoutDensity', 'widgets',
+    'layoutDensity', 'widgets', 'graphColors',
   ]
-  const required = allowed.filter((key) => key !== 'briefingEnabled')
+  const required = allowed.filter((key) => key !== 'briefingEnabled' && key !== 'graphColors')
   if (!exactKeys(value, required, allowed) || !isPlainObject(value.briefingSources) || !isPlainObject(value.widgets)) return false
   const briefing = value.briefingSources
   const widgets = value.widgets
@@ -145,6 +146,7 @@ function validSettings(value: unknown): value is AuroraData['settings'] {
     && color(value.photoClockColor)
     && color(value.photoGreetingColor)
     && color(value.photoQuoteColor)
+    && optional(value.graphColors, isGraphColors)
     && (value.units === 'metric' || value.units === 'imperial')
     && typeof value.muted === 'boolean'
     && FLOW_AMBIENCE_VALUES.includes(value.flowAmbience as typeof FLOW_AMBIENCE_VALUES[number])

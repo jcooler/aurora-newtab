@@ -1,4 +1,5 @@
 import { CURRENT_VERSION, DEFAULT_BRIEFING_SOURCES, defaults, type AuroraData } from './schema'
+import { DEFAULT_GRAPH_COLORS } from '../widgetAppearance'
 import { isPlainObject } from '../object'
 import { layoutV2FromLegacy } from '../layout/v2'
 import {
@@ -364,6 +365,15 @@ export const migrations: Record<number, Migration> = {
       ...(connectors === undefined ? {} : { connectors }),
       ...(connectorSnapshots === undefined ? {} : { connectorSnapshots }),
     }
+  },
+  // v24 -> v25: only presentation preferences are added. Provider configuration,
+  // cached data, named placements, and every existing color stay byte-equivalent.
+  24: (data) => !isPlainObject(data.settings) ? data : {
+    ...data,
+    settings: {
+      ...data.settings,
+      graphColors: data.settings.graphColors === undefined ? { ...DEFAULT_GRAPH_COLORS } : data.settings.graphColors,
+    },
   },
 }
 

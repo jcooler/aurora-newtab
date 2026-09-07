@@ -13,6 +13,7 @@ import { MetricsProvider } from '../metrics/MetricsProvider'
 import { GoogleCalendarProvider } from '../providers/GoogleCalendarProvider'
 import { MicrosoftCalendarProvider } from '../providers/MicrosoftCalendarProvider'
 import './index.css'
+import './widget-overhaul.css'
 
 type NotesHarnessController = Readonly<{
   deferNext(): void

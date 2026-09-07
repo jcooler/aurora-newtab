@@ -9,25 +9,17 @@
 import type { Contributions } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import { buildContributionGrid } from './contributionGrid'
+import { GRAPH_PALETTES, type GraphColor } from '../../../lib/widgetAppearance'
 
 // Level → cell background. Pinned by the board: an rgba ramp over Aurora's
 // sky-blue accent (rgb 125 211 252) so the card reads as Aurora's own sky, NOT
 // GitHub green; level 0 is a faint fg-derived empty cell. These are literal
 // style values (not house token classes) because the ramp itself is the spec —
 // the render Jon picked is these exact alphas.
-const ACCENT = '125,211,252'
-const LEVEL_BG = [
-  'rgba(245,245,244,0.05)',
-  `rgba(${ACCENT},0.22)`,
-  `rgba(${ACCENT},0.42)`,
-  `rgba(${ACCENT},0.68)`,
-  `rgba(${ACCENT},1)`,
-]
-
 export const CONTRIBUTION_GRAPH_GEOMETRY = Object.freeze({
-  compact: Object.freeze({ columnWidth: 10, rowHeight: 7, gap: 1 }),
-  standard: Object.freeze({ columnWidth: 16, rowHeight: 10, gap: 1 }),
-  full: Object.freeze({ columnWidth: 23, rowHeight: 17, gap: 2 }),
+  compact: Object.freeze({ columnWidth: 7, rowHeight: 7, gap: 2 }),
+  standard: Object.freeze({ columnWidth: 9, rowHeight: 9, gap: 2 }),
+  full: Object.freeze({ columnWidth: 6, rowHeight: 6, gap: 2 }),
 }) satisfies Readonly<Record<CanvasSize, Readonly<{
   columnWidth: number
   rowHeight: number
@@ -41,6 +33,7 @@ export default function ContributionGraph({
   showSummary = true,
   trailingDays,
   fitWidth = false,
+  color = 'blue',
 }: {
   contributions: Contributions
   tier: CanvasSize
@@ -48,10 +41,9 @@ export default function ContributionGraph({
   showSummary?: boolean
   trailingDays?: number
   fitWidth?: boolean
+  color?: GraphColor
 }) {
-  const { columnWidth, rowHeight: fixedRowHeight, gap: fixedGap } = CONTRIBUTION_GRAPH_GEOMETRY[tier]
-  const rowHeight = fitWidth ? tier === 'compact' ? 7 : tier === 'standard' ? 6 : 8 : fixedRowHeight
-  const gap = fitWidth ? 3 : fixedGap
+  const { columnWidth, rowHeight, gap } = CONTRIBUTION_GRAPH_GEOMETRY[tier]
   const days = trailingDays ? contributions.days.slice(-trailingDays) : contributions.days
   const total = trailingDays ? days.reduce((sum, day) => sum + day.count, 0) : contributions.total
   const { cells, columns, monthTicks, streak } = buildContributionGrid(days)
@@ -64,14 +56,16 @@ export default function ContributionGraph({
   }, []) : monthTicks
 
   return (
-    <div data-contribution-composition data-contribution-tier={tier} data-contribution-fit={fitWidth || undefined} className={fitWidth ? 'w-full min-w-0' : 'mx-auto w-fit max-w-full'}>
+    <div data-contribution-composition data-contribution-tier={tier} data-contribution-color={color} data-contribution-fit={fitWidth || undefined} className={fitWidth ? 'w-full min-w-0' : 'mx-auto w-fit max-w-full'} style={{ maxWidth: fitWidth ? undefined : width }}>
       <div
         role="img"
         aria-label={`Contribution activity over the last ${dayCount} days`}
         className="grid grid-flow-col"
         style={{
           width: fitWidth ? '100%' : width,
-          gridTemplateRows: `repeat(7, ${rowHeight}px)`,
+          maxWidth: width,
+          marginInline: 'auto',
+          gridTemplateRows: fitWidth ? 'repeat(7, auto)' : `repeat(7, ${rowHeight}px)`,
           gridAutoColumns: fitWidth ? undefined : `${columnWidth}px`,
           gridTemplateColumns: fitWidth ? `repeat(${columns}, minmax(0, 1fr))` : undefined,
           gap: `${gap}px`,
@@ -81,11 +75,12 @@ export default function ContributionGraph({
           <div
             key={i}
             title={c ? `${c.count} contribution${c.count === 1 ? '' : 's'} · ${c.date}` : undefined}
-            className="rounded-[3px]"
+            className="rounded-[1px]"
             style={{
               width: fitWidth ? '100%' : columnWidth,
-              height: rowHeight,
-              background: c ? fitWidth ? c.level === 0 ? 'var(--control-bg)' : `color-mix(in srgb, var(--accent) ${[0, 25, 45, 70, 100][c.level]}%, transparent)` : LEVEL_BG[c.level] : 'transparent',
+              height: fitWidth ? undefined : rowHeight,
+              aspectRatio: '1 / 1',
+              background: c ? c.level === 0 ? 'var(--control-bg)' : `color-mix(in srgb, ${GRAPH_PALETTES[color]} ${[0, 25, 45, 70, 100][c.level]}%, transparent)` : 'transparent',
               // Inset hairline on filled cells — the board's quiet edge that keeps
               // the darkest levels legible against the panel.
               boxShadow: c ? 'inset 0 0 0 1px rgba(245,245,244,0.04)' : undefined,

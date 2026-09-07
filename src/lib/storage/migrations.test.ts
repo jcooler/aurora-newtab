@@ -172,9 +172,13 @@ describe('migrate', () => {
         calls.push(23)
         return data
       },
+      24: (data) => {
+        calls.push(24)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23])
+    expect(calls).toEqual(Array.from({ length: CURRENT_VERSION }, (_, index) => index))
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -690,7 +694,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(24)
+    expect(CURRENT_VERSION).toBe(25)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -783,7 +787,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(24)
+    expect(CURRENT_VERSION).toBe(25)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill and v16->v17 Flow preference are the only
     // Settings deltas on the way up.
@@ -980,7 +984,7 @@ describe('v22 -> v23', () => {
     expect(migrate(snapshot, 22)).toEqual(before)
     expect(migrate(snapshot, 22).connectors).not.toHaveProperty('googleCalendar')
     expect(migrate(snapshot, 22).settings.widgets).not.toHaveProperty('googleCalendar')
-    expect(CURRENT_VERSION).toBe(24)
+    expect(CURRENT_VERSION).toBe(25)
   })
 })
 

@@ -5,6 +5,7 @@
 // module's. That's why the success shape is `{ data, version }` rather than
 // an already-migrated `AuroraData`.
 import { CURRENT_VERSION, FLOW_AMBIENCE_VALUES, defaults, type AuroraData, type DataKey } from './storage/schema'
+import { isGraphColors } from './widgetAppearance'
 import { isPlainObject } from './object'
 import { isPanelColor } from './color'
 import { LAYOUT_DENSITY_PREFERENCES } from './layout/types'
@@ -280,6 +281,7 @@ function isSettings(v: unknown): boolean {
     (v.photoClockColor === null || isPanelColor(v.photoClockColor)) &&
     (v.photoGreetingColor === null || isPanelColor(v.photoGreetingColor)) &&
     (v.photoQuoteColor === null || isPanelColor(v.photoQuoteColor)) &&
+    isOptional(v.graphColors, isGraphColors) &&
     isString(v.units) &&
     isBoolean(v.muted) &&
     FLOW_AMBIENCE_VALUES.some((choice) => choice === v.flowAmbience) &&

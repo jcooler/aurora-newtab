@@ -259,10 +259,10 @@ function HomeAssistantInner({
           : 'min-h-0 flex-1 overflow-hidden p-3'}
       >
         {visibleChips.length > 0 && (
-          <ul className={fullLayout ? 'grid content-start gap-y-2' : 'flex flex-wrap gap-x-3 gap-y-1'}>
+          <ul data-ha-entities className={fullLayout ? 'grid content-start gap-y-2' : 'flex flex-wrap gap-x-3 gap-y-1'}>
             {visibleChips.map((s) => (
-              <li key={s.id} className={fullLayout ? 'text-base leading-6 text-fg' : 'text-sm text-fg'}>
-                {chipCopy(s)}
+              <li key={s.id} aria-label={chipCopy(s)} className={fullLayout ? 'text-base leading-6 text-fg' : 'text-sm text-fg'}>
+                <small title={s.friendlyName}>{s.friendlyName}</small><strong title={`${s.state}${s.unit ?? ''}`}>{s.state}{s.unit ?? ''}</strong>
               </li>
             ))}
           </ul>

@@ -48,6 +48,7 @@ import {
   type ConnectorCardMode,
 } from '../connectors/connectorCardState'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import GraphAppearanceControl from './GraphAppearanceControl'
 import RefreshFrequencyControl from './RefreshFrequencyControl'
 import type { RefreshPreferences } from '../../services/refreshPolicy'
 import { useAccount } from '../../account/AccountContext'
@@ -1129,6 +1130,7 @@ function GithubBody({ config, storage, reportPendingCleanup, mode, closeEditor }
             ))}
           </div>
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
+          <GraphAppearanceControl connector="github" storage={storage} />
         </div>
       }
       onDisconnect={() => disconnectTokenConnector(storage, 'github')}
@@ -1267,6 +1269,7 @@ function GitlabBody({ config, storage, reportPendingCleanup, mode, closeEditor }
             ))}
           </div>
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
+          <GraphAppearanceControl connector="gitlab" storage={storage} />
         </div>
       }
       onDisconnect={() => disconnectTokenConnector(storage, 'gitlab')}

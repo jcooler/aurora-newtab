@@ -64,6 +64,14 @@ function fixture(): AuroraData {
 }
 
 describe('deny-by-default sync entity policy', () => {
+  it('round-trips graph appearance with settings while rejecting unknown values', () => {
+    const data = fixture()
+    data.settings.graphColors = { github: 'green', gitlab: 'blue' }
+    const entity = projectSyncEntities(data).find(item => item.entityType === 'settings')!
+    expect(isValidSyncEntity(entity)).toBe(true)
+    expect(entity.value).toMatchObject({ graphColors: data.settings.graphColors })
+    expect(isValidSyncEntity({ ...entity, value: { ...entity.value as object, graphColors: { github: 'secret', gitlab: 'blue' } } })).toBe(false)
+  })
   it('exposes a side-effect-free entity guard for readable export validation', () => {
     const notes = projectSyncEntities(fixture()).find((entity) => entity.entityType === 'notes')
     expect(isValidSyncEntity(notes)).toBe(true)

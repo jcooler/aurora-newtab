@@ -59,31 +59,40 @@ function SunInner({
   if (docked) return <DockLine label="Sun times" facts={[primary]} />
 
   const tier = canvasSize === 'standard' ? 'standard' : 'compact'
+  const daylightMinutes = Math.max(0, Math.round((times.sunset.getTime() - times.sunrise.getTime()) / 60_000))
+  const daylight = `${Math.floor(daylightMinutes / 60)}h ${daylightMinutes % 60}m`
   if (tier === 'compact') {
     return (
-      <TierFrame label="Sun times" tier="compact" state="ready" className="justify-center p-3 text-sm">
-        {primary}
-        {golden && <span data-sun-golden>{golden}</span>}
+      <TierFrame label="Sun times" tier="compact" state="ready" className="sun-frame">
+        <header><h2>Sun times</h2><span aria-hidden className="text-accent">☀</span></header>
+        <div className="sun-endpoints">
+          <div><span>Sunrise</span><strong>{formatClock(times.sunrise, settings.use24Hour)}</strong></div>
+          <div><span>Sunset</span><strong>{formatClock(times.sunset, settings.use24Hour)}</strong></div>
+        </div>
+        <footer><span>{daylight} of daylight</span>{golden && <span data-sun-golden>{golden.replace(' · ', '')}</span>}</footer>
       </TierFrame>
     )
   }
 
-  const daylightMinutes = Math.max(0, Math.round((times.sunset.getTime() - times.sunrise.getTime()) / 60_000))
-  const daylight = `${Math.floor(daylightMinutes / 60)}h ${daylightMinutes % 60}m`
   return (
-    <TierFrame label="Sun times" tier="standard" state="ready" className="gap-3 p-4">
+    <TierFrame label="Sun times" tier="standard" state="ready" className="sun-frame">
       <header>
         <h2 className="text-sm font-semibold">Sun times</h2>
         <p className="text-[11px] text-fg-muted">{location.label}</p>
       </header>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <p><span data-sunrise-glyph="" aria-hidden className="mr-2 text-xl text-amber-300">☀</span><span className="text-fg-muted">Sunrise</span><strong className="block font-medium">{formatClock(times.sunrise, settings.use24Hour)}</strong></p>
-        <p><span data-sunset-glyph="" aria-hidden className="mr-2 text-xl text-orange-300">◓</span><span className="text-fg-muted">Sunset</span><strong className="block font-medium">{formatClock(times.sunset, settings.use24Hour)}</strong></p>
+      <svg className="sun-arc" viewBox="0 0 280 60" aria-hidden>
+        <path d="M8 56 Q140 -44 272 56" fill="none" stroke="currentColor" strokeWidth="1.5" opacity=".35" />
+        <circle cx="140" cy="6" r="5" fill="currentColor" />
+        <path d="M8 57H272" stroke="currentColor" opacity=".12" />
+      </svg>
+      <div className="sun-endpoints">
+        <div><strong>{formatClock(times.sunrise, settings.use24Hour)}</strong><span><span data-sunrise-glyph="" aria-hidden>☀ </span>Sunrise</span></div>
+        <div><strong>{formatClock(times.sunset, settings.use24Hour)}</strong><span><span data-sunset-glyph="" aria-hidden>◓ </span>Sunset</span></div>
       </div>
-      <div className="mt-auto flex items-center justify-between text-[11px] text-fg-muted">
+      <footer>
         <span>Daylight {daylight}</span>
         {times.goldenHour ? <span data-sun-golden>Golden {formatClock(times.goldenHour, settings.use24Hour)}</span> : null}
-      </div>
+      </footer>
     </TierFrame>
   )
 }

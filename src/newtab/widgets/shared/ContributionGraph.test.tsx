@@ -31,6 +31,16 @@ const CONTRIBUTIONS_112_DAYS: Contributions = {
 }
 
 describe('ContributionGraph tier composition', () => {
+  it('changes appearance without changing the displayed days, count, or titles', () => {
+    const { container, rerender } = render(<ContributionGraph contributions={CONTRIBUTIONS} tier="standard" fitWidth color="blue" />)
+    const titles = [...container.querySelectorAll('[title]')].map(node => node.getAttribute('title'))
+    const summary = container.querySelector('[data-contribution-summary]')!.textContent
+    rerender(<ContributionGraph contributions={CONTRIBUTIONS} tier="standard" fitWidth color="green" />)
+    expect(container.querySelector('[data-contribution-color="green"]')).toBeTruthy()
+    expect([...container.querySelectorAll('[title]')].map(node => node.getAttribute('title'))).toEqual(titles)
+    expect(container.querySelector('[data-contribution-summary]')!.textContent).toBe(summary)
+    expect(container.querySelector('[title]')?.getAttribute('style')).toContain('aspect-ratio: 1 / 1')
+  })
   it('separates month labels when a trailing year begins just before a month boundary', () => {
     const days = Array.from({ length: 365 }, (_, index) => ({ date: new Date(Date.UTC(2025, 7, 24 + index)).toISOString().slice(0, 10), count: 1 }))
     const { container } = render(<ContributionGraph contributions={{ total: 365, days }} tier="full" trailingDays={365} fitWidth />)
@@ -47,10 +57,10 @@ describe('ContributionGraph tier composition', () => {
     expect(screen.getByTitle('8 contributions · 2026-02-01')).toBeTruthy()
   })
   it.each([
-    ['compact', '10px', '7px', '1px'],
-    ['standard', '16px', '10px', '1px'],
-    ['full', '23px', '17px', '2px'],
-  ] as const)('centers the %s contribution composition with authored rectangular cells', (tier, width, height, gap) => {
+    ['compact', '7px', '7px', '2px'],
+    ['standard', '9px', '9px', '2px'],
+    ['full', '6px', '6px', '2px'],
+  ] as const)('centers the %s contribution composition with square cells', (tier, width, height, gap) => {
     const { container } = render(
       <ContributionGraph contributions={CONTRIBUTIONS_112_DAYS} tier={tier} showMonthTicks={tier === 'full'} />,
     )

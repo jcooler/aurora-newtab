@@ -89,7 +89,7 @@ function MonthCalInner() {
   const label = monthLabel(view.y, view.m0)
 
   return (
-    <TierFrame label="Month" tier="standard" state="ready" className="p-3">
+    <TierFrame label="Month" tier="standard" state="ready" className="month-frame p-3">
       {/* data-monthcal-header — a stable hook (same convention as
           data-cell-key below) for this file's own tests and the harness's
           zero-height-guarantee probe: the Today affordance (below) lives
@@ -214,9 +214,10 @@ function MonthCalCell({
     <td data-cell-key={cell.key} className="py-0">
       <div className="flex flex-col items-center gap-0.5">
         <span
+          aria-current={isToday ? 'date' : undefined}
           className={`flex size-5 items-center justify-center rounded-full text-sm ${
             cell.inMonth ? 'text-fg' : 'text-fg-muted/50'
-          } ${isToday ? 'ring-1 ring-accent' : ''}`}
+          } ${isToday ? 'month-today' : ''}`}
         >
           {cell.day}
         </span>

@@ -144,12 +144,12 @@ describe('SunWidget', () => {
     expect(container.querySelector('section[aria-label="Sun times"]')!.textContent).not.toBe(before)
   })
 
-  it('line text matches "☀ {rise} → {set} · golden hour {gh}" exactly, computed via the real pipeline', async () => {
+  it('keeps sunrise, sunset, and golden hour from the real pipeline in the composed face', async () => {
     const { container } = await renderWithSun({ use24Hour: false })
     const times = sunTimes(NYC_SOLSTICE, NYC.lat, NYC.lon)!
-    const expected = `☀ ${formatClock(times.sunrise, false)} → ${formatClock(times.sunset, false)} · golden hour ${formatClock(times.goldenHour!, false)}`
     const section = container.querySelector('section[aria-label="Sun times"]')!
-    expect(section.textContent).toBe(expected)
+    expect([...section.querySelectorAll('.sun-endpoints strong')].map(node => node.textContent)).toEqual([formatClock(times.sunrise, false), formatClock(times.sunset, false)])
+    expect(section.querySelector('[data-sun-golden]')?.textContent).toContain(formatClock(times.goldenHour!, false))
     expect(section.querySelector('[data-sun-golden]')?.textContent).toContain('golden hour')
   })
 
@@ -157,14 +157,16 @@ describe('SunWidget', () => {
     const times = sunTimes(NYC_SOLSTICE, NYC.lat, NYC.lon)!
 
     const { container: c12 } = await renderWithSun({ use24Hour: false })
-    const expected12 = `☀ ${formatClock(times.sunrise, false)} → ${formatClock(times.sunset, false)} · golden hour ${formatClock(times.goldenHour!, false)}`
-    expect(c12.querySelector('section[aria-label="Sun times"]')!.textContent).toBe(expected12)
+    const expected12 = [formatClock(times.sunrise, false), formatClock(times.sunset, false)]
+    expect([...c12.querySelectorAll('.sun-endpoints strong')].map(node => node.textContent)).toEqual(expected12)
+    expect(c12.querySelector('[data-sun-golden]')?.textContent).toContain(formatClock(times.goldenHour!, false))
 
     const { container: c24 } = await renderWithSun({ use24Hour: true })
-    const expected24 = `☀ ${formatClock(times.sunrise, true)} → ${formatClock(times.sunset, true)} · golden hour ${formatClock(times.goldenHour!, true)}`
-    expect(c24.querySelector('section[aria-label="Sun times"]')!.textContent).toBe(expected24)
+    const expected24 = [formatClock(times.sunrise, true), formatClock(times.sunset, true)]
+    expect([...c24.querySelectorAll('.sun-endpoints strong')].map(node => node.textContent)).toEqual(expected24)
+    expect(c24.querySelector('[data-sun-golden]')?.textContent).toContain(formatClock(times.goldenHour!, true))
 
-    expect(expected12).not.toBe(expected24)
+    expect(expected12).not.toEqual(expected24)
   })
 
   it('drops the trailing golden-hour segment on a date where goldenHour is null', async () => {
@@ -173,9 +175,8 @@ describe('SunWidget', () => {
     expect(times.goldenHour).toBeNull() // fixture sanity — proves the case this test exercises
 
     const { container } = await renderWithSun({ location: TROMSO })
-    const expected = `☀ ${formatClock(times.sunrise, false)} → ${formatClock(times.sunset, false)}`
     const section = container.querySelector('section[aria-label="Sun times"]')!
-    expect(section.textContent).toBe(expected)
+    expect([...section.querySelectorAll('.sun-endpoints strong')].map(node => node.textContent)).toEqual([formatClock(times.sunrise, false), formatClock(times.sunset, false)])
     expect(section.textContent).not.toContain('golden hour')
   })
 
