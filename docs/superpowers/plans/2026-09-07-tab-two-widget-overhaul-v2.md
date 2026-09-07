@@ -25,39 +25,39 @@
 
 ### 1. Independent color preferences and theme preservation
 
-- [ ] Add failing tests for independent GitHub/GitLab graph palettes, upgrade of v24 settings preserving existing colors/layouts, strict invalid-palette rejection, and color-control persistence without connector changes.
-- [ ] Add `graphColors` to Settings with Blue/Orange defaults, migrate v24→v25, and validate backup/recovery/sync boundaries.
-- [ ] Add a graph-color selector to each existing GitHub/GitLab connector editor, using `storage.update('settings', current => ...)` so parallel changes preserve unrelated preferences. Do not touch connector configuration or its request fingerprint.
-- [ ] Implement panel-adaptive semantic accents in `src/theme/`, preserving `panelColor`, `widgetTextColor`, and all photo-ink overrides.
-- [ ] Run affected theme/storage/backup/settings tests and TypeScript.
+- [x] Add failing tests for independent GitHub/GitLab graph palettes, upgrade of v24 settings preserving existing colors/layouts, strict invalid-palette rejection, and color-control persistence without connector changes.
+- [x] Add `graphColors` to Settings with Blue/Orange defaults, migrate v24→v25, and validate backup/recovery/sync boundaries.
+- [x] Add a graph-color selector to each existing GitHub/GitLab connector editor, using `storage.update('settings', current => ...)` so parallel changes preserve unrelated preferences. Do not touch connector configuration or its request fingerprint.
+- [x] Implement panel-adaptive semantic accents in `src/theme/`, preserving `panelColor`, `widgetTextColor`, and all photo-ink overrides.
+- [x] Run affected theme/storage/backup/settings tests and TypeScript.
 
 ### 2. Calendar and square contribution geometry
 
-- [ ] Preserve contribution data/totals/date range/hover labels and selected views; render actual square cells with one-pixel corners and independent palettes at every tier.
-- [ ] Replace inconsistent Calendar day wrappers with equal-height containers, fixed circular date badges, and a separate marker lane; retain actionable day popovers and source colors.
-- [ ] Apply the same fixed date-badge treatment to standalone Month without changing its static table or countdown authority.
-- [ ] Verify meaningful unit contracts and actual Chromium four/five/six-week month bounds and square graph cells.
+- [x] Preserve contribution data/totals/date range/hover labels and selected views; render actual square cells with one-pixel corners and independent palettes at every tier.
+- [x] Replace inconsistent Calendar day wrappers with equal-height containers, fixed circular date badges, and a separate marker lane; retain actionable day popovers and source colors.
+- [x] Apply the same fixed date-badge treatment to standalone Month without changing its static table or countdown authority.
+- [x] Verify meaningful unit contracts and actual Chromium four/five/six-week month bounds and square graph cells.
 
 ### 3. Complete catalog presentation
 
-- [ ] Day/sky: Weather, Calendar, Month, Sun, Moon, World Clocks, Public Holidays, Aurora Kp.
-- [ ] Intrinsic/personal: Clock, Greeting, Quote, Countdown, Focus, Progress; keep source-owned content and correct semantics.
-- [ ] Core/browser: Search, Links, Bookmarks, Habits, Timer, Tasks, Notes, Reading List, Recently Closed, Downloads, Tab Groups.
-- [ ] Connected/work: GitHub, GitLab, Jira, Deploys, Home Assistant, Headlines, Crypto, Linear, Sentry, Todoist, On This Day, Metrics.
-- [ ] Use available larger frames for useful rows/forecast/history context. Keep existing longer-content access and every action; preserve Home Assistant actions and browser-native affordances.
-- [ ] Retain source-specific/status colors and shared spacing across connector settings without altering authorization flows.
-- [ ] Record an implementation disposition for every one of the 38 identities; no unreviewed prototype feature is silently substituted.
+- [x] Day/sky: Weather, Calendar, Month, Sun, Moon, World Clocks, Public Holidays, Aurora Kp.
+- [x] Intrinsic/personal: Clock, Greeting, Quote, Countdown, Focus, Progress; keep source-owned content and correct semantics.
+- [x] Core/browser: Search, Links, Bookmarks, Habits, Timer, Tasks, Notes, Reading List, Recently Closed, Downloads, Tab Groups.
+- [x] Connected/work: GitHub, GitLab, Jira, Deploys, Home Assistant, Headlines, Crypto, Linear, Sentry, Todoist, On This Day, Metrics.
+- [x] Use available larger frames for useful rows/forecast/history context. Keep existing longer-content access and every action; preserve Home Assistant actions and browser-native affordances.
+- [x] Retain source-specific/status colors and shared spacing across connector settings without altering authorization flows.
+- [x] Record an implementation disposition for every one of the 38 identities; no unreviewed prototype feature is silently substituted.
 
 ### 4. Actual implementation proof
 
-- [ ] Adapt the review capture harness to a new evidence directory; never overwrite before images or previous artifacts.
-- [ ] Capture all 213 placements in the actual extension. Inspect per-widget originals, dark/light/colored panels, custom ink, graph colors, long content, relevant settings, and the short 1408×445 viewport.
-- [ ] Exercise settings persistence/reload, no graph-color provider refetch, month view/day-context/keyboard behavior, stack/dock controls, and preserved action families.
-- [ ] Run affected unit/script contracts, TypeScript, one stabilized full unit suite, exact builds, and the composed stabilization gate. Avoid unrelated historical harness repair or repeat verification absent a new failure.
+- [x] Adapt the review capture harness to a new evidence directory; never overwrite before images or previous artifacts.
+- [x] Capture all 213 placements in the actual extension. Inspect per-widget originals, dark/light/colored panels, custom ink, graph colors, long content, relevant settings, and the short 1408×445 viewport.
+- [x] Exercise settings persistence/reload, no graph-color provider refetch, month view/day-context/keyboard behavior, stack/dock controls, and preserved action families.
+- [x] Run affected unit/script contracts, TypeScript, one stabilized full unit suite, exact builds, and the composed stabilization gate. Avoid unrelated historical harness repair or repeat verification absent a new failure.
 
 ### 5. Delivery and reconciliation
 
-- [ ] Perform one bounded self-review for Critical/Important defects, fix any such defects, and rerun only affected checks before stabilization.
-- [ ] Update STATUS, ROADMAP, DECISIONS, QA evidence report, and cumulative owner-QA checklist with exact provenance and honest manual limits.
+- [x] Perform one bounded self-review for Critical/Important defects, fix any such defects, and rerun only affected checks before stabilization.
+- [x] Update STATUS, ROADMAP, DECISIONS, QA evidence report, and cumulative owner-QA checklist with exact provenance and honest manual limits.
 - [ ] Commit intended source/docs only, push the existing feature branch, and prove local/upstream/remote equality. Do not merge or package.
 - [ ] Recheck protected files and original checkout; publish a new actual-implementation review beside the unchanged prototype and before captures.

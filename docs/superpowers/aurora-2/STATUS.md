@@ -1,11 +1,13 @@
 # Aurora 2 Status
 
-**Updated:** 2026-09-05<br>
+**Updated:** 2026-09-07<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Tab Two V2 product and premium architecture<br>
-**Last verified packet:** `Approved widget refinements` - ten widgets, stack controls, subscribed Account & Sync, 156 native cases, 4,443 unit tests, and exact composed stabilization at `86a963fb1626e416c02afe0653559e54f2787710`<br>
-**Current packet:** Approved widget implementation is `AUTOMATED_PASS_OWNER_QA_PENDING`. Data-portability Task 7 remains hosted and verified; production account export remains enabled. The cumulative owner checklist includes the refined widgets and existing account, billing, sync, Metrics, Calendar, support, and portability witnesses. Monitored support, provider verification, Supabase Pro, live Stripe, merge, packaging, release, rollout, OAuth publication, and every Chrome Web Store action remain separate approvals. Fitness remains on hold.
+**Last verified packet:** Widget overhaul v2 - all 38 widgets, 17 connector dialogs, 548 actual captures, 4,461 unit tests, and exact composed stabilization at 796a306883443563943b17bd34c62b2cc44bbdad<br>
+**Current packet:** Complete widget overhaul v2 is AUTOMATED_PASS_OWNER_QA_PENDING. Widget color controls are preserved; independent square GitHub/GitLab graph palettes are available. The cumulative owner checklist covers all 38 widgets plus existing paid-MVP witnesses. Prior hosted Task 7 and enabled account export remain valid. All external publication, paid infrastructure and provider gates remain separate. Fitness remains on hold.
+
+- **Widget overhaul v2 (2026-09-07, AUTOMATED PASS; OWNER QA PENDING):** Implemented the complete approved catalog with preserved color customization, data ownership and actions. Calendar dates are circular and aligned; contribution graphs are square with independent palettes; every identity retains meaningful native-size content and narrow Full content is reachable. 284 files / 4,461 unit tests, 18 final Clock regression tests, TypeScript, exact builds and all 12 automated specialists passed. The gallery contains 548 actual captures and all 17 connector dialogs. [QA report](../reports/TAB-TWO-WIDGET-OVERHAUL-V2-QA.md); [cumulative owner checklist](../reports/TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md). Runtime 796a306883443563943b17bd34c62b2cc44bbdad. No hosted or publication action.
 
 - **Approved widget refinements (2026-09-05, AUTOMATED PASS; OWNER QA PENDING):** Implemented the owner-approved native prototypes in the existing components, preserving dimensions, intrinsic free presentation, named layouts, provider authority, and action handlers. Exact source `86a963fb1626e416c02afe0653559e54f2787710` passed 280 files / 4,443 tests and all 12 automated composed specialists. Native case provenance and the historical SF-P2 planner's 12 preexisting script-test failures are disclosed in [the QA report](../reports/TAB-TWO-APPROVED-WIDGET-REFINEMENTS-QA.md). The remaining owner witnesses are consolidated in [the cumulative checklist](../reports/TAB-TWO-PAID-MVP-DEFERRED-OWNER-QA.md). No hosted mutation or publication occurred.
 

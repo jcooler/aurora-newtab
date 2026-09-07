@@ -1,7 +1,7 @@
 # Tab Two Paid MVP Deferred Owner QA
 
-**Updated:** 2026-09-05<br>
-**State:** Ready for cumulative owner QA of production candidate `86a963fb1626e416c02afe0653559e54f2787710`; approved widget refinements, prior hosted Task 7, and final automated stabilization passed
+**Updated:** 2026-09-07<br>
+**State:** Ready for cumulative owner QA of runtime candidate 796a306883443563943b17bd34c62b2cc44bbdad; complete widget overhaul v2, prior hosted Task 7 and final automated stabilization passed
 
 This is the one cumulative owner checklist. Automated tests and installed-extension harnesses continue during development; the owner should not execute these items packet by packet.
 
@@ -68,10 +68,18 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Verify keyboard-only operation, visible focus, and spoken labels for consent, picker, account rows, reconnect, and disconnect with the owner's real assistive-technology setup.
 - Smoke test the final unpacked build on the owner's MacBook, including popup behavior, picker scrolling, source colors, and Calendar full, docked, and stacked presentations.
 
-## Approved widget refinements
+## Complete widget overhaul v2
 
-- In your saved layouts, inspect the ten approved widgets at every size you use, including a 1408 × 445 short window and your normal wallpaper/themes. Confirm titles, primary values, and controls are readable and no content overlaps. Changing the viewport must not choose another named layout or move saved placements.
-- In Calendar, switch Standard between Agenda and Month by pointer and keyboard. Inspect four-, five-, and six-week months, long titles, all-day/multi-day events, and several accounts on one day. Full must keep the complete month beside its agenda; open a date to see every composed event and its source.
+- Change Widget color between your preferred dark, light and colored panels. Change Widget text, Photo text and individual Clock/Greeting/Quote colors. Reload and confirm each choice persists; reset each control independently when desired.
+- In GitHub settings, try Blue, Green, Purple and Amber contributions; in GitLab, try Orange, Blue and Green. Confirm square cells, readable labels and independent saved choices. Toggle every existing content view and confirm its real data/actions remain.
+- Review every connector's actual settings in the gallery and in the extension. Confirm current selected sources, teams/projects, refresh intervals and authentication remain intact. Do not reconnect working providers just to exercise a visual change.
+- At a narrow window, scroll Full widgets to the last values and actions by touchpad and keyboard. Confirm the chosen layout, placement and size never switch automatically. Check Clock Compact/Normal/Large in a stack in both clock formats, including the Full seconds value.
+- Exercise Reading List open/mark/two-step remove; Recently Closed restore; Downloads pause/resume/cancel/show; and Tab Groups focus/expand/collapse on disposable local examples. Confirm native prompts and metadata limitations remain understandable.
+- Confirm Home Assistant selected states retain names/units and supported actions remain usable; operate only a benign action you normally use. Check Tasks, Habits, Timer and Focus completion/editing separately. Notes must remain private until you open it.
+- Use the all-widget gallery to inspect the less frequently used identities too: Sun, Moon, standalone Month, Countdown, Quote, Bookmarks, Service status, RSS, Crypto, Linear, Todoist, Public Holidays, Aurora Kp and Progress. Compare relevant settings and long/empty/retained states against your real usage without clearing data to force a case.
+
+- In your saved layouts, inspect all 38 widgets at every size you use, including a 1408 × 445 short window and your normal wallpaper/themes. Confirm titles, primary values, and controls are readable and no content overlaps. Changing the viewport must not choose another named layout or move saved placements.
+- In Calendar, switch Standard between Agenda and Month by pointer and keyboard. Inspect four-, five-, and six-week months, long titles, all-day/multi-day events, and several accounts on one day. At normal desktop widths, Full must keep the complete month beside its agenda; open a date to see every composed event and its source.
 - In Weather, inspect temperature, high/low, a long forecast, Full hourly slots, alerts, and existing environmental details. Confirm last known data remains understandable when offline.
 - In Metrics, switch all four ranges. Confirm the headline and chart both show active days, multiple activity categories on one day count once, and keyboard focus exposes exact interval dates/counts. Inspect retained history and the smaller empty/error/locked presentations where available without deleting real history to create fixtures.
 - In GitHub, Jira, Sentry, and On This Day, confirm titles and primary data make good use of the chosen size, work/source links retain their destination, and long content remains readable. Check your real repository history in each framed size.
