@@ -9,18 +9,22 @@ The owner rejected the production presentation after the v2 gallery review. Thei
 - Calendar reserved a 24px month header for a 28px view switch. Increasing the header requires reducing date-row height within the fixed Standard frame.
 - The prior overhaul changed the default surface to a tinted mineral color and forced bookmark icons to a brown accent. The owner wants the original neutral near-black surface and original bookmark color.
 
+Further production inspection found free/stack Compact CSS divergence and four native-browser widgets subscribing before optional permission existed. Both are repaired, with dedicated failing/passing tests and fresh production-profile evidence. Reading List/Linear metadata and Metrics comparison spacing also received bounded fixes.
+
 ## Delivery checks
 
 - [x] Reconcile branch and protected checkout; retain previous artifacts and galleries.
 - [x] Reproduce the short-history/quiet graph failure in the exact built extension.
 - [x] Add failing coverage for the actual provider window, partial-cache truthfulness, and Compact quiet composition.
-- [ ] Repair the causes and verify the complete rendered catalog, including free/stack parity, text bounds, short history, empty work, and Calendar month lengths.
-- [ ] Verify custom surface/text/graph colors and existing affected interactions.
-- [ ] Run affected gates and the composed stabilization gate against the clean runtime checkpoint.
-- [ ] Publish a review using actual corrected extension captures; update QA/ledgers, commit, push, and prove equality and protected-path preservation.
+- [x] Repair the causes and verify the complete rendered catalog, including free/stack parity, text bounds, short history, empty work, and Calendar month lengths.
+- [x] Verify custom surface/text/graph colors and existing affected interactions.
+- [x] Run affected gates and the composed stabilization gate against the clean runtime checkpoint.
+- [x] Publish a review using actual corrected extension captures; update QA/ledgers, commit, push, and prove equality and protected-path preservation.
 
 The GitHub request uses the existing GraphQL calendar query with a 365-day range. GitLab retains its existing calendar request and uses the available year. No additional requests, scopes, permissions, credentials, or hosted changes are introduced. Old/partial snapshots reserve the selected range with explicitly unavailable cells rather than invented zero counts; totals and streaks continue to use actual data. Empty work remains an empty state, never fabricated rows.
 
 Provider references: [GitHub contributions collection](https://docs.github.com/en/graphql/reference/users#user), [GitLab contribution calendar](https://docs.gitlab.com/user/profile/contributions_calendar/).
 
 All earlier hosted, paid infrastructure, release, merge, rollout, OAuth publication, and Chrome Web Store approval boundaries remain in force. Fitness remains on hold. No subagents.
+
+Final runtime: `65c43b37e576b421c7c86194d7bf8d048f22941f`. The complete repair evidence and source-aware review are recorded in [the production parity QA report](../reports/TAB-TWO-WIDGET-PRODUCTION-PARITY-QA.md). The post-push delivery receipt records exact local/upstream/remote equality.

@@ -1,7 +1,7 @@
 # Tab Two Paid MVP Deferred Owner QA
 
 **Updated:** 2026-09-07<br>
-**State:** Ready for cumulative owner QA of runtime candidate 796a306883443563943b17bd34c62b2cc44bbdad; complete widget overhaul v2, prior hosted Task 7 and final automated stabilization passed
+**State:** Ready for cumulative owner QA of runtime candidate 65c43b37e576b421c7c86194d7bf8d048f22941f; widget production parity repair and all 12 automated stabilization specialists passed. Prior hosted Task 7 remains valid.
 
 This is the one cumulative owner checklist. Automated tests and installed-extension harnesses continue during development; the owner should not execute these items packet by packet.
 
@@ -68,7 +68,16 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Verify keyboard-only operation, visible focus, and spoken labels for consent, picker, account rows, reconnect, and disconnect with the owner's real assistive-technology setup.
 - Smoke test the final unpacked build on the owner's MacBook, including popup behavior, picker scrolling, source colors, and Calendar full, docked, and stacked presentations.
 
-## Complete widget overhaul v2
+## Widget production parity and complete overhaul
+
+Reload the existing unpacked production extension from this worktree, then open a fresh Tab Two tab. Keep the installation and its data. The [corrected review](http://127.0.0.1:58649/widget-production-parity/#overview) contains actual component captures with synthetic data; compare layout and spacing while your own accounts supply the content. The review overview and detail pages use the same images.
+
+- With the Widget color control at its default, confirm cards are the original neutral near-black and bookmark icons use their original color. Confirm any saved custom color stays selected; resetting a color is optional and should affect only that control.
+- Check the exact reported Calendar Standard Month view in free and stack placements: Agenda/Month must fit its header with space above the weekday row. Check four-, five- and six-week months, both week starts and event markers.
+- Check GitHub and GitLab in Compact, Standard and Full, both free and stacked. Full graphs must use the available width with square cells and aligned month labels. Existing shorter caches should disclose available days and mark missing cells; the normal refresh can extend history. Quiet Compact cards must not overlap their graph summary.
+- Confirm Weather's Compact free and stacked spacing matches. In Reading List, reach the final row and remaining count; in Linear Standard, read the third issue's metadata; in Metrics Standard, read the full comparison label.
+- In an already ungranted native widget, confirm Settings guidance appears instead of a crash. Grant a browser permission only if you intend to use that feature. Existing granted permissions and real browser actions are covered below.
+
 
 - Change Widget color between your preferred dark, light and colored panels. Change Widget text, Photo text and individual Clock/Greeting/Quote colors. Reload and confirm each choice persists; reset each control independently when desired.
 - In GitHub settings, try Blue, Green, Purple and Amber contributions; in GitLab, try Orange, Blue and Green. Confirm square cells, readable labels and independent saved choices. Toggle every existing content view and confirm its real data/actions remain.
@@ -86,6 +95,51 @@ This is the one cumulative owner checklist. Automated tests and installed-extens
 - Inspect six Quick Links, five World Clocks, and the nearest Countdown where those configurations apply. Confirm favicons/labels, weekday and relative offsets, localized dates, paging/editing, and the intrinsic free-canvas presentations remain correct.
 - Operate a stack by pointer, keyboard, and your normal touch/touchpad controls. Confirm the quiet dots remain discoverable, arrows appear when needed, selection persists, and no automatic switching occurs.
 - As a subscriber, confirm Account & Sync leads with membership and Manage billing. Open and close Compare plans by keyboard, then use the existing encrypted-sync and account-data controls in the cumulative checks below. Confirm focus and scroll position remain usable in a short window.
+
+## All-widget acceptance record
+
+Use the review's All placements and Setting variants tabs for each row. Unsupported tiers or docks are deliberately absent; the repair does not create new size capabilities. Record acceptance against your normal data, wallpaper and saved layouts. All rows remain owner-pending until you inspect them.
+
+| Widget | Free sizes | Stack sizes | Dock | Owner result |
+|---|---|---|---|---|
+| Weather | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Calendar | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Month | Normal / Standard | Normal / Standard | Not supported | Pending |
+| Sun times | Compact, Normal / Standard | Compact, Normal / Standard | Supported | Pending |
+| Moon phase | Compact | Compact | Supported | Pending |
+| Quote | Compact, Normal / Standard | Compact, Normal / Standard | Not supported | Pending |
+| Clock | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Greeting | Compact, Normal / Standard | Compact, Normal / Standard | Not supported | Pending |
+| World clocks | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Countdown | Compact, Normal / Standard | Compact, Normal / Standard | Supported | Pending |
+| Search | Compact, Normal / Standard | Compact, Normal / Standard | Not supported | Pending |
+| Focus | Compact, Normal / Standard | Compact, Normal / Standard | Supported | Pending |
+| Links | Compact, Normal / Standard | Compact, Normal / Standard | Not supported | Pending |
+| Habits | Compact | Compact | Supported | Pending |
+| Bookmarks | Compact, Normal / Standard | Compact, Normal / Standard | Supported | Pending |
+| Service status | Compact, Normal / Standard | Compact, Normal / Standard | Supported | Pending |
+| GitHub | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| GitLab | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Jira | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Deploys | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Home Assistant | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Headlines | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Crypto | Compact, Normal / Standard | Compact, Normal / Standard | Supported | Pending |
+| Reading List | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Recently Closed | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Downloads | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Tab Groups | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Timer | Compact | Compact | Supported | Pending |
+| Tasks | Compact | Compact | Supported | Pending |
+| Notes | Compact | Compact | Supported | Pending |
+| Linear | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Sentry | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Todoist | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| On This Day | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Public Holidays | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Aurora & Kp | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
+| Progress | Compact | Compact | Supported | Pending |
+| Metrics | Compact, Normal / Standard, Large / Full | Compact, Normal / Standard, Large / Full | Supported | Pending |
 
 ## Final device and accessibility ceilings
 

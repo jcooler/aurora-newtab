@@ -1,10 +1,12 @@
 # Tab Two Widget Overhaul V2 QA
 
 **Updated:** 2026-09-07<br>
-**State:** AUTOMATED_PASS_OWNER_QA_PENDING<br>
+**State:** Historical automated evidence; visual assessment superseded by owner-reported production defects<br>
 **Runtime source:** 796a306883443563943b17bd34c62b2cc44bbdad<br>
 **Catalog source:** 236db8223b6e7e61e0723a85ea33f2d273c00879; corrected Clock captures at the runtime source above<br>
 **Before source:** 6d66a4c480f3a6651c3559c97f8c1c24ac32fbdd
+
+The owner subsequently reported real production differences that these fixtures did not expose. The repaired current candidate and complete new review are documented in [Widget Production Parity QA](TAB-TWO-WIDGET-PRODUCTION-PARITY-QA.md). This report and its evidence are retained as history, not current owner visual acceptance.
 
 ## Approved scope and preservation
 
