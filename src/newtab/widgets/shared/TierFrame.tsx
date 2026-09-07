@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 import type { AsyncResourceState } from '../../../lib/asyncState'
 import type { WidgetPresentationState } from '../../widgetSizeContracts'
 
@@ -55,16 +55,37 @@ export function ResourceFrameStatus({
 }
 
 export default function TierFrame({ label, tier, state, surface = 'card', className = '', children, ...sectionProps }: TierFrameProps) {
+  const frame = useRef<HTMLElement>(null)
+  const [scrollState, setScrollState] = useState(0)
+  const measureScroll = () => {
+    const element = frame.current
+    if (!element) return
+    const scrollable = getComputedStyle(element).overflowY === 'auto' && element.scrollHeight > element.clientHeight + 2
+    setScrollState(scrollable ? element.scrollTop < 2 ? 1 : 2 : 0)
+  }
+  useLayoutEffect(() => {
+    measureScroll()
+    if (!frame.current || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measureScroll)
+    observer.observe(frame.current)
+    for (const child of frame.current.children) observer.observe(child)
+    return () => observer.disconnect()
+  }, [children, tier])
   const surfaceClasses = surface === 'card'
     ? 'bg-panel-solid border-panel-border shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]'
     : ''
   return (
     <section
       {...sectionProps}
+      ref={frame}
+      tabIndex={sectionProps.tabIndex ?? (scrollState ? 0 : undefined)}
+      onScroll={(event) => { measureScroll(); sectionProps.onScroll?.(event) }}
       aria-label={label}
       data-tier-frame={tier}
       data-tier-frame-state={state}
       data-tier-surface={surface}
+      data-tier-scrollable={scrollState ? true : undefined}
+      data-tier-scroll-hint={scrollState === 1 ? true : undefined}
       className={`tier-frame tier-frame--${tier} ${surfaceClasses} text-fg ${className}`.trim()}
     >
       {children}

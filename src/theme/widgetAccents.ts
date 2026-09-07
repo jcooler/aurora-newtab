@@ -1,4 +1,5 @@
 import { contrastRatio } from '../lib/color'
+export const WIDGET_STATUS_COLORS = Object.freeze({ positive: '#6ee7b7', danger: '#f87171', warning: '#fbbf24', info: '#93c5fd' })
 
 export const WIDGET_ACCENTS = Object.freeze({
   weather: '#ffd48a', ics: '#87bffc', monthCal: '#89c4fb', sun: '#f6c77e', moon: '#c5c6ee',

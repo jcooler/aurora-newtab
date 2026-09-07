@@ -1,5 +1,5 @@
 import { derivedFg, isPanelColor, mutedInk } from '../lib/color'
-import { panelAccent, WIDGET_ACCENTS } from './widgetAccents'
+import { panelAccent, WIDGET_ACCENTS, WIDGET_STATUS_COLORS } from './widgetAccents'
 import { GRAPH_PALETTES } from '../lib/widgetAppearance'
 
 // The three-theme system (aurora/glass/mono, keyed by [data-theme]) collapsed
@@ -31,6 +31,10 @@ const PANEL_FROST_ALPHA = '66' // 0.40
  *  style/attribute state (every branch either sets or removes each property),
  *  so it is safe to call on every settings change. */
 export function applyPanelColor(el: HTMLElement, hex: string | null): void {
+  for (const [status, accent] of Object.entries(WIDGET_STATUS_COLORS)) {
+    if (isPanelColor(hex)) el.style.setProperty(`--widget-status-${status}`, panelAccent(accent, hex))
+    else el.style.removeProperty(`--widget-status-${status}`)
+  }
   for (const [color, accent] of Object.entries(GRAPH_PALETTES)) {
     if (isPanelColor(hex)) el.style.setProperty(`--graph-palette-${color}`, panelAccent(accent, hex))
     else el.style.removeProperty(`--graph-palette-${color}`)
