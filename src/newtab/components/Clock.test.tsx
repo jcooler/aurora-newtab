@@ -78,8 +78,8 @@ describe('index.css - Canvas type roles', () => {
     // scale that SAME curve so all tiers inherit its width/height
     // degradation, and each vh safety cap stays proportionate.
     expect(indexCss).not.toContain('cqi')
-    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(calc\(var\(--clock-font\) \* 0\.62\),\s*14vh\);/)
-    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="full"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(calc\(var\(--clock-font\) \* 1\.3\),\s*30vh\);/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] \.clock-face time\s*\{[^}]*font-size:\s*min\(calc\(var\(--clock-font\) \* 0\.62\),\s*14vh\);/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="full"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] \.clock-face time\s*\{[^}]*font-size:\s*min\(calc\(var\(--clock-font\) \* 1\.3\),\s*30vh\);/)
   })
 })
 
