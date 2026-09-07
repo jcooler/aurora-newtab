@@ -1,9 +1,9 @@
 # Tab Two Widget Overhaul V2 QA
 
-**Updated:** 2026-09-07  
-**State:** AUTOMATED_PASS_OWNER_QA_PENDING  
-**Runtime source:** 796a306883443563943b17bd34c62b2cc44bbdad  
-**Catalog source:** 236db8223b6e7e61e0723a85ea33f2d273c00879; corrected Clock captures at the runtime source above  
+**Updated:** 2026-09-07<br>
+**State:** AUTOMATED_PASS_OWNER_QA_PENDING<br>
+**Runtime source:** 796a306883443563943b17bd34c62b2cc44bbdad<br>
+**Catalog source:** 236db8223b6e7e61e0723a85ea33f2d273c00879; corrected Clock captures at the runtime source above<br>
 **Before source:** 6d66a4c480f3a6651c3559c97f8c1c24ac32fbdd
 
 ## Approved scope and preservation
@@ -85,4 +85,3 @@ Durable local evidence: artifacts/qa-widget-overhaul-v2/796a306883443563943b17bd
 The protected original remains clean at eb1354b6a5b041fb6d494655c3dae1862572bc51. The pre-turn manifest of 2,124 protected files was hash-checked with zero changes; artifacts, takeover and Google/Microsoft QA evidence remain intact. Final local/upstream/remote equality is recorded in the delivery receipt after push.
 
 Prior hosted data-portability Task 7 proof and enabled production account export remain valid. No hosted state was changed in this packet. Monitored support, provider verification, Supabase Pro, live Stripe, merge, packaging, release, rollout, OAuth publication and every Chrome Web Store action remain separate approval gates. Fitness remains on hold.
-

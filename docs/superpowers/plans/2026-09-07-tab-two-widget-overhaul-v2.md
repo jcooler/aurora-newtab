@@ -59,5 +59,5 @@
 
 - [x] Perform one bounded self-review for Critical/Important defects, fix any such defects, and rerun only affected checks before stabilization.
 - [x] Update STATUS, ROADMAP, DECISIONS, QA evidence report, and cumulative owner-QA checklist with exact provenance and honest manual limits.
-- [ ] Commit intended source/docs only, push the existing feature branch, and prove local/upstream/remote equality. Do not merge or package.
-- [ ] Recheck protected files and original checkout; publish a new actual-implementation review beside the unchanged prototype and before captures.
+- [x] Commit intended source/docs only, push the existing feature branch, and prove local/upstream/remote equality. Do not merge or package.
+- [x] Recheck protected files and original checkout; publish a new actual-implementation review beside the unchanged prototype and before captures.
